@@ -133,6 +133,18 @@
   --color-fg-informative: var(--color-palette-blue-800);
   --color-stroke-informative: var(--color-palette-blue-700);
 
+  /* chart-categorical — 계열 식별 전용. 모노크롬 원칙의 예외이며 데이터 시각화에만 쓴다.
+     상태색(critical/positive/warning) 재사용 금지 — 빨간 막대는 오류로 읽힌다.
+     슬롯 순서 자체가 색각이상 안전장치다: 순서를 바꾸거나 색을 돌려쓰지 않고,
+     계열이 7개를 넘으면 '기타'로 접는다. 값 출처는 docs/foundation/palette.md. */
+  --color-bg-chart-1: #2a78d6;
+  --color-bg-chart-2: #d95926;
+  --color-bg-chart-3: #199e70;
+  --color-bg-chart-4: #c98500;
+  --color-bg-chart-5: #d55181;
+  --color-bg-chart-6: #008300;
+  --color-bg-chart-7: #4a3aa7;
+
   /* brand-login (OAuth) — 외부 브랜드가 지정한 색. 모노크롬 원칙의 예외이며
      소셜 로그인 버튼 전용. 라벨: kakao=fg.neutral(검정), naver=fg.contrast(흰색). */
   --color-bg-kakao: #fee500;

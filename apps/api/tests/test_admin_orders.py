@@ -590,6 +590,13 @@ async def test_dashboard_timeseries_kst_buckets_and_zero_fill(client, db_session
         "day": "2026-06-09",
         "order_count": 0,
         "order_amount": 0,
+        "sale_amount": 0,
+        "custom_amount": 0,
+        "repair_amount": 0,
+        "sample_amount": 0,
+        "token_amount": 0,
+        "manual_custom_amount": 0,
+        "manual_repair_amount": 0,
         "new_customer_count": 0,
         "generation_total": 0,
         "generation_failed": 0,
@@ -635,6 +642,63 @@ async def test_dashboard_timeseries_order_type_filter_scopes_order_series_only(
     point = res.json()["timeseries"]["points"][0]
     assert point["order_count"] == 0  # token 주문은 sale 필터에서 제외
     assert point["new_customer_count"] == 1  # 주문 외 시리즈는 필터 무관
+
+
+_AMOUNT_KEYS = (
+    "sale_amount",
+    "custom_amount",
+    "repair_amount",
+    "sample_amount",
+    "token_amount",
+    "manual_custom_amount",
+    "manual_repair_amount",
+)
+
+
+async def test_dashboard_timeseries_splits_amount_by_order_type(client, db_session, settings):
+    """스택 막대의 구획 — 유형별 매출의 합은 항상 order_amount와 같아야 한다."""
+    admin = await make_admin(db_session)
+    user = await make_user(db_session)
+    day = datetime(2026, 6, 10, 3, 0, tzinfo=UTC)
+    for order_type, price in (
+        ("sale", 10000),
+        ("custom", 20000),
+        ("repair", 30000),
+        ("sample", 4000),
+        ("token", 5000),
+    ):
+        await make_order(
+            db_session,
+            user,
+            order_type=order_type,
+            status="완료",
+            total_price=price,
+            created_at=day,
+            paid_at=day,
+        )
+    await db_session.commit()
+
+    params = {"start_date": "2026-06-10", "end_date": "2026-06-10"}
+    headers = auth_headers(admin, settings)
+    res = await client.get("/admin/dashboard/overview", params=params, headers=headers)
+    assert res.status_code == 200
+    point = res.json()["timeseries"]["points"][0]
+    assert point["sale_amount"] == 10000
+    assert point["custom_amount"] == 20000
+    assert point["repair_amount"] == 30000
+    assert point["sample_amount"] == 4000
+    assert point["token_amount"] == 5000
+    assert sum(point[key] for key in _AMOUNT_KEYS) == point["order_amount"] == 69000
+
+    # 유형 필터는 분해에도 적용된다 — 고른 유형 구획만 남는다.
+    filtered = await client.get(
+        "/admin/dashboard/overview",
+        params={**params, "order_type": "custom"},
+        headers=headers,
+    )
+    filtered_point = filtered.json()["timeseries"]["points"][0]
+    assert filtered_point["custom_amount"] == filtered_point["order_amount"] == 20000
+    assert filtered_point["sale_amount"] == 0
 
 
 async def test_dashboard_timeseries_range_guard(client, db_session, settings):

@@ -363,6 +363,14 @@ def _manual_order_filters(start: date, end: date) -> list[ColumnElement[bool]]:
 # 같은 기준이다.
 _MANUAL_ORDER_AMOUNT = ManualOrder.amount - ManualOrder.discount + ManualOrder.shipping_fee
 
+# 시계열 스택 막대의 구획. Order.order_type의 전체 값이며, 합은 order_amount와 같아야 한다.
+_ORDER_AMOUNT_TYPES = ("sale", "custom", "repair", "sample", "token")
+
+# 수기 주문의 유형 분해 — 품목 중 하나라도 주문제작 스펙이 있으면 주문제작 수기로 센다.
+# 수기 주문은 금액이 주문 단위(품목별 금액이 없다)라 품목 배분 근거가 없다. JSONB 포함
+# 연산자(`@>`)는 빈 객체가 모든 객체에 포함되는 성질을 쓴다 — custom이 null이면 매치되지 않는다.
+_MANUAL_HAS_CUSTOM = ManualOrder.items.contains([{"custom": {}}])
+
 
 async def dashboard_summary(
     session: AsyncSession,
@@ -473,21 +481,26 @@ async def dashboard_timeseries(
             Order.paid_at,
             func.count(),
             func.coalesce(func.sum(Order.total_price), 0),
+            *(
+                func.coalesce(func.sum(Order.total_price).filter(Order.order_type == name), 0)
+                for name in _ORDER_AMOUNT_TYPES
+            ),
             filters=order_filters,
         )
     # 수기 주문은 order_date가 이미 KST date라 타임존 변환 없이 그대로 버킷이다.
-    manual: dict[date, tuple[int, int]] = {}
+    manual: dict[date, tuple[int, int, int]] = {}
     if order_type in ("all", "manual"):
         rows = await session.execute(
             select(
                 ManualOrder.order_date,
                 func.count(),
                 func.coalesce(func.sum(_MANUAL_ORDER_AMOUNT), 0),
+                func.coalesce(func.sum(_MANUAL_ORDER_AMOUNT).filter(_MANUAL_HAS_CUSTOM), 0),
             )
             .where(*_manual_order_filters(start, end))
             .group_by(ManualOrder.order_date)
         )
-        manual = {row[0]: (int(row[1]), int(row[2])) for row in rows.all()}
+        manual = {row[0]: (int(row[1]), int(row[2]), int(row[3])) for row in rows.all()}
     customers = await by_day(User.created_at, func.count(), filters=[User.role == "customer"])
     generations = await by_day(
         GenerationJob.created_at,
@@ -507,10 +520,14 @@ async def dashboard_timeseries(
     )
 
     points: list[DashboardTimeseriesPointOut] = []
+    empty_orders = (0, 0, *(0 for _ in _ORDER_AMOUNT_TYPES))
     day = start
     while day <= end:
-        order_count, order_amount = orders.get(day, (0, 0))
-        manual_count, manual_amount = manual.get(day, (0, 0))
+        order_count, order_amount, *type_amounts = orders.get(day, empty_orders)
+        by_type = dict(
+            zip(_ORDER_AMOUNT_TYPES, (int(value) for value in type_amounts), strict=True)
+        )
+        manual_count, manual_amount, manual_custom_amount = manual.get(day, (0, 0, 0))
         order_count = int(order_count) + manual_count
         order_amount = int(order_amount) + manual_amount
         generation_total, generation_failed = generations.get(day, (0, 0))
@@ -519,6 +536,13 @@ async def dashboard_timeseries(
                 day=day,
                 order_count=int(order_count),
                 order_amount=int(order_amount),
+                sale_amount=by_type["sale"],
+                custom_amount=by_type["custom"],
+                repair_amount=by_type["repair"],
+                sample_amount=by_type["sample"],
+                token_amount=by_type["token"],
+                manual_custom_amount=manual_custom_amount,
+                manual_repair_amount=manual_amount - manual_custom_amount,
                 new_customer_count=int(customers.get(day, (0,))[0]),
                 generation_total=int(generation_total),
                 generation_failed=int(generation_failed),

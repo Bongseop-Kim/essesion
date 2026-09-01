@@ -92,6 +92,12 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
     아니라 별도 장부를 가리키므로 **주문 목록(`/admin/orders`) 필터에는 없다**. `manual`을 고르면
     `recent-orders`는 빈 페이지를 반환하고, 대시보드가 `/admin/manual-orders`를 따로 조회해
     자기 표에 그린다.
+  - 매출 추이(`timeseries.points`)는 일별 매출을 **유형 7종으로 분해**해 함께 내려준다:
+    `sale_amount`·`custom_amount`·`repair_amount`·`sample_amount`·`token_amount`(각각
+    `orders.order_type`) + `manual_custom_amount`·`manual_repair_amount`. **7종의 합은 항상
+    `order_amount`와 같다.** 수기 주문은 금액이 주문 단위라 품목 배분 근거가 없어 **주문 단위**로
+    분류한다 — 품목 중 하나라도 주문제작(`items[].custom`)이 있으면 `manual_custom`, 아니면
+    `manual_repair`다. 타입 필터를 걸면 해당 유형 외 구획은 0이 된다.
   - 인기 상품 TOP-N은 `order_items.product_id` 기준이라 커스텀·수선과 함께 수기 주문도 제외된다
     (수기 주문 품목은 JSONB이고 product_id가 없다).
 - 상품 옵션 전체 교체(admin): DELETE 후 재삽입, **옵션 ≥1개면 products.stock=NULL 강제**(옵션 재고 관리로 전환).

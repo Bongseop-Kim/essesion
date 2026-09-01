@@ -20,7 +20,7 @@ import {
 } from "@essesion/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { Navigate, useNavigate, useParams } from "react-router";
 
 import { downloadWorksheetPng } from "../../shared/lib/capture";
 import {
@@ -29,8 +29,14 @@ import {
   formatDateTime,
   formatFileSize,
 } from "../../shared/lib/format";
+import {
+  type ManualOrderKind,
+  manualOrderKind,
+  manualOrderPath,
+} from "../../shared/lib/manual-order-kind";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { type DetailItem, DetailList } from "../../shared/ui/detail-list";
+import { OptionPair } from "../../shared/ui/option-pair";
 import { PrivateAssetPreview } from "../../shared/ui/private-asset-preview";
 import { RouteHeading } from "../../shared/ui/route-heading";
 
@@ -52,12 +58,34 @@ function itemDetailItems(item: ManualOrderItemOut): DetailItem[] {
     { label: "대분류", value: itemCategoryLabel(item) },
   ];
   if (item.automatic != null) {
+    // 라벨·선택지는 입력 폼(manual-order-form.tsx)의 SegmentedControl과 맞춘다.
     items.push(
       {
-        label: "[자동] 타입·마감",
-        value: `${item.automatic.mechanism === "string" ? "끈" : "지퍼"} · ${
-          item.automatic.turn_knot ? "돌려묶기" : "방"
-        } · ${item.automatic.dimple ? "딤플" : "기본"}`,
+        label: "[자동] 타입",
+        value: (
+          <OptionPair
+            options={["지퍼", "끈"]}
+            selected={item.automatic.mechanism === "string" ? "끈" : "지퍼"}
+          />
+        ),
+      },
+      {
+        label: "[자동] 마감",
+        value: (
+          <OptionPair
+            options={["방", "돌려묶기"]}
+            selected={item.automatic.turn_knot ? "돌려묶기" : "방"}
+          />
+        ),
+      },
+      {
+        label: "[자동] 딤플",
+        value: (
+          <OptionPair
+            options={["기본", "딤플"]}
+            selected={item.automatic.dimple ? "딤플" : "기본"}
+          />
+        ),
       },
       {
         label: "[자동] 총장",
@@ -89,18 +117,41 @@ function itemDetailItems(item: ManualOrderItemOut): DetailItem[] {
       },
       {
         label: "[제작] 봉제",
-        value:
-          item.custom.tie_type === "AUTO"
-            ? `자동 · ${item.custom.turn_knot ? "돌려묶기" : "방"} · ${
-                item.custom.dimple ? "딤플" : "기본"
-              }`
-            : "수동",
+        value: (
+          <OptionPair
+            options={["수동", "자동"]}
+            selected={item.custom.tie_type === "AUTO" ? "자동" : "수동"}
+          />
+        ),
       },
       {
         label: "[제작] 규격",
         value: item.custom.size_type === "CHILD" ? "아동용" : "성인용",
       },
     );
+    // 수동 봉제는 마감·딤플이 선택 항목이 아니다(폼에서도 비활성) — 행 자체를 감춘다.
+    if (item.custom.tie_type === "AUTO") {
+      items.push(
+        {
+          label: "[제작] 마감",
+          value: (
+            <OptionPair
+              options={["방", "돌려묶기"]}
+              selected={item.custom.turn_knot ? "돌려묶기" : "방"}
+            />
+          ),
+        },
+        {
+          label: "[제작] 딤플",
+          value: (
+            <OptionPair
+              options={["기본", "딤플"]}
+              selected={item.custom.dimple ? "딤플" : "기본"}
+            />
+          ),
+        },
+      );
+    }
     if (item.custom.tie_width_cm != null) {
       items.push({
         label: "[제작] 타이 폭",
@@ -152,11 +203,16 @@ function ManualOrderImage({
   );
 }
 
-function ManualOrderDetailLoading() {
+const NOUN: Record<ManualOrderKind, string> = {
+  custom: "수기 주문",
+  repair: "수기 수선",
+};
+
+function ManualOrderDetailLoading({ noun }: { noun: string }) {
   return (
     <VStack gap="x6" alignItems="stretch" aria-busy="true">
       <RouteHeading
-        title="수기 주문 상세"
+        title={`${noun} 상세`}
         description="작업지시서 내용을 불러오고 있습니다."
       />
       <AdminCard title="주문 정보">
@@ -170,8 +226,9 @@ function ManualOrderDetailLoading() {
   );
 }
 
-export function ManualOrderDetailPage() {
+function ManualOrderDetail({ kind }: { kind: ManualOrderKind }) {
   const { manualOrderId = "" } = useParams();
+  const noun = NOUN[kind];
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -183,28 +240,28 @@ export function ManualOrderDetailPage() {
   const deleteMutation = useMutation({
     ...deleteManualOrderMutation(),
     onSuccess: async () => {
-      snackbar("수기 주문을 삭제했습니다.");
+      snackbar(`${noun}을 삭제했습니다.`);
       await queryClient.invalidateQueries({
         queryKey: listManualOrdersQueryKey(),
       });
       navigate("/manual-orders", { replace: true });
     },
     onError: () => {
-      snackbar("수기 주문을 삭제하지 못했습니다.");
+      snackbar(`${noun}을 삭제하지 못했습니다.`);
     },
   });
   const order = query.data;
 
-  if (query.isLoading) return <ManualOrderDetailLoading />;
+  if (query.isLoading) return <ManualOrderDetailLoading noun={noun} />;
   if (query.isError || order === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
         <RouteHeading
-          title="수기 주문 상세"
+          title={`${noun} 상세`}
           description="작업지시서 내용을 확인합니다."
         />
         <ContentPlaceholder
-          title="수기 주문을 불러오지 못했습니다"
+          title={`${noun}을 불러오지 못했습니다`}
           description="주문 ID를 확인하거나 다시 시도해 주세요."
           action={
             <ActionButton onClick={() => void query.refetch()}>
@@ -214,6 +271,12 @@ export function ManualOrderDetailPage() {
         />
       </VStack>
     );
+  }
+
+  // 다른 계열의 주소로 들어왔으면 제 화면으로 보낸다.
+  const actualKind = manualOrderKind(order);
+  if (actualKind !== kind) {
+    return <Navigate to={manualOrderPath(actualKind, order.id)} replace />;
   }
 
   const statusFlags = [
@@ -226,7 +289,7 @@ export function ManualOrderDetailPage() {
     <VStack gap="x6" alignItems="stretch">
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading
-          title={`${order.customer_name} 님의 수기 주문`}
+          title={`${order.customer_name} 님의 ${noun}`}
           description={`마지막 수정 ${formatDateTime(order.updated_at)}`}
         />
         <HStack gap="x2" wrap>
@@ -238,7 +301,7 @@ export function ManualOrderDetailPage() {
           </ActionButton>
           <ActionButton
             variant="neutralWeak"
-            onClick={() => navigate(`/manual-orders/${order.id}/edit`)}
+            onClick={() => navigate(manualOrderPath(kind, order.id, "edit"))}
           >
             수정
           </ActionButton>
@@ -248,7 +311,7 @@ export function ManualOrderDetailPage() {
               if (node === null) return;
               void downloadWorksheetPng(
                 node,
-                `수기주문_${order.customer_name}_${order.order_date}.png`,
+                `${noun.replace(" ", "")}_${order.customer_name}_${order.order_date}.png`,
               ).catch(() =>
                 snackbar("작업지시서 이미지를 저장하지 못했습니다."),
               );
@@ -299,7 +362,7 @@ export function ManualOrderDetailPage() {
           </AdminCard>
 
           <AdminCard
-            title="주문 품목"
+            title={kind === "repair" ? "수선 품목" : "제작 품목"}
             description={`총 ${order.items.length.toLocaleString("ko-KR")}개 품목`}
           >
             {order.items.length === 0 ? (
@@ -350,14 +413,14 @@ export function ManualOrderDetailPage() {
           loading={deleteMutation.isPending}
           onClick={() => setDeleteConfirmOpen(true)}
         >
-          수기 주문 삭제
+          {noun} 삭제
         </ActionButton>
       </HStack>
 
       <AlertDialog
         open={deleteConfirmOpen}
         onOpenChange={setDeleteConfirmOpen}
-        title="이 수기 주문을 삭제할까요?"
+        title={`이 ${noun}을 삭제할까요?`}
         description="삭제한 작업지시서는 복구할 수 없습니다."
         primaryActionProps={{
           children: "삭제",
@@ -370,4 +433,12 @@ export function ManualOrderDetailPage() {
       />
     </VStack>
   );
+}
+
+export function ManualOrderDetailPage() {
+  return <ManualOrderDetail kind="custom" />;
+}
+
+export function ManualRepairDetailPage() {
+  return <ManualOrderDetail kind="repair" />;
 }

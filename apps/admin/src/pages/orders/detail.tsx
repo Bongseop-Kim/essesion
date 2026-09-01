@@ -55,6 +55,7 @@ import {
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { type DetailItem, DetailList } from "../../shared/ui/detail-list";
+import { OptionPair } from "../../shared/ui/option-pair";
 import { PrivateAssetPreview } from "../../shared/ui/private-asset-preview";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { ClaimStatusBadge, StatusBadge } from "../../shared/ui/status-badge";
@@ -111,12 +112,36 @@ function repairItemDetailItems(item: OrderItemOut): DetailItem[] {
     },
   ];
   if (tie?.automatic != null) {
-    items.push({
-      label: "[자동] 타입·마감",
-      value: `${tie.automatic.mechanismLabel} · ${
-        tie.automatic.turnKnot ? "돌려묶기" : "방"
-      } · ${tie.automatic.dimple ? "딤플" : "기본"}`,
-    });
+    // 라벨·선택지는 수기 주문 입력 폼(manual-order-form.tsx)의 SegmentedControl과 맞춘다.
+    items.push(
+      {
+        label: "[자동] 타입",
+        value: (
+          <OptionPair
+            options={["지퍼", "끈"]}
+            selected={tie.automatic.mechanismLabel}
+          />
+        ),
+      },
+      {
+        label: "[자동] 마감",
+        value: (
+          <OptionPair
+            options={["방", "돌려묶기"]}
+            selected={tie.automatic.turnKnot ? "돌려묶기" : "방"}
+          />
+        ),
+      },
+      {
+        label: "[자동] 딤플",
+        value: (
+          <OptionPair
+            options={["기본", "딤플"]}
+            selected={tie.automatic.dimple ? "딤플" : "기본"}
+          />
+        ),
+      },
+    );
     if (tie.automatic.wearerHeightCm !== null) {
       items.push({
         label: "[자동] 착용자 키",

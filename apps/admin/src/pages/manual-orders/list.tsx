@@ -14,6 +14,11 @@ import { Link, useNavigate } from "react-router";
 
 import { formatDate, formatMoney } from "../../shared/lib/format";
 import {
+  MANUAL_ORDER_KIND_LABEL,
+  manualOrderKind,
+  manualOrderPath,
+} from "../../shared/lib/manual-order-kind";
+import {
   useAdminListPageCorrection,
   useAdminListUrlState,
 } from "../../shared/lib/use-admin-list-url-state";
@@ -49,11 +54,23 @@ const columns: readonly AdminTableColumn<ManualOrderOut>[] = [
     render: (order) => formatDate(order.order_date),
   },
   {
+    // 계열별로 상세·수정 화면이 달라 목록에서 구분이 보여야 한다.
+    key: "kind",
+    header: "구분",
+    render: (order) => (
+      <Badge tone="neutral" variant="outline">
+        {MANUAL_ORDER_KIND_LABEL[manualOrderKind(order)]}
+      </Badge>
+    ),
+  },
+  {
     key: "customer",
     header: "고객",
     render: (order) => (
       <VStack gap="x0_5">
-        <Link to={`/manual-orders/${order.id}`}>{order.customer_name}</Link>
+        <Link to={manualOrderPath(manualOrderKind(order), order.id)}>
+          {order.customer_name}
+        </Link>
         <Text textStyle="caption" color="fg.neutral-muted">
           {formatPhoneNumber(order.phone)}
         </Text>
@@ -124,11 +141,23 @@ export function ManualOrdersPage() {
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading
           title="수기 주문"
-          description="무통장 입금·전화로 접수한 작업지시서를 관리합니다."
+          description="무통장 입금·전화로 접수한 작업지시서를 관리합니다. 제작과 수선은 따로 등록합니다."
         />
-        <ActionButton onClick={() => navigate("/manual-orders/new")}>
-          수기 주문 등록
-        </ActionButton>
+        {/* 두 등록은 동급 액션이다 — 색 차이는 우선순위가 아니라 화면당 brandSolid 1개
+            규칙(packages/shared/AGENTS.md)이고, 더 자주 쓰는 수선을 그 자리에 둔다.
+            보조는 bg.neutral-weak가 페이지 배경 bg.layer-basement와 거의 같은 밝기라
+            버튼으로 안 보인다 — 흰 면 + 테두리인 neutralOutline을 쓴다. */}
+        <HStack gap="x2" wrap>
+          <ActionButton
+            variant="neutralOutline"
+            onClick={() => navigate("/manual-orders/new")}
+          >
+            수기 주문 등록
+          </ActionButton>
+          <ActionButton onClick={() => navigate("/manual-orders/repairs/new")}>
+            수기 수선 등록
+          </ActionButton>
+        </HStack>
       </HStack>
 
       <PaginatedAdminTableCard
@@ -137,7 +166,9 @@ export function ManualOrdersPage() {
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
-        onRowClick={(row) => navigate(`/manual-orders/${row.id}`)}
+        onRowClick={(row) =>
+          navigate(manualOrderPath(manualOrderKind(row), row.id))
+        }
         status={
           query.isLoading || query.isPlaceholderData
             ? "loading"

@@ -93,22 +93,25 @@ export function AddressFormFields({
           <Box flexGrow minWidth={0}>
             <TextField readOnly {...register("postal_code")} />
           </Box>
-          <ActionButton
-            type="button"
-            variant="neutralOutline"
-            loading={postcode.loading}
-            onClick={() =>
-              void postcode
-                .search(({ zonecode, address }) => {
-                  setValue("postal_code", zonecode, { shouldValidate: true });
-                  setValue("address", address, { shouldValidate: true });
-                  setValue("address_detail", "");
-                })
-                .catch(() => snackbar("주소 검색을 불러오지 못했습니다."))
-            }
-          >
-            주소 검색
-          </ActionButton>
+          {/* 좁은 폭에서 버튼이 압축돼 라벨이 두 줄로 꺾이지 않도록 shrink를 막는다. */}
+          <Box flexShrink={0}>
+            <ActionButton
+              type="button"
+              variant="neutralOutline"
+              loading={postcode.loading}
+              onClick={() =>
+                void postcode
+                  .search(({ zonecode, address }) => {
+                    setValue("postal_code", zonecode, { shouldValidate: true });
+                    setValue("address", address, { shouldValidate: true });
+                    setValue("address_detail", "");
+                  })
+                  .catch(() => snackbar("주소 검색을 불러오지 못했습니다."))
+              }
+            >
+              검색
+            </ActionButton>
+          </Box>
         </HStack>
       </Field>
       <TextField

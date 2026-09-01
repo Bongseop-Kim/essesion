@@ -79,6 +79,35 @@ const pageRoutes: RouteObject[] = [
       return { Component: ManualOrderNewPage };
     },
   },
+  // 수선은 `repairs` 세그먼트를 하나 더 갖는다 — 정적 세그먼트가 :manualOrderId보다
+  // 우선 매칭되므로 아래 제작 라우트와 충돌하지 않는다.
+  {
+    path: "manual-orders/repairs/new",
+    lazy: async () => {
+      const { ManualRepairNewPage } = await import(
+        "../../pages/manual-orders/new"
+      );
+      return { Component: ManualRepairNewPage };
+    },
+  },
+  {
+    path: "manual-orders/repairs/:manualOrderId",
+    lazy: async () => {
+      const { ManualRepairDetailPage } = await import(
+        "../../pages/manual-orders/detail"
+      );
+      return { Component: ManualRepairDetailPage };
+    },
+  },
+  {
+    path: "manual-orders/repairs/:manualOrderId/edit",
+    lazy: async () => {
+      const { ManualRepairEditPage } = await import(
+        "../../pages/manual-orders/edit"
+      );
+      return { Component: ManualRepairEditPage };
+    },
+  },
   {
     path: "manual-orders/:manualOrderId",
     lazy: async () => {

@@ -303,6 +303,39 @@ async def test_dashboard_counts_paid_manual_orders(client, db_session, settings)
     assert sale_only.json()["summary"]["order_amount"] == 0
 
 
+async def test_dashboard_timeseries_splits_manual_orders_by_category(client, db_session, settings):
+    """수기 주문은 주문 단위로 분류한다 — 품목에 주문제작이 하나라도 있으면 주문제작 수기."""
+    headers = await admin_headers(db_session, settings)
+    custom_item = {
+        "quantity": 1,
+        "custom": {"fabric_provided": True, "tie_type": "MANUAL"},
+    }
+    repair_only = manual_order_body(amount=10000, shipping_fee=0, is_paid=True)
+    custom_only = manual_order_body(
+        amount=20000, shipping_fee=0, is_paid=True, items=[custom_item]
+    )
+    # 수선·제작이 섞인 주문 — 금액이 주문 단위라 배분하지 않고 주문제작 수기로 센다.
+    mixed = manual_order_body(
+        amount=40000,
+        shipping_fee=0,
+        is_paid=True,
+        items=[*repair_only["items"], custom_item],
+    )
+    for body in (repair_only, custom_only, mixed):
+        created = await client.post("/admin/manual-orders", json=body, headers=headers)
+        assert created.status_code == 201, created.text
+
+    overview = await client.get(
+        "/admin/dashboard/overview",
+        params={"start_date": "2026-07-15", "end_date": "2026-07-15"},
+        headers=headers,
+    )
+    point = overview.json()["timeseries"]["points"][0]
+    assert point["manual_repair_amount"] == 10000
+    assert point["manual_custom_amount"] == 20000 + 40000
+    assert point["manual_custom_amount"] + point["manual_repair_amount"] == point["order_amount"]
+
+
 async def _staged_image_id(client, headers) -> str:
     issued = await client.post(
         "/admin/manual-orders/images/upload-url",

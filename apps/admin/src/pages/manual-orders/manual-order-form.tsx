@@ -38,6 +38,7 @@ import {
   formatMoney,
   getErrorMessage,
 } from "../../shared/lib/format";
+import type { ManualOrderKind } from "../../shared/lib/manual-order-kind";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { NumberField } from "../../shared/ui/number-field";
@@ -126,20 +127,27 @@ function createItemDraft(
   };
 }
 
-export const emptyManualOrderDraft: ManualOrderDraft = {
-  orderDate: "",
-  customerName: "",
-  phone: "",
-  address: "",
-  amount: "",
-  discount: "0",
-  shippingFee: "0",
-  isReceived: false,
-  isPaid: false,
-  isConfirmed: false,
-  items: [createItemDraft()],
-  images: [],
-};
+/** 제작 화면의 품목은 주문제작 대분류가 이미 켜진 상태로 시작한다(대분류 선택이 없다). */
+function newItemDraft(kind: ManualOrderKind) {
+  return createItemDraft({ hasCustom: kind === "custom" });
+}
+
+export function emptyManualOrderDraft(kind: ManualOrderKind): ManualOrderDraft {
+  return {
+    orderDate: "",
+    customerName: "",
+    phone: "",
+    address: "",
+    amount: "",
+    discount: "0",
+    shippingFee: "0",
+    isReceived: false,
+    isPaid: false,
+    isConfirmed: false,
+    items: [newItemDraft(kind)],
+    images: [],
+  };
+}
 
 function imageDraftsFrom(
   order: ManualOrderOut,
@@ -247,17 +255,18 @@ function positiveNumber(value: string) {
     : undefined;
 }
 
-function validateItem(item: ItemDraft): ItemErrors {
+function validateItem(item: ItemDraft, kind: ManualOrderKind): ItemErrors {
   const errors: ItemErrors = {};
   const quantity = nonNegativeInteger(item.quantity);
   if (quantity === undefined || quantity < 1) {
     errors.quantity = "1 이상의 정수를 입력해 주세요.";
   }
+  // 제작 화면은 대분류가 주문제작 하나뿐이라 선택할 것이 없다.
   if (
+    kind === "repair" &&
     !item.hasAutomatic &&
     !item.hasWidth &&
-    !item.hasRestoration &&
-    !item.hasCustom
+    !item.hasRestoration
   ) {
     errors.category = "대분류를 하나 이상 선택해 주세요.";
   }
@@ -277,8 +286,13 @@ function validateItem(item: ItemDraft): ItemErrors {
   return errors;
 }
 
-function validateDraft(draft: ManualOrderDraft): DraftErrors {
-  const errors: DraftErrors = { itemErrors: draft.items.map(validateItem) };
+function validateDraft(
+  draft: ManualOrderDraft,
+  kind: ManualOrderKind,
+): DraftErrors {
+  const errors: DraftErrors = {
+    itemErrors: draft.items.map((item) => validateItem(item, kind)),
+  };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.orderDate)) {
     errors.orderDate = "날짜를 선택해 주세요.";
   }
@@ -312,6 +326,8 @@ function hasErrors(errors: DraftErrors) {
   );
 }
 
+// 계열로 걸러내지 않고 draft에 있는 것을 그대로 보낸다 — 화면 분리 전에 섞여 저장된
+// 주문을 수정할 때 다른 계열의 스펙이 조용히 지워지지 않게 한다(폼은 렌더만 안 한다).
 function itemBody(item: ItemDraft): ManualOrderItem {
   return {
     quantity: Number(item.quantity),
@@ -461,6 +477,8 @@ function ImageAttachments({
 }
 
 export type ManualOrderFormProps = {
+  /** 렌더할 대분류를 정한다 — 다른 계열의 입력은 아예 나오지 않는다. */
+  kind: ManualOrderKind;
   initial: ManualOrderDraft;
   revision?: string;
   /** 수정 화면에서만 넘긴다 — 저장된 첨부 이미지 썸네일 발급용. */
@@ -476,6 +494,7 @@ export type ManualOrderFormProps = {
 };
 
 export function ManualOrderForm({
+  kind,
   initial,
   revision,
   manualOrderId,
@@ -494,7 +513,7 @@ export function ManualOrderForm({
   const [invalidSubmitCount, setInvalidSubmitCount] = useState(0);
   const appliedReset = useRef(resetSignal);
   const formRef = useRef<HTMLFormElement>(null);
-  const errors = useMemo(() => validateDraft(draft), [draft]);
+  const errors = useMemo(() => validateDraft(draft, kind), [draft, kind]);
   const dirty = useMemo(
     () => JSON.stringify(draft) !== JSON.stringify(baseDraft),
     [baseDraft, draft],
@@ -678,8 +697,12 @@ export function ManualOrderForm({
         </AdminCard>
 
         <AdminCard
-          title="주문 품목"
-          description="품목마다 대분류를 하나 이상 선택합니다. 돌려묶기·딤플은 자동수선의 지퍼 타입, 주문제작의 자동 봉제에서만 선택할 수 있습니다."
+          title={kind === "repair" ? "수선 품목" : "제작 품목"}
+          description={
+            kind === "repair"
+              ? "품목마다 대분류를 하나 이상 선택합니다. 돌려묶기·딤플은 자동수선의 지퍼 타입에서만 선택할 수 있습니다."
+              : "품목마다 원단·봉제·규격을 입력합니다. 돌려묶기·딤플은 자동 봉제에서만 선택할 수 있습니다."
+          }
         >
           <VStack gap="x4" alignItems="stretch">
             {attempted && errors.items !== undefined && (
@@ -731,61 +754,53 @@ export function ManualOrderForm({
                           updateItem(index, { quantity })
                         }
                       />
-                      <VStack gap="x2" alignItems="stretch">
-                        <Text as="h4" textStyle="labelSm">
-                          대분류
-                        </Text>
-                        <HStack gap="x4" wrap>
-                          <Checkbox
-                            label="자동수선"
-                            checked={item.hasAutomatic}
-                            disabled={pending}
-                            onChange={(event) =>
-                              updateItem(index, {
-                                hasAutomatic: event.currentTarget.checked,
-                              })
-                            }
-                          />
-                          <Checkbox
-                            label="폭수선"
-                            checked={item.hasWidth}
-                            disabled={pending}
-                            onChange={(event) =>
-                              updateItem(index, {
-                                hasWidth: event.currentTarget.checked,
-                              })
-                            }
-                          />
-                          <Checkbox
-                            label="복원수선"
-                            checked={item.hasRestoration}
-                            disabled={pending}
-                            onChange={(event) =>
-                              updateItem(index, {
-                                hasRestoration: event.currentTarget.checked,
-                              })
-                            }
-                          />
-                          <Checkbox
-                            label="주문제작"
-                            checked={item.hasCustom}
-                            disabled={pending}
-                            onChange={(event) =>
-                              updateItem(index, {
-                                hasCustom: event.currentTarget.checked,
-                              })
-                            }
-                          />
-                        </HStack>
-                        {itemErrors.category !== undefined && (
-                          <Text textStyle="caption" color="fg.critical">
-                            {itemErrors.category}
+                      {kind === "repair" && (
+                        <VStack gap="x2" alignItems="stretch">
+                          <Text as="h4" textStyle="labelSm">
+                            대분류
                           </Text>
-                        )}
-                      </VStack>
+                          <HStack gap="x4" wrap>
+                            <Checkbox
+                              label="자동수선"
+                              checked={item.hasAutomatic}
+                              disabled={pending}
+                              onChange={(event) =>
+                                updateItem(index, {
+                                  hasAutomatic: event.currentTarget.checked,
+                                })
+                              }
+                            />
+                            <Checkbox
+                              label="폭수선"
+                              checked={item.hasWidth}
+                              disabled={pending}
+                              onChange={(event) =>
+                                updateItem(index, {
+                                  hasWidth: event.currentTarget.checked,
+                                })
+                              }
+                            />
+                            <Checkbox
+                              label="복원수선"
+                              checked={item.hasRestoration}
+                              disabled={pending}
+                              onChange={(event) =>
+                                updateItem(index, {
+                                  hasRestoration: event.currentTarget.checked,
+                                })
+                              }
+                            />
+                          </HStack>
+                          {itemErrors.category !== undefined && (
+                            <Text textStyle="caption" color="fg.critical">
+                              {itemErrors.category}
+                            </Text>
+                          )}
+                        </VStack>
+                      )}
                     </Grid>
 
-                    {item.hasAutomatic && (
+                    {kind === "repair" && item.hasAutomatic && (
                       <Grid columns={{ base: 1, md: 2 }} gap="x4">
                         <VStack gap="x2" alignItems="stretch">
                           <Text as="h4" textStyle="labelSm">
@@ -872,7 +887,7 @@ export function ManualOrderForm({
                       </Grid>
                     )}
 
-                    {item.hasWidth && (
+                    {kind === "repair" && item.hasWidth && (
                       <Grid columns={{ base: 1, md: 2 }} gap="x4">
                         <TextField
                           type="number"
@@ -892,7 +907,7 @@ export function ManualOrderForm({
                       </Grid>
                     )}
 
-                    {item.hasRestoration && (
+                    {kind === "repair" && item.hasRestoration && (
                       <TextAreaField
                         label="[복원] 내용"
                         rows={2}
@@ -907,7 +922,7 @@ export function ManualOrderForm({
                       />
                     )}
 
-                    {item.hasCustom && (
+                    {kind === "custom" && (
                       <VStack gap="x4" alignItems="stretch">
                         <Grid columns={{ base: 1, md: 2 }} gap="x4">
                           <VStack gap="x2" alignItems="stretch">
@@ -1139,7 +1154,7 @@ export function ManualOrderForm({
                 onClick={() =>
                   setDraft((current) => ({
                     ...current,
-                    items: [...current.items, createItemDraft()],
+                    items: [...current.items, newItemDraft(kind)],
                   }))
                 }
               >
