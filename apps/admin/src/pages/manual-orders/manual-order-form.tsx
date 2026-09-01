@@ -922,7 +922,10 @@ export function ManualOrderForm({
                       />
                     )}
 
-                    {kind === "custom" && (
+                    {/* hasCustom도 본다 — 화면 분리 전에 섞여 저장된 주문은 제작으로
+                        분류되지만 수선만 있는 품목이 섞여 있다. 그 품목에 제작 입력을
+                        그리면 itemBody가 custom: null로 보내 편집이 조용히 사라진다. */}
+                    {kind === "custom" && item.hasCustom && (
                       <VStack gap="x4" alignItems="stretch">
                         <Grid columns={{ base: 1, md: 2 }} gap="x4">
                           <VStack gap="x2" alignItems="stretch">
