@@ -334,8 +334,10 @@ function itemBody(item: ItemDraft): ManualOrderItem {
     automatic: item.hasAutomatic
       ? {
           mechanism: item.mechanism,
-          turn_knot: item.turnKnot,
-          dimple: item.dimple,
+          // 끈은 딤플 불가, 딤플은 돌려묶기 필수
+          turn_knot:
+            item.turnKnot || (item.mechanism === "zipper" && item.dimple),
+          dimple: item.mechanism === "zipper" && item.dimple,
           total_length_cm: Number(item.totalLengthCm),
         }
       : null,
@@ -352,7 +354,9 @@ function itemBody(item: ItemDraft): ManualOrderItem {
           design_type: item.fabricProvided ? null : item.designType,
           tie_type: item.tieType,
           dimple: item.tieType === "AUTO" && item.customDimple,
-          turn_knot: item.tieType === "AUTO" && item.customTurnKnot,
+          turn_knot:
+            item.tieType === "AUTO" &&
+            (item.customTurnKnot || item.customDimple),
           size_type: item.sizeType,
           tie_width_cm:
             item.tieWidthCm.trim() === "" ? null : Number(item.tieWidthCm),
@@ -700,7 +704,7 @@ export function ManualOrderForm({
           title={kind === "repair" ? "수선 품목" : "제작 품목"}
           description={
             kind === "repair"
-              ? "품목마다 대분류를 하나 이상 선택합니다. 돌려묶기·딤플은 자동수선의 지퍼 타입에서만 선택할 수 있습니다."
+              ? "품목마다 대분류를 하나 이상 선택합니다. 돌려묶기·딤플은 자동수선에서만, 딤플은 지퍼 타입에서만 선택할 수 있습니다."
               : "품목마다 원단·봉제·규격을 입력합니다. 돌려묶기·딤플은 자동 봉제에서만 선택할 수 있습니다."
           }
         >
@@ -813,7 +817,7 @@ export function ManualOrderForm({
                               updateItem(
                                 index,
                                 value === "string"
-                                  ? { mechanism: "string", turnKnot: false }
+                                  ? { mechanism: "string", dimple: false }
                                   : { mechanism: "zipper" },
                               )
                             }
@@ -839,13 +843,13 @@ export function ManualOrderForm({
                               })
                             }
                           >
-                            <SegmentedControlItem value="bang">
+                            <SegmentedControlItem
+                              value="bang"
+                              disabled={item.dimple}
+                            >
                               방
                             </SegmentedControlItem>
-                            <SegmentedControlItem
-                              value="turnKnot"
-                              disabled={item.mechanism === "string"}
-                            >
+                            <SegmentedControlItem value="turnKnot">
                               돌려묶기
                             </SegmentedControlItem>
                           </SegmentedControl>
@@ -858,13 +862,21 @@ export function ManualOrderForm({
                             aria-label="자동수선 딤플"
                             value={item.dimple ? "dimple" : "basic"}
                             onValueChange={(value) =>
-                              updateItem(index, { dimple: value === "dimple" })
+                              updateItem(
+                                index,
+                                value === "dimple"
+                                  ? { dimple: true, turnKnot: true }
+                                  : { dimple: false },
+                              )
                             }
                           >
                             <SegmentedControlItem value="basic">
                               기본
                             </SegmentedControlItem>
-                            <SegmentedControlItem value="dimple">
+                            <SegmentedControlItem
+                              value="dimple"
+                              disabled={item.mechanism === "string"}
+                            >
                               딤플
                             </SegmentedControlItem>
                           </SegmentedControl>
@@ -1040,7 +1052,10 @@ export function ManualOrderForm({
                                 })
                               }
                             >
-                              <SegmentedControlItem value="bang">
+                              <SegmentedControlItem
+                                value="bang"
+                                disabled={item.customDimple}
+                              >
                                 방
                               </SegmentedControlItem>
                               <SegmentedControlItem
@@ -1059,9 +1074,15 @@ export function ManualOrderForm({
                               aria-label="주문제작 딤플"
                               value={item.customDimple ? "dimple" : "basic"}
                               onValueChange={(value) =>
-                                updateItem(index, {
-                                  customDimple: value === "dimple",
-                                })
+                                updateItem(
+                                  index,
+                                  value === "dimple"
+                                    ? {
+                                        customDimple: true,
+                                        customTurnKnot: true,
+                                      }
+                                    : { customDimple: false },
+                                )
                               }
                             >
                               <SegmentedControlItem value="basic">

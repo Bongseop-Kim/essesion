@@ -62,7 +62,7 @@ describe("reform pricing and cart mapping", () => {
     ).toBe(30000);
   });
 
-  it("removes unsupported turn-knot from string automatic repair", () => {
+  it("removes unsupported dimple from string automatic repair", () => {
     const data = reformDataFromForm(
       tie({
         automaticEnabled: true,
@@ -72,10 +72,24 @@ describe("reform pricing and cart mapping", () => {
         turnKnot: true,
       }),
     );
-    expect(data.tie.automatic?.turn_knot).toBe(false);
+    expect(data.tie.automatic?.dimple).toBe(false);
+    expect(data.tie.automatic?.turn_knot).toBe(true);
     expect(reformServiceLabel(data)).toBe(
-      "자동 수선(끈 · 착용자 175cm · 딤플)",
+      "자동 수선(끈 · 착용자 175cm · 돌려묶기)",
     );
+  });
+
+  it("forces turn-knot when dimple is selected", () => {
+    const data = reformDataFromForm(
+      tie({
+        automaticEnabled: true,
+        mechanism: "zipper",
+        wearerHeightCm: 175,
+        dimple: true,
+        turnKnot: false,
+      }),
+    );
+    expect(data.tie.automatic?.turn_knot).toBe(true);
   });
 
   it("shows every selected reform option in the cart label", () => {

@@ -485,7 +485,6 @@ describe("OrderDetailPage", () => {
   });
 
   it("맞춤 주문은 허용된 요약과 관계형 이미지 URL만 표시·재발급한다", async () => {
-    const user = userEvent.setup();
     api.getOrder.mockResolvedValue({
       ...order,
       order_type: "custom",

@@ -2,6 +2,20 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 
+// Node 25+는 localStorage 전역을 미리 정의해두지만 --localstorage-file 없이는
+// undefined라, vitest jsdom 환경이 jsdom의 localStorage로 덮어쓰지 못한다.
+if (globalThis.localStorage === undefined) {
+  const store = new Map<string, string>();
+  Object.defineProperty(globalThis, "localStorage", {
+    value: {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, String(v)),
+      removeItem: (k: string) => void store.delete(k),
+      clear: () => store.clear(),
+    },
+  });
+}
+
 import {
   attemptNaverAutologin,
   clearNaverAutologinAttempt,

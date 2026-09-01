@@ -134,19 +134,35 @@ describe("ManualRepairNewPage", () => {
     expect(await screen.findByText("등록 완료")).toBeTruthy();
   });
 
-  it("끈 타입을 선택하면 돌려묶기가 해제되고 비활성화된다", async () => {
+  it("끈 타입을 선택하면 딤플이 해제되고 비활성화된다(돌려묶기는 유지)", async () => {
     const user = userEvent.setup();
     renderRepairPage();
 
     await user.click(screen.getByRole("checkbox", { name: "자동수선" }));
-    await user.click(screen.getByRole("radio", { name: "돌려묶기" }));
+    await user.click(screen.getByRole("radio", { name: "딤플" }));
     await user.click(screen.getByRole("radio", { name: "끈" }));
 
+    const dimple = screen.getByRole("radio", { name: "딤플" });
+    expect((dimple as HTMLInputElement).checked).toBe(false);
+    expect((dimple as HTMLInputElement).disabled).toBe(true);
     const turnKnot = screen.getByRole("radio", { name: "돌려묶기" });
-    expect((turnKnot as HTMLInputElement).checked).toBe(false);
-    expect((turnKnot as HTMLInputElement).disabled).toBe(true);
+    expect((turnKnot as HTMLInputElement).checked).toBe(true);
+    expect((turnKnot as HTMLInputElement).disabled).toBe(false);
+  });
+
+  it("딤플을 선택하면 돌려묶기가 켜지고 방을 고를 수 없다", async () => {
+    const user = userEvent.setup();
+    renderRepairPage();
+
+    await user.click(screen.getByRole("checkbox", { name: "자동수선" }));
+    await user.click(screen.getByRole("radio", { name: "딤플" }));
+
     expect(
-      (screen.getByRole("radio", { name: "방" }) as HTMLInputElement).checked,
+      (screen.getByRole("radio", { name: "돌려묶기" }) as HTMLInputElement)
+        .checked,
+    ).toBe(true);
+    expect(
+      (screen.getByRole("radio", { name: "방" }) as HTMLInputElement).disabled,
     ).toBe(true);
   });
 

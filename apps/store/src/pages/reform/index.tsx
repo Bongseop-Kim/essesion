@@ -636,11 +636,11 @@ function normalizeSettings(values: ReformSettingsValues): ReformSettingsValues {
     automaticEnabled: values.automaticEnabled,
     mechanism: values.automaticEnabled ? values.mechanism : "",
     wearerHeightCm: values.automaticEnabled ? values.wearerHeightCm : null,
-    dimple: values.automaticEnabled && values.dimple,
+    dimple:
+      values.automaticEnabled && values.mechanism === "zipper" && values.dimple,
     turnKnot:
       values.automaticEnabled &&
-      values.mechanism === "zipper" &&
-      values.turnKnot,
+      (values.turnKnot || (values.mechanism === "zipper" && values.dimple)),
     widthEnabled: values.widthEnabled,
     targetWidthCm: values.widthEnabled ? values.targetWidthCm : null,
     restorationEnabled: values.restorationEnabled,

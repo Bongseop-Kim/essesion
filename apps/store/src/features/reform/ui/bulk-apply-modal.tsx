@@ -158,7 +158,7 @@ export function ReformSettingsModal({
                         ...values,
                         mechanism:
                           mechanism as ReformSettingsValues["mechanism"],
-                        turnKnot: mechanism === "zipper" && values.turnKnot,
+                        dimple: mechanism === "zipper" && values.dimple,
                       })
                     }
                   >
@@ -184,11 +184,16 @@ export function ReformSettingsModal({
                 />
                 <Field label="추가 옵션">
                   <AutomaticAddonSelector
+                    mechanism={values.mechanism}
                     dimple={values.dimple}
                     turnKnot={values.turnKnot}
-                    showTurnKnot={values.mechanism === "zipper"}
                     onDimpleChange={(dimple) =>
-                      setValues({ ...values, dimple })
+                      // 딤플은 돌려묶기 필수 — 켜면 같이 켠다(돌려묶기는 잠긴다)
+                      setValues({
+                        ...values,
+                        dimple,
+                        turnKnot: dimple || values.turnKnot,
+                      })
                     }
                     onTurnKnotChange={(turnKnot) =>
                       setValues({ ...values, turnKnot })

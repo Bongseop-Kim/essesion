@@ -43,6 +43,8 @@ export function createReformTie(): ReformTieForm {
 
 export function reformDataFromForm(tie: ReformTieForm): ReformDataIn {
   if (!tie.uploadedImage) throw new Error("수선 사진이 필요합니다.");
+  // 끈은 딤플 불가, 딤플은 돌려묶기 필수 — 저장 직전에 한 번 더 맞춘다(장바구니 수정 경로 공유).
+  const dimple = tie.mechanism === "zipper" && tie.dimple;
   return {
     tie: {
       image: tie.uploadedImage,
@@ -50,8 +52,8 @@ export function reformDataFromForm(tie: ReformTieForm): ReformDataIn {
         ? {
             mechanism: requireMechanism(tie.mechanism),
             wearer_height_cm: requirePositive(tie.wearerHeightCm),
-            dimple: tie.dimple,
-            turn_knot: tie.mechanism === "zipper" && tie.turnKnot,
+            dimple,
+            turn_knot: tie.turnKnot || dimple,
           }
         : null,
       width: tie.widthEnabled

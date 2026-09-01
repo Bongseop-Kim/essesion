@@ -30,9 +30,11 @@ class AutomaticReform(StrictModel):
     turn_knot: bool = False
 
     @model_validator(mode="after")
-    def validate_turn_knot(self) -> "AutomaticReform":
-        if self.mechanism == "string" and self.turn_knot:
-            raise ValueError("끈 방식에서는 돌려묶기를 선택할 수 없습니다")
+    def validate_addons(self) -> "AutomaticReform":
+        if self.mechanism == "string" and self.dimple:
+            raise ValueError("끈 방식에서는 딤플을 선택할 수 없습니다")
+        if self.dimple and not self.turn_knot:
+            raise ValueError("딤플은 돌려묶기와 함께만 선택할 수 있습니다")
         return self
 
 
