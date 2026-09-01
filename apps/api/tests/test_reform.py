@@ -60,7 +60,21 @@ def test_reform_option_validation():
                     "automatic": {
                         "mechanism": "string",
                         "wearer_height_cm": 175,
+                        "dimple": True,
                         "turn_knot": True,
+                    },
+                }
+            }
+        )
+    with pytest.raises(ValidationError):  # 딤플은 돌려묶기 없이는 불가
+        ReformDataIn.model_validate(
+            {
+                "tie": {
+                    "image": {"object_key": "uploads/reform_upload/tie.png"},
+                    "automatic": {
+                        "mechanism": "zipper",
+                        "wearer_height_cm": 175,
+                        "dimple": True,
                     },
                 }
             }

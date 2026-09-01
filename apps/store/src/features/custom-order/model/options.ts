@@ -84,7 +84,8 @@ export function customOrderApiOptions(options: CustomOrderOptions) {
     bar_tack: options.barTack,
     fold7: options.fold7,
     dimple: options.dimple,
-    turn_knot: options.turnKnot,
+    // 딤플은 돌려묶기와 함께만 — 저장된 임시 저장(draft)이 예전 조합이어도 맞춰 보낸다
+    turn_knot: options.turnKnot || options.dimple,
     spoderato: options.spoderato,
     brand_label: options.brandLabel,
     care_label: options.careLabel,

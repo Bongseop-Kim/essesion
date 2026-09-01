@@ -813,9 +813,16 @@ function CustomOrderPageContent({
                       validationError?.field === "dimple" || undefined
                     }
                     disabled={options.tieType !== "AUTO"}
-                    onChange={(event) =>
-                      update("dimple", event.currentTarget.checked)
-                    }
+                    onChange={(event) => {
+                      // 딤플은 돌려묶기 필수 — 켜면 같이 켠다(돌려묶기는 잠긴다)
+                      const dimple = event.currentTarget.checked;
+                      setValidationError(null);
+                      setOptions((current) => ({
+                        ...current,
+                        dimple,
+                        turnKnot: dimple || current.turnKnot,
+                      }));
+                    }}
                   />
                   <Checkbox
                     ref={turnKnotRef}
@@ -824,7 +831,7 @@ function CustomOrderPageContent({
                     aria-invalid={
                       validationError?.field === "turnKnot" || undefined
                     }
-                    disabled={options.tieType !== "AUTO"}
+                    disabled={options.tieType !== "AUTO" || options.dimple}
                     onChange={(event) =>
                       update("turnKnot", event.currentTarget.checked)
                     }

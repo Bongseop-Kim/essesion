@@ -138,13 +138,26 @@ async def test_manual_order_validation(client, db_session, settings):
     invalid_bodies = [
         manual_order_body(items=[]),  # 품목 없음
         manual_order_body(items=[{"quantity": 1}]),  # 대분류 미선택
-        manual_order_body(  # 끈 + 돌려묶기 금지
+        manual_order_body(  # 끈 + 딤플 금지
             items=[
                 {
                     "quantity": 1,
                     "automatic": {
                         "mechanism": "string",
+                        "dimple": True,
                         "turn_knot": True,
+                        "total_length_cm": 145,
+                    },
+                }
+            ]
+        ),
+        manual_order_body(  # 딤플은 돌려묶기 없이는 불가
+            items=[
+                {
+                    "quantity": 1,
+                    "automatic": {
+                        "mechanism": "zipper",
+                        "dimple": True,
                         "total_length_cm": 145,
                     },
                 }
@@ -165,6 +178,19 @@ async def test_manual_order_validation(client, db_session, settings):
                         "fabric_type": "POLY",
                         "design_type": "PRINTING",
                         "tie_type": "MANUAL",
+                        "dimple": True,
+                    },
+                }
+            ]
+        ),
+        manual_order_body(  # 제작 딤플은 돌려묶기 없이는 불가
+            items=[
+                {
+                    "quantity": 1,
+                    "custom": {
+                        "fabric_type": "POLY",
+                        "design_type": "PRINTING",
+                        "tie_type": "AUTO",
                         "dimple": True,
                     },
                 }

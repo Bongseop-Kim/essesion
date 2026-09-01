@@ -16,7 +16,7 @@
 
 입력: 배송지 id, items[] `{item_id, item_type(product|reform), product_id, selected_option_id, reform_data, quantity, applied_user_coupon_id}`. repair 주문의 수선품은 **항상 고객이 직접 발송한다** — 방문 수거 입력·요금은 2026-08-31에 제거됐다.
 
-검증: 아이템 최대 50개 / 요청 내 item_id 중복 불가·최대 200자 / reform_data 개당 64KB / 배송지 본인 소유 / product quantity 1~10,000·reform quantity=1 / product는 product_id 필수·존재 / reform은 사진+자동·폭·복원 중 하나 이상 필수 / 자동은 지퍼·끈 택1+착용자 키 필수(끈은 돌려묶기 불가) / 폭은 희망 폭 양수 필수 / 복원 메모는 선택·200자 이하.
+검증: 아이템 최대 50개 / 요청 내 item_id 중복 불가·최대 200자 / reform_data 개당 64KB / 배송지 본인 소유 / product quantity 1~10,000·reform quantity=1 / product는 product_id 필수·존재 / reform은 사진+자동·폭·복원 중 하나 이상 필수 / 자동은 지퍼·끈 택1+착용자 키 필수(끈은 딤플 불가, 딤플은 돌려묶기와 함께만 가능) / 폭은 희망 폭 양수 필수 / 복원 메모는 선택·200자 이하.
 
 재고 (결제 전 물리 차감):
 - 옵션 선택 시 옵션 재고, 아니면 상품 재고. `FOR UPDATE` 후 `stock IS NOT NULL AND stock < qty`면 오류, 아니면 차감. **NULL = 무제한**.
@@ -47,7 +47,7 @@
 가격 계산 (calculate_custom_order_amounts):
 - pricing_constants 키: `SEWING_PER_COST, AUTO_TIE_COST, TRIANGLE_STITCH_COST, SIDE_STITCH_COST, BAR_TACK_COST, DIMPLE_COST, SPODERATO_COST, FOLD7_COST, WOOL_INTERLINING_COST, BRAND_LABEL_COST, CARE_LABEL_COST, SAMPLE_SEWING_COST, SAMPLE_FABRIC_PRINTING_COST, SAMPLE_FABRIC_YARN_DYED_COST` — 하나라도 없으면 오류.
 - **주문제작은 샘플비를 포함한 가격이다** — 봉제 없는 주문제작은 없으므로 봉제 샘플비가 항상 1회 들어가고, 원단을 우리가 만들면(fabric_provided=false) 원단 샘플비도 1회 들어간다. 별도의 시작비·세팅비 상수는 없다(§4의 샘플 주문과 같은 상수를 공유하며, 샘플을 먼저 산 고객에게는 §4의 후속 할인쿠폰으로 되돌려준다).
-- 옵션: `tie_type ∈ {'', 'AUTO'}`, `interlining ∈ {'', 'WOOL'}`, bool 9종(triangle_stitch, side_stitch, bar_tack, dimple, turn_knot, spoderato, fold7, brand_label, care_label). **dimple·turn_knot은 tie_type='AUTO'에서만** 선택 가능하며, turn_knot은 자동 타이 비용에 포함되어 별도 과금하지 않는다.
+- 옵션: `tie_type ∈ {'', 'AUTO'}`, `interlining ∈ {'', 'WOOL'}`, bool 9종(triangle_stitch, side_stitch, bar_tack, dimple, turn_knot, spoderato, fold7, brand_label, care_label). **dimple·turn_knot은 tie_type='AUTO'에서만** 선택 가능하고 **dimple은 turn_knot과 함께만** 선택 가능하며, turn_knot은 자동 타이 비용에 포함되어 별도 과금하지 않는다.
 - `sewing = (SEWING_PER_COST + 선택 옵션 상수 합) * qty + SAMPLE_SEWING_COST`
 - fabric: `fabric_provided=true → 0`; 아니면 `round(qty * FABRIC_{design_type}_{fabric_type} / 4) + SAMPLE_FABRIC_{design_type}_COST`. design/fabric_type null이면 오류.
 - total = sewing + fabric.

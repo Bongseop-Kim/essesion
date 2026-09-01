@@ -47,9 +47,11 @@ class ManualAutomaticSpec(StrictModel):
     total_length_cm: float = Field(gt=0)
 
     @model_validator(mode="after")
-    def validate_turn_knot(self) -> "ManualAutomaticSpec":
-        if self.mechanism == "string" and self.turn_knot:
-            raise ValueError("끈 방식에서는 돌려묶기를 선택할 수 없습니다")
+    def validate_addons(self) -> "ManualAutomaticSpec":
+        if self.mechanism == "string" and self.dimple:
+            raise ValueError("끈 방식에서는 딤플을 선택할 수 없습니다")
+        if self.dimple and not self.turn_knot:
+            raise ValueError("딤플은 돌려묶기와 함께만 선택할 수 있습니다")
         return self
 
 
@@ -85,6 +87,8 @@ class ManualCustomSpec(StrictModel):
             raise ValueError("원단 제공이 아니면 원단·디자인 방식을 선택해주세요")
         if self.tie_type != "AUTO" and (self.dimple or self.turn_knot):
             raise ValueError("딤플·돌려묶기는 자동 봉제에서만 선택할 수 있습니다")
+        if self.dimple and not self.turn_knot:
+            raise ValueError("딤플은 돌려묶기와 함께만 선택할 수 있습니다")
         return self
 
 
