@@ -144,7 +144,7 @@ export function PrivacyPolicyContent() {
           <Text textStyle="labelSm">개인정보 보호책임자</Text>
           <Text {...bodyProps}>이름·직책: 김영선 (대표)</Text>
           <Text {...bodyProps}>이메일: biblecookie@naver.com</Text>
-          <Text {...bodyProps}>전화번호: 042-626-9055</Text>
+          <Text {...bodyProps}>전화번호: 0507-1381-7422</Text>
         </PolicyInfoBox>
       </PolicySection>
 

@@ -228,7 +228,7 @@ function StoreFooter() {
                 주소: 대전광역시 동구 우암로246번길 9-16 (가양동) 영선산업
               </Text>
               <Text as="p" textStyle="caption" color="fg.neutral-muted">
-                통신판매업 번호: 2017-대전동구-0353 | 전화번호: 042-626-9055
+                통신판매업 번호: 2017-대전동구-0353 | 전화번호: 0507-1381-7422
               </Text>
               <Text as="p" textStyle="caption" color="fg.neutral-muted">
                 이메일: biblecookie@naver.com
