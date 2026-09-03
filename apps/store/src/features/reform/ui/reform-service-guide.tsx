@@ -39,6 +39,52 @@ const REFORM_STEPS = [
   },
 ] as const;
 
+const MECHANISM_COMPARISON = [
+  {
+    label: "Zipper",
+    title: "지퍼 방식",
+    description:
+      "슬라이더를 위로 올린 상태에서 길이를 조절하고, 아래로 내리면 고정됩니다.",
+    image: "/images/reform/zipper.webp",
+  },
+  {
+    label: "String",
+    title: "끈 방식",
+    description:
+      "원터치 버튼을 누른 상태에서 길이를 조절하고, 손을 떼면 고정됩니다.",
+    image: "/images/reform/string.webp",
+  },
+] as const;
+
+const KNOT_COMPARISON = [
+  {
+    label: "Back · Basic",
+    title: "기본 방식 뒷면",
+    description: "좌우가 대칭인 형태로 단정하게 고정됩니다.",
+    image: "/images/reform/zipper.webp",
+  },
+  {
+    label: "Back · Turn Knot",
+    title: "돌려묶기 뒷면",
+    description:
+      "원단을 돌려 묶어 제작자가 매듭의 균형과 방향을 조절할 수 있습니다.",
+    image: "/images/reform/knot.webp",
+  },
+  {
+    label: "Front · Basic",
+    title: "기본 방식 앞면",
+    description: "좌우가 고르게 정돈된 매듭 인상입니다.",
+    image: "/images/reform/zipper-front.webp",
+  },
+  {
+    label: "Front · Turn Knot",
+    title: "돌려묶기 앞면",
+    description:
+      "자세히 보면 자연스러운 비대칭과 손으로 묶은 듯한 인상이 드러납니다.",
+    image: "/images/reform/knot-front.webp",
+  },
+] as const;
+
 const DIMPLE_COMPARISON = [
   {
     label: "Basic",
@@ -224,10 +270,24 @@ export function ReformServiceGuide() {
           />
           <OptionNote
             title="끈 방식"
-            description="딤플을 추가할 수 있으며 돌려묶기는 제공하지 않습니다."
+            description="돌려묶기를 추가할 수 있으며 딤플은 제공하지 않습니다."
           />
         </VStack>
       </Grid>
+
+      <ComparisonSection
+        eyebrow="Zipper / String"
+        title="길이를 조절하는 방식이 다릅니다"
+        description="지퍼와 끈 모두 원하는 길이로 간편하게 조절한 뒤 고정할 수 있습니다."
+        items={MECHANISM_COMPARISON}
+      />
+
+      <ComparisonSection
+        eyebrow="Basic / Turn Knot"
+        title="기본 방식과 돌려묶기를 비교해 보세요"
+        description="앞면의 큰 차이는 없지만, 돌려묶기는 제작 단계에서 자연스러운 비대칭과 손매듭 같은 인상을 더할 수 있습니다."
+        items={KNOT_COMPARISON}
+      />
 
       <ComparisonSection
         eyebrow="Basic / Dimple"

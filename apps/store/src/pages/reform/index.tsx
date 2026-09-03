@@ -446,7 +446,7 @@ export function ReformPage() {
               <HelpBubbleTrigger
                 title="입력 전 확인"
                 description={
-                  "넥타이 전체가 보이는 사진을 1장 선택해 주세요.\n\n자동 수선은 지퍼 또는 끈 중 하나를 선택합니다. 끈 방식에서는 돌려묶기를 제공하지 않습니다."
+                  "넥타이 전체가 보이는 사진을 1장 선택해 주세요.\n\n자동 수선은 지퍼 또는 끈 중 하나를 선택합니다. 딤플은 지퍼 방식에서만 선택할 수 있으며, 돌려묶기는 두 방식 모두 선택할 수 있습니다."
                 }
                 placement="bottom"
                 contentProps={{
