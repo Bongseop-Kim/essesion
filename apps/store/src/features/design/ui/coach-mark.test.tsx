@@ -69,3 +69,15 @@ it("타깃이 하나도 없으면 바로 닫는다", () => {
   expect(onClose).toHaveBeenCalledTimes(1);
   expect(screen.queryByRole("dialog")).toBeNull();
 });
+
+it("Tab은 말풍선 버튼 안에서만 돈다", () => {
+  renderCoach();
+  const dialog = screen.getByRole("dialog");
+  expect(dialog.getAttribute("aria-modal")).toBe("true");
+  const buttons = within(dialog).getAllByRole("button");
+  buttons[buttons.length - 1]?.focus();
+  fireEvent.keyDown(document, { key: "Tab" });
+  expect(document.activeElement).toBe(buttons[0]);
+  fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+  expect(document.activeElement).toBe(buttons[buttons.length - 1]);
+});

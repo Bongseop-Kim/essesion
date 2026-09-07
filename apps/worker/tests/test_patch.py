@@ -645,6 +645,31 @@ def test_on_stripes_arrangement_uses_the_widest_band_center():
     compose_design(patched)
 
 
+def test_between_stripes_picks_the_widest_gap_in_space_not_in_list_order():
+    base = mvp_intent()
+    base["layers"] = base["layers"][:3]
+    base["layers"][1]["params"]["period_mm"] = 24.0
+    base["layers"][1]["params"]["bands"] = [
+        {"offset_mm": 9, "width_mm": 3, "color": "accent"},
+        {"offset_mm": 0, "width_mm": 9, "color": "gold"},
+    ]
+
+    patched = apply_patch(base, _patch(placement={"arrangement": "between_stripes"}))
+
+    assert patched["layers"][2]["placement"]["lane"] == "b0.gap"  # 12 ~ 24
+    compose_design(patched)
+
+
+def test_between_stripes_with_no_gap_is_rejected():
+    base = mvp_intent()
+    base["layers"] = base["layers"][:3]
+    base["layers"][1]["params"]["period_mm"] = 12.0
+    base["layers"][1]["params"]["bands"] = [{"offset_mm": 0, "width_mm": 12, "color": "accent"}]
+
+    with pytest.raises(ConstraintInvalid, match="no gap"):
+        apply_patch(base, _patch(placement={"arrangement": "between_stripes"}))
+
+
 def test_between_stripes_without_a_stripe_layer_is_rejected():
     with pytest.raises(ConstraintInvalid, match="stripe layer"):
         apply_patch(_lattice_intent(), _patch(placement={"arrangement": "between_stripes"}))

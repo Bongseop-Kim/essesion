@@ -43,7 +43,7 @@ _COLOR_WORDS = (
 _MOTIF_MENTION_NEGATED = re.compile(
     rf"(?:{_MOTIF_WORDS.pattern}|{_MATERIAL_WORDS_PATTERN})(?:들)?\s*(?:은|는|을|를|도)?\s*"
     r"(?:넣지|없이|빼|제외|말고|쓰지|사용하지|않)"
-    r"|\b(?:no|without)\s+(?:motifs?|shapes?|logos?|icons?)\b",
+    r"|\b(?:no|without|do\s+not\s+use|don['’]?t\s+use)\s+(?:any\s+)?(?:motifs?|shapes?|logos?|icons?)\b",
     re.IGNORECASE,
 )
 _MOTIF_COLOR_CHANGE = re.compile(

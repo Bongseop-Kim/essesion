@@ -28,6 +28,7 @@ from worker.engine.constraints import (
     ordered_slot_refs,
     scatter_placement,
 )
+from worker.engine.primitives import band_gaps
 from worker.engine.units import snap_angle, stripe_tiles
 
 # on_stripes/between_stripes는 줄무늬 레이어를 host로 삼는 path_following이다 — 줄무늬가
@@ -586,14 +587,12 @@ def _stripe_lane(raw: dict[str, Any], arrangement: str) -> tuple[str, str]:
         index = max(range(len(bands)), key=lambda i: float(bands[i].get("width_mm", 0.0)))
         return str(host["id"]), f"b{index}.center"
 
-    def gap_width(i: int) -> float:
-        start = float(bands[i].get("offset_mm", 0.0)) + float(bands[i].get("width_mm", 0.0))
-        end = float(bands[(i + 1) % len(bands)].get("offset_mm", 0.0))
-        while end <= start:
-            end += period
-        return end - start
-
-    index = max(range(len(bands)), key=gap_width)
+    gaps = band_gaps(
+        [(float(b.get("offset_mm", 0.0)), float(b.get("width_mm", 0.0))) for b in bands], period
+    )
+    index = max(range(len(bands)), key=lambda i: gaps[i][1] - gaps[i][0])
+    if gaps[index][1] <= gaps[index][0]:
+        raise ConstraintInvalid(["stripe bands leave no gap to host the motifs"])
     return str(host["id"]), f"b{index}.gap"
 
 

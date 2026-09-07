@@ -114,14 +114,32 @@ export function CoachMark({ open, onClose }: CoachMarkProps) {
     nextRef.current?.focus();
   }, [rect]);
 
+  // Esc는 건너뛰기. Tab은 말풍선 버튼 안에서만 돈다 — 딤 아래는 클릭도 포커스도 막는다.
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") finish();
+      if (event.key === "Escape") {
+        onCloseRef.current();
+        returnFocus.current?.focus();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const buttons = Array.from(
+        bubbleRef.current?.querySelectorAll<HTMLElement>("button") ?? [],
+      );
+      if (buttons.length === 0) return;
+      const at = buttons.indexOf(document.activeElement as HTMLElement);
+      const next = event.shiftKey
+        ? (at <= 0 ? buttons.length : at) - 1
+        : at < 0 || at === buttons.length - 1
+          ? 0
+          : at + 1;
+      event.preventDefault();
+      buttons[next]?.focus();
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  });
+  }, [open]);
 
   if (!open || !step || !rect) return null;
 
@@ -154,6 +172,7 @@ export function CoachMark({ open, onClose }: CoachMarkProps) {
       <VStack
         ref={bubbleRef}
         role="dialog"
+        aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
         position="fixed"

@@ -1175,6 +1175,8 @@ def test_motif_intent_unmet_subjects_still_respects_color_change_guard():
         "짙은 초록 바탕에 굵은 아이보리 사선 줄과 가는 금색 보조 줄을 반복해줘. 모티프는 넣지 마.",
         "네이비 스트라이프, 무늬 없이",
         "navy stripes with no motif",
+        "navy stripes, do not use motifs",
+        "navy stripes, don't use any motif",
     ],
 )
 def test_negated_motif_mention_is_not_a_catalog_miss(prompt: str):
@@ -1497,6 +1499,18 @@ def test_named_ground_keeps_model_color_when_unrecognized_word_directly_modifies
     )
 
     assert normalized.colors[normalized.ground_color_index] == "#14532D"
+
+
+def test_named_ground_keeps_model_color_when_unregistered_english_word_modifies_it():
+    # D1의 영어판 — "emerald"는 어휘에 없지만 background를 직접 수식한다. 두 글자 뒤의
+    # "ivory"(줄 색)가 근접만으로 바탕을 가로채면 안 된다.
+    normalized = normalize_requested_named_colors(
+        "emerald background, ivory stripes",
+        _stripe_plan(["#14532D", "#123456"]),
+    )
+
+    assert normalized.colors[normalized.ground_color_index] == "#14532D"
+    assert normalized.colors[1] == "#FFFFF0"
 
 
 def test_named_ground_direct_modifier_with_intensity_word_still_applies():

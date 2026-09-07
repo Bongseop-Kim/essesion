@@ -21,8 +21,15 @@ _DIRECT_ROLE_CONNECTOR = re.compile(
     rf"은|는|이|가|을|를|만|의|로|으로|인|-|{_GROUND_MODIFIER_WORDS})\s*)*",
     re.IGNORECASE,
 )
+# 영어는 관사·전치사·강도 수식어만 빼고 본다 — "the background"는 색 표현이 아니다.
+_GROUND_ADJACENT_STOP_WORDS = (
+    rf"the|an?|for|in|of|on|with|and|to|as|its|my|our|your|this|that|same|whole|entire|"
+    rf"plain|solid|only|{_GROUND_MODIFIER_WORDS}"
+)
 _GROUND_ADJACENT_BEFORE = re.compile(
-    rf"(?:{_GROUND_MODIFIER_WORDS})?\s*([가-힣]{{1,6}})\s*$", re.IGNORECASE
+    rf"(?:{_GROUND_MODIFIER_WORDS})?\s*"
+    rf"([가-힣]{{1,6}}|\b(?!(?:{_GROUND_ADJACENT_STOP_WORDS})\s*$)[A-Za-z]{{2,12}})\s*$",
+    re.IGNORECASE,
 )
 _GROUND_ADJACENT_AFTER = re.compile(
     rf"\s*(?:{_GROUND_MODIFIER_WORDS})?\s*(?:은|는)?\s*([가-힣]{{1,6}})(?:으로|로)",

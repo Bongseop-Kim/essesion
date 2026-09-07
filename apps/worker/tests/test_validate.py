@@ -454,6 +454,24 @@ def test_stripe_exposes_gap_lanes_between_bands():
     assert lanes["b1.gap"] == 18.0  # 12 ~ 24(다음 period의 밴드 0)
     assert "gap" not in lanes  # bare 키워드는 단일 밴드만
 
+    adjacent = build_stripe(
+        StripeParams.model_validate(
+            {
+                "angle": 0.0,
+                "period_mm": 24.0,
+                # 목록 순서와 공간 순서가 다르고, 밴드 1은 밴드 0에 맞붙어 있다.
+                "bands": [
+                    {"offset_mm": 9, "width_mm": 3, "color": "b"},
+                    {"offset_mm": 0, "width_mm": 9, "color": "a"},
+                ],
+            }
+        ),
+        48.0,
+    )
+    lanes = {lane.id: lane.centerline_path.offset_mm for lane in adjacent.lanes()}
+    assert "b1.gap" not in lanes  # 9 ~ 9: 빈 공간 없음
+    assert lanes["b0.gap"] == 18.0  # 12 ~ 24
+
 
 def test_bare_gap_lane_is_normalized_on_multi_band_stripes():
     intent = mvp_intent()
