@@ -1,0 +1,3621 @@
+{
+  "s1-0.json": {
+    "session_id": "c66fc2a7-ff31-426f-9f1d-90ccb0835d02",
+    "session": {
+      "id": "c66fc2a7-ff31-426f-9f1d-90ccb0835d02",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 48
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "stripe_0",
+            "clip": null,
+            "type": "stripe",
+            "params": {
+              "angle": -45,
+              "bands": [
+                {
+                  "color": "color_1",
+                  "width_mm": 4.072935,
+                  "offset_mm": 0
+                }
+              ],
+              "period_mm": 33.941125
+            },
+            "opacity": 1,
+            "z_order": 1
+          },
+          {
+            "id": "motif_0",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 5.76,
+              "motif_id": "seed-384a33eb79fe"
+            },
+            "opacity": 1,
+            "z_order": 2,
+            "placement": {
+              "lane": null,
+              "path": null,
+              "type": "scatter",
+              "lattice": null,
+              "scatter": {
+                "mode": "poisson",
+                "count": 6,
+                "sateen_n": null,
+                "min_dist_mm": 8.64,
+                "sateen_step": null
+              },
+              "phase_mm": 0,
+              "rotation": null,
+              "point_set": null,
+              "host_layer": null,
+              "spacing_mm": null,
+              "fixed_rotation_deg": 0
+            }
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#000080",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#F3EAD8",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#000080",
+              "color_1": "#F3EAD8"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 2,
+      "last_prompt": null,
+      "created_at": "2026-09-07T01:18:27.988860Z",
+      "updated_at": "2026-09-07T01:18:39.180427Z"
+    },
+    "session_time": "2026-09-07T01:18:39.243Z",
+    "latest_generate": {
+      "run_id": "3af24546-b6f0-4e88-9479-17073c469d72",
+      "note": null,
+      "rejected": null,
+      "warnings": [],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T01:18:39.197Z",
+    "errors": [],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/login]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e17]\n    - button \"로그아웃\" [ref=e18]\n- main:\n  - img \"선택한 디자인 미리보기, 넥타이 적용 모습\"\n  - button \"Help\" [ref=e19]\n  - button \"토큰 잔액\" [ref=e20]:\n    - img \"토큰 잔액\"\n    - text: \"713토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e21] [checked]\n      - generic \"넥타이\" [ref=e22]\n    - label:\n      - radio \"타일\" [ref=e23]\n      - generic \"타일\" [ref=e24]\n  - region \"모티프 선택\" [ref=e25]:\n    - heading \"모티프\" [level=2]\n    - text: \"1/2\"\n    - button \"모티프 카드 접기\" [ref=e26]\n    - button \"모티프 바꾸기\" [ref=e60]:\n      - image \"모티프\"\n    - button \"모티프 슬롯 2에 그림 추가\" [ref=e61]: \"그림 추가\"\n    - button \"SVG 모티프 파일 선택\" [ref=e29]\n  - region \"편집 이력\" [ref=e55]:\n    - heading \"이력\" [level=2]\n    - text: \"1 / 1\"\n    - button \"이력 카드 접기\" [ref=e56]\n    - button \"1번째 디자인 · 전체 이력 보기\" [ref=e62]\n    - button \"이전 디자인\" [ref=e57] [disabled]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e58] [disabled]\n    - button \"전체 보기\" [ref=e59]\n  - navigation \"디자인 도구\" [ref=e36]:\n    - button \"내려받기\" [ref=e37]\n    - button \"실사화\" [ref=e38]\n    - button \"내 디자인\" [ref=e39]\n    - button \"완성본\" [ref=e40]\n    - button \"새로 시작\" [ref=e41]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e42] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e43]\n    - button \"디자인에 적용\" [ref=e44] [disabled]\n  - alert\n  - status\n- iframe:\n  - button \"Open selection tools\" [ref=f1e1]"
+  },
+  "s1-1.json": {
+    "session_id": "c66fc2a7-ff31-426f-9f1d-90ccb0835d02",
+    "session": {
+      "id": "c66fc2a7-ff31-426f-9f1d-90ccb0835d02",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 48
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "stripe_0",
+            "clip": null,
+            "type": "stripe",
+            "params": {
+              "angle": -45,
+              "bands": [
+                {
+                  "color": "color_1",
+                  "width_mm": 4.072935,
+                  "offset_mm": 0
+                }
+              ],
+              "period_mm": 33.941125
+            },
+            "opacity": 1,
+            "z_order": 1
+          },
+          {
+            "id": "motif_0",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 5.76,
+              "motif_id": "seed-384a33eb79fe"
+            },
+            "opacity": 1,
+            "z_order": 2,
+            "placement": {
+              "lane": null,
+              "path": null,
+              "type": "scatter",
+              "lattice": null,
+              "scatter": {
+                "mode": "poisson",
+                "count": 6,
+                "sateen_n": null,
+                "min_dist_mm": 8.64,
+                "sateen_step": null
+              },
+              "phase_mm": 0,
+              "rotation": null,
+              "point_set": null,
+              "host_layer": null,
+              "spacing_mm": null,
+              "fixed_rotation_deg": 0
+            }
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#000080",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#800020",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#000080",
+              "color_1": "#800020"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 4,
+      "last_prompt": null,
+      "created_at": "2026-09-07T01:18:27.988860Z",
+      "updated_at": "2026-09-07T01:19:25.914476Z"
+    },
+    "session_time": "2026-09-07T01:19:25.960Z",
+    "latest_generate": {
+      "run_id": "804e6c88-7663-4166-80a8-de1f02ff51e4",
+      "note": "크림색 사선 줄을 버건디 색으로 변경했어요.",
+      "rejected": null,
+      "warnings": [],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T01:19:25.927Z",
+    "errors": [],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/login]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e17]\n    - button \"로그아웃\" [ref=e18]\n- main:\n  - img \"선택한 디자인 미리보기, 넥타이 적용 모습\"\n  - button \"Help\" [ref=e19]\n  - button \"토큰 잔액\" [ref=e20]:\n    - img \"토큰 잔액\"\n    - text: \"701토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e21] [checked]\n      - generic \"넥타이\" [ref=e22]\n    - label:\n      - radio \"타일\" [ref=e23]\n      - generic \"타일\" [ref=e24]\n  - region \"모티프 선택\" [ref=e25]:\n    - heading \"모티프\" [level=2]\n    - text: \"1/2\"\n    - button \"모티프 카드 접기\" [ref=e26]\n    - button \"모티프 바꾸기\" [ref=e60]:\n      - image \"모티프\"\n    - button \"모티프 슬롯 2에 그림 추가\" [ref=e61]: \"그림 추가\"\n    - button \"SVG 모티프 파일 선택\" [ref=e29]\n  - region \"편집 이력\" [ref=e55]:\n    - heading \"이력\" [level=2]\n    - text: \"2 / 2\"\n    - button \"이력 카드 접기\" [ref=e56]\n    - button \"2번째 디자인 · 전체 이력 보기\" [ref=e63]\n    - button \"1번째 디자인으로 되돌리기\" [ref=e64]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e58] [disabled]\n    - button \"전체 보기\" [ref=e59]\n  - navigation \"디자인 도구\" [ref=e36]:\n    - button \"내려받기\" [ref=e37]\n    - button \"실사화\" [ref=e38]\n    - button \"내 디자인\" [ref=e39]\n    - button \"완성본\" [ref=e40]\n    - button \"새로 시작\" [ref=e41]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e42] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e43]\n    - button \"디자인에 적용\" [ref=e44] [disabled]\n  - alert\n  - status\n- iframe:\n  - button \"Open selection tools\" [ref=f1e1]"
+  },
+  "s1-2.json": {
+    "session_id": "c66fc2a7-ff31-426f-9f1d-90ccb0835d02",
+    "session": {
+      "id": "c66fc2a7-ff31-426f-9f1d-90ccb0835d02",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 48
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "stripe_0",
+            "clip": null,
+            "type": "stripe",
+            "params": {
+              "angle": -45,
+              "bands": [
+                {
+                  "color": "color_1",
+                  "width_mm": 8.14587,
+                  "offset_mm": 0
+                }
+              ],
+              "period_mm": 33.941125
+            },
+            "opacity": 1,
+            "z_order": 1
+          },
+          {
+            "id": "motif_0",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 5.76,
+              "motif_id": "seed-384a33eb79fe"
+            },
+            "opacity": 1,
+            "z_order": 2,
+            "placement": {
+              "lane": null,
+              "path": null,
+              "type": "scatter",
+              "lattice": null,
+              "scatter": {
+                "mode": "poisson",
+                "count": 6,
+                "sateen_n": null,
+                "min_dist_mm": 8.64,
+                "sateen_step": null
+              },
+              "phase_mm": 0,
+              "rotation": null,
+              "point_set": null,
+              "host_layer": null,
+              "spacing_mm": null,
+              "fixed_rotation_deg": 0
+            }
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#000080",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#800020",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#000080",
+              "color_1": "#800020"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 6,
+      "last_prompt": "버건디 줄 두께만 지금의 두 배로 해줘. 줄 중심 사이 간격과 벌 크기는 그대로.",
+      "created_at": "2026-09-07T01:18:27.988860Z",
+      "updated_at": "2026-09-07T01:19:37.832067Z"
+    },
+    "session_time": "2026-09-07T01:19:37.871Z",
+    "latest_generate": {
+      "run_id": "2724e9ea-1dcb-42e3-8a79-cbda73db2704",
+      "note": "버건디 줄의 두께만 두 배로 늘리고 줄 간격과 벌 크기는 그대로 유지했습니다.",
+      "rejected": null,
+      "warnings": [],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T01:19:37.842Z",
+    "errors": [],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/login]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e17]\n    - button \"로그아웃\" [ref=e18]\n- main:\n  - img \"선택한 디자인 미리보기, 넥타이 적용 모습\"\n  - button \"Help\" [ref=e19]\n  - button \"토큰 잔액\" [ref=e20]:\n    - img \"토큰 잔액\"\n    - text: \"689토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e21] [checked]\n      - generic \"넥타이\" [ref=e22]\n    - label:\n      - radio \"타일\" [ref=e23]\n      - generic \"타일\" [ref=e24]\n  - region \"모티프 선택\" [ref=e25]:\n    - heading \"모티프\" [level=2]\n    - text: \"1/2\"\n    - button \"모티프 카드 접기\" [ref=e26]\n    - button \"모티프 바꾸기\" [ref=e60]:\n      - image \"모티프\"\n    - button \"모티프 슬롯 2에 그림 추가\" [ref=e61]: \"그림 추가\"\n    - button \"SVG 모티프 파일 선택\" [ref=e29]\n  - region \"편집 이력\" [ref=e55]:\n    - heading \"이력\" [level=2]\n    - text: \"3 / 3\"\n    - button \"이력 카드 접기\" [ref=e56]\n    - button \"3번째 디자인 · 전체 이력 보기\" [ref=e65]\n    - button \"2번째 디자인으로 되돌리기\" [ref=e66]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e58] [disabled]\n    - button \"전체 보기\" [ref=e59]\n  - navigation \"디자인 도구\" [ref=e36]:\n    - button \"내려받기\" [ref=e37]\n    - button \"실사화\" [ref=e38]\n    - button \"내 디자인\" [ref=e39]\n    - button \"완성본\" [ref=e40]\n    - button \"새로 시작\" [ref=e41]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e42] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e43]\n    - button \"디자인에 적용\" [ref=e44] [disabled]\n  - alert\n  - status\n- iframe:\n  - button \"Open selection tools\" [ref=f1e1]"
+  },
+  "s1-3.json": {
+    "session_id": "c66fc2a7-ff31-426f-9f1d-90ccb0835d02",
+    "session": {
+      "id": "c66fc2a7-ff31-426f-9f1d-90ccb0835d02",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 48
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "stripe_0",
+            "clip": null,
+            "type": "stripe",
+            "params": {
+              "angle": -45,
+              "bands": [
+                {
+                  "color": "color_1",
+                  "width_mm": 8.14587,
+                  "offset_mm": 0
+                }
+              ],
+              "period_mm": 33.941125
+            },
+            "opacity": 1,
+            "z_order": 1
+          },
+          {
+            "id": "motif_0",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 5.76,
+              "motif_id": "seed-384a33eb79fe"
+            },
+            "opacity": 1,
+            "z_order": 2,
+            "placement": {
+              "lane": null,
+              "path": null,
+              "type": "scatter",
+              "lattice": null,
+              "scatter": {
+                "mode": "poisson",
+                "count": 6,
+                "sateen_n": null,
+                "min_dist_mm": 8.64,
+                "sateen_step": null
+              },
+              "phase_mm": 0,
+              "rotation": null,
+              "point_set": null,
+              "host_layer": null,
+              "spacing_mm": null,
+              "fixed_rotation_deg": 0
+            }
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#000080",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#800020",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#000080",
+              "color_1": "#800020"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 6,
+      "last_prompt": "버건디 줄 두께만 지금의 두 배로 해줘. 줄 중심 사이 간격과 벌 크기는 그대로.",
+      "created_at": "2026-09-07T01:18:27.988860Z",
+      "updated_at": "2026-09-07T01:19:47.667935Z"
+    },
+    "session_time": "2026-09-07T01:19:47.717Z",
+    "latest_generate": {
+      "run_id": null,
+      "note": null,
+      "rejected": "motif",
+      "warnings": [],
+      "motif_intent": {
+        "detected": true,
+        "subject": null,
+        "reason": "motif_change"
+      }
+    },
+    "generate_time": "2026-09-07T01:19:47.682Z",
+    "errors": [],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/login]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e17]\n    - button \"로그아웃\" [ref=e18]\n- main:\n  - img \"선택한 디자인 미리보기, 넥타이 적용 모습\"\n  - button \"Help\" [ref=e19]\n  - button \"토큰 잔액\" [ref=e20]:\n    - img \"토큰 잔액\"\n    - text: \"689토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e21] [checked]\n      - generic \"넥타이\" [ref=e22]\n    - label:\n      - radio \"타일\" [ref=e23]\n      - generic \"타일\" [ref=e24]\n  - region \"모티프 선택\" [ref=e25]:\n    - heading \"모티프\" [level=2]\n    - text: \"1/2\"\n    - button \"모티프 카드 접기\" [ref=e26]\n    - button \"모티프 바꾸기\" [ref=e60]:\n      - image \"모티프\"\n    - button \"모티프 슬롯 2에 그림 추가\" [ref=e61]: \"그림 추가\"\n    - button \"SVG 모티프 파일 선택\" [ref=e29]\n  - region \"편집 이력\" [ref=e55]:\n    - heading \"이력\" [level=2]\n    - text: \"3 / 3\"\n    - button \"이력 카드 접기\" [ref=e56]\n    - button \"3번째 디자인 · 전체 이력 보기\" [ref=e67]\n    - button \"2번째 디자인으로 되돌리기\" [ref=e66]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e58] [disabled]\n    - button \"전체 보기\" [ref=e59]\n  - navigation \"디자인 도구\" [ref=e36]:\n    - button \"내려받기\" [ref=e37]\n    - button \"실사화\" [ref=e38]\n    - button \"내 디자인\" [ref=e39]\n    - button \"완성본\" [ref=e40]\n    - button \"새로 시작\" [ref=e41]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e42] [focused] [placeholder=\"무엇을 바꿀까요?\"]: \"벌을 줄 위가 아니라 줄 사이 빈 공간의 가운데로 옮겨줘.\"\n    - button \"아이디어 받기\" [ref=e43]\n    - button \"디자인에 적용\" [ref=e44]\n  - alert\n  - status\n- iframe:\n  - button \"Open selection tools\" [ref=f1e1]"
+  },
+  "s1-4.json": {
+    "session_id": "c66fc2a7-ff31-426f-9f1d-90ccb0835d02",
+    "session": {
+      "id": "c66fc2a7-ff31-426f-9f1d-90ccb0835d02",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 48
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "stripe_0",
+            "clip": null,
+            "type": "stripe",
+            "params": {
+              "angle": -45,
+              "bands": [
+                {
+                  "color": "color_1",
+                  "width_mm": 8.14587,
+                  "offset_mm": 0
+                }
+              ],
+              "period_mm": 33.941125
+            },
+            "opacity": 1,
+            "z_order": 1
+          },
+          {
+            "id": "motif_0",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 2.88,
+              "motif_id": "seed-384a33eb79fe"
+            },
+            "opacity": 1,
+            "z_order": 2,
+            "placement": {
+              "lane": null,
+              "path": null,
+              "type": "scatter",
+              "lattice": null,
+              "scatter": {
+                "mode": "poisson",
+                "count": 6,
+                "sateen_n": null,
+                "min_dist_mm": 8.64,
+                "sateen_step": null
+              },
+              "phase_mm": 0,
+              "rotation": null,
+              "point_set": null,
+              "host_layer": null,
+              "spacing_mm": null,
+              "fixed_rotation_deg": 0
+            }
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#000080",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#800020",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#000080",
+              "color_1": "#800020"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 8,
+      "last_prompt": "벌 크기만 절반으로 줄여줘.",
+      "created_at": "2026-09-07T01:18:27.988860Z",
+      "updated_at": "2026-09-07T01:19:55.375069Z"
+    },
+    "session_time": "2026-09-07T01:19:55.416Z",
+    "latest_generate": {
+      "run_id": "947cb8df-0f60-4635-a5e3-e179f2f7a7b5",
+      "note": "벌 모티프 크기를 절반으로 줄였습니다.",
+      "rejected": null,
+      "warnings": [],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T01:19:55.385Z",
+    "errors": [],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/login]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e17]\n    - button \"로그아웃\" [ref=e18]\n- main:\n  - img \"선택한 디자인 미리보기, 넥타이 적용 모습\"\n  - button \"Help\" [ref=e19]\n  - button \"토큰 잔액\" [ref=e20]:\n    - img \"토큰 잔액\"\n    - text: \"677토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e21] [checked]\n      - generic \"넥타이\" [ref=e22]\n    - label:\n      - radio \"타일\" [ref=e23]\n      - generic \"타일\" [ref=e24]\n  - region \"모티프 선택\" [ref=e25]:\n    - heading \"모티프\" [level=2]\n    - text: \"1/2\"\n    - button \"모티프 카드 접기\" [ref=e26]\n    - button \"모티프 바꾸기\" [ref=e60]:\n      - image \"모티프\"\n    - button \"모티프 슬롯 2에 그림 추가\" [ref=e61]: \"그림 추가\"\n    - button \"SVG 모티프 파일 선택\" [ref=e29]\n  - region \"편집 이력\" [ref=e55]:\n    - heading \"이력\" [level=2]\n    - text: \"4 / 4\"\n    - button \"이력 카드 접기\" [ref=e56]\n    - button \"4번째 디자인 · 전체 이력 보기\" [ref=e68]\n    - button \"3번째 디자인으로 되돌리기\" [ref=e69]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e58] [disabled]\n    - button \"전체 보기\" [ref=e59]\n  - navigation \"디자인 도구\" [ref=e36]:\n    - button \"내려받기\" [ref=e37]\n    - button \"실사화\" [ref=e38]\n    - button \"내 디자인\" [ref=e39]\n    - button \"완성본\" [ref=e40]\n    - button \"새로 시작\" [ref=e41]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e42] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e43]\n    - button \"디자인에 적용\" [ref=e44] [disabled]\n  - alert\n  - status\n- iframe:\n  - button \"Open selection tools\" [ref=f1e1]"
+  },
+  "s2-0.json": {
+    "session_id": "d64c9bdf-96c0-4461-9952-621342987eb2",
+    "session": {
+      "id": "d64c9bdf-96c0-4461-9952-621342987eb2",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 48
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "stripe_0",
+            "clip": null,
+            "type": "stripe",
+            "params": {
+              "angle": -45,
+              "bands": [
+                {
+                  "color": "color_1",
+                  "width_mm": 15,
+                  "offset_mm": 0
+                },
+                {
+                  "color": "color_2",
+                  "width_mm": 9,
+                  "offset_mm": 21
+                }
+              ],
+              "period_mm": 33.941125
+            },
+            "opacity": 1,
+            "z_order": 1
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#FFFFF0",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#F2E9D5",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_2",
+              "hex": "#C9A227",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#FFFFF0",
+              "color_1": "#F2E9D5",
+              "color_2": "#C9A227"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 2,
+      "last_prompt": "짙은 초록 바탕에 굵은 아이보리 사선 줄과 가는 금색 보조 줄을 나란히 한 쌍으로 반복해줘. 모티프는 넣지 마.",
+      "created_at": "2026-09-07T01:20:08.131594Z",
+      "updated_at": "2026-09-07T01:20:12.576471Z"
+    },
+    "session_time": "2026-09-07T01:20:12.618Z",
+    "latest_generate": {
+      "run_id": "8a9bd015-dc05-483d-954a-6c7c34d8073c",
+      "note": null,
+      "rejected": null,
+      "warnings": [],
+      "motif_intent": {
+        "detected": true,
+        "subject": null,
+        "reason": "motif_mention"
+      }
+    },
+    "generate_time": "2026-09-07T01:20:12.587Z",
+    "errors": [],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/login]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e17]\n    - button \"로그아웃\" [ref=e18]\n- main:\n  - img \"선택한 디자인 미리보기\"\n  - button \"Help\" [ref=e19]\n  - button \"토큰 잔액\" [ref=e20]:\n    - img \"토큰 잔액\"\n    - text: \"652토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e21]\n      - generic \"넥타이\" [ref=e22]\n    - label:\n      - radio \"타일\" [ref=e23] [checked]\n      - generic \"타일\" [ref=e24]\n  - region \"모티프 선택\" [ref=e25]:\n    - heading \"모티프\" [level=2]\n    - text: \"0/2\"\n    - button \"모티프 카드 접기\" [ref=e26]\n    - button \"모티프 슬롯 1에 그림 추가\" [ref=e70]: \"그림 추가\"\n    - button \"모티프 슬롯 2에 그림 추가\" [ref=e71]: \"그림 추가\"\n    - button \"SVG 모티프 파일 선택\" [ref=e29]\n  - region \"편집 이력\" [ref=e72]:\n    - heading \"이력\" [level=2]\n    - text: \"1 / 1\"\n    - button \"이력 카드 접기\" [ref=e73]\n    - button \"1번째 디자인 · 전체 이력 보기\" [ref=e74]\n    - button \"이전 디자인\" [ref=e75] [disabled]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e76] [disabled]\n    - button \"전체 보기\" [ref=e77]\n  - navigation \"디자인 도구\" [ref=e36]:\n    - button \"내려받기\" [ref=e37]\n    - button \"실사화\" [ref=e38]\n    - button \"내 디자인\" [ref=e39]\n    - button \"완성본\" [ref=e40]\n    - button \"새로 시작\" [ref=e41]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e42] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e43]\n    - button \"디자인에 적용\" [ref=e44] [disabled]\n  - alert\n  - status\n- iframe:\n  - button \"Open selection tools\" [ref=f1e1]"
+  },
+  "s2-1.json": {
+    "session_id": "d64c9bdf-96c0-4461-9952-621342987eb2",
+    "session": {
+      "id": "d64c9bdf-96c0-4461-9952-621342987eb2",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 48
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "stripe_0",
+            "clip": null,
+            "type": "stripe",
+            "params": {
+              "angle": -45,
+              "bands": [
+                {
+                  "color": "color_1",
+                  "width_mm": 15,
+                  "offset_mm": 0
+                },
+                {
+                  "color": "color_4",
+                  "width_mm": 9,
+                  "offset_mm": 21
+                }
+              ],
+              "period_mm": 33.941125
+            },
+            "opacity": 1,
+            "z_order": 1
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#FFFFF0",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#F2E9D5",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_4",
+              "hex": "#FF0000",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#FFFFF0",
+              "color_1": "#F2E9D5",
+              "color_4": "#FF0000"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 4,
+      "last_prompt": "금색 가는 줄만 빨간색으로 바꿔줘.",
+      "created_at": "2026-09-07T01:20:08.131594Z",
+      "updated_at": "2026-09-07T01:20:27.652644Z"
+    },
+    "session_time": "2026-09-07T01:20:27.692Z",
+    "latest_generate": {
+      "run_id": "c4127a01-dada-4cf6-bd7d-2831641f3a9d",
+      "note": "가는 금색 줄을 빨간색으로 바꿨어요.",
+      "rejected": null,
+      "warnings": [
+        {
+          "code": "color_out_of_gamut",
+          "message": "이 색은 실제 인쇄에서 조금 다르게 보일 수 있어요."
+        }
+      ],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T01:20:27.663Z",
+    "errors": [],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/login]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e17]\n    - button \"로그아웃\" [ref=e18]\n- main:\n  - img \"선택한 디자인 미리보기\"\n  - button \"Help\" [ref=e19]\n  - button \"토큰 잔액\" [ref=e20]:\n    - img \"토큰 잔액\"\n    - text: \"640토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e21]\n      - generic \"넥타이\" [ref=e22]\n    - label:\n      - radio \"타일\" [ref=e23] [checked]\n      - generic \"타일\" [ref=e24]\n  - region \"모티프 선택\" [ref=e25]:\n    - heading \"모티프\" [level=2]\n    - text: \"0/2\"\n    - button \"모티프 카드 접기\" [ref=e26]\n    - button \"모티프 슬롯 1에 그림 추가\" [ref=e70]: \"그림 추가\"\n    - button \"모티프 슬롯 2에 그림 추가\" [ref=e71]: \"그림 추가\"\n    - button \"SVG 모티프 파일 선택\" [ref=e29]\n  - region \"편집 이력\" [ref=e72]:\n    - heading \"이력\" [level=2]\n    - text: \"2 / 2\"\n    - button \"이력 카드 접기\" [ref=e73]\n    - button \"2번째 디자인 · 전체 이력 보기\" [ref=e78]\n    - button \"1번째 디자인으로 되돌리기\" [ref=e79]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e76] [disabled]\n    - button \"전체 보기\" [ref=e77]\n  - navigation \"디자인 도구\" [ref=e36]:\n    - button \"내려받기\" [ref=e37]\n    - button \"실사화\" [ref=e38]\n    - button \"내 디자인\" [ref=e39]\n    - button \"완성본\" [ref=e40]\n    - button \"새로 시작\" [ref=e41]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e42] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e43]\n    - button \"디자인에 적용\" [ref=e44] [disabled]\n  - alert\n  - status: \"이 색은 실제 인쇄에서 조금 다르게 보일 수 있어요.\"\n- iframe:\n  - button \"Open selection tools\" [ref=f1e1]"
+  },
+  "s2-2.json": {
+    "session_id": "d64c9bdf-96c0-4461-9952-621342987eb2",
+    "session": {
+      "id": "d64c9bdf-96c0-4461-9952-621342987eb2",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 48
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "stripe_0",
+            "clip": null,
+            "type": "stripe",
+            "params": {
+              "angle": -45,
+              "bands": [
+                {
+                  "color": "color_1",
+                  "width_mm": 7.5,
+                  "offset_mm": 0
+                },
+                {
+                  "color": "color_4",
+                  "width_mm": 9,
+                  "offset_mm": 21
+                }
+              ],
+              "period_mm": 33.941125
+            },
+            "opacity": 1,
+            "z_order": 1
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#FFFFF0",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#F2E9D5",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_4",
+              "hex": "#FF0000",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#FFFFF0",
+              "color_1": "#F2E9D5",
+              "color_4": "#FF0000"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 6,
+      "last_prompt": "아이보리 굵은 줄만 절반 두께로 줄여줘.",
+      "created_at": "2026-09-07T01:20:08.131594Z",
+      "updated_at": "2026-09-07T01:20:39.106583Z"
+    },
+    "session_time": "2026-09-07T01:20:39.145Z",
+    "latest_generate": {
+      "run_id": "7c39e7c0-efb6-44d1-b21a-050d17bd987b",
+      "note": "아이보리 굵은 사선 줄의 두께를 절반으로 줄였어요.",
+      "rejected": null,
+      "warnings": [
+        {
+          "code": "color_out_of_gamut",
+          "message": "이 색은 실제 인쇄에서 조금 다르게 보일 수 있어요."
+        }
+      ],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T01:20:39.115Z",
+    "errors": [],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/login]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e17]\n    - button \"로그아웃\" [ref=e18]\n- main:\n  - img \"선택한 디자인 미리보기\"\n  - button \"Help\" [ref=e19]\n  - button \"토큰 잔액\" [ref=e20]:\n    - img \"토큰 잔액\"\n    - text: \"628토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e21]\n      - generic \"넥타이\" [ref=e22]\n    - label:\n      - radio \"타일\" [ref=e23] [checked]\n      - generic \"타일\" [ref=e24]\n  - region \"모티프 선택\" [ref=e25]:\n    - heading \"모티프\" [level=2]\n    - text: \"0/2\"\n    - button \"모티프 카드 접기\" [ref=e26]\n    - button \"모티프 슬롯 1에 그림 추가\" [ref=e70]: \"그림 추가\"\n    - button \"모티프 슬롯 2에 그림 추가\" [ref=e71]: \"그림 추가\"\n    - button \"SVG 모티프 파일 선택\" [ref=e29]\n  - region \"편집 이력\" [ref=e72]:\n    - heading \"이력\" [level=2]\n    - text: \"3 / 3\"\n    - button \"이력 카드 접기\" [ref=e73]\n    - button \"3번째 디자인 · 전체 이력 보기\" [ref=e80]\n    - button \"2번째 디자인으로 되돌리기\" [ref=e81]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e76] [disabled]\n    - button \"전체 보기\" [ref=e77]\n  - navigation \"디자인 도구\" [ref=e36]:\n    - button \"내려받기\" [ref=e37]\n    - button \"실사화\" [ref=e38]\n    - button \"내 디자인\" [ref=e39]\n    - button \"완성본\" [ref=e40]\n    - button \"새로 시작\" [ref=e41]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e42] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e43]\n    - button \"디자인에 적용\" [ref=e44] [disabled]\n  - alert\n  - status\n- iframe:\n  - button \"Open selection tools\" [ref=f1e1]"
+  },
+  "s2-3.json": {
+    "session_id": "d64c9bdf-96c0-4461-9952-621342987eb2",
+    "session": {
+      "id": "d64c9bdf-96c0-4461-9952-621342987eb2",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 56.568543
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "stripe_0",
+            "clip": null,
+            "type": "stripe",
+            "params": {
+              "angle": -45,
+              "bands": [
+                {
+                  "color": "color_1",
+                  "width_mm": 7.5,
+                  "offset_mm": 0
+                },
+                {
+                  "color": "color_4",
+                  "width_mm": 9,
+                  "offset_mm": 21
+                }
+              ],
+              "period_mm": 40
+            },
+            "opacity": 1,
+            "z_order": 1
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#FFFFF0",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#F2E9D5",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_4",
+              "hex": "#FF0000",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#FFFFF0",
+              "color_1": "#F2E9D5",
+              "color_4": "#FF0000"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 8,
+      "last_prompt": "한 쌍 안의 두 줄 간격은 그대로 두고, 줄 쌍 사이의 빈 공간만 더 넓혀줘.",
+      "created_at": "2026-09-07T01:20:08.131594Z",
+      "updated_at": "2026-09-07T01:21:09.041841Z"
+    },
+    "session_time": "2026-09-07T01:21:09.087Z",
+    "latest_generate": {
+      "run_id": "3ba9a956-a16a-4908-a393-f78856d24e10",
+      "note": "한 쌍 안의 두 줄 간격은 유지하고 줄 쌍 사이의 빈 공간을 넓혔습니다.",
+      "rejected": null,
+      "warnings": [
+        {
+          "code": "color_out_of_gamut",
+          "message": "이 색은 실제 인쇄에서 조금 다르게 보일 수 있어요."
+        }
+      ],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T01:21:09.053Z",
+    "errors": [],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/login]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e17]\n    - button \"로그아웃\" [ref=e18]\n- main:\n  - img \"선택한 디자인 미리보기\"\n  - button \"Help\" [ref=e19]\n  - button \"토큰 잔액\" [ref=e20]:\n    - img \"토큰 잔액\"\n    - text: \"616토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e21]\n      - generic \"넥타이\" [ref=e22]\n    - label:\n      - radio \"타일\" [ref=e23] [checked]\n      - generic \"타일\" [ref=e24]\n  - region \"모티프 선택\" [ref=e25]:\n    - heading \"모티프\" [level=2]\n    - text: \"0/2\"\n    - button \"모티프 카드 접기\" [ref=e26]\n    - button \"모티프 슬롯 1에 그림 추가\" [ref=e70]: \"그림 추가\"\n    - button \"모티프 슬롯 2에 그림 추가\" [ref=e71]: \"그림 추가\"\n    - button \"SVG 모티프 파일 선택\" [ref=e29]\n  - region \"편집 이력\" [ref=e72]:\n    - heading \"이력\" [level=2]\n    - text: \"4 / 4\"\n    - button \"이력 카드 접기\" [ref=e73]\n    - button \"4번째 디자인 · 전체 이력 보기\" [ref=e82]\n    - button \"3번째 디자인으로 되돌리기\" [ref=e83]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e76] [disabled]\n    - button \"전체 보기\" [ref=e77]\n  - navigation \"디자인 도구\" [ref=e36]:\n    - button \"내려받기\" [ref=e37]\n    - button \"실사화\" [ref=e38]\n    - button \"내 디자인\" [ref=e39]\n    - button \"완성본\" [ref=e40]\n    - button \"새로 시작\" [ref=e41]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e42] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e43]\n    - button \"디자인에 적용\" [ref=e44] [disabled]\n  - alert\n  - status: \"이 색은 실제 인쇄에서 조금 다르게 보일 수 있어요.\"\n- iframe:\n  - button \"Open selection tools\" [ref=f1e1]"
+  },
+  "s2-4.json": {
+    "session_id": "d64c9bdf-96c0-4461-9952-621342987eb2",
+    "session": {
+      "id": "d64c9bdf-96c0-4461-9952-621342987eb2",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 56.568543
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "stripe_0",
+            "clip": null,
+            "type": "stripe",
+            "params": {
+              "angle": 90,
+              "bands": [
+                {
+                  "color": "color_1",
+                  "width_mm": 10.606602,
+                  "offset_mm": 0
+                },
+                {
+                  "color": "color_4",
+                  "width_mm": 12.727922,
+                  "offset_mm": 29.698485
+                }
+              ],
+              "period_mm": 56.568543
+            },
+            "opacity": 1,
+            "z_order": 1
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#FFFFF0",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#F2E9D5",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_4",
+              "hex": "#FF0000",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#FFFFF0",
+              "color_1": "#F2E9D5",
+              "color_4": "#FF0000"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 10,
+      "last_prompt": "이 줄 구성을 세로 스트라이프로 바꿔줘.",
+      "created_at": "2026-09-07T01:20:08.131594Z",
+      "updated_at": "2026-09-07T01:21:13.544228Z"
+    },
+    "session_time": "2026-09-07T01:21:13.587Z",
+    "latest_generate": {
+      "run_id": "5d8b5be3-84fe-4dde-bf57-08964260f338",
+      "note": "줄무늬를 세로 방향으로 바꿨어요.",
+      "rejected": null,
+      "warnings": [
+        {
+          "code": "color_out_of_gamut",
+          "message": "이 색은 실제 인쇄에서 조금 다르게 보일 수 있어요."
+        }
+      ],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T01:21:13.555Z",
+    "errors": [],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/login]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e17]\n    - button \"로그아웃\" [ref=e18]\n- main:\n  - img \"선택한 디자인 미리보기\"\n  - button \"Help\" [ref=e19]\n  - button \"토큰 잔액\" [ref=e20]:\n    - img \"토큰 잔액\"\n    - text: \"604토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e21]\n      - generic \"넥타이\" [ref=e22]\n    - label:\n      - radio \"타일\" [ref=e23] [checked]\n      - generic \"타일\" [ref=e24]\n  - region \"모티프 선택\" [ref=e25]:\n    - heading \"모티프\" [level=2]\n    - text: \"0/2\"\n    - button \"모티프 카드 접기\" [ref=e26]\n    - button \"모티프 슬롯 1에 그림 추가\" [ref=e70]: \"그림 추가\"\n    - button \"모티프 슬롯 2에 그림 추가\" [ref=e71]: \"그림 추가\"\n    - button \"SVG 모티프 파일 선택\" [ref=e29]\n  - region \"편집 이력\" [ref=e72]:\n    - heading \"이력\" [level=2]\n    - text: \"5 / 5\"\n    - button \"이력 카드 접기\" [ref=e73]\n    - button \"5번째 디자인 · 전체 이력 보기\" [ref=e84]\n    - button \"4번째 디자인으로 되돌리기\" [ref=e85]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e76] [disabled]\n    - button \"전체 보기\" [ref=e77]\n  - navigation \"디자인 도구\" [ref=e36]:\n    - button \"내려받기\" [ref=e37]\n    - button \"실사화\" [ref=e38]\n    - button \"내 디자인\" [ref=e39]\n    - button \"완성본\" [ref=e40]\n    - button \"새로 시작\" [ref=e41]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e42] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e43]\n    - button \"디자인에 적용\" [ref=e44] [disabled]\n  - alert\n  - status: \"이 색은 실제 인쇄에서 조금 다르게 보일 수 있어요.\"\n- iframe:\n  - button \"Open selection tools\" [ref=f1e1]"
+  },
+  "s3-0.json": {
+    "session_id": "0c991588-7bb5-481a-914b-8c0bc5c1528b",
+    "session": {
+      "id": "0c991588-7bb5-481a-914b-8c0bc5c1528b",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 48
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "motif_0",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 6,
+              "motif_id": "recraft-5beb24167482"
+            },
+            "opacity": 1,
+            "z_order": 1,
+            "placement": {
+              "lane": null,
+              "path": null,
+              "type": "lattice",
+              "lattice": {
+                "cell_h_mm": 12,
+                "cell_w_mm": 12,
+                "drop_axis": "column",
+                "offset_x_mm": 0,
+                "offset_y_mm": 0,
+                "drop_fraction": null
+              },
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": null,
+              "point_set": null,
+              "host_layer": null,
+              "spacing_mm": null,
+              "fixed_rotation_deg": 0
+            }
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#FFFFF0",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#6B8E5A",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#FFFFF0",
+              "color_1": "#6B8E5A"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 2,
+      "last_prompt": "아이보리 단색 바탕에 작은 꽃 모티프를 가로세로 같은 간격의 격자로 여유 있게 배치해줘. 줄무늬는 넣지 마.",
+      "created_at": "2026-09-07T01:21:23.062879Z",
+      "updated_at": "2026-09-07T01:21:28.977602Z"
+    },
+    "session_time": "2026-09-07T01:21:29.024Z",
+    "latest_generate": {
+      "run_id": "3a32d25b-662a-4b44-9f88-1f651642f0a7",
+      "note": null,
+      "rejected": null,
+      "warnings": [],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T01:21:28.988Z",
+    "errors": [],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/login]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e17]\n    - button \"로그아웃\" [ref=e18]\n- main:\n  - img \"선택한 디자인 미리보기, 넥타이 적용 모습\"\n  - button \"Help\" [ref=e19]\n  - button \"토큰 잔액\" [ref=e20]:\n    - img \"토큰 잔액\"\n    - text: \"579토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e21] [checked]\n      - generic \"넥타이\" [ref=e22]\n    - label:\n      - radio \"타일\" [ref=e23]\n      - generic \"타일\" [ref=e24]\n  - region \"모티프 선택\" [ref=e25]:\n    - heading \"모티프\" [level=2]\n    - text: \"1/2\"\n    - button \"모티프 카드 접기\" [ref=e26]\n    - button \"동백꽃 바꾸기\" [ref=e86]:\n      - image \"동백꽃\"\n    - button \"모티프 슬롯 2에 그림 추가\" [ref=e87]: \"그림 추가\"\n    - button \"SVG 모티프 파일 선택\" [ref=e29]\n  - region \"편집 이력\" [ref=e88]:\n    - heading \"이력\" [level=2]\n    - text: \"1 / 1\"\n    - button \"이력 카드 접기\" [ref=e89]\n    - button \"1번째 디자인 · 전체 이력 보기\" [ref=e90]\n    - button \"이전 디자인\" [ref=e91] [disabled]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e92] [disabled]\n    - button \"전체 보기\" [ref=e93]\n  - navigation \"디자인 도구\" [ref=e36]:\n    - button \"내려받기\" [ref=e37]\n    - button \"실사화\" [ref=e38]\n    - button \"내 디자인\" [ref=e39]\n    - button \"완성본\" [ref=e40]\n    - button \"새로 시작\" [ref=e41]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e42] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e43]\n    - button \"디자인에 적용\" [ref=e44] [disabled]\n  - alert\n  - status\n- iframe:\n  - button \"Open selection tools\" [ref=f1e1]"
+  },
+  "s3-1.json": {
+    "session_id": "0c991588-7bb5-481a-914b-8c0bc5c1528b",
+    "session": {
+      "id": "0c991588-7bb5-481a-914b-8c0bc5c1528b",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 48
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "motif_0",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 9,
+              "motif_id": "recraft-5beb24167482"
+            },
+            "opacity": 1,
+            "z_order": 1,
+            "placement": {
+              "lane": null,
+              "path": null,
+              "type": "lattice",
+              "lattice": {
+                "cell_h_mm": 12,
+                "cell_w_mm": 12,
+                "drop_axis": "column",
+                "offset_x_mm": 0,
+                "offset_y_mm": 0,
+                "drop_fraction": null
+              },
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": null,
+              "point_set": null,
+              "host_layer": null,
+              "spacing_mm": null,
+              "fixed_rotation_deg": 0
+            }
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#FFFFF0",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#FFFFF0"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 4,
+      "last_prompt": "꽃 크기만 지금의 1.5배로 키워줘. 꽃 개수와 중심 위치는 그대로.",
+      "created_at": "2026-09-07T01:21:23.062879Z",
+      "updated_at": "2026-09-07T01:21:46.652819Z"
+    },
+    "session_time": "2026-09-07T01:21:46.693Z",
+    "latest_generate": {
+      "run_id": "021bc24b-1ffa-423c-a5e0-cb80149a4b01",
+      "note": "꽃 크기만 1.5배로 키웠어요.",
+      "rejected": null,
+      "warnings": [],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T01:21:46.663Z",
+    "errors": [],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/login]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e17]\n    - button \"로그아웃\" [ref=e18]\n- main:\n  - img \"선택한 디자인 미리보기, 넥타이 적용 모습\"\n  - button \"Help\" [ref=e19]\n  - button \"토큰 잔액\" [ref=e20]:\n    - img \"토큰 잔액\"\n    - text: \"567토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e21] [checked]\n      - generic \"넥타이\" [ref=e22]\n    - label:\n      - radio \"타일\" [ref=e23]\n      - generic \"타일\" [ref=e24]\n  - region \"모티프 선택\" [ref=e25]:\n    - heading \"모티프\" [level=2]\n    - text: \"1/2\"\n    - button \"모티프 카드 접기\" [ref=e26]\n    - button \"동백꽃 바꾸기\" [ref=e86]:\n      - image \"동백꽃\"\n    - button \"모티프 슬롯 2에 그림 추가\" [ref=e87]: \"그림 추가\"\n    - button \"SVG 모티프 파일 선택\" [ref=e29]\n  - region \"편집 이력\" [ref=e88]:\n    - heading \"이력\" [level=2]\n    - text: \"2 / 2\"\n    - button \"이력 카드 접기\" [ref=e89]\n    - button \"2번째 디자인 · 전체 이력 보기\" [ref=e94]\n    - button \"1번째 디자인으로 되돌리기\" [ref=e95]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e92] [disabled]\n    - button \"전체 보기\" [ref=e93]\n  - navigation \"디자인 도구\" [ref=e36]:\n    - button \"내려받기\" [ref=e37]\n    - button \"실사화\" [ref=e38]\n    - button \"내 디자인\" [ref=e39]\n    - button \"완성본\" [ref=e40]\n    - button \"새로 시작\" [ref=e41]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e42] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e43]\n    - button \"디자인에 적용\" [ref=e44] [disabled]\n  - alert\n  - status\n- iframe:\n  - button \"Open selection tools\" [ref=f1e1]"
+  },
+  "s3-2.json": {
+    "session_id": "0c991588-7bb5-481a-914b-8c0bc5c1528b",
+    "session": {
+      "id": "0c991588-7bb5-481a-914b-8c0bc5c1528b",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 48
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "motif_0",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 9,
+              "motif_id": "recraft-5beb24167482"
+            },
+            "opacity": 1,
+            "z_order": 1,
+            "placement": {
+              "lane": null,
+              "path": null,
+              "type": "lattice",
+              "lattice": {
+                "cell_h_mm": 16,
+                "cell_w_mm": 16,
+                "drop_axis": "column",
+                "offset_x_mm": 0,
+                "offset_y_mm": 0,
+                "drop_fraction": null
+              },
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": null,
+              "point_set": null,
+              "host_layer": null,
+              "spacing_mm": null,
+              "fixed_rotation_deg": 0
+            }
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#FFFFF0",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#FFFFF0"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 6,
+      "last_prompt": "꽃 크기는 그대로 두고 꽃 사이 간격을 넓혀서 더 성기게 배치해줘.",
+      "created_at": "2026-09-07T01:21:23.062879Z",
+      "updated_at": "2026-09-07T01:21:56.778069Z"
+    },
+    "session_time": "2026-09-07T01:21:56.822Z",
+    "latest_generate": {
+      "run_id": "7985e1f1-a015-435c-94eb-bb7a7d72a7a9",
+      "note": "꽃 크기는 유지하고 꽃 사이 간격을 넓혀 더 성기게 배치했어요.",
+      "rejected": null,
+      "warnings": [],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T01:21:56.791Z",
+    "errors": [],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/login]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e17]\n    - button \"로그아웃\" [ref=e18]\n- main:\n  - img \"선택한 디자인 미리보기, 넥타이 적용 모습\"\n  - button \"Help\" [ref=e19]\n  - button \"토큰 잔액\" [ref=e20]:\n    - img \"토큰 잔액\"\n    - text: \"555토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e21] [checked]\n      - generic \"넥타이\" [ref=e22]\n    - label:\n      - radio \"타일\" [ref=e23]\n      - generic \"타일\" [ref=e24]\n  - region \"모티프 선택\" [ref=e25]:\n    - heading \"모티프\" [level=2]\n    - text: \"1/2\"\n    - button \"모티프 카드 접기\" [ref=e26]\n    - button \"동백꽃 바꾸기\" [ref=e86]:\n      - image \"동백꽃\"\n    - button \"모티프 슬롯 2에 그림 추가\" [ref=e87]: \"그림 추가\"\n    - button \"SVG 모티프 파일 선택\" [ref=e29]\n  - region \"편집 이력\" [ref=e88]:\n    - heading \"이력\" [level=2]\n    - text: \"3 / 3\"\n    - button \"이력 카드 접기\" [ref=e89]\n    - button \"3번째 디자인 · 전체 이력 보기\" [ref=e96]\n    - button \"2번째 디자인으로 되돌리기\" [ref=e97]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e92] [disabled]\n    - button \"전체 보기\" [ref=e93]\n  - navigation \"디자인 도구\" [ref=e36]:\n    - button \"내려받기\" [ref=e37]\n    - button \"실사화\" [ref=e38]\n    - button \"내 디자인\" [ref=e39]\n    - button \"완성본\" [ref=e40]\n    - button \"새로 시작\" [ref=e41]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e42] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e43]\n    - button \"디자인에 적용\" [ref=e44] [disabled]\n  - alert\n  - status\n- iframe:\n  - button \"Open selection tools\" [ref=f1e1]"
+  },
+  "s3-3.json": {
+    "session_id": "0c991588-7bb5-481a-914b-8c0bc5c1528b",
+    "session": {
+      "id": "0c991588-7bb5-481a-914b-8c0bc5c1528b",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 48
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "motif_0",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 9,
+              "motif_id": "recraft-5beb24167482"
+            },
+            "opacity": 1,
+            "z_order": 1,
+            "placement": {
+              "lane": null,
+              "path": null,
+              "type": "lattice",
+              "lattice": {
+                "cell_h_mm": 12,
+                "cell_w_mm": 12,
+                "drop_axis": "column",
+                "offset_x_mm": 0,
+                "offset_y_mm": 0,
+                "drop_fraction": 0.5
+              },
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": null,
+              "point_set": null,
+              "host_layer": null,
+              "spacing_mm": null,
+              "fixed_rotation_deg": 0
+            }
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#FFFFF0",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#FFFFF0"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 8,
+      "last_prompt": "반듯한 격자 대신 한 줄씩 반 칸 엇갈리게 배치해줘.",
+      "created_at": "2026-09-07T01:21:23.062879Z",
+      "updated_at": "2026-09-07T01:22:05.023751Z"
+    },
+    "session_time": "2026-09-07T01:22:05.062Z",
+    "latest_generate": {
+      "run_id": "bc483c2c-c095-4e95-af75-ed8c4508c015",
+      "note": "반듯한 격자 대신 한 줄씩 반 칸 엇갈리는 배열로 바꿨어요.",
+      "rejected": null,
+      "warnings": [],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T01:22:05.033Z",
+    "errors": [],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/login]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e17]\n    - button \"로그아웃\" [ref=e18]\n- main:\n  - img \"선택한 디자인 미리보기, 넥타이 적용 모습\"\n  - button \"Help\" [ref=e19]\n  - button \"토큰 잔액\" [ref=e20]:\n    - img \"토큰 잔액\"\n    - text: \"543토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e21] [checked]\n      - generic \"넥타이\" [ref=e22]\n    - label:\n      - radio \"타일\" [ref=e23]\n      - generic \"타일\" [ref=e24]\n  - region \"모티프 선택\" [ref=e25]:\n    - heading \"모티프\" [level=2]\n    - text: \"1/2\"\n    - button \"모티프 카드 접기\" [ref=e26]\n    - button \"동백꽃 바꾸기\" [ref=e86]:\n      - image \"동백꽃\"\n    - button \"모티프 슬롯 2에 그림 추가\" [ref=e87]: \"그림 추가\"\n    - button \"SVG 모티프 파일 선택\" [ref=e29]\n  - region \"편집 이력\" [ref=e88]:\n    - heading \"이력\" [level=2]\n    - text: \"4 / 4\"\n    - button \"이력 카드 접기\" [ref=e89]\n    - button \"4번째 디자인 · 전체 이력 보기\" [ref=e98]\n    - button \"3번째 디자인으로 되돌리기\" [ref=e99]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e92] [disabled]\n    - button \"전체 보기\" [ref=e93]\n  - navigation \"디자인 도구\" [ref=e36]:\n    - button \"내려받기\" [ref=e37]\n    - button \"실사화\" [ref=e38]\n    - button \"내 디자인\" [ref=e39]\n    - button \"완성본\" [ref=e40]\n    - button \"새로 시작\" [ref=e41]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e42] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e43]\n    - button \"디자인에 적용\" [ref=e44] [disabled]\n  - alert\n  - status\n- iframe:\n  - button \"Open selection tools\" [ref=f1e1]"
+  },
+  "s3-4.json": {
+    "session_id": "0c991588-7bb5-481a-914b-8c0bc5c1528b",
+    "session": {
+      "id": "0c991588-7bb5-481a-914b-8c0bc5c1528b",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 48
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "motif_0",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 9,
+              "motif_id": "recraft-5beb24167482"
+            },
+            "opacity": 1,
+            "z_order": 1,
+            "placement": {
+              "lane": null,
+              "path": null,
+              "type": "lattice",
+              "lattice": {
+                "cell_h_mm": 12,
+                "cell_w_mm": 12,
+                "drop_axis": "column",
+                "offset_x_mm": 0,
+                "offset_y_mm": 0,
+                "drop_fraction": 0.5
+              },
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": null,
+              "point_set": null,
+              "host_layer": null,
+              "spacing_mm": null,
+              "fixed_rotation_deg": 45
+            }
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#FFFFF0",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#FFFFF0"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 10,
+      "last_prompt": "배열은 그대로 두고 꽃 모양만 45도 돌려줘.",
+      "created_at": "2026-09-07T01:21:23.062879Z",
+      "updated_at": "2026-09-07T01:22:13.505695Z"
+    },
+    "session_time": "2026-09-07T01:22:13.548Z",
+    "latest_generate": {
+      "run_id": "efe90215-569b-4ef7-b309-1fe78427d8a8",
+      "note": "배열은 그대로 유지하고 꽃 모티프만 45도 회전했어요.",
+      "rejected": null,
+      "warnings": [],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T01:22:13.516Z",
+    "errors": [],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/login]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e17]\n    - button \"로그아웃\" [ref=e18]\n- main:\n  - img \"선택한 디자인 미리보기, 넥타이 적용 모습\"\n  - button \"Help\" [ref=e19]\n  - button \"토큰 잔액\" [ref=e20]:\n    - img \"토큰 잔액\"\n    - text: \"531토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e21] [checked]\n      - generic \"넥타이\" [ref=e22]\n    - label:\n      - radio \"타일\" [ref=e23]\n      - generic \"타일\" [ref=e24]\n  - region \"모티프 선택\" [ref=e25]:\n    - heading \"모티프\" [level=2]\n    - text: \"1/2\"\n    - button \"모티프 카드 접기\" [ref=e26]\n    - button \"동백꽃 바꾸기\" [ref=e86]:\n      - image \"동백꽃\"\n    - button \"모티프 슬롯 2에 그림 추가\" [ref=e87]: \"그림 추가\"\n    - button \"SVG 모티프 파일 선택\" [ref=e29]\n  - region \"편집 이력\" [ref=e88]:\n    - heading \"이력\" [level=2]\n    - text: \"5 / 5\"\n    - button \"이력 카드 접기\" [ref=e89]\n    - button \"5번째 디자인 · 전체 이력 보기\" [ref=e100]\n    - button \"4번째 디자인으로 되돌리기\" [ref=e101]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e92] [disabled]\n    - button \"전체 보기\" [ref=e93]\n  - navigation \"디자인 도구\" [ref=e36]:\n    - button \"내려받기\" [ref=e37]\n    - button \"실사화\" [ref=e38]\n    - button \"내 디자인\" [ref=e39]\n    - button \"완성본\" [ref=e40]\n    - button \"새로 시작\" [ref=e41]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e42] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e43]\n    - button \"디자인에 적용\" [ref=e44] [disabled]\n  - alert\n  - status\n- iframe:\n  - button \"Open selection tools\" [ref=f1e1]"
+  },
+  "s4-0.json": {
+    "session_id": "aae57104-b335-4e03-b913-314a37a46d0d",
+    "session": {
+      "id": "aae57104-b335-4e03-b913-314a37a46d0d",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 48
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "stripe_0",
+            "clip": null,
+            "type": "stripe",
+            "params": {
+              "angle": 0,
+              "bands": [
+                {
+                  "color": "color_1",
+                  "width_mm": 12,
+                  "offset_mm": 2.4
+                },
+                {
+                  "color": "color_2",
+                  "width_mm": 12,
+                  "offset_mm": 31.2
+                }
+              ],
+              "period_mm": 48
+            },
+            "opacity": 1,
+            "z_order": 1
+          },
+          {
+            "id": "motif_0",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 9.6,
+              "motif_id": "seed-161e2b3cc39c"
+            },
+            "opacity": 1,
+            "z_order": 2,
+            "placement": {
+              "lane": "b0.center",
+              "path": null,
+              "type": "path_following",
+              "lattice": null,
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": "follow_path",
+              "point_set": null,
+              "host_layer": "stripe_0",
+              "spacing_mm": 12,
+              "fixed_rotation_deg": null
+            }
+          },
+          {
+            "id": "motif_1",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 9.6,
+              "motif_id": "seed-348847b38692"
+            },
+            "opacity": 1,
+            "z_order": 3,
+            "placement": {
+              "lane": "b1.center",
+              "path": null,
+              "type": "path_following",
+              "lattice": null,
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": "follow_path",
+              "point_set": null,
+              "host_layer": "stripe_0",
+              "spacing_mm": 12,
+              "fixed_rotation_deg": null
+            }
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#000080",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#D4AF37",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_2",
+              "hex": "#2F6B3A",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#000080",
+              "color_1": "#D4AF37",
+              "color_2": "#2F6B3A"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 2,
+      "last_prompt": "남색 바탕에 금색 문장 장식 사자와 보태니컬 가지를 번갈아 배치해줘. 사자는 옆모습으로 뒷발로 서 있고 갈기와 구부러진 꼬리, 발톱이 보여야 해. 보태니컬 가지는 붉은 꽃 세 송이와 초록 잎 여러 장이 곡선 줄기에 연결된 형태로 해줘. 두 모티프는 서로 겹치지 않게 해줘.",
+      "created_at": "2026-09-07T01:22:29.546624Z",
+      "updated_at": "2026-09-07T01:22:52.211543Z"
+    },
+    "session_time": "2026-09-07T01:22:52.257Z",
+    "latest_generate": {
+      "run_id": "507083cf-b0a1-4fbe-9c30-d10d64e41588",
+      "note": null,
+      "rejected": null,
+      "warnings": [],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T01:22:52.222Z",
+    "errors": [],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/login]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e17]\n    - button \"로그아웃\" [ref=e18]\n- main:\n  - img \"선택한 디자인 미리보기\"\n  - button \"Help\" [ref=e19]\n  - button \"토큰 잔액\" [ref=e20]:\n    - img \"토큰 잔액\"\n    - text: \"506토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e21]\n      - generic \"넥타이\" [ref=e22]\n    - label:\n      - radio \"타일\" [ref=e23] [checked]\n      - generic \"타일\" [ref=e24]\n  - region \"모티프 선택\" [ref=e25]:\n    - heading \"모티프\" [level=2]\n    - text: \"2/2\"\n    - button \"모티프 카드 접기\" [ref=e26]\n    - button \"모티프 바꾸기\" [ref=e102]:\n      - image \"모티프\"\n    - button \"모티프 바꾸기\" [ref=e103]:\n      - image \"모티프\"\n    - button \"SVG 모티프 파일 선택\" [ref=e29]\n  - region \"편집 이력\" [ref=e104]:\n    - heading \"이력\" [level=2]\n    - text: \"1 / 1\"\n    - button \"이력 카드 접기\" [ref=e105]\n    - button \"1번째 디자인 · 전체 이력 보기\" [ref=e106]\n    - button \"이전 디자인\" [ref=e107] [disabled]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e108] [disabled]\n    - button \"전체 보기\" [ref=e109]\n  - navigation \"디자인 도구\" [ref=e36]:\n    - button \"내려받기\" [ref=e37]\n    - button \"실사화\" [ref=e38]\n    - button \"내 디자인\" [ref=e39]\n    - button \"완성본\" [ref=e40]\n    - button \"새로 시작\" [ref=e41]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e42] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e43]\n    - button \"디자인에 적용\" [ref=e44] [disabled]\n  - alert\n  - status\n- iframe:\n  - button \"Open selection tools\" [ref=f1e1]"
+  },
+  "s4-1-original.json": {
+    "session_id": "aae57104-b335-4e03-b913-314a37a46d0d",
+    "session": {
+      "id": "aae57104-b335-4e03-b913-314a37a46d0d",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 48
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "stripe_0",
+            "clip": null,
+            "type": "stripe",
+            "params": {
+              "angle": 0,
+              "bands": [
+                {
+                  "color": "color_1",
+                  "width_mm": 12,
+                  "offset_mm": 2.4
+                },
+                {
+                  "color": "color_2",
+                  "width_mm": 12,
+                  "offset_mm": 31.2
+                }
+              ],
+              "period_mm": 48
+            },
+            "opacity": 1,
+            "z_order": 1
+          },
+          {
+            "id": "motif_0",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 14.4,
+              "motif_id": "seed-161e2b3cc39c"
+            },
+            "opacity": 1,
+            "z_order": 2,
+            "placement": {
+              "lane": "b0.center",
+              "path": null,
+              "type": "path_following",
+              "lattice": null,
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": "follow_path",
+              "point_set": null,
+              "host_layer": "stripe_0",
+              "spacing_mm": 12,
+              "fixed_rotation_deg": null
+            }
+          },
+          {
+            "id": "motif_1",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 9.6,
+              "motif_id": "seed-348847b38692"
+            },
+            "opacity": 1,
+            "z_order": 3,
+            "placement": {
+              "lane": "b1.center",
+              "path": null,
+              "type": "path_following",
+              "lattice": null,
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": "follow_path",
+              "point_set": null,
+              "host_layer": "stripe_0",
+              "spacing_mm": 12,
+              "fixed_rotation_deg": null
+            }
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#000080",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#D4AF37",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_2",
+              "hex": "#2F6B3A",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#000080",
+              "color_1": "#D4AF37",
+              "color_2": "#2F6B3A"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 4,
+      "last_prompt": "꽃 가지는 그대로 두고 사자 크기만 1.5배로 키워줘.",
+      "created_at": "2026-09-07T01:22:29.546624Z",
+      "updated_at": "2026-09-07T01:23:03.870925Z"
+    },
+    "session_time": "2026-09-07T01:23:03.911Z",
+    "latest_generate": {
+      "run_id": "ee1322d0-55fa-4994-98e5-a48e38e75b66",
+      "note": "꽃 가지는 그대로 두고 사자만 1.5배 크게 조정했습니다.",
+      "rejected": null,
+      "warnings": [],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T01:23:03.880Z",
+    "errors": [],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/login]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e17]\n    - button \"로그아웃\" [ref=e18]\n- main:\n  - img \"선택한 디자인 미리보기\"\n  - button \"Help\" [ref=e19]\n  - button \"토큰 잔액\" [ref=e20]:\n    - img \"토큰 잔액\"\n    - text: \"494토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e21]\n      - generic \"넥타이\" [ref=e22]\n    - label:\n      - radio \"타일\" [ref=e23] [checked]\n      - generic \"타일\" [ref=e24]\n  - region \"모티프 선택\" [ref=e25]:\n    - heading \"모티프\" [level=2]\n    - text: \"2/2\"\n    - button \"모티프 카드 접기\" [ref=e26]\n    - button \"모티프 바꾸기\" [ref=e102]:\n      - image \"모티프\"\n    - button \"모티프 바꾸기\" [ref=e103]:\n      - image \"모티프\"\n    - button \"SVG 모티프 파일 선택\" [ref=e29]\n  - region \"편집 이력\" [ref=e104]:\n    - heading \"이력\" [level=2]\n    - text: \"2 / 2\"\n    - button \"이력 카드 접기\" [ref=e105]\n    - button \"2번째 디자인 · 전체 이력 보기\" [ref=e110]\n    - button \"1번째 디자인으로 되돌리기\" [ref=e111]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e108] [disabled]\n    - button \"전체 보기\" [ref=e109]\n  - navigation \"디자인 도구\" [ref=e36]:\n    - button \"내려받기\" [ref=e37]\n    - button \"실사화\" [ref=e38]\n    - button \"내 디자인\" [ref=e39]\n    - button \"완성본\" [ref=e40]\n    - button \"새로 시작\" [ref=e41]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e42] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e43]\n    - button \"디자인에 적용\" [ref=e44] [disabled]\n  - alert\n  - status\n- iframe:\n  - button \"Open selection tools\" [ref=f1e1]"
+  },
+  "s4-1.json": {
+    "session_id": "aae57104-b335-4e03-b913-314a37a46d0d",
+    "session": {
+      "id": "aae57104-b335-4e03-b913-314a37a46d0d",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 48
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "stripe_0",
+            "clip": null,
+            "type": "stripe",
+            "params": {
+              "angle": 0,
+              "bands": [
+                {
+                  "color": "color_1",
+                  "width_mm": 12,
+                  "offset_mm": 2.4
+                },
+                {
+                  "color": "color_2",
+                  "width_mm": 12,
+                  "offset_mm": 31.2
+                }
+              ],
+              "period_mm": 48
+            },
+            "opacity": 1,
+            "z_order": 1
+          },
+          {
+            "id": "motif_0",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 21.6,
+              "motif_id": "gpt-image-66c584f7268c"
+            },
+            "opacity": 1,
+            "z_order": 2,
+            "placement": {
+              "lane": "b0.center",
+              "path": null,
+              "type": "path_following",
+              "lattice": null,
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": "follow_path",
+              "point_set": null,
+              "host_layer": "stripe_0",
+              "spacing_mm": 12,
+              "fixed_rotation_deg": null
+            }
+          },
+          {
+            "id": "motif_1",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 9.6,
+              "motif_id": "gpt-image-17d82367ff4a"
+            },
+            "opacity": 1,
+            "z_order": 3,
+            "placement": {
+              "lane": "b1.center",
+              "path": null,
+              "type": "path_following",
+              "lattice": null,
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": "follow_path",
+              "point_set": null,
+              "host_layer": "stripe_0",
+              "spacing_mm": 12,
+              "fixed_rotation_deg": null
+            }
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#000080",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#D4AF37",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_2",
+              "hex": "#2F6B3A",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#000080",
+              "color_1": "#D4AF37",
+              "color_2": "#2F6B3A"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 10,
+      "last_prompt": "꽃 가지는 그대로 두고 사자 크기만 1.5배로 키워줘.",
+      "created_at": "2026-09-07T01:22:29.546624Z",
+      "updated_at": "2026-09-07T01:25:58.371315Z"
+    },
+    "session_time": "2026-09-07T01:25:58.440Z",
+    "latest_generate": {
+      "run_id": "86405630-12f8-41a0-a7c2-fa5d82a69776",
+      "note": "사자는 1.5배 크게 하고 꽃 가지는 그대로 유지했습니다.",
+      "rejected": null,
+      "warnings": [],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T01:25:58.391Z",
+    "errors": [],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/login]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e17]\n    - button \"로그아웃\" [ref=e18]\n- main:\n  - img \"선택한 디자인 미리보기\"\n  - button \"Help\" [ref=e19]\n  - button \"토큰 잔액\" [ref=e20]:\n    - img \"토큰 잔액\"\n    - text: \"282토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e21]\n      - generic \"넥타이\" [ref=e22]\n    - label:\n      - radio \"타일\" [ref=e23] [checked]\n      - generic \"타일\" [ref=e24]\n  - region \"모티프 선택\" [ref=e25]:\n    - heading \"모티프\" [level=2]\n    - text: \"2/2\"\n    - button \"모티프 카드 접기\" [ref=e26]\n    - button \"금색 문장 장식 사자 한 마리. 옆모습으로 뒷발로 서 있는 자세, 풍성한 갈기의 곡선, 구부러진 긴 꼬리, 벌린 앞발과 발톱이 구분되는 섬세한 문장 장식. 배경과 방패 없이 사자만\" [ref=e128]:\n      - image \"금색 문장 장식 사자 한 마리. 옆모습으로 뒷발로 서 있는 자세, 풍성한 갈기의 곡선, 구부러진 긴 꼬리, 벌린 앞발과 발톱이 구분되는 섬세한 문장 장식. 배경과 방패 없이 사자만\"\n    - button \"하나로 연결된 보태니컬 꽃 가지. 붉은 꽃 정확히 세 송이, 초록 잎 여러 장과 잎맥, 부드럽게 휘어진 하나의 곡선 줄기. 꽃잎과 잎의 형태가 구분되는 섬세한 식물 장식. 배경 없\" [ref=e145]:\n      - image \"하나로 연결된 보태니컬 꽃 가지. 붉은 꽃 정확히 세 송이, 초록 잎 여러 장과 잎맥, 부드럽게 휘어진 하나의 곡선 줄기. 꽃잎과 잎의 형태가 구분되는 섬세한 식물 장식. 배경 없\"\n    - button \"SVG 모티프 파일 선택\" [ref=e29]\n  - region \"편집 이력\" [ref=e104]:\n    - heading \"이력\" [level=2]\n    - text: \"5 / 5\"\n    - button \"이력 카드 접기\" [ref=e105]\n    - button \"5번째 디자인 · 전체 이력 보기\" [ref=e149]\n    - button \"4번째 디자인으로 되돌리기\" [ref=e150]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e108] [disabled]\n    - button \"전체 보기\" [ref=e109]\n  - navigation \"디자인 도구\" [ref=e36]:\n    - button \"내려받기\" [ref=e37]\n    - button \"실사화\" [ref=e38]\n    - button \"내 디자인\" [ref=e39]\n    - button \"완성본\" [ref=e40]\n    - button \"새로 시작\" [ref=e41]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e42] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e43]\n    - button \"디자인에 적용\" [ref=e44] [disabled]\n  - alert\n  - status\n- iframe:\n  - button \"Open selection tools\" [ref=f1e1]"
+  },
+  "s4-2.json": {
+    "session_id": "aae57104-b335-4e03-b913-314a37a46d0d",
+    "session": {
+      "id": "aae57104-b335-4e03-b913-314a37a46d0d",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 48
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "stripe_0",
+            "clip": null,
+            "type": "stripe",
+            "params": {
+              "angle": 0,
+              "bands": [
+                {
+                  "color": "color_1",
+                  "width_mm": 12,
+                  "offset_mm": 2.4
+                },
+                {
+                  "color": "color_2",
+                  "width_mm": 12,
+                  "offset_mm": 31.2
+                }
+              ],
+              "period_mm": 48
+            },
+            "opacity": 1,
+            "z_order": 1
+          },
+          {
+            "id": "motif_0",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 21.6,
+              "motif_id": "gpt-image-66c584f7268c"
+            },
+            "opacity": 1,
+            "z_order": 2,
+            "placement": {
+              "lane": "b0.center",
+              "path": null,
+              "type": "path_following",
+              "lattice": null,
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": "follow_path",
+              "point_set": null,
+              "host_layer": "stripe_0",
+              "spacing_mm": 12,
+              "fixed_rotation_deg": null
+            }
+          },
+          {
+            "id": "motif_1",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 9.6,
+              "motif_id": "gpt-image-17d82367ff4a"
+            },
+            "opacity": 1,
+            "z_order": 3,
+            "placement": {
+              "lane": "b1.center",
+              "path": null,
+              "type": "path_following",
+              "lattice": null,
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": "follow_path",
+              "point_set": null,
+              "host_layer": "stripe_0",
+              "spacing_mm": 12,
+              "fixed_rotation_deg": null
+            }
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#000080",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#D4AF37",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_2",
+              "hex": "#2F6B3A",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#000080",
+              "color_1": "#D4AF37",
+              "color_2": "#2F6B3A"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 10,
+      "last_prompt": "꽃 가지는 그대로 두고 사자 크기만 1.5배로 키워줘.",
+      "created_at": "2026-09-07T01:22:29.546624Z",
+      "updated_at": "2026-09-07T01:26:08.526311Z"
+    },
+    "session_time": "2026-09-07T01:26:08.590Z",
+    "latest_generate": {
+      "run_id": null,
+      "note": null,
+      "rejected": "motif",
+      "warnings": [],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T01:26:08.537Z",
+    "errors": [],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/login]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e17]\n    - button \"로그아웃\" [ref=e18]\n- main:\n  - img \"선택한 디자인 미리보기\"\n  - button \"Help\" [ref=e19]\n  - button \"토큰 잔액\" [ref=e20]:\n    - img \"토큰 잔액\"\n    - text: \"282토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e21]\n      - generic \"넥타이\" [ref=e22]\n    - label:\n      - radio \"타일\" [ref=e23] [checked]\n      - generic \"타일\" [ref=e24]\n  - region \"모티프 선택\" [ref=e25]:\n    - heading \"모티프\" [level=2]\n    - text: \"2/2\"\n    - button \"모티프 카드 접기\" [ref=e26]\n    - button \"금색 문장 장식 사자 한 마리. 옆모습으로 뒷발로 서 있는 자세, 풍성한 갈기의 곡선, 구부러진 긴 꼬리, 벌린 앞발과 발톱이 구분되는 섬세한 문장 장식. 배경과 방패 없이 사자만\" [ref=e128]:\n      - image \"금색 문장 장식 사자 한 마리. 옆모습으로 뒷발로 서 있는 자세, 풍성한 갈기의 곡선, 구부러진 긴 꼬리, 벌린 앞발과 발톱이 구분되는 섬세한 문장 장식. 배경과 방패 없이 사자만\"\n    - button \"하나로 연결된 보태니컬 꽃 가지. 붉은 꽃 정확히 세 송이, 초록 잎 여러 장과 잎맥, 부드럽게 휘어진 하나의 곡선 줄기. 꽃잎과 잎의 형태가 구분되는 섬세한 식물 장식. 배경 없\" [ref=e145]:\n      - image \"하나로 연결된 보태니컬 꽃 가지. 붉은 꽃 정확히 세 송이, 초록 잎 여러 장과 잎맥, 부드럽게 휘어진 하나의 곡선 줄기. 꽃잎과 잎의 형태가 구분되는 섬세한 식물 장식. 배경 없\"\n    - button \"SVG 모티프 파일 선택\" [ref=e29]\n  - region \"편집 이력\" [ref=e104]:\n    - heading \"이력\" [level=2]\n    - text: \"5 / 5\"\n    - button \"이력 카드 접기\" [ref=e105]\n    - button \"5번째 디자인 · 전체 이력 보기\" [ref=e151]\n    - button \"4번째 디자인으로 되돌리기\" [ref=e150]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e108] [disabled]\n    - button \"전체 보기\" [ref=e109]\n  - navigation \"디자인 도구\" [ref=e36]:\n    - button \"내려받기\" [ref=e37]\n    - button \"실사화\" [ref=e38]\n    - button \"내 디자인\" [ref=e39]\n    - button \"완성본\" [ref=e40]\n    - button \"새로 시작\" [ref=e41]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e42] [focused] [placeholder=\"무엇을 바꿀까요?\"]: \"꽃 가지의 붉은 꽃잎만 아이보리로 바꿔줘. 초록 잎과 줄기 색은 그대로.\"\n    - button \"아이디어 받기\" [ref=e43]\n    - button \"디자인에 적용\" [ref=e44]\n  - alert: \"그림을 바꾸는 건 왼쪽 모티프에서 할 수 있어요. 토큰은 쓰지 않았어요.\"\n  - status\n- iframe:\n  - button \"Open selection tools\" [ref=f1e1]"
+  },
+  "s4-3.json": {
+    "session_id": "aae57104-b335-4e03-b913-314a37a46d0d",
+    "session": {
+      "id": "aae57104-b335-4e03-b913-314a37a46d0d",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 48
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "stripe_0",
+            "clip": null,
+            "type": "stripe",
+            "params": {
+              "angle": 0,
+              "bands": [
+                {
+                  "color": "color_1",
+                  "width_mm": 12,
+                  "offset_mm": 2.4
+                },
+                {
+                  "color": "color_2",
+                  "width_mm": 12,
+                  "offset_mm": 31.2
+                }
+              ],
+              "period_mm": 48
+            },
+            "opacity": 1,
+            "z_order": 1
+          },
+          {
+            "id": "motif_0",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 21.6,
+              "motif_id": "gpt-image-66c584f7268c"
+            },
+            "opacity": 1,
+            "z_order": 2,
+            "placement": {
+              "lane": "b0.center",
+              "path": null,
+              "type": "path_following",
+              "lattice": null,
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": "follow_path",
+              "point_set": null,
+              "host_layer": "stripe_0",
+              "spacing_mm": 12,
+              "fixed_rotation_deg": null
+            }
+          },
+          {
+            "id": "motif_1",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 9.6,
+              "motif_id": "gpt-image-17d82367ff4a"
+            },
+            "opacity": 1,
+            "z_order": 3,
+            "placement": {
+              "lane": "b1.center",
+              "path": null,
+              "type": "path_following",
+              "lattice": null,
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": "follow_path",
+              "point_set": null,
+              "host_layer": "stripe_0",
+              "spacing_mm": 12,
+              "fixed_rotation_deg": null
+            }
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#000080",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#D4AF37",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_2",
+              "hex": "#2F6B3A",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#000080",
+              "color_1": "#D4AF37",
+              "color_2": "#2F6B3A"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 10,
+      "last_prompt": "꽃 가지는 그대로 두고 사자 크기만 1.5배로 키워줘.",
+      "created_at": "2026-09-07T01:22:29.546624Z",
+      "updated_at": "2026-09-07T01:26:23.187455Z"
+    },
+    "session_time": "2026-09-07T01:26:23.255Z",
+    "latest_generate": {
+      "run_id": null,
+      "note": null,
+      "rejected": "motif",
+      "warnings": [],
+      "motif_intent": {
+        "detected": true,
+        "subject": null,
+        "reason": "motif_change"
+      }
+    },
+    "generate_time": "2026-09-07T01:26:23.199Z",
+    "errors": [],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/login]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e17]\n    - button \"로그아웃\" [ref=e18]\n- main:\n  - img \"선택한 디자인 미리보기\"\n  - button \"Help\" [ref=e19]\n  - button \"토큰 잔액\" [ref=e20]:\n    - img \"토큰 잔액\"\n    - text: \"282토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e21]\n      - generic \"넥타이\" [ref=e22]\n    - label:\n      - radio \"타일\" [ref=e23] [checked]\n      - generic \"타일\" [ref=e24]\n  - region \"모티프 선택\" [ref=e25]:\n    - heading \"모티프\" [level=2]\n    - text: \"2/2\"\n    - button \"모티프 카드 접기\" [ref=e26]\n    - button \"금색 문장 장식 사자 한 마리. 옆모습으로 뒷발로 서 있는 자세, 풍성한 갈기의 곡선, 구부러진 긴 꼬리, 벌린 앞발과 발톱이 구분되는 섬세한 문장 장식. 배경과 방패 없이 사자만\" [ref=e128]:\n      - image \"금색 문장 장식 사자 한 마리. 옆모습으로 뒷발로 서 있는 자세, 풍성한 갈기의 곡선, 구부러진 긴 꼬리, 벌린 앞발과 발톱이 구분되는 섬세한 문장 장식. 배경과 방패 없이 사자만\"\n    - button \"하나로 연결된 보태니컬 꽃 가지. 붉은 꽃 정확히 세 송이, 초록 잎 여러 장과 잎맥, 부드럽게 휘어진 하나의 곡선 줄기. 꽃잎과 잎의 형태가 구분되는 섬세한 식물 장식. 배경 없\" [ref=e145]:\n      - image \"하나로 연결된 보태니컬 꽃 가지. 붉은 꽃 정확히 세 송이, 초록 잎 여러 장과 잎맥, 부드럽게 휘어진 하나의 곡선 줄기. 꽃잎과 잎의 형태가 구분되는 섬세한 식물 장식. 배경 없\"\n    - button \"SVG 모티프 파일 선택\" [ref=e29]\n  - region \"편집 이력\" [ref=e104]:\n    - heading \"이력\" [level=2]\n    - text: \"5 / 5\"\n    - button \"이력 카드 접기\" [ref=e105]\n    - button \"5번째 디자인 · 전체 이력 보기\" [ref=e152]\n    - button \"4번째 디자인으로 되돌리기\" [ref=e150]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e108] [disabled]\n    - button \"전체 보기\" [ref=e109]\n  - navigation \"디자인 도구\" [ref=e36]:\n    - button \"내려받기\" [ref=e37]\n    - button \"실사화\" [ref=e38]\n    - button \"내 디자인\" [ref=e39]\n    - button \"완성본\" [ref=e40]\n    - button \"새로 시작\" [ref=e41]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e42] [focused] [placeholder=\"무엇을 바꿀까요?\"]: \"꽃 가지만 45도 돌려줘. 사자는 방향을 유지해줘.\"\n    - button \"아이디어 받기\" [ref=e43]\n    - button \"디자인에 적용\" [ref=e44]\n  - alert\n  - status\n- status: \"모티프는 왼쪽에서 찾거나 만들 수 있어요.\"\n- iframe:\n  - button \"Open selection tools\" [ref=f1e1]"
+  },
+  "s4-4.json": {
+    "session_id": "aae57104-b335-4e03-b913-314a37a46d0d",
+    "session": {
+      "id": "aae57104-b335-4e03-b913-314a37a46d0d",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 48
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "stripe_0",
+            "clip": null,
+            "type": "stripe",
+            "params": {
+              "angle": 0,
+              "bands": [
+                {
+                  "color": "color_1",
+                  "width_mm": 12,
+                  "offset_mm": 2.4
+                },
+                {
+                  "color": "color_2",
+                  "width_mm": 12,
+                  "offset_mm": 31.2
+                }
+              ],
+              "period_mm": 48
+            },
+            "opacity": 1,
+            "z_order": 1
+          },
+          {
+            "id": "motif_0",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 21.6,
+              "motif_id": "gpt-image-66c584f7268c"
+            },
+            "opacity": 1,
+            "z_order": 2,
+            "placement": {
+              "lane": "b0.center",
+              "path": null,
+              "type": "path_following",
+              "lattice": null,
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": "follow_path",
+              "point_set": null,
+              "host_layer": "stripe_0",
+              "spacing_mm": 12,
+              "fixed_rotation_deg": null
+            }
+          },
+          {
+            "id": "motif_1",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 9.6,
+              "motif_id": "gpt-image-17d82367ff4a"
+            },
+            "opacity": 1,
+            "z_order": 3,
+            "placement": {
+              "lane": "b1.center",
+              "path": null,
+              "type": "path_following",
+              "lattice": null,
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": "follow_path",
+              "point_set": null,
+              "host_layer": "stripe_0",
+              "spacing_mm": 12,
+              "fixed_rotation_deg": null
+            }
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#000080",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#D4AF37",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_2",
+              "hex": "#2F6B3A",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#000080",
+              "color_1": "#D4AF37",
+              "color_2": "#2F6B3A"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 10,
+      "last_prompt": "꽃 가지는 그대로 두고 사자 크기만 1.5배로 키워줘.",
+      "created_at": "2026-09-07T01:22:29.546624Z",
+      "updated_at": "2026-09-07T01:26:30.268063Z"
+    },
+    "session_time": "2026-09-07T01:26:30.329Z",
+    "latest_generate": {
+      "run_id": null,
+      "note": null,
+      "rejected": "motif",
+      "warnings": [],
+      "motif_intent": {
+        "detected": true,
+        "subject": null,
+        "reason": "motif_change"
+      }
+    },
+    "generate_time": "2026-09-07T01:26:30.278Z",
+    "errors": [],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/login]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e17]\n    - button \"로그아웃\" [ref=e18]\n- main:\n  - img \"선택한 디자인 미리보기\"\n  - button \"Help\" [ref=e19]\n  - button \"토큰 잔액\" [ref=e20]:\n    - img \"토큰 잔액\"\n    - text: \"282토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e21]\n      - generic \"넥타이\" [ref=e22]\n    - label:\n      - radio \"타일\" [ref=e23] [checked]\n      - generic \"타일\" [ref=e24]\n  - region \"모티프 선택\" [ref=e25]:\n    - heading \"모티프\" [level=2]\n    - text: \"2/2\"\n    - button \"모티프 카드 접기\" [ref=e26]\n    - button \"금색 문장 장식 사자 한 마리. 옆모습으로 뒷발로 서 있는 자세, 풍성한 갈기의 곡선, 구부러진 긴 꼬리, 벌린 앞발과 발톱이 구분되는 섬세한 문장 장식. 배경과 방패 없이 사자만\" [ref=e128]:\n      - image \"금색 문장 장식 사자 한 마리. 옆모습으로 뒷발로 서 있는 자세, 풍성한 갈기의 곡선, 구부러진 긴 꼬리, 벌린 앞발과 발톱이 구분되는 섬세한 문장 장식. 배경과 방패 없이 사자만\"\n    - button \"하나로 연결된 보태니컬 꽃 가지. 붉은 꽃 정확히 세 송이, 초록 잎 여러 장과 잎맥, 부드럽게 휘어진 하나의 곡선 줄기. 꽃잎과 잎의 형태가 구분되는 섬세한 식물 장식. 배경 없\" [ref=e145]:\n      - image \"하나로 연결된 보태니컬 꽃 가지. 붉은 꽃 정확히 세 송이, 초록 잎 여러 장과 잎맥, 부드럽게 휘어진 하나의 곡선 줄기. 꽃잎과 잎의 형태가 구분되는 섬세한 식물 장식. 배경 없\"\n    - button \"SVG 모티프 파일 선택\" [ref=e29]\n  - region \"편집 이력\" [ref=e104]:\n    - heading \"이력\" [level=2]\n    - text: \"5 / 5\"\n    - button \"이력 카드 접기\" [ref=e105]\n    - button \"5번째 디자인 · 전체 이력 보기\" [ref=e153]\n    - button \"4번째 디자인으로 되돌리기\" [ref=e150]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e108] [disabled]\n    - button \"전체 보기\" [ref=e109]\n  - navigation \"디자인 도구\" [ref=e36]:\n    - button \"내려받기\" [ref=e37]\n    - button \"실사화\" [ref=e38]\n    - button \"내 디자인\" [ref=e39]\n    - button \"완성본\" [ref=e40]\n    - button \"새로 시작\" [ref=e41]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e42] [focused] [placeholder=\"무엇을 바꿀까요?\"]: \"사자는 그대로 두고 꽃 가지만 더 드문드문 배치해줘.\"\n    - button \"아이디어 받기\" [ref=e43]\n    - button \"디자인에 적용\" [ref=e44]\n  - alert\n  - status\n- iframe:\n  - button \"Open selection tools\" [ref=f1e1]"
+  },
+  "s4-supplement-base.json": {
+    "session_id": "aae57104-b335-4e03-b913-314a37a46d0d",
+    "session": {
+      "id": "aae57104-b335-4e03-b913-314a37a46d0d",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 48
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "stripe_0",
+            "clip": null,
+            "type": "stripe",
+            "params": {
+              "angle": 0,
+              "bands": [
+                {
+                  "color": "color_1",
+                  "width_mm": 12,
+                  "offset_mm": 2.4
+                },
+                {
+                  "color": "color_2",
+                  "width_mm": 12,
+                  "offset_mm": 31.2
+                }
+              ],
+              "period_mm": 48
+            },
+            "opacity": 1,
+            "z_order": 1
+          },
+          {
+            "id": "motif_0",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 14.4,
+              "motif_id": "gpt-image-66c584f7268c"
+            },
+            "opacity": 1,
+            "z_order": 2,
+            "placement": {
+              "lane": "b0.center",
+              "path": null,
+              "type": "path_following",
+              "lattice": null,
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": "follow_path",
+              "point_set": null,
+              "host_layer": "stripe_0",
+              "spacing_mm": 12,
+              "fixed_rotation_deg": null
+            }
+          },
+          {
+            "id": "motif_1",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 9.6,
+              "motif_id": "gpt-image-17d82367ff4a"
+            },
+            "opacity": 1,
+            "z_order": 3,
+            "placement": {
+              "lane": "b1.center",
+              "path": null,
+              "type": "path_following",
+              "lattice": null,
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": "follow_path",
+              "point_set": null,
+              "host_layer": "stripe_0",
+              "spacing_mm": 12,
+              "fixed_rotation_deg": null
+            }
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#000080",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#D4AF37",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_2",
+              "hex": "#2F6B3A",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#000080",
+              "color_1": "#D4AF37",
+              "color_2": "#2F6B3A"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 8,
+      "last_prompt": null,
+      "created_at": "2026-09-07T01:22:29.546624Z",
+      "updated_at": "2026-09-07T01:25:54.561791Z"
+    },
+    "session_time": "2026-09-07T01:25:54.627Z",
+    "latest_generate": {
+      "run_id": "ee1322d0-55fa-4994-98e5-a48e38e75b66",
+      "note": "꽃 가지는 그대로 두고 사자만 1.5배 크게 조정했습니다.",
+      "rejected": null,
+      "warnings": [],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T01:23:03.880Z",
+    "errors": [],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/login]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e17]\n    - button \"로그아웃\" [ref=e18]\n- main:\n  - img \"선택한 디자인 미리보기\"\n  - button \"Help\" [ref=e19]\n  - button \"토큰 잔액\" [ref=e20]:\n    - img \"토큰 잔액\"\n    - text: \"294토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e21]\n      - generic \"넥타이\" [ref=e22]\n    - label:\n      - radio \"타일\" [ref=e23] [checked]\n      - generic \"타일\" [ref=e24]\n  - region \"모티프 선택\" [ref=e25]:\n    - heading \"모티프\" [level=2]\n    - text: \"2/2\"\n    - button \"모티프 카드 접기\" [ref=e26]\n    - button \"금색 문장 장식 사자 한 마리. 옆모습으로 뒷발로 서 있는 자세, 풍성한 갈기의 곡선, 구부러진 긴 꼬리, 벌린 앞발과 발톱이 구분되는 섬세한 문장 장식. 배경과 방패 없이 사자만\" [ref=e128]:\n      - image \"금색 문장 장식 사자 한 마리. 옆모습으로 뒷발로 서 있는 자세, 풍성한 갈기의 곡선, 구부러진 긴 꼬리, 벌린 앞발과 발톱이 구분되는 섬세한 문장 장식. 배경과 방패 없이 사자만\"\n    - button \"하나로 연결된 보태니컬 꽃 가지. 붉은 꽃 정확히 세 송이, 초록 잎 여러 장과 잎맥, 부드럽게 휘어진 하나의 곡선 줄기. 꽃잎과 잎의 형태가 구분되는 섬세한 식물 장식. 배경 없\" [ref=e145]:\n      - image \"하나로 연결된 보태니컬 꽃 가지. 붉은 꽃 정확히 세 송이, 초록 잎 여러 장과 잎맥, 부드럽게 휘어진 하나의 곡선 줄기. 꽃잎과 잎의 형태가 구분되는 섬세한 식물 장식. 배경 없\"\n    - button \"SVG 모티프 파일 선택\" [ref=e29]\n  - region \"편집 이력\" [ref=e104]:\n    - heading \"이력\" [level=2]\n    - text: \"4 / 4\"\n    - button \"이력 카드 접기\" [ref=e105]\n    - button \"4번째 디자인 · 전체 이력 보기\" [ref=e146]\n    - button \"3번째 디자인으로 되돌리기\" [ref=e147]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e108] [disabled]\n    - button \"전체 보기\" [ref=e109]\n  - navigation \"디자인 도구\" [ref=e36]:\n    - button \"내려받기\" [ref=e37]\n    - button \"실사화\" [ref=e38]\n    - button \"내 디자인\" [ref=e39]\n    - button \"완성본\" [ref=e40]\n    - button \"새로 시작\" [ref=e41]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e42] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e43]\n    - button \"디자인에 적용\" [ref=e44] [disabled]\n  - alert\n  - status\n  - dialog \"AI 생성\":\n    - heading \"AI 생성\" [level=2]\n    - button \"닫기\" [ref=e148]\n    - textbox \"새로 만들 그림\" [ref=e119] [placeholder=\"예: 작은 벌\"]: \"하나로 연결된 보태니컬 꽃 가지. 붉은 꽃 정확히 세 송이, 초록 잎 여러 장과 잎맥, 부드럽게 휘어진 하나의 곡선 줄기. 꽃잎과 잎의 형태가 구분되는 섬세한 식물 장식. 배경 없이 가지 하나만.\"\n    - text: \"109/200\"\n    - image \"만든 그림\"\n    - text: \"내 모티프에 저장했어요 — 적용하지 않아도 나중에 다시 고를 수 있어요\"\n    - button \"다시 만들기 · 100토큰\" [ref=e143]\n    - button \"이 그림 적용\" [ref=e144]\n- iframe:\n  - button \"Open selection tools\" [ref=f1e1]"
+  },
+  "s4-5.json": {
+    "session_id": "aae57104-b335-4e03-b913-314a37a46d0d",
+    "session": null,
+    "session_time": null,
+    "latest_generate": null,
+    "generate_time": null,
+    "errors": [],
+    "flags": [
+      "data unavailable due reconnect"
+    ],
+    "data_unavailable": true,
+    "data_unavailable_reason": "reconnect",
+    "diagnostics_ref": "diagnostics.jsonl",
+    "diagnostics_rows": 27,
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/design]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e9]\n    - button \"로그아웃\" [ref=e10]\n- main:\n  - img \"선택한 디자인 미리보기, 넥타이 적용 모습\"\n  - button \"Help\" [ref=e11]\n  - button \"토큰 잔액\" [ref=e12]:\n    - img \"토큰 잔액\"\n    - text: \"270토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e13] [checked]\n      - generic \"넥타이\" [ref=e14]\n    - label:\n      - radio \"타일\" [ref=e15]\n      - generic \"타일\" [ref=e16]\n  - region \"모티프 선택\" [ref=e17]:\n    - heading \"모티프\" [level=2]\n    - text: \"2/2\"\n    - button \"모티프 카드 접기\" [ref=e18]\n    - button \"금색 문장 장식 사자 한 마리. 옆모습으로 뒷발로 서 있는 자세, 풍성한 갈기의 곡선, 구부러진 긴 꼬리, 벌린 앞발과 발톱이 구분되는 섬세한 문장 장식. 배경과 방패 없이 사자만\" [ref=e19]:\n      - image \"금색 문장 장식 사자 한 마리. 옆모습으로 뒷발로 서 있는 자세, 풍성한 갈기의 곡선, 구부러진 긴 꼬리, 벌린 앞발과 발톱이 구분되는 섬세한 문장 장식. 배경과 방패 없이 사자만\"\n    - button \"하나로 연결된 보태니컬 꽃 가지. 붉은 꽃 정확히 세 송이, 초록 잎 여러 장과 잎맥, 부드럽게 휘어진 하나의 곡선 줄기. 꽃잎과 잎의 형태가 구분되는 섬세한 식물 장식. 배경 없\" [ref=e20]:\n      - image \"하나로 연결된 보태니컬 꽃 가지. 붉은 꽃 정확히 세 송이, 초록 잎 여러 장과 잎맥, 부드럽게 휘어진 하나의 곡선 줄기. 꽃잎과 잎의 형태가 구분되는 섬세한 식물 장식. 배경 없\"\n    - button \"SVG 모티프 파일 선택\" [ref=e21]\n  - region \"편집 이력\" [ref=e22]:\n    - heading \"이력\" [level=2]\n    - text: \"6 / 6\"\n    - button \"이력 카드 접기\" [ref=e23]\n    - button \"6번째 디자인 · 전체 이력 보기\" [ref=e24]\n    - button \"5번째 디자인으로 되돌리기\" [ref=e25]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e26] [disabled]\n    - button \"전체 보기\" [ref=e27]\n  - navigation \"디자인 도구\" [ref=e28]:\n    - button \"내려받기\" [ref=e29]\n    - button \"실사화\" [ref=e30]\n    - button \"내 디자인\" [ref=e31]\n    - button \"완성본\" [ref=e32]\n    - button \"새로 시작\" [ref=e33]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e34] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e35]\n    - button \"디자인에 적용\" [ref=e36] [disabled]\n  - alert\n  - status"
+  },
+  "s5-0.json": {
+    "session_id": "3c523b16-5925-4b8f-800f-74bb14e48459",
+    "session": {
+      "id": "3c523b16-5925-4b8f-800f-74bb14e48459",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 48
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "stripe_0",
+            "clip": null,
+            "type": "stripe",
+            "params": {
+              "angle": -45,
+              "bands": [
+                {
+                  "color": "color_1",
+                  "width_mm": 2.71529,
+                  "offset_mm": 0
+                }
+              ],
+              "period_mm": 33.941125
+            },
+            "opacity": 1,
+            "z_order": 1
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#2B2B2B",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#A7ADB0",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#2B2B2B",
+              "color_1": "#A7ADB0"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 2,
+      "last_prompt": "차콜 바탕에 가는 은회색 사선 스트라이프를 넣어줘.",
+      "created_at": "2026-09-07T05:26:58.742377Z",
+      "updated_at": "2026-09-07T05:27:05.971020Z"
+    },
+    "session_time": "2026-09-07T05:27:06.024Z",
+    "latest_generate": {
+      "run_id": "2a5acdbc-d8f1-4afe-a206-c1661237051a",
+      "note": null,
+      "rejected": null,
+      "warnings": [],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T05:27:05.983Z",
+    "errors": [
+      {
+        "url": "http://localhost:8000/design/sessions",
+        "status": 401,
+        "time": "2026-09-07T05:26:28.697Z"
+      }
+    ],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/design]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e37]\n    - button \"로그아웃\" [ref=e38]\n- main:\n  - img \"선택한 디자인 미리보기, 넥타이 적용 모습\"\n  - button \"Help\" [ref=e11]\n  - button \"토큰 잔액\" [ref=e45]:\n    - img \"토큰 잔액\"\n    - text: \"245토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e13] [checked]\n      - generic \"넥타이\" [ref=e14]\n    - label:\n      - radio \"타일\" [ref=e15]\n      - generic \"타일\" [ref=e16]\n  - region \"모티프 선택\" [ref=e17]:\n    - heading \"모티프\" [level=2]\n    - text: \"0/2\"\n    - button \"모티프 카드 접기\" [ref=e18]\n    - button \"모티프 슬롯 1에 그림 추가\" [ref=e48]: \"그림 추가\"\n    - button \"모티프 슬롯 2에 그림 추가\" [ref=e49]: \"그림 추가\"\n    - button \"SVG 모티프 파일 선택\" [ref=e21]\n  - region \"편집 이력\" [ref=e50]:\n    - heading \"이력\" [level=2]\n    - text: \"1 / 1\"\n    - button \"이력 카드 접기\" [ref=e51]\n    - button \"1번째 디자인 · 전체 이력 보기\" [ref=e52]\n    - button \"이전 디자인\" [ref=e53] [disabled]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e54] [disabled]\n    - button \"전체 보기\" [ref=e55]\n  - navigation \"디자인 도구\" [ref=e28]:\n    - button \"내려받기\" [ref=e29]\n    - button \"실사화\" [ref=e30]\n    - button \"내 디자인\" [ref=e31]\n    - button \"완성본\" [ref=e32]\n    - button \"새로 시작\" [ref=e33]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e34] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e35]\n    - button \"디자인에 적용\" [ref=e36] [disabled]\n  - alert\n  - status"
+  },
+  "s5-1.json": {
+    "session_id": "3c523b16-5925-4b8f-800f-74bb14e48459",
+    "session": {
+      "id": "3c523b16-5925-4b8f-800f-74bb14e48459",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 72
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "stripe_0",
+            "clip": null,
+            "type": "stripe",
+            "params": {
+              "angle": -45,
+              "bands": [
+                {
+                  "color": "color_1",
+                  "width_mm": 4.072935,
+                  "offset_mm": 0
+                }
+              ],
+              "period_mm": 50.911687
+            },
+            "opacity": 1,
+            "z_order": 1
+          },
+          {
+            "id": "motif_slot_1",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 12.96,
+              "motif_id": "upload-882097f980bc"
+            },
+            "opacity": 1,
+            "z_order": 2,
+            "placement": {
+              "lane": null,
+              "path": null,
+              "type": "lattice",
+              "lattice": {
+                "cell_h_mm": 12,
+                "cell_w_mm": 12,
+                "drop_axis": "column",
+                "offset_x_mm": 0,
+                "offset_y_mm": 0,
+                "drop_fraction": null
+              },
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": null,
+              "point_set": null,
+              "host_layer": null,
+              "spacing_mm": null,
+              "fixed_rotation_deg": null
+            }
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#2B2B2B",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#A7ADB0",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#2B2B2B",
+              "color_1": "#A7ADB0"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 6,
+      "last_prompt": "패턴 전체를 1.5배 크게 해줘. 줄과 로고의 비율은 유지해줘.",
+      "created_at": "2026-09-07T05:26:58.742377Z",
+      "updated_at": "2026-09-07T05:27:34.314866Z"
+    },
+    "session_time": "2026-09-07T05:27:34.366Z",
+    "latest_generate": {
+      "run_id": "e6061391-5a33-4f68-bec1-db45af8be8fd",
+      "note": "패턴 전체를 1.5배 확대해 줄무늬와 로고의 비율을 유지했습니다.",
+      "rejected": null,
+      "warnings": [],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T05:27:34.327Z",
+    "errors": [
+      {
+        "url": "http://localhost:8000/design/sessions",
+        "status": 401,
+        "time": "2026-09-07T05:26:28.697Z"
+      }
+    ],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/design]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e37]\n    - button \"로그아웃\" [ref=e38]\n- main:\n  - img \"선택한 디자인 미리보기, 넥타이 적용 모습\"\n  - button \"Help\" [ref=e11]\n  - button \"토큰 잔액\" [ref=e45]:\n    - img \"토큰 잔액\"\n    - text: \"233토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e13] [checked]\n      - generic \"넥타이\" [ref=e14]\n    - label:\n      - radio \"타일\" [ref=e15]\n      - generic \"타일\" [ref=e16]\n  - region \"모티프 선택\" [ref=e17]:\n    - heading \"모티프\" [level=2]\n    - text: \"1/2\"\n    - button \"모티프 카드 접기\" [ref=e18]\n    - button \"qa-logo 바꾸기\" [ref=e62]:\n      - image \"qa-logo\"\n    - button \"모티프 슬롯 2에 그림 추가\" [ref=e49]: \"그림 추가\"\n    - button \"SVG 모티프 파일 선택\" [ref=e21]\n  - region \"편집 이력\" [ref=e50]:\n    - heading \"이력\" [level=2]\n    - text: \"3 / 3\"\n    - button \"이력 카드 접기\" [ref=e51]\n    - button \"3번째 디자인 · 전체 이력 보기\" [ref=e65]\n    - button \"2번째 디자인으로 되돌리기\" [ref=e66]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e54] [disabled]\n    - button \"전체 보기\" [ref=e55]\n  - navigation \"디자인 도구\" [ref=e28]:\n    - button \"내려받기\" [ref=e29]\n    - button \"실사화\" [ref=e30]\n    - button \"내 디자인\" [ref=e31]\n    - button \"완성본\" [ref=e32]\n    - button \"새로 시작\" [ref=e33]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e34] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e35]\n    - button \"디자인에 적용\" [ref=e36] [disabled]\n  - alert\n  - status"
+  },
+  "s5-2.json": {
+    "session_id": "3c523b16-5925-4b8f-800f-74bb14e48459",
+    "session": {
+      "id": "3c523b16-5925-4b8f-800f-74bb14e48459",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 72
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "stripe_0",
+            "clip": null,
+            "type": "stripe",
+            "params": {
+              "angle": -45,
+              "bands": [
+                {
+                  "color": "color_1",
+                  "width_mm": 4.072935,
+                  "offset_mm": 0
+                }
+              ],
+              "period_mm": 50.911687
+            },
+            "opacity": 1,
+            "z_order": 1
+          },
+          {
+            "id": "motif_slot_1",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 8.64,
+              "motif_id": "upload-882097f980bc"
+            },
+            "opacity": 1,
+            "z_order": 2,
+            "placement": {
+              "lane": null,
+              "path": null,
+              "type": "lattice",
+              "lattice": {
+                "cell_h_mm": 12,
+                "cell_w_mm": 12,
+                "drop_axis": "column",
+                "offset_x_mm": 0,
+                "offset_y_mm": 0,
+                "drop_fraction": null
+              },
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": null,
+              "point_set": null,
+              "host_layer": null,
+              "spacing_mm": null,
+              "fixed_rotation_deg": null
+            }
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#2B2B2B",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#A7ADB0",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#2B2B2B",
+              "color_1": "#A7ADB0"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 8,
+      "last_prompt": "줄무늬는 지금 그대로 두고 로고만 처음 크기로 줄여줘.",
+      "created_at": "2026-09-07T05:26:58.742377Z",
+      "updated_at": "2026-09-07T05:27:45.315084Z"
+    },
+    "session_time": "2026-09-07T05:27:45.374Z",
+    "latest_generate": {
+      "run_id": "c61133f8-f5d4-4679-94bf-bea347eac912",
+      "note": "로고를 처음 크기로 줄이고 줄무늬는 그대로 유지했습니다.",
+      "rejected": null,
+      "warnings": [],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T05:27:45.330Z",
+    "errors": [
+      {
+        "url": "http://localhost:8000/design/sessions",
+        "status": 401,
+        "time": "2026-09-07T05:26:28.697Z"
+      }
+    ],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/design]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e37]\n    - button \"로그아웃\" [ref=e38]\n- main:\n  - img \"선택한 디자인 미리보기, 넥타이 적용 모습\"\n  - button \"Help\" [ref=e11]\n  - button \"토큰 잔액\" [ref=e45]:\n    - img \"토큰 잔액\"\n    - text: \"221토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e13] [checked]\n      - generic \"넥타이\" [ref=e14]\n    - label:\n      - radio \"타일\" [ref=e15]\n      - generic \"타일\" [ref=e16]\n  - region \"모티프 선택\" [ref=e17]:\n    - heading \"모티프\" [level=2]\n    - text: \"1/2\"\n    - button \"모티프 카드 접기\" [ref=e18]\n    - button \"qa-logo 바꾸기\" [ref=e62]:\n      - image \"qa-logo\"\n    - button \"모티프 슬롯 2에 그림 추가\" [ref=e49]: \"그림 추가\"\n    - button \"SVG 모티프 파일 선택\" [ref=e21]\n  - region \"편집 이력\" [ref=e50]:\n    - heading \"이력\" [level=2]\n    - text: \"4 / 4\"\n    - button \"이력 카드 접기\" [ref=e51]\n    - button \"4번째 디자인 · 전체 이력 보기\" [ref=e67]\n    - button \"3번째 디자인으로 되돌리기\" [ref=e68]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e54] [disabled]\n    - button \"전체 보기\" [ref=e55]\n  - navigation \"디자인 도구\" [ref=e28]:\n    - button \"내려받기\" [ref=e29]\n    - button \"실사화\" [ref=e30]\n    - button \"내 디자인\" [ref=e31]\n    - button \"완성본\" [ref=e32]\n    - button \"새로 시작\" [ref=e33]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e34] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e35]\n    - button \"디자인에 적용\" [ref=e36] [disabled]\n  - alert\n  - status"
+  },
+  "s5-3.json": {
+    "session_id": "3c523b16-5925-4b8f-800f-74bb14e48459",
+    "session": {
+      "id": "3c523b16-5925-4b8f-800f-74bb14e48459",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 72
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "stripe_0",
+            "clip": null,
+            "type": "stripe",
+            "params": {
+              "angle": -45,
+              "bands": [
+                {
+                  "color": "color_1",
+                  "width_mm": 4.072935,
+                  "offset_mm": 0
+                }
+              ],
+              "period_mm": 50.911687
+            },
+            "opacity": 1,
+            "z_order": 1
+          },
+          {
+            "id": "motif_slot_1",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 8.64,
+              "motif_id": "upload-882097f980bc"
+            },
+            "opacity": 1,
+            "z_order": 2,
+            "placement": {
+              "lane": null,
+              "path": null,
+              "type": "lattice",
+              "lattice": {
+                "cell_h_mm": 12,
+                "cell_w_mm": 12,
+                "drop_axis": "column",
+                "offset_x_mm": 0,
+                "offset_y_mm": 0,
+                "drop_fraction": null
+              },
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": null,
+              "point_set": null,
+              "host_layer": null,
+              "spacing_mm": null,
+              "fixed_rotation_deg": null
+            }
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#F5E6CC",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#A7ADB0",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#F5E6CC",
+              "color_1": "#A7ADB0"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 10,
+      "last_prompt": "바탕만 밝은 베이지로 바꿔줘.",
+      "created_at": "2026-09-07T05:26:58.742377Z",
+      "updated_at": "2026-09-07T05:27:53.610275Z"
+    },
+    "session_time": "2026-09-07T05:27:53.661Z",
+    "latest_generate": {
+      "run_id": "b8e7747e-366f-488d-ba27-c62e7c23eb7d",
+      "note": "바탕을 밝은 베이지로 바꿨습니다.",
+      "rejected": null,
+      "warnings": [],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T05:27:53.625Z",
+    "errors": [
+      {
+        "url": "http://localhost:8000/design/sessions",
+        "status": 401,
+        "time": "2026-09-07T05:26:28.697Z"
+      }
+    ],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/design]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e37]\n    - button \"로그아웃\" [ref=e38]\n- main:\n  - img \"선택한 디자인 미리보기, 넥타이 적용 모습\"\n  - button \"Help\" [ref=e11]\n  - button \"토큰 잔액\" [ref=e45]:\n    - img \"토큰 잔액\"\n    - text: \"209토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e13] [checked]\n      - generic \"넥타이\" [ref=e14]\n    - label:\n      - radio \"타일\" [ref=e15]\n      - generic \"타일\" [ref=e16]\n  - region \"모티프 선택\" [ref=e17]:\n    - heading \"모티프\" [level=2]\n    - text: \"1/2\"\n    - button \"모티프 카드 접기\" [ref=e18]\n    - button \"qa-logo 바꾸기\" [ref=e62]:\n      - image \"qa-logo\"\n    - button \"모티프 슬롯 2에 그림 추가\" [ref=e49]: \"그림 추가\"\n    - button \"SVG 모티프 파일 선택\" [ref=e21]\n  - region \"편집 이력\" [ref=e50]:\n    - heading \"이력\" [level=2]\n    - text: \"5 / 5\"\n    - button \"이력 카드 접기\" [ref=e51]\n    - button \"5번째 디자인 · 전체 이력 보기\" [ref=e69]\n    - button \"4번째 디자인으로 되돌리기\" [ref=e70]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e54] [disabled]\n    - button \"전체 보기\" [ref=e55]\n  - navigation \"디자인 도구\" [ref=e28]:\n    - button \"내려받기\" [ref=e29]\n    - button \"실사화\" [ref=e30]\n    - button \"내 디자인\" [ref=e31]\n    - button \"완성본\" [ref=e32]\n    - button \"새로 시작\" [ref=e33]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e34] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e35]\n    - button \"디자인에 적용\" [ref=e36] [disabled]\n  - alert\n  - status"
+  },
+  "s5-4.json": {
+    "session_id": "3c523b16-5925-4b8f-800f-74bb14e48459",
+    "session": {
+      "id": "3c523b16-5925-4b8f-800f-74bb14e48459",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 72
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "motif_slot_1",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 8.64,
+              "motif_id": "upload-882097f980bc"
+            },
+            "opacity": 1,
+            "z_order": 1,
+            "placement": {
+              "lane": null,
+              "path": null,
+              "type": "lattice",
+              "lattice": {
+                "cell_h_mm": 12,
+                "cell_w_mm": 12,
+                "drop_axis": "column",
+                "offset_x_mm": 0,
+                "offset_y_mm": 0,
+                "drop_fraction": null
+              },
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": null,
+              "point_set": null,
+              "host_layer": null,
+              "spacing_mm": null,
+              "fixed_rotation_deg": null
+            }
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#F5E6CC",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#F5E6CC"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 12,
+      "last_prompt": "줄무늬를 없애고 바탕과 로고만 남겨줘.",
+      "created_at": "2026-09-07T05:26:58.742377Z",
+      "updated_at": "2026-09-07T05:28:02.093767Z"
+    },
+    "session_time": "2026-09-07T05:28:02.148Z",
+    "latest_generate": {
+      "run_id": "ba535137-adbc-4850-bdca-bc17ce677080",
+      "note": "줄무늬를 없애고 바탕과 로고만 남겼습니다.",
+      "rejected": null,
+      "warnings": [],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T05:28:02.113Z",
+    "errors": [
+      {
+        "url": "http://localhost:8000/design/sessions",
+        "status": 401,
+        "time": "2026-09-07T05:26:28.697Z"
+      }
+    ],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/design]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e37]\n    - button \"로그아웃\" [ref=e38]\n- main:\n  - img \"선택한 디자인 미리보기, 넥타이 적용 모습\"\n  - button \"Help\" [ref=e11]\n  - button \"토큰 잔액\" [ref=e45]:\n    - img \"토큰 잔액\"\n    - text: \"197토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e13] [checked]\n      - generic \"넥타이\" [ref=e14]\n    - label:\n      - radio \"타일\" [ref=e15]\n      - generic \"타일\" [ref=e16]\n  - region \"모티프 선택\" [ref=e17]:\n    - heading \"모티프\" [level=2]\n    - text: \"1/2\"\n    - button \"모티프 카드 접기\" [ref=e18]\n    - button \"qa-logo 바꾸기\" [ref=e62]:\n      - image \"qa-logo\"\n    - button \"모티프 슬롯 2에 그림 추가\" [ref=e49]: \"그림 추가\"\n    - button \"SVG 모티프 파일 선택\" [ref=e21]\n  - region \"편집 이력\" [ref=e50]:\n    - heading \"이력\" [level=2]\n    - text: \"6 / 6\"\n    - button \"이력 카드 접기\" [ref=e51]\n    - button \"6번째 디자인 · 전체 이력 보기\" [ref=e71]\n    - button \"5번째 디자인으로 되돌리기\" [ref=e72]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e54] [disabled]\n    - button \"전체 보기\" [ref=e55]\n  - navigation \"디자인 도구\" [ref=e28]:\n    - button \"내려받기\" [ref=e29]\n    - button \"실사화\" [ref=e30]\n    - button \"내 디자인\" [ref=e31]\n    - button \"완성본\" [ref=e32]\n    - button \"새로 시작\" [ref=e33]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e34] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e35]\n    - button \"디자인에 적용\" [ref=e36] [disabled]\n  - alert\n  - status"
+  },
+  "s5-history-base.json": {
+    "session_id": "3c523b16-5925-4b8f-800f-74bb14e48459",
+    "session": {
+      "id": "3c523b16-5925-4b8f-800f-74bb14e48459",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 48
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "stripe_0",
+            "clip": null,
+            "type": "stripe",
+            "params": {
+              "angle": -45,
+              "bands": [
+                {
+                  "color": "color_1",
+                  "width_mm": 2.71529,
+                  "offset_mm": 0
+                }
+              ],
+              "period_mm": 33.941125
+            },
+            "opacity": 1,
+            "z_order": 1
+          },
+          {
+            "id": "motif_slot_1",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 8.64,
+              "motif_id": "upload-882097f980bc"
+            },
+            "opacity": 1,
+            "z_order": 2,
+            "placement": {
+              "lane": null,
+              "path": null,
+              "type": "lattice",
+              "lattice": {
+                "cell_h_mm": 8,
+                "cell_w_mm": 8,
+                "drop_axis": "column",
+                "offset_x_mm": 0,
+                "offset_y_mm": 0,
+                "drop_fraction": null
+              },
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": null,
+              "point_set": null,
+              "host_layer": null,
+              "spacing_mm": null,
+              "fixed_rotation_deg": null
+            }
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#2B2B2B",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#A7ADB0",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#2B2B2B",
+              "color_1": "#A7ADB0"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 13,
+      "last_prompt": null,
+      "created_at": "2026-09-07T05:26:58.742377Z",
+      "updated_at": "2026-09-07T05:28:22.460703Z"
+    },
+    "session_time": "2026-09-07T05:28:22.480Z",
+    "latest_generate": {
+      "run_id": "ba535137-adbc-4850-bdca-bc17ce677080",
+      "note": "줄무늬를 없애고 바탕과 로고만 남겼습니다.",
+      "rejected": null,
+      "warnings": [],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T05:28:02.113Z",
+    "errors": [
+      {
+        "url": "http://localhost:8000/design/sessions",
+        "status": 401,
+        "time": "2026-09-07T05:26:28.697Z"
+      }
+    ],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/design]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e37]\n    - button \"로그아웃\" [ref=e38]\n- main:\n  - img \"선택한 디자인 미리보기\"\n  - button \"Help\" [ref=e11]\n  - button \"토큰 잔액\" [ref=e45]:\n    - img \"토큰 잔액\"\n    - text: \"197토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e13]\n      - generic \"넥타이\" [ref=e14]\n    - label:\n      - radio \"타일\" [ref=e15] [checked]\n      - generic \"타일\" [ref=e16]\n  - region \"모티프 선택\" [ref=e17]:\n    - heading \"모티프\" [level=2]\n    - text: \"1/2\"\n    - button \"모티프 카드 접기\" [ref=e18]\n    - button \"qa-logo 바꾸기\" [ref=e62]:\n      - image \"qa-logo\"\n    - button \"모티프 슬롯 2에 그림 추가\" [ref=e49]: \"그림 추가\"\n    - button \"SVG 모티프 파일 선택\" [ref=e21]\n  - region \"편집 이력\" [ref=e50]:\n    - heading \"이력\" [level=2]\n    - text: \"2 / 6\"\n    - button \"이력 카드 접기\" [ref=e51]\n    - button \"2번째 디자인 · 전체 이력 보기\" [ref=e80]\n    - button \"1번째 디자인으로 되돌리기\" [ref=e81]\n    - text: \"2번째\"\n    - button \"3번째 디자인으로 이동\" [ref=e82]\n    - button \"전체 보기\" [ref=e55] [focused]\n  - navigation \"디자인 도구\" [ref=e28]:\n    - button \"내려받기\" [ref=e29]\n    - button \"실사화\" [ref=e30]\n    - button \"내 디자인\" [ref=e31]\n    - button \"완성본\" [ref=e32]\n    - button \"새로 시작\" [ref=e33]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e34] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e35]\n    - button \"디자인에 적용\" [ref=e36] [disabled]\n  - alert\n  - status"
+  },
+  "s5-logo-base.json": {
+    "session_id": "3c523b16-5925-4b8f-800f-74bb14e48459",
+    "session": {
+      "id": "3c523b16-5925-4b8f-800f-74bb14e48459",
+      "status": "active",
+      "seed": 104729,
+      "colorway": "default",
+      "registry_version": "0.1.0+pool.3b9c6e3a",
+      "current_intent": {
+        "seed": 104729,
+        "canvas": {
+          "dpi": 300,
+          "tile_mm": 48
+        },
+        "layers": [
+          {
+            "id": "ground",
+            "clip": null,
+            "type": "background",
+            "params": {
+              "color": "ground"
+            },
+            "opacity": 1,
+            "z_order": 0
+          },
+          {
+            "id": "stripe_0",
+            "clip": null,
+            "type": "stripe",
+            "params": {
+              "angle": -45,
+              "bands": [
+                {
+                  "color": "color_1",
+                  "width_mm": 2.71529,
+                  "offset_mm": 0
+                }
+              ],
+              "period_mm": 33.941125
+            },
+            "opacity": 1,
+            "z_order": 1
+          },
+          {
+            "id": "motif_slot_1",
+            "clip": null,
+            "type": "motif",
+            "params": {
+              "size_mm": 8.64,
+              "motif_id": "upload-882097f980bc"
+            },
+            "opacity": 1,
+            "z_order": 2,
+            "placement": {
+              "lane": null,
+              "path": null,
+              "type": "lattice",
+              "lattice": {
+                "cell_h_mm": 8,
+                "cell_w_mm": 8,
+                "drop_axis": "column",
+                "offset_x_mm": 0,
+                "offset_y_mm": 0,
+                "drop_fraction": null
+              },
+              "scatter": null,
+              "phase_mm": 0,
+              "rotation": null,
+              "point_set": null,
+              "host_layer": null,
+              "spacing_mm": null,
+              "fixed_rotation_deg": null
+            }
+          }
+        ],
+        "palette": {
+          "slots": [
+            {
+              "id": "ground",
+              "hex": "#2B2B2B",
+              "name": null,
+              "spot": null
+            },
+            {
+              "id": "color_1",
+              "hex": "#A7ADB0",
+              "name": null,
+              "spot": null
+            }
+          ]
+        },
+        "colorways": [
+          {
+            "id": "default",
+            "name": "default",
+            "mapping": {
+              "ground": "#2B2B2B",
+              "color_1": "#A7ADB0"
+            }
+          }
+        ],
+        "production": {
+          "method": "print",
+          "max_colors": 12
+        },
+        "intent_version": 1
+      },
+      "context_version": 4,
+      "last_prompt": null,
+      "created_at": "2026-09-07T05:26:58.742377Z",
+      "updated_at": "2026-09-07T05:27:24.671112Z"
+    },
+    "session_time": "2026-09-07T05:27:24.690Z",
+    "latest_generate": {
+      "run_id": "2a5acdbc-d8f1-4afe-a206-c1661237051a",
+      "note": null,
+      "rejected": null,
+      "warnings": [],
+      "motif_intent": null
+    },
+    "generate_time": "2026-09-07T05:27:05.983Z",
+    "errors": [
+      {
+        "url": "http://localhost:8000/design/sessions",
+        "status": 401,
+        "time": "2026-09-07T05:26:28.697Z"
+      }
+    ],
+    "snapshot": "- title: \"AI 넥타이 디자인 | 영선산업\" [url=http://localhost:3000/design]\n- banner:\n  - navigation \"주요 메뉴\" [ref=e1]:\n    - link \"ESSE SION\" [ref=e2]\n    - link \"스토어\" [ref=e3]\n    - link \"수선\" [ref=e4]\n    - link \"디자인\" [ref=e5]\n    - link \"주문 제작\" [ref=e6]\n    - link \"샘플 제작\" [ref=e7]\n    - button \"장바구니\" [ref=e8]\n    - button \"마이\" [ref=e37]\n    - button \"로그아웃\" [ref=e38]\n- main:\n  - img \"선택한 디자인 미리보기, 넥타이 적용 모습\"\n  - button \"Help\" [ref=e11]\n  - button \"토큰 잔액\" [ref=e45]:\n    - img \"토큰 잔액\"\n    - text: \"245토큰\"\n  - radiogroup \"미리보기 방식\":\n    - label:\n      - radio \"넥타이\" [ref=e13] [checked]\n      - generic \"넥타이\" [ref=e14]\n    - label:\n      - radio \"타일\" [ref=e15]\n      - generic \"타일\" [ref=e16]\n  - region \"모티프 선택\" [ref=e17]:\n    - heading \"모티프\" [level=2]\n    - text: \"1/2\"\n    - button \"모티프 카드 접기\" [ref=e18]\n    - button \"qa-logo 바꾸기\" [ref=e62]:\n      - image \"qa-logo\"\n    - button \"모티프 슬롯 2에 그림 추가\" [ref=e49]: \"그림 추가\"\n    - button \"SVG 모티프 파일 선택\" [ref=e21]\n  - region \"편집 이력\" [ref=e50]:\n    - heading \"이력\" [level=2]\n    - text: \"2 / 2\"\n    - button \"이력 카드 접기\" [ref=e51]\n    - button \"2번째 디자인 · 전체 이력 보기\" [ref=e63]\n    - button \"1번째 디자인으로 되돌리기\" [ref=e64]\n    - text: \"현재\"\n    - button \"다음 디자인\" [ref=e54] [disabled]\n    - button \"전체 보기\" [ref=e55]\n  - navigation \"디자인 도구\" [ref=e28]:\n    - button \"내려받기\" [ref=e29]\n    - button \"실사화\" [ref=e30]\n    - button \"내 디자인\" [ref=e31]\n    - button \"완성본\" [ref=e32]\n    - button \"새로 시작\" [ref=e33]\n  - form:\n    - textbox \"무엇을 바꿀까요?\" [ref=e34] [placeholder=\"무엇을 바꿀까요?\"]\n    - button \"아이디어 받기\" [ref=e35]\n    - button \"디자인에 적용\" [ref=e36] [disabled]\n  - alert\n  - status"
+  }
+}
