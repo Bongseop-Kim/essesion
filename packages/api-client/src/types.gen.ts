@@ -3906,7 +3906,7 @@ export type DesignGenerateRejectedOut = {
     /**
      * Reason
      */
-    reason?: 'motif_change' | 'motif_recolor' | 'motif_position' | 'per_motif_placement' | 'target_missing' | null;
+    reason?: 'motif_change' | 'motif_recolor' | 'motif_position' | 'target_missing' | 'no_change' | null;
     /**
      * Rejected
      */

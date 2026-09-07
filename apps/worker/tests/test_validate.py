@@ -416,3 +416,52 @@ def test_subnormal_lattice_cell_is_rejected_without_overflow():
     }
     with pytest.raises(IntentInvalid, match="lattice would place"):
         validate_intent(intent)
+
+
+def test_stripe_exposes_gap_lanes_between_bands():
+    from worker.engine.intent import StripeParams
+    from worker.engine.primitives import build_stripe
+
+    single = build_stripe(
+        StripeParams.model_validate(
+            {
+                "angle": 0.0,
+                "period_mm": 12.0,
+                "bands": [{"offset_mm": 0, "width_mm": 4, "color": "a"}],
+            }
+        ),
+        48.0,
+    )
+    lanes = {lane.id: lane.centerline_path.offset_mm for lane in single.lanes()}
+    # 밴드 끝 4 ~ 다음 period의 밴드 시작 12 사이 중점
+    assert lanes["gap"] == 8.0 and lanes["b0.gap"] == 8.0
+
+    paired = build_stripe(
+        StripeParams.model_validate(
+            {
+                "angle": 0.0,
+                "period_mm": 24.0,
+                "bands": [
+                    {"offset_mm": 0, "width_mm": 6, "color": "a"},
+                    {"offset_mm": 9, "width_mm": 3, "color": "b"},
+                ],
+            }
+        ),
+        48.0,
+    )
+    lanes = {lane.id: lane.centerline_path.offset_mm for lane in paired.lanes()}
+    assert lanes["b0.gap"] == 7.5  # 6 ~ 9
+    assert lanes["b1.gap"] == 18.0  # 12 ~ 24(다음 period의 밴드 0)
+    assert "gap" not in lanes  # bare 키워드는 단일 밴드만
+
+
+def test_bare_gap_lane_is_normalized_on_multi_band_stripes():
+    intent = mvp_intent()
+    intent["layers"][1]["params"]["bands"] = [
+        {"offset_mm": 0, "width_mm": 2.4, "color": "accent"},
+        {"offset_mm": 4.8, "width_mm": 2.4, "color": "accent"},
+    ]
+    intent["layers"][2]["placement"]["lane"] = "gap"
+    result = validate_intent(intent)
+    assert result.intent.layers[2].placement.lane == "b0.gap"
+    assert_seamless_invariants(result.intent)

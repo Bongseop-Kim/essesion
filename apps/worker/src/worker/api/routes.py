@@ -71,7 +71,12 @@ from worker.engine import (
 )
 from worker.engine.composition import compose
 from worker.engine.constraints import ConstraintInvalid, apply_generation_constraints
-from worker.engine.patch import apply_patch, composition_snapshot, set_motif_slot
+from worker.engine.patch import (
+    apply_patch,
+    composition_snapshot,
+    patch_left_intent_unchanged,
+    set_motif_slot,
+)
 from worker.engine.seamless import assert_seamless_invariants
 from worker.integrations import content_key
 from worker.motifs.fingerprint import registry_version_for
@@ -695,6 +700,13 @@ async def _generate_from_patch(
         constrained_intent = apply_generation_constraints(patched, warnings=warnings)
     except ConstraintInvalid:
         _reject_generation(request, "constraint_conflict", "constraints")
+    if patch_left_intent_unchanged(context.current_intent, patched):
+        # 축은 채웠지만 결과가 그대로다(이미 최소 밀도 등) — 만든 것이 없으니 거절과 같이
+        # 무과금·턴 없이 끝낸다. note는 버린다(변경이 없다는 사실은 코드가 말한다).
+        request.state.generation_diagnostics["failure_code"] = "scope_rejected"
+        request.state.generation_diagnostics["failure_stage"] = "authoring"
+        request.state.generation_diagnostics["reject_reason"] = "no_change"
+        return ScopeRejectedResponse(reason="no_change")
 
     catalog = await get_motifs(session, iter_motif_ids(constrained_intent))
     compose_started = time.perf_counter()

@@ -31,20 +31,20 @@ export type RejectedReason =
   | "motif_change"
   | "motif_recolor"
   | "motif_position"
-  | "per_motif_placement"
-  | "target_missing";
+  | "target_missing"
+  | "no_change";
 
 const REJECTED_NOTICE_BY_REASON: Record<RejectedReason, string> = {
   motif_change:
     "그림을 바꾸는 건 왼쪽 모티프에서 할 수 있어요. 토큰은 쓰지 않았어요.",
   motif_recolor:
-    "모티프 색은 그림 자체에 고정돼 있어 여기서 바꿀 수 없어요. 토큰은 쓰지 않았어요.",
+    "모티프 색은 그림 자체에 고정돼 있어 문장으로는 바꿀 수 없어요. 왼쪽 모티프의 AI 생성으로 원하는 색의 그림을 새로 만들어 주세요. 토큰은 쓰지 않았어요.",
   motif_position:
-    "줄 사이처럼 정확한 위치로 모티프를 옮기는 건 아직 지원하지 않아요. 토큰은 쓰지 않았어요.",
-  per_motif_placement:
-    "모티프 하나만 따로 돌리거나 성기게 하는 건 아직 지원하지 않아요. 회전·간격은 모든 모티프에 함께 적용돼요. 토큰은 쓰지 않았어요.",
+    "이 위치로는 모티프를 옮길 수 없어요. 줄무늬가 있으면 '줄 위에' 또는 '줄 사이에' 배치를 요청해 보세요. 토큰은 쓰지 않았어요.",
   target_missing:
     "말씀하신 모티프가 지금 디자인에 없어서 바꾸지 않았어요. 토큰은 쓰지 않았어요.",
+  no_change:
+    "요청한 내용은 이미 그렇게 되어 있어서 바꾼 것이 없어요. 토큰은 쓰지 않았어요.",
 };
 
 /** 알림 우선순위: 안내 못 한 거절·오류(빨강) 먼저, 자동 조정 경고(노랑)가 뒤에. */

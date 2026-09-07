@@ -30,7 +30,10 @@ from worker.engine.constraints import (
 )
 from worker.engine.units import snap_angle, stripe_tiles
 
-Arrangement = Literal["lattice", "staggered", "scatter"]
+# on_stripes/between_stripes는 줄무늬 레이어를 host로 삼는 path_following이다 — 줄무늬가
+# 없는 디자인에서는 적용할 수 없어 ConstraintInvalid로 거절된다.
+Arrangement = Literal["lattice", "staggered", "scatter", "on_stripes", "between_stripes"]
+MAX_MOTIF_SLOTS = 2
 
 MAX_PATCH_BANDS = 4
 MIN_AXIS_COUNT = 2
@@ -52,8 +55,10 @@ PATCH_AXES = (
     "palette",
 )
 
+# no_change는 모델이 아니라 worker가 붙인다 — patch를 적용했는데 intent가 그대로면(이미 최소
+# 간격 등) 만든 것이 없으니 과금·턴 없이 끝낸다.
 RejectReason = Literal[
-    "motif_change", "motif_recolor", "motif_position", "per_motif_placement", "target_missing"
+    "motif_change", "motif_recolor", "motif_position", "target_missing", "no_change"
 ]
 
 
@@ -94,6 +99,8 @@ class StripePatch(_Patch):
 
 
 class PlacementPatch(_Patch):
+    # null이면 모든 모티프 레이어, 1..2면 그 슬롯만 — "꽃 가지만 45도"(2026-09-07 S4).
+    slot: int | None = Field(default=None, ge=1, le=MAX_MOTIF_SLOTS)
     arrangement: Arrangement | None = None
     count_per_axis: int | None = Field(default=None, ge=MIN_AXIS_COUNT, le=MAX_AXIS_COUNT)
     rotation_deg: float | None = Field(default=None, ge=-360.0, le=360.0)
@@ -232,12 +239,18 @@ def _axis_count(placement: dict[str, Any], tile: float) -> int | None:
     if isinstance(spec, dict):
         distance = _positive_float(spec.get("min_dist_mm"))
         return max(MIN_AXIS_COUNT, round(tile / distance)) if distance else None
+    if placement.get("type") == "path_following":
+        spacing = _positive_float(placement.get("spacing_mm"))
+        return max(MIN_AXIS_COUNT, round(tile / spacing)) if spacing else None
     return None
 
 
 def _arrangement(placement: dict[str, Any]) -> Arrangement | None:
     if placement.get("type") == "scatter":
         return "scatter"
+    if placement.get("type") == "path_following" and placement.get("host_layer") is not None:
+        lane = str(placement.get("lane") or "")
+        return "between_stripes" if lane == "gap" or lane.endswith(".gap") else "on_stripes"
     if placement.get("type") != "lattice":
         return None
     spec = placement.get("lattice")
@@ -330,11 +343,19 @@ def composition_snapshot(
         for index, layer in enumerate(motif_layers):
             motif_id = layer.get("params", {}).get("motif_id")
             meta = meta_by_id.get(motif_id) if isinstance(motif_id, str) else None
+            own = layer.get("placement")
+            own = own if isinstance(own, dict) else {}
             motif_entries.append(
                 {
                     "index": index + 1,
                     "subject": meta.get("subject") if meta else None,
                     "description": meta.get("description") if meta else None,
+                    # 슬롯별 배치 — `placement.slot`으로 이 레이어만 바꿀 때의 현재값.
+                    "placement": {
+                        "arrangement": _arrangement(own),
+                        "count_per_axis": _axis_count(own, tile),
+                        "rotation_deg": own.get("fixed_rotation_deg"),
+                    },
                 }
             )
         snapshot["motifs"] = motif_entries
@@ -507,7 +528,7 @@ def _stagger_frame(
     반환: (적용할 tile, patch.count_per_axis에 곱할 배수).
     """
 
-    motifs = _layers(raw, "motif")
+    motifs = _target_layers(raw, patch)
     if not motifs:
         return tile, 1
     first = motifs[0].get("placement")
@@ -532,6 +553,50 @@ def _stagger_frame(
     return tile, 1
 
 
+def _target_layers(raw: dict[str, Any], patch: PlacementPatch) -> list[dict[str, Any]]:
+    """patch.slot이 있으면 그 슬롯 레이어 하나, 없으면 모든 모티프 레이어."""
+
+    motifs = _layers(raw, "motif")
+    if patch.slot is None:
+        return motifs
+    if patch.slot > len(motifs):
+        raise ConstraintInvalid(
+            [f"placement.slot {patch.slot} refers to a motif slot the design does not have"]
+        )
+    return [motifs[patch.slot - 1]]
+
+
+def _stripe_lane(raw: dict[str, Any], arrangement: str) -> tuple[str, str]:
+    """(host stripe id, lane id) — on_stripes는 가장 넓은 밴드의 center, between_stripes는
+    가장 넓은 빈 공간의 gap. 줄무늬가 없으면 표현할 수 없는 배치라 거절한다."""
+
+    stripes = _layers(raw, "stripe")
+    if not stripes:
+        raise ConstraintInvalid(
+            [f"arrangement {arrangement!r} needs a stripe layer to host the motifs"]
+        )
+    host = stripes[0]
+    raw_params = host.get("params")
+    params: dict[str, Any] = raw_params if isinstance(raw_params, dict) else {}
+    bands = [band for band in params.get("bands", []) if isinstance(band, dict)]
+    period = _positive_float(params.get("period_mm")) or 0.0
+    if not bands or not period:
+        raise ConstraintInvalid(["stripe layer has no bands to host the motifs"])
+    if arrangement == "on_stripes":
+        index = max(range(len(bands)), key=lambda i: float(bands[i].get("width_mm", 0.0)))
+        return str(host["id"]), f"b{index}.center"
+
+    def gap_width(i: int) -> float:
+        start = float(bands[i].get("offset_mm", 0.0)) + float(bands[i].get("width_mm", 0.0))
+        end = float(bands[(i + 1) % len(bands)].get("offset_mm", 0.0))
+        while end <= start:
+            end += period
+        return end - start
+
+    index = max(range(len(bands)), key=gap_width)
+    return str(host["id"]), f"b{index}.gap"
+
+
 def _apply_placement(
     raw: dict[str, Any],
     patch: PlacementPatch,
@@ -540,7 +605,7 @@ def _apply_placement(
     cap: int = MAX_AXIS_COUNT,
     count_factor: int = 1,
 ) -> None:
-    for layer in _layers(raw, "motif"):
+    for layer in _target_layers(raw, patch):
         placement = layer.get("placement")
         placement = dict(placement) if isinstance(placement, dict) else {}
         # 배치를 새로 만들면 위상이 0으로 돌아가 두 모티프가 정확히 포개진다 — 비율로 옮긴다.
@@ -560,10 +625,23 @@ def _apply_placement(
         )
         if arrangement is None and patch.count_per_axis is not None:
             arrangement = _arrangement(placement)
+            if arrangement in ("on_stripes", "between_stripes"):
+                # 밀도만 바꾸는 patch는 기존 host/lane·위상을 유지하고 간격만 조정한다.
+                arrangement = None
         if arrangement == "scatter":
             placement = scatter_placement(
                 tile=tile, axis=count, count=max(4, round(count * count * 0.5))
             )
+        elif arrangement in ("on_stripes", "between_stripes"):
+            host_id, lane = _stripe_lane(raw, arrangement)
+            placement = {
+                "type": "path_following",
+                "host_layer": host_id,
+                "lane": lane,
+                "spacing_mm": round(tile / count, 6),
+                "phase_mm": 0.0,
+                "rotation": "fixed",
+            }
         elif arrangement is not None:
             staggered = arrangement == "staggered"
             # 엇갈림은 홀수 축을 올림하므로 상한도 짝수로 내린다 — 올림이 셀을 상한 밑으로 민다.
@@ -649,12 +727,21 @@ def apply_patch(
     return raw
 
 
+def patch_left_intent_unchanged(intent: dict[str, Any], patched: dict[str, Any]) -> bool:
+    """patch 결과가 현재 디자인과 같은가 — 정규화(슬롯 정리·z_order 재부여)는 변경이 아니다.
+
+    빈 patch를 같은 경로로 적용한 기준선과 비교한다. 이미 최소 밀도인데 "더 성기게" 같은
+    요청은 축은 채워졌지만 만든 것이 없어, 호출부가 무과금 `no_change`로 끝낸다.
+    """
+
+    baseline = apply_patch(intent, DesignPatchV1(note="baseline"))
+    return patched == baseline
+
+
 # ---- 모티프 슬롯 교체 ----
 #
 # patch와 달리 여기 들어오는 모티프 id는 모델이 아니라 사용자가 고른 값이다. 모델 호출이
 # 없으므로 같은 (intent, slot, motif_id)는 항상 같은 intent를 만든다.
-
-MAX_MOTIF_SLOTS = 2
 
 
 def _derived_placement(placement: dict[str, Any], tile: float) -> dict[str, Any]:

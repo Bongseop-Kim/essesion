@@ -268,7 +268,7 @@ def validate_intent(raw, *, repair: bool = True) -> ValidationResult:
         if snapped_any:
             intent = intent.model_copy(update={"layers": snapped_layers})
 
-    # 3c. 다중 밴드 stripe의 bare lane(start/center/end) → b0.* 정규화
+    # 3c. 다중 밴드 stripe의 bare lane(start/center/end/gap) → b0.* 정규화
     if repair:
         by_id = {la.id: la for la in intent.layers}
         repaired_layers = list(intent.layers)
@@ -277,7 +277,7 @@ def validate_intent(raw, *, repair: bool = True) -> ValidationResult:
             pl = getattr(la, "placement", None)
             if pl is None or pl.type != "path_following":
                 continue
-            if pl.lane not in ("start", "center", "end"):
+            if pl.lane not in ("start", "center", "end", "gap"):
                 continue
             host = by_id.get(pl.host_layer)
             if host is not None and host.type == "stripe" and len(host.params.bands) > 1:

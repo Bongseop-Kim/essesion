@@ -100,20 +100,30 @@ class Stripe:
         return f"<g>{''.join(parts)}</g>"
 
     def lanes(self) -> list[LaneField]:
-        """밴드별 leading/center/trailing edge를 lane으로 노출.
+        """밴드별 start/center/end와 다음 밴드까지의 빈 공간 가운데(gap)를 lane으로 노출.
 
-        단일 밴드 stripe는 bare 키워드(start/center/end)도 lane id로 등록한다.
+        단일 밴드 stripe는 bare 키워드(start/center/end/gap)도 lane id로 등록한다.
+        `b{i}.gap`은 밴드 i의 끝과 다음 밴드(마지막이면 다음 period의 첫 밴드) 시작 사이
+        중점이다 — "줄 사이에 놓아줘"(2026-09-07 S1)를 표현하는 유일한 lane이다.
         """
         p, q = self.snapped.p, self.snapped.q
         angle = self.snapped.angle_deg
-        single = len(self.params.bands) == 1
+        bands = self.params.bands
+        single = len(bands) == 1
+        period = self.params.period_mm
 
         lanes: list[LaneField] = []
-        for i, band in enumerate(self.params.bands):
+        for i, band in enumerate(bands):
+            following = bands[(i + 1) % len(bands)]
+            gap_start = band.offset_mm + band.width_mm
+            gap_end = following.offset_mm
+            while gap_end <= gap_start:
+                gap_end += period
             edges = {
                 "start": band.offset_mm,
                 "center": band.offset_mm + band.width_mm / 2.0,
                 "end": band.offset_mm + band.width_mm,
+                "gap": (gap_start + gap_end) / 2.0,
             }
             for name, offset in edges.items():
                 centerline = Centerline(angle_deg=angle, offset_mm=offset, p=p, q=q)

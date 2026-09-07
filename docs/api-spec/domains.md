@@ -36,7 +36,7 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 
 ## 4. 클레임
 
-- create: type ∈ {cancel, return, exchange}(token_refund는 토큰 환불 플로우 전용). reason ∈ {change_mind, defect, delay, wrong_item, size_mismatch, color_mismatch, other}.
+- create: type ∈ {cancel, return, exchange}(token_refund는 토큰 환불 플로우 전용). reason ∈ {motif_change,motif_recolor,motif_position,target_missing,no_change}.
   - cancel 허용 주문 상태: sale{대기중,결제중,진행중} / custom{대기중,결제중,접수} / repair{대기중,결제중} / sample{대기중,결제중,접수} / token{대기중}
   - return/exchange: 주문 상태 {배송중,배송완료} AND order_type ∈ {sale,repair,custom}
   - 수량: 기본 = 아이템 수량, 0 < qty ≤ 아이템 수량.
@@ -113,7 +113,7 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 | `GET /design/examples` | 첫 진입 갤러리(게시된 큐레이션 예시, **공개 조회**) | 무료 |
 | `POST /design/sessions/from-example` | 예시 run을 새 세션의 시작점으로 복원(`{example_id}`) — 렌더·워커 호출 없음 | 무료 |
 | `GET·POST /design/sessions/{id}/turns` | 이력 조회·사용자 메모 턴 | — |
-| `POST /design/generate` | 입력창 문장. 커밋된 디자인이 없으면 **첫 생성**(전체 저작), 있으면 **구성 수정**(patch). 처리하지 못한 모티프 요청은 `motif_intent` sidecar로 피커에 안내하며, 순수 모티프 요청은 무과금 `200 {rejected:"motif",reason?,motif_intent?}` — `reason ∈ {motif_change,motif_recolor,motif_position,per_motif_placement,target_missing}`은 안내 문구 선택용, 없으면 기본(`motif_change`) 취급 | `design_token_cost_openai_render_standard` / `design_edit_cost` |
+| `POST /design/generate` | 입력창 문장. 커밋된 디자인이 없으면 **첫 생성**(전체 저작), 있으면 **구성 수정**(patch). 처리하지 못한 모티프 요청은 `motif_intent` sidecar로 피커에 안내하며, 순수 모티프 요청은 무과금 `200 {rejected:"motif",reason?,motif_intent?}` — `reason ∈ {motif_change,motif_recolor,motif_position,target_missing}`은 안내 문구 선택용, 없으면 기본(`motif_change`) 취급 | `design_token_cost_openai_render_standard` / `design_edit_cost` |
 | `POST /design/sessions/{id}/steps/activate` | 이력 썸네일 클릭 = 편집 포인터 이동(`{run_id}`). 이후 스텝은 그대로 남는다 | — |
 | `POST /design/sessions/{id}/motifs/search` | 문장으로 카탈로그 모티프 찾기 | 무료 |
 | `POST /design/sessions/{id}/motifs/generate` | 문장으로 모티프 새로 만들기(GPT Image) | `design_motif_generate_cost` 토큰 |

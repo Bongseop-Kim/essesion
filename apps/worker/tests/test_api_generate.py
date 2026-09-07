@@ -642,6 +642,31 @@ def test_position_reject_returns_the_reason_code_without_opening_the_picker(monk
     }
 
 
+def test_patch_that_changes_nothing_is_rejected_as_no_change(monkeypatch):
+    """이미 최소 밀도인데 더 성기게 — 적용 결과가 현재 intent와 같으면 무과금 거절이다."""
+    intent = mvp_intent()
+    # 슬롯 2(bee)의 spacing 24 = tile/2 → count_per_axis 2(최소). 같은 2를 다시 내면 그대로다.
+    llm = _PatchLLM(
+        {
+            "placement": {"slot": 2, "count_per_axis": 2},
+            "note": "이미 가장 드문 간격이라 바꾸지 않았어요.",
+        }
+    )
+    app = _configure_app(monkeypatch)
+    app.state.adapters = Adapters(llm=llm)
+
+    response = TestClient(app).post(
+        "/generate", json=_patch_request("모티프를 더 드문드문", intent)
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "status": "scope_rejected",
+        "reason": "no_change",
+        "motif_intent": None,
+    }
+
+
 def test_motif_patch_applies_supported_axes_and_returns_picker_signal(monkeypatch):
     llm = _PatchLLM(
         {

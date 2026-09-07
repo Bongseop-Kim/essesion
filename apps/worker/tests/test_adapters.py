@@ -890,7 +890,8 @@ def test_patch_prompt_carries_motif_context_and_the_reason_vocabulary():
     assert "동백꽃" in prompt
     for reason in (
         "target_missing",
-        "per_motif_placement",
+        "placement.slot",
+        "between_stripes",
         "motif_position",
         "motif_recolor",
         "motif_change",

@@ -364,8 +364,8 @@ class DesignGenerateRejectedOut(BaseModel):
             "motif_change",
             "motif_recolor",
             "motif_position",
-            "per_motif_placement",
             "target_missing",
+            "no_change",
         ]
         | None
     ) = None

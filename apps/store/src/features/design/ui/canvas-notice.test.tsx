@@ -42,11 +42,10 @@ it("경고는 시간이 지나면 사라지고 거절·오류는 남는다", () 
 
 const REASON_TEXT: Record<RejectedReason, RegExp> = {
   motif_change: /왼쪽 모티프에서 할 수 있어요/,
-  motif_recolor: /그림 자체에 고정돼 있어/,
-  motif_position: /정확한 위치로 모티프를 옮기는 건 아직 지원하지 않아요/,
-  per_motif_placement:
-    /하나만 따로 돌리거나 성기게 하는 건 아직 지원하지 않아요/,
+  motif_recolor: /AI 생성으로 원하는 색의 그림을 새로/,
+  motif_position: /이 위치로는 모티프를 옮길 수 없어요/,
   target_missing: /지금 디자인에 없어서 바꾸지 않았어요/,
+  no_change: /이미 그렇게 되어 있어서 바꾼 것이 없어요/,
 };
 
 for (const [reason, pattern] of Object.entries(REASON_TEXT) as [
