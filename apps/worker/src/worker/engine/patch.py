@@ -52,6 +52,10 @@ PATCH_AXES = (
     "palette",
 )
 
+RejectReason = Literal[
+    "motif_change", "motif_recolor", "motif_position", "per_motif_placement", "target_missing"
+]
+
 
 class _Patch(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -109,6 +113,8 @@ class DesignPatchV1(_Patch):
     note: str = Field(min_length=1, max_length=200)
     # 요청이 이 계약으로 표현할 수 없는 축(모티프 정체성 등)일 때만 true.
     out_of_scope: bool = False
+    # out_of_scope일 때만 의미가 있다 — 어떤 축 밖 요청인지, 피커를 열지 말지를 가른다.
+    out_of_scope_reason: RejectReason | None = None
 
     @property
     def changed_axes(self) -> list[str]:
@@ -239,10 +245,15 @@ def _arrangement(placement: dict[str, Any]) -> Arrangement | None:
     return "staggered" if staggered else "lattice"
 
 
-def composition_snapshot(intent: dict[str, Any]) -> dict[str, Any]:
+def composition_snapshot(
+    intent: dict[str, Any], *, motifs: list[dict[str, str | None]] | None = None
+) -> dict[str, Any]:
     """현재 구성을 patch와 같은 모양으로 — 모델은 바꿀 필드만 다시 쓴다.
 
-    모티프 id·이름·정체성은 담지 않는다. 슬롯 hex는 컴파일러가 default colorway 매핑과
+    모티프 id는 담지 않는다 — patch 스키마 밖이라 모델이 절대 되돌려줄 수 없는 값이다.
+    `motifs` 인자로 넘긴 subject/description은 읽기 전용 맥락으로만 노출한다: 어떤
+    모티프를 말하는지 모델이 알아야 "target_missing"을 판정할 수 있지만, 그 정체성
+    자체는 여전히 patch로 바꿀 수 없다. 슬롯 hex는 컴파일러가 default colorway 매핑과
     같은 값으로 쓰므로 슬롯에서 읽는다.
     """
 
@@ -298,16 +309,35 @@ def composition_snapshot(intent: dict[str, Any]) -> dict[str, Any]:
                 if isinstance(band, dict)
             ],
         }
-    motifs = _layers(intent, "motif")
-    if motifs:
-        placement = motifs[0].get("placement")
+    motif_layers = _layers(intent, "motif")
+    if motif_layers:
+        placement = motif_layers[0].get("placement")
         placement = placement if isinstance(placement, dict) else {}
         snapshot["placement"] = {
             "arrangement": _arrangement(placement),
             "count_per_axis": _axis_count(placement, tile),
             "rotation_deg": placement.get("fixed_rotation_deg"),
         }
-        snapshot["motif_size_mm"] = [layer.get("params", {}).get("size_mm") for layer in motifs]
+        snapshot["motif_size_mm"] = [
+            layer.get("params", {}).get("size_mm") for layer in motif_layers
+        ]
+        meta_by_id = {
+            meta["id"]: meta
+            for meta in motifs or []
+            if isinstance(meta, dict) and isinstance(meta.get("id"), str)
+        }
+        motif_entries: list[dict[str, Any]] = []
+        for index, layer in enumerate(motif_layers):
+            motif_id = layer.get("params", {}).get("motif_id")
+            meta = meta_by_id.get(motif_id) if isinstance(motif_id, str) else None
+            motif_entries.append(
+                {
+                    "index": index + 1,
+                    "subject": meta.get("subject") if meta else None,
+                    "description": meta.get("description") if meta else None,
+                }
+            )
+        snapshot["motifs"] = motif_entries
     return snapshot
 
 
@@ -462,12 +492,53 @@ def _density_cap(raw: dict[str, Any], tile: float) -> int:
     return max(MIN_AXIS_COUNT, min(MAX_AXIS_COUNT, fits))
 
 
+def _stagger_frame(
+    raw: dict[str, Any], patch: PlacementPatch, tile: float, warnings: list[str]
+) -> tuple[float, int]:
+    """엇갈림이 홀수 축을 만나면 셀·모티프 크기를 그대로 두고 반복 단위(tile)를 두 배로 늘린다.
+
+    반 칸 엇갈림(drop_axis는 항상 column)은 열이 tile을 한 바퀴 돌 때 누적 drop이 셀의
+    정수배여야 닫힌다 — 축 개수가 짝수일 때만이다. 홀수를 짝수로 올리면 같은 면적의 밀도가
+    (n+1)²/n²로 늘어(2026-09-07 S3 실측 9→16) 요청하지 않은 변경이 된다. tile을 2배로
+    하면 축 개수 2n은 짝수이고 셀·크기·stripe period(k만 2배)는 그대로라 화면 밀도가
+    보존된다 — tile_mm은 화면 배율 캐리어라 프론트는 같은 mm 배율로 그린다.
+    tile 상한이나 축 상한에 걸리면 종전대로 올림하고 경고를 남긴다.
+
+    반환: (적용할 tile, patch.count_per_axis에 곱할 배수).
+    """
+
+    motifs = _layers(raw, "motif")
+    if not motifs:
+        return tile, 1
+    first = motifs[0].get("placement")
+    first = first if isinstance(first, dict) else {}
+    arrangement = patch.arrangement
+    if arrangement is None and patch.count_per_axis is not None:
+        arrangement = _arrangement(first)
+    if arrangement != "staggered":
+        return tile, 1
+    count = patch.count_per_axis or _axis_count(first, tile) or 6
+    if count % 2 == 0:
+        return tile, 1
+    doubled = round(tile * 2, 6)
+    if doubled <= MAX_TILE_MM and count * 2 <= MAX_AXIS_COUNT:
+        raw["canvas"]["tile_mm"] = doubled
+        return doubled, 2
+    warnings.append(
+        f"staggered axis count {count} rounded up to {count + 1}: an odd count cannot close "
+        f"a half-drop and the doubled tile {doubled:g} exceeds tile {MAX_TILE_MM:g} or axis "
+        f"{MAX_AXIS_COUNT} limits"
+    )
+    return tile, 1
+
+
 def _apply_placement(
     raw: dict[str, Any],
     patch: PlacementPatch,
     *,
     tile: float,
     cap: int = MAX_AXIS_COUNT,
+    count_factor: int = 1,
 ) -> None:
     for layer in _layers(raw, "motif"):
         placement = layer.get("placement")
@@ -480,7 +551,13 @@ def _apply_placement(
             else placement.get("fixed_rotation_deg")
         )
         arrangement = patch.arrangement
-        count = patch.count_per_axis or _axis_count(placement, tile) or 6
+        # 요청 개수는 원래 tile 기준이다 — _stagger_frame이 tile을 늘렸으면 같은 배수로.
+        # 기존 배치에서 읽는 개수는 이미 새 tile 기준이라 그대로 쓴다.
+        count = (
+            patch.count_per_axis * count_factor
+            if patch.count_per_axis
+            else _axis_count(placement, tile) or 6
+        )
         if arrangement is None and patch.count_per_axis is not None:
             arrangement = _arrangement(placement)
         if arrangement == "scatter":
@@ -558,9 +635,11 @@ def apply_patch(
         # off-grid period 백스톱이 tile을 배율했을 수 있다
         tile = _positive_float(_tile_mm(raw)) or tile
     if patch.placement is not None:
+        # 홀수 축 엇갈림은 밀도를 올리지 않고 반복 단위를 늘려 닫는다.
+        tile, count_factor = _stagger_frame(raw, patch.placement, tile, warnings)
         # 밀도 양보는 크기를 안 건드린 patch만 — 둘 다 바꾼 patch는 지금처럼 크기를 클램프한다.
         cap = MAX_AXIS_COUNT if patch.motif_size_mm is not None else _density_cap(raw, tile)
-        _apply_placement(raw, patch.placement, tile=tile, cap=cap)
+        _apply_placement(raw, patch.placement, tile=tile, cap=cap, count_factor=count_factor)
     if patch.motif_size_mm is not None:
         for layer, size in zip(_layers(raw, "motif"), patch.motif_size_mm, strict=False):
             requested = _positive_float(size)
@@ -599,15 +678,23 @@ def _derived_placement(placement: dict[str, Any], tile: float) -> dict[str, Any]
     return derived
 
 
-def _first_motif_layer(raw: dict[str, Any], tile: float, motif_id: str) -> dict[str, Any]:
-    """모티프가 없던 디자인의 첫 레이어."""
+FIRST_MOTIF_AXIS_COUNT = 6
 
+
+def _first_motif_layer(raw: dict[str, Any], tile: float, motif_id: str) -> dict[str, Any]:
+    """모티프가 없던 디자인의 첫 레이어 — 셀의 절반 크기로 시작해 여백을 남긴다.
+
+    종전 tile×0.18은 6분할 셀(tile/6)보다 커서(2026-09-07 S5: 8.64 > 8) 로고가 벽처럼
+    붙었다. 첫 추가만 이 기본값을 쓰고, 사용자가 정한 크기나 교체 크기는 건드리지 않는다.
+    """
+
+    cell = tile / FIRST_MOTIF_AXIS_COUNT
     return {
         "id": _free_layer_id(raw, "motif_slot_1"),
         "type": "motif",
         "z_order": len(raw["layers"]),
-        "params": {"motif_id": motif_id, "size_mm": round(tile * 0.18, 6)},
-        "placement": lattice_placement(tile=tile, count=6, staggered=False),
+        "params": {"motif_id": motif_id, "size_mm": round(cell / 2, 6)},
+        "placement": lattice_placement(tile=tile, count=FIRST_MOTIF_AXIS_COUNT, staggered=False),
     }
 
 

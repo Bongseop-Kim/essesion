@@ -592,7 +592,13 @@ def test_composition_patch_edits_only_the_requested_axis(monkeypatch):
 
 
 def test_out_of_scope_patch_returns_scope_rejected_without_a_design(monkeypatch):
-    llm = _PatchLLM({"out_of_scope": True, "note": "무늬는 여기서 바꿀 수 없어요."})
+    llm = _PatchLLM(
+        {
+            "out_of_scope": True,
+            "out_of_scope_reason": "motif_change",
+            "note": "무늬는 여기서 바꿀 수 없어요.",
+        }
+    )
     app = _configure_app(monkeypatch)
     app.state.adapters = Adapters(llm=llm)
 
@@ -603,11 +609,36 @@ def test_out_of_scope_patch_returns_scope_rejected_without_a_design(monkeypatch)
     assert response.status_code == 200, response.text
     assert response.json() == {
         "status": "scope_rejected",
+        "reason": "motif_change",
         "motif_intent": {
             "detected": True,
             "subject": "나비",
             "reason": "motif_change",
         },
+    }
+
+
+def test_position_reject_returns_the_reason_code_without_opening_the_picker(monkeypatch):
+    """모티프-줄무늬 상대 위치 요청은 피커로 안내할 게 없다 — 이유 코드만 내려간다."""
+    llm = _PatchLLM(
+        {
+            "out_of_scope": True,
+            "out_of_scope_reason": "motif_position",
+            "note": "무늬 위치는 줄무늬 사이로 옮길 수 없어요.",
+        }
+    )
+    app = _configure_app(monkeypatch)
+    app.state.adapters = Adapters(llm=llm)
+
+    response = TestClient(app).post(
+        "/generate", json=_patch_request("벌을 줄무늬 사이로 옮겨줘", mvp_intent())
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "status": "scope_rejected",
+        "reason": "motif_position",
+        "motif_intent": None,
     }
 
 

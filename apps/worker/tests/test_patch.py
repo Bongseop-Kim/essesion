@@ -1,11 +1,14 @@
 """구성 patch 단위 테스트 — 축별 적용/미적용, 모티프 불변, 결정론 (design-redesign 2단계)."""
 
+import copy
+
 import pytest
 from worker.engine.compose import compose_design
 from worker.engine.constraints import ConstraintInvalid, apply_generation_constraints
 from worker.engine.patch import DesignPatchV1, apply_patch, composition_snapshot, set_motif_slot
 from worker.engine.seamless import assert_seamless_invariants
 from worker.engine.validate import validate_intent
+from worker.warnings import WARNING_MESSAGES, customer_warnings
 
 from .intent_helpers import mvp_intent, register_test_motifs
 
@@ -79,6 +82,50 @@ def test_snapshot_round_trips_the_patchable_axes_without_motif_identity():
     assert "circle" not in repr(snapshot)
 
 
+def test_snapshot_motifs_are_ordered_read_only_context_without_ids():
+    intent = _lattice_intent()
+    intent["layers"].append(
+        {
+            "id": "motif_1",
+            "type": "motif",
+            "z_order": 2,
+            "params": {"motif_id": "bee", "size_mm": 4.0},
+            "placement": {"type": "lattice", "lattice": {"cell_w_mm": 8.0, "cell_h_mm": 8.0}},
+        }
+    )
+    motifs = [
+        {"id": "circle", "subject": "동그라미", "description": "원형 모티프"},
+        {"id": "bee", "subject": "벌", "description": None},
+    ]
+
+    snapshot = composition_snapshot(intent, motifs=motifs)
+
+    assert snapshot["motif_size_mm"] == [6.0, 4.0]
+    assert snapshot["motifs"] == [
+        {"index": 1, "subject": "동그라미", "description": "원형 모티프"},
+        {"index": 2, "subject": "벌", "description": None},
+    ]
+    assert "motif_id" not in repr(snapshot["motifs"])
+    assert "circle" not in repr(snapshot["motifs"]) and "bee" not in repr(snapshot["motifs"])
+
+
+def test_snapshot_without_the_motifs_argument_still_works():
+    snapshot = composition_snapshot(_lattice_intent())
+
+    assert snapshot["motif_size_mm"] == [6.0]
+    # 인자를 안 줘도 자리표시자로 안전하게 채운다 — 정체성을 모른다는 뜻이지 오류가 아니다.
+    assert snapshot["motifs"] == [{"index": 1, "subject": None, "description": None}]
+
+
+def test_patch_out_of_scope_reason_accepts_only_the_declared_vocabulary():
+    patch = _patch(out_of_scope=True, out_of_scope_reason="per_motif_placement")
+    assert patch.out_of_scope_reason == "per_motif_placement"
+    assert _patch().out_of_scope_reason is None
+
+    with pytest.raises(ValueError):
+        DesignPatchV1.model_validate({"note": "x", "out_of_scope_reason": "not_a_real_reason"})
+
+
 def test_background_patch_recolors_the_ground_slot_and_its_colorway():
     patched = apply_patch(_lattice_intent(), _patch(background={"color": "f5f0e6"}))
 
@@ -140,14 +187,16 @@ def test_placement_patch_keeps_lattice_cells_dividing_the_tile():
     )
 
     placement = patched["layers"][1]["placement"]
-    # 엇갈림은 짝수 축으로 올림 — (tile/cell)*0.5가 정수여야 토러스에서 닫힌다.
+    # 홀수 축 엇갈림은 (tile/cell)*0.5가 정수여야 닫힌다 — 개수를 올리지 않고 반복 단위를
+    # 두 배로 늘려 요청한 밀도(48mm당 5개 = 셀 9.6)를 그대로 지킨다.
+    assert patched["canvas"]["tile_mm"] == 96.0
     assert placement["lattice"] == {
-        "cell_w_mm": 8.0,
-        "cell_h_mm": 8.0,
+        "cell_w_mm": 9.6,
+        "cell_h_mm": 9.6,
         "drop_fraction": 0.5,
         "drop_axis": "column",
     }
-    assert 48 / placement["lattice"]["cell_w_mm"] == 6
+    assert 96 / placement["lattice"]["cell_w_mm"] == 10
 
 
 def test_placement_patch_keeps_the_two_motif_slots_staggered():
@@ -401,3 +450,108 @@ def test_same_intent_and_patch_render_byte_identical_svg():
 
     assert first.svg == second.svg
     assert first.id == second.id
+
+
+# ---- D4: 엇갈림 전환은 밀도를 바꾸지 않는다 (2026-09-07 S3 재현) ----
+
+
+def _sparse_lattice_intent() -> dict:
+    """S3 '성기게' 직후 상태 — tile 48, cell 16(축당 3), 크기 9."""
+    intent = _lattice_intent()
+    intent["layers"][1]["params"]["size_mm"] = 9.0
+    intent["layers"][1]["placement"]["lattice"] = {"cell_w_mm": 16.0, "cell_h_mm": 16.0}
+    return intent
+
+
+def _instances_per_tile(intent: dict) -> int:
+    layer = intent["layers"][1]
+    tile = intent["canvas"]["tile_mm"]
+    spec = layer["placement"]["lattice"]
+    return round(tile / spec["cell_w_mm"]) * round(tile / spec["cell_h_mm"])
+
+
+def test_staggered_arrangement_only_keeps_density_and_seams_on_an_odd_axis():
+    base = _sparse_lattice_intent()
+    warnings: list[str] = []
+
+    patched = apply_patch(base, _patch(placement={"arrangement": "staggered"}), warnings=warnings)
+
+    spec = patched["layers"][1]["placement"]["lattice"]
+    # 셀·크기 보존, tile만 두 배 — 같은 면적의 밀도가 9→16으로 늘지 않는다.
+    assert patched["canvas"]["tile_mm"] == 96.0
+    assert (spec["cell_w_mm"], spec["cell_h_mm"]) == (16.0, 16.0)
+    assert (spec["drop_fraction"], spec["drop_axis"]) == (0.5, "column")
+    assert patched["layers"][1]["params"]["size_mm"] == 9.0
+    before = _instances_per_tile(base) / base["canvas"]["tile_mm"] ** 2
+    after = _instances_per_tile(patched) / patched["canvas"]["tile_mm"] ** 2
+    assert after == pytest.approx(before)
+    assert warnings == []
+    # tile 경계 연속성 — 엔진 불변식과 실제 합성이 함께 통과해야 한다.
+    result = validate_intent(patched)
+    assert result.warnings == []
+    assert_seamless_invariants(result.intent)
+    compose_design(patched)
+
+
+def test_staggered_frame_doubling_keeps_stripe_geometry_verbatim():
+    """다른 레이어(줄무늬)의 시각 크기·밀도는 tile이 늘어도 그대로여야 한다."""
+    base = mvp_intent()
+    for layer in base["layers"]:
+        if layer["type"] == "motif":
+            layer["params"]["size_mm"] = 6.0
+            layer["placement"] = {
+                "type": "lattice",
+                "lattice": {"cell_w_mm": 16.0, "cell_h_mm": 16.0},
+            }
+    stripe_before = copy.deepcopy(next(x for x in base["layers"] if x["type"] == "stripe"))
+
+    patched = apply_patch(base, _patch(placement={"arrangement": "staggered"}))
+
+    assert patched["canvas"]["tile_mm"] == 96.0
+    stripe_after = next(x for x in patched["layers"] if x["type"] == "stripe")
+    assert stripe_after["params"] == stripe_before["params"]
+    result = validate_intent(patched)
+    assert result.warnings == []
+    assert_seamless_invariants(result.intent)
+
+
+def test_staggered_odd_axis_at_the_tile_cap_rounds_up_with_a_customer_warning():
+    base = _sparse_lattice_intent()
+    base["canvas"]["tile_mm"] = 192.0  # MAX_TILE_MM — 두 배로 늘릴 여유가 없다
+    base["layers"][1]["placement"]["lattice"] = {"cell_w_mm": 64.0, "cell_h_mm": 64.0}
+    warnings: list[str] = []
+
+    patched = apply_patch(base, _patch(placement={"arrangement": "staggered"}), warnings=warnings)
+
+    assert patched["canvas"]["tile_mm"] == 192.0
+    assert 192 / patched["layers"][1]["placement"]["lattice"]["cell_w_mm"] == 4
+    # 묵시적 성공이 아니라 고객 문구가 있는 코드로 남는다.
+    code = "stagger_density_adjusted"
+    assert customer_warnings(warnings) == [{"code": code, "message": WARNING_MESSAGES[code]}]
+
+
+def test_staggered_even_axis_does_not_touch_the_tile():
+    base = _lattice_intent()  # cell 8 → 축당 6
+
+    patched = apply_patch(base, _patch(placement={"arrangement": "staggered"}))
+
+    assert patched["canvas"]["tile_mm"] == 48
+    assert patched["layers"][1]["placement"]["lattice"]["cell_w_mm"] == 8.0
+
+
+# ---- D6: 첫 모티프 추가는 셀 안에 여백을 남긴다 (2026-09-07 S5 재현) ----
+
+
+def test_first_motif_layer_starts_at_half_the_cell():
+    stripes_only = mvp_intent()
+    stripes_only["layers"] = [layer for layer in stripes_only["layers"] if layer["type"] != "motif"]
+
+    added = set_motif_slot(stripes_only, slot=1, motif_id="circle")
+
+    layer = added["layers"][-1]
+    cell = layer["placement"]["lattice"]["cell_w_mm"]
+    assert cell == 8.0
+    assert layer["params"]["size_mm"] == 4.0  # 셀의 절반 — 종전 8.64는 셀보다 컸다
+    # 이후 명시적 확대는 그대로 작동한다.
+    enlarged = apply_patch(added, _patch(motif_size_mm=[8.0]))
+    assert enlarged["layers"][-1]["params"]["size_mm"] == 8.0

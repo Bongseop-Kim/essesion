@@ -113,9 +113,17 @@ frozen `ReproMeta{intent_version, seed, colorway_id, engine_version("0.1.0"), re
 
 줄어든 크기는 셀을 되돌려도 복구되지 않으므로(다음 patch가 `motif_size_mm`을 안 쓰면 영구),
 **구성 patch는 크기 대신 밀도를 양보한다**: `placement`만 바꾸고 `motif_size_mm`을 건드리지
-않은 patch는 현재 크기가 셀에 들어가는 최대 축 개수로 `count_per_axis`를 낮춘다(엇갈림은
-짝수 축으로 올림되므로 상한도 짝수로 내린다). 두 축을 함께 바꾼 patch는 요청한 밀도를 그대로
-받고 크기 클램프가 적용된다.
+않은 patch는 현재 크기가 셀에 들어가는 최대 축 개수로 `count_per_axis`를 낮춘다(엇갈림 상한은
+짝수로 내린다). 두 축을 함께 바꾼 patch는 요청한 밀도를 그대로 받고 크기 클램프가 적용된다.
+
+**엇갈림은 짝수 축에서만 닫힌다** — 반 칸 drop(`drop_axis`는 항상 `column`, 행/열 구분 patch
+없음)은 열이 tile을 한 바퀴 돌 때 누적 drop이 셀의 정수배여야 한다. 홀수 축을 만난 patch는
+개수를 올리지 않고(같은 면적의 밀도가 (n+1)²/n²로 늘어 2026-09-07 S3에서 9→16이 됐다)
+**셀·모티프 크기·줄무늬 params를 그대로 둔 채 `tile_mm`만 두 배로 늘려** 축을 2n으로 만든다
+(`engine.patch._stagger_frame`). tile_mm은 화면 배율 캐리어라 프론트가 그리는 mm 배율은
+같고, stripe period는 k만 두 배가 되어 on-grid를 유지한다. tile 상한(192mm)이나 축 상한(10)에
+걸려 두 배가 불가능하면 종전대로 짝수로 올리고 `stagger_density_adjusted` 경고를 고객 문구로
+내린다. `constraints.lattice_placement`의 짝수 올림은 그 경우의 백스톱으로 남는다.
 
 `seamless_generation_logs.intent`에는 `{design, resolved_plan}`(+구성 patch 런은 `patch`,
 모티프 슬롯 교체 런은 `motif_slot`)이 기록된다 — 전부 단수 키다.

@@ -7198,6 +7198,24 @@
               }
             ]
           },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "motif_change",
+                  "motif_recolor",
+                  "motif_position",
+                  "per_motif_placement",
+                  "target_missing"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
           "rejected": {
             "const": "motif",
             "title": "Rejected",

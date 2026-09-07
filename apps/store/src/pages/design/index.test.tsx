@@ -352,6 +352,9 @@ describe("DesignPage canvas shell", () => {
     expect((input as HTMLTextAreaElement).value).toBe("벌을 나비로 바꿔줘");
     expect(select).toHaveBeenCalled();
     expect(screen.queryByText(/그림을 바꾸는 건 왼쪽 .*모티프/)).toBeNull();
+    expect(ui.snackbar).toHaveBeenCalledWith(
+      "‘나비’ 모티프는 왼쪽에서 찾거나 만들 수 있어요.",
+    );
 
     pickSource(screen.getByRole("button", { name: "벌 바꾸기" }), 1, /^탐색/);
     await waitForDialog("탐색");
@@ -363,6 +366,31 @@ describe("DesignPage canvas shell", () => {
       screen.queryByRole("button", { name: "3번째 디자인으로 되돌리기" }),
     ).toBeNull();
     select.mockRestore();
+    queryClient.clear();
+  });
+
+  it("카탈로그에 없는 모티프 언급은 거절이 아닌 안내 문구를 쓴다", async () => {
+    api.generate.mockResolvedValue({
+      data: {
+        rejected: "motif",
+        motif_intent: {
+          detected: true,
+          subject: "사자",
+          reason: "motif_mention",
+        },
+      },
+    });
+    const queryClient = renderPage();
+
+    const input = await screen.findByLabelText("무엇을 바꿀까요?");
+    fireEvent.change(input, { target: { value: "사자 모티프 추가해줘" } });
+    fireEvent.click(screen.getByRole("button", { name: "디자인에 적용" }));
+
+    await waitFor(() =>
+      expect(ui.snackbar).toHaveBeenCalledWith(
+        "‘사자’ 모티프는 카탈로그에 없어 넣지 못했어요. 왼쪽에서 찾거나 만들 수 있어요.",
+      ),
+    );
     queryClient.clear();
   });
 

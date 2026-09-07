@@ -157,7 +157,13 @@ export function DesignPage() {
       motifs.openSlot(1, "search", intent.subject ?? undefined);
       setMotifHintSignal((signal) => signal + 1);
       const named = intent.subject ? `‘${intent.subject}’ ` : "";
-      snackbar(`${named}모티프는 왼쪽에서 찾거나 만들 수 있어요.`);
+      snackbar(
+        intent.reason === "motif_mention"
+          ? intent.subject
+            ? `‘${intent.subject}’ 모티프는 카탈로그에 없어 넣지 못했어요. 왼쪽에서 찾거나 만들 수 있어요.`
+            : "요청한 모티프는 카탈로그에 없어 넣지 못했어요. 왼쪽에서 찾거나 만들 수 있어요."
+          : `${named}모티프는 왼쪽에서 찾거나 만들 수 있어요.`,
+      );
     },
   });
   const exporter = useDesignExport({
@@ -329,6 +335,7 @@ export function DesignPage() {
           <CanvasNoticeLayer
             notices={designNotices({
               rejected: editor.rejected,
+              rejectedReason: editor.rejectedReason,
               errorMessage: editor.error?.detail ?? editor.error?.message,
               warnings: [...editor.warnings, ...motifs.activateWarnings],
             })}

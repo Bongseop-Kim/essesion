@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from worker.authoring.examples import AuthoringFamily
 from worker.authoring.promotion import DEFAULT_SCAN_LIMIT
 from worker.authoring.schema import DesignPlanV3
+from worker.engine.patch import RejectReason
 from worker.motifs.photo_svg import MAX_PROCESSED_PREVIEW_BYTES
 from worker.motifs.text_svg import MAX_TEXT_MOTIF_LENGTH
 
@@ -199,9 +200,15 @@ class GenerateResponse(BaseModel):
 
 
 class ScopeRejectedResponse(BaseModel):
-    """구성 patch로 표현할 수 없는 요청 — 아무것도 만들지 않았고 과금도 없다(HTTP 200)."""
+    """구성 patch로 표현할 수 없는 요청 — 아무것도 만들지 않았고 과금도 없다(HTTP 200).
+
+    `reason`은 `DesignPatchV1.out_of_scope_reason`을 그대로 옮긴다. `motif_change`(또는
+    reason 없음)만 `motif_intent` 피커 sidecar를 동반할 수 있다 — 그 외 이유는 store가
+    코드별 한글 안내로 보여준다.
+    """
 
     status: Literal["scope_rejected"] = "scope_rejected"
+    reason: RejectReason | None = None
     motif_intent: MotifIntentSignal | None = None
 
 

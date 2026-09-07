@@ -40,6 +40,8 @@ export type GenerateDesignResult = {
   warnings: readonly DesignWarningOut[];
   /** 모티프 피커로 넘기고 버리는 현재 응답의 힌트. */
   motifIntent: MotifIntentOut | null;
+  /** 거절 사유 코드 — 피커 힌트가 없을 때 상단 알림 문구를 고르는 데 쓴다. */
+  rejectedReason: DesignGenerateRejectedOut["reason"] | null;
 };
 
 export class StaleDesignOperationError extends Error {
@@ -113,6 +115,8 @@ export function useGenerateDesign(options?: {
           motifIntent:
             (response as DesignGenerateRejectedOut | undefined)?.motif_intent ??
             null,
+          rejectedReason:
+            (response as DesignGenerateRejectedOut | undefined)?.reason ?? null,
         };
       } finally {
         clearPendingDesign({

@@ -93,6 +93,8 @@ export function usePromptGeneration({
     generating: mutation.isPending,
     /** 거절됐고 피커 안내 시그널도 없었다 — 이때만 상단 알림으로 알린다. */
     rejected: mutation.data?.rejected === true && !mutation.data.motifIntent,
+    /** 위 조건에서 상단 알림 문구를 고르는 거절 사유 코드. */
+    rejectedReason: mutation.data?.rejectedReason ?? null,
     /** 방금 적용한 편집의 자동 조정 안내 — 다음 문장을 쓰면 사라진다. */
     warnings: mutation.data?.warnings ?? [],
     error,

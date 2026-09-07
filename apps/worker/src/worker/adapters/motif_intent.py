@@ -38,6 +38,14 @@ _COLOR_WORDS = (
 # 모티프 색은 정책상 고정이다 — 색만 바꾸라는 요청은 피커에 안내할 게 없으니 거절 알림으로 끝낸다.
 # ponytail: 어휘~색 사이 6자 창으로 좁게 본다. "모티프 대신 배경을 네이비로"처럼 사이에 다른
 # 대상이 끼면 오탐할 수 있고, 그때는 창을 좁히기보다 대상 어휘 파싱이 필요하다.
+# "모티프는 넣지 마"처럼 모티프를 **빼라는** 문장은 카탈로그 miss가 아니다 — 부정된 어휘는
+# 지우고 남은 어휘만 mention으로 본다(2026-09-07 S2 실측: 줄무늬만 요청했는데 피커 안내가 떴다).
+_MOTIF_MENTION_NEGATED = re.compile(
+    rf"(?:{_MOTIF_WORDS.pattern}|{_MATERIAL_WORDS_PATTERN})(?:들)?\s*(?:은|는|을|를|도)?\s*"
+    r"(?:넣지|없이|빼|제외|말고|쓰지|사용하지|않)"
+    r"|\b(?:no|without)\s+(?:motifs?|shapes?|logos?|icons?)\b",
+    re.IGNORECASE,
+)
 _MOTIF_COLOR_CHANGE = re.compile(
     rf"(?:{_MOTIF_WORDS.pattern}|{_MATERIAL_WORDS_PATTERN})"
     rf"[^.!?\n]{{0,6}}?(?:{_COLOR_WORDS})(?:색|상)?\s*(?:으)?로",
@@ -63,6 +71,7 @@ def detect_motif_intent(
     *,
     llm_out_of_scope: bool = False,
     motif_missing: bool = False,
+    unmet_subjects: list[str] | None = None,
 ) -> dict[str, object] | None:
     """Return a picker hint only when the request demonstrably went unhandled."""
 
@@ -70,8 +79,14 @@ def detect_motif_intent(
         return None
     if llm_out_of_scope:
         reason = "motif_change"
+    # 모델이 이미 처리 못한 대상을 직접 짚었다 — 어휘 사전 확인 없이 그대로 신뢰한다.
+    elif unmet_subjects:
+        return {"detected": True, "subject": unmet_subjects[0], "reason": "motif_mention"}
     # 첫 저작이 모티프 레이어 없이 끝났는데 문장은 모티프를 말했다 — 카탈로그 miss다.
-    elif motif_missing and (_MOTIF_WORDS.search(prompt) or _MATERIAL_WORDS.search(prompt)):
+    elif motif_missing and (
+        _MOTIF_WORDS.search(mentioned := _MOTIF_MENTION_NEGATED.sub("", prompt))
+        or _MATERIAL_WORDS.search(mentioned)
+    ):
         reason = "motif_mention"
     else:
         return None

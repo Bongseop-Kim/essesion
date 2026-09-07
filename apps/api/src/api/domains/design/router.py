@@ -359,6 +359,16 @@ class DesignGenerateRejectedOut(BaseModel):
     """구성 수정으로 표현할 수 없는 요청 — 토큰·턴 없이 끝나고 피커 안내만 붙는다."""
 
     rejected: Literal["motif"]
+    reason: (
+        Literal[
+            "motif_change",
+            "motif_recolor",
+            "motif_position",
+            "per_motif_placement",
+            "target_missing",
+        ]
+        | None
+    ) = None
     motif_intent: MotifIntentOut | None = None
 
 
@@ -1605,7 +1615,9 @@ async def _dispatch_generation(
         if isinstance(response, dict) and response.get("status") == "scope_rejected":
             try:
                 rejected = DesignGenerateRejectedOut(
-                    rejected="motif", motif_intent=response.get("motif_intent")
+                    rejected="motif",
+                    reason=response.get("reason"),
+                    motif_intent=response.get("motif_intent"),
                 )
             except ValidationError as exc:
                 raise UpstreamError("이미지 워커 응답 형식이 올바르지 않습니다") from exc

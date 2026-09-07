@@ -19,6 +19,7 @@ _CODES: tuple[tuple[str, str], ...] = (
     (" dropped", "motif_dropped"),
     ("has no visible slot", "named_color_unplaced"),
     ("grounded only approximately", "motif_approximate_match"),
+    ("staggered axis count", "stagger_density_adjusted"),
 )
 
 WARNING_MESSAGES: dict[str, str] = {
@@ -28,6 +29,9 @@ WARNING_MESSAGES: dict[str, str] = {
     "motif_approximate_match": (
         "요청하신 그림과 꼭 맞는 무늬가 없어 비슷한 그림으로 만들었어요. "
         "왼쪽 모티프에서 바꿀 수 있어요."
+    ),
+    "stagger_density_adjusted": (
+        "엇갈림 배치는 줄 수가 짝수여야 이어져서 무늬 간격을 조금 촘촘하게 맞췄어요."
     ),
 }
 

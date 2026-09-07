@@ -15,6 +15,19 @@ import re
 from worker.authoring.schema import DesignPlanV3
 from worker.engine.palette import hex_to_rgb
 
+_GROUND_MODIFIER_WORDS = r"짙은|진한|밝은|연한|어두운|옅은|deep|dark|light|pale|rich|soft"
+_DIRECT_ROLE_CONNECTOR = re.compile(
+    r"\s*(?:(?:색(?:상)?|컬러|colou?red?|in|of|for|"
+    rf"은|는|이|가|을|를|만|의|로|으로|인|-|{_GROUND_MODIFIER_WORDS})\s*)*",
+    re.IGNORECASE,
+)
+_GROUND_ADJACENT_BEFORE = re.compile(
+    rf"(?:{_GROUND_MODIFIER_WORDS})?\s*([가-힣]{{1,6}})\s*$", re.IGNORECASE
+)
+_GROUND_ADJACENT_AFTER = re.compile(
+    rf"\s*(?:{_GROUND_MODIFIER_WORDS})?\s*(?:은|는)?\s*([가-힣]{{1,6}})(?:으로|로)",
+    re.IGNORECASE,
+)
 _STRIPE_WORDS = re.compile(
     r"(스트라이프(?:\s*구조)?|줄무늬(?:\s*구조)?|stripe(?:\s+structure)?|\bband\b)",
     re.IGNORECASE,
@@ -129,15 +142,10 @@ def normalize_requested_named_colors(
                 for name, _target_hex, matches in requested
                 for color in matches
                 if not direct_role
-                or re.fullmatch(
-                    r"\s*(?:(?:색(?:상)?|컬러|colou?red?|in|of|for|"
-                    r"은|는|이|가|을|를|의|로|으로|인|-)\s*)*",
-                    (
-                        prompt[color.end() : role.start()]
-                        if color.end() <= role.start()
-                        else prompt[role.end() : color.start()]
-                    ),
-                    re.IGNORECASE,
+                or _DIRECT_ROLE_CONNECTOR.fullmatch(
+                    prompt[color.end() : role.start()]
+                    if color.end() <= role.start()
+                    else prompt[role.end() : color.start()]
                 )
             ]
             distance, _position, name = min(candidates, default=(17, 0, ""))
@@ -145,7 +153,27 @@ def normalize_requested_named_colors(
                 targets.add(name)
         return targets
 
-    ground_targets = nearby_targets(list(_GROUND_WORDS.finditer(prompt)))
+    def ground_has_unrecognized_adjacent_word(role: re.Match[str]) -> bool:
+        # 바탕/배경 바로 옆에 붙은 말이 등록된 지명색이 아니면(예: "짙은 초록 바탕"의 "초록")
+        # 그 슬롯은 이미 그 말이 차지한 것 — 멀리 있는 다른 지명색을 끌어와 덮지 않는다.
+        before = prompt[max(0, role.start() - 24) : role.start()]
+        after = prompt[role.end() : role.end() + 24]
+        before_match = _GROUND_ADJACENT_BEFORE.search(before)
+        after_match = _GROUND_ADJACENT_AFTER.match(after)
+        candidates = [m.group(1) for m in (before_match, after_match) if m]
+        return any(
+            not any(pattern.fullmatch(word) for pattern, _name, _hex in _NAMED_COLOR_TARGETS)
+            for word in candidates
+        )
+
+    ground_roles = list(_GROUND_WORDS.finditer(prompt))
+    ground_targets = nearby_targets(ground_roles, direct_role=True)
+    if not ground_targets and not any(
+        ground_has_unrecognized_adjacent_word(role) for role in ground_roles
+    ):
+        # 직접 수식 관계로 못 찾았고, 바탕 바로 옆에 미등록 색 표현도 없으면 기존처럼
+        # 근접(<=16자) 추정으로 넘어간다 — 예: "use navy only for the background".
+        ground_targets = nearby_targets(ground_roles)
     if len(ground_targets) > 1:
         # 바탕 슬롯은 하나 — 프롬프트에서 먼저 나온 지명색만 바탕에 배정하고,
         # 나머지는 스트라이프/모티프/단일 역할 처리로 넘긴다.

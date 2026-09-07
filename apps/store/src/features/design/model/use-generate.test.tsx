@@ -110,6 +110,7 @@ describe("useGenerateDesign", () => {
       design,
       warnings: [],
       motifIntent: null,
+      rejectedReason: null,
     });
     queryClient.clear();
   });
@@ -118,6 +119,7 @@ describe("useGenerateDesign", () => {
     api.generate.mockResolvedValue({
       data: {
         rejected: "motif",
+        reason: "motif_change",
         motif_intent: {
           detected: true,
           subject: "나비",
@@ -149,7 +151,35 @@ describe("useGenerateDesign", () => {
         subject: "나비",
         reason: "motif_change",
       },
+      rejectedReason: "motif_change",
     });
+    queryClient.clear();
+  });
+
+  it("피커 힌트 없는 범위 밖 거절은 사유 코드를 그대로 돌려준다", async () => {
+    api.generate.mockResolvedValue({
+      data: {
+        rejected: "motif",
+        reason: "motif_recolor",
+      },
+    });
+    const queryClient = new QueryClient();
+    const { result } = renderHook(
+      () => useGenerateDesign({ onSessionReady: () => true }),
+      { wrapper: queryWrapper(queryClient) },
+    );
+
+    let outcome!: Awaited<ReturnType<typeof result.current.mutateAsync>>;
+    await act(async () => {
+      outcome = await result.current.mutateAsync({
+        sessionId: "session-a",
+        prompt: "꽃잎만 아이보리로",
+      });
+    });
+
+    expect(outcome.rejected).toBe(true);
+    expect(outcome.motifIntent).toBeNull();
+    expect(outcome.rejectedReason).toBe("motif_recolor");
     queryClient.clear();
   });
 
