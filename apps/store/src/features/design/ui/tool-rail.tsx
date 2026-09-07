@@ -3,8 +3,8 @@ import {
   ArrowDownTrayIcon,
   BookmarkIcon,
   FolderOpenIcon,
+  LightBulbIcon,
   PlusIcon,
-  Squares2X2Icon,
 } from "@heroicons/react/24/outline";
 import { type ReactNode, useEffect, useRef } from "react";
 
@@ -12,12 +12,12 @@ const MOBILE_SHEET_EXIT_MS = 300;
 
 export type ToolRailProps = {
   onExport: () => void;
-  onFinalize: () => void;
   onSessions: () => void;
   onFinalized: () => void;
   onNewSession: () => void;
+  /** 코치마크 다시 보기 — 첫 방문엔 자동으로 뜨므로 상시 버튼 대신 레일 항목으로. */
+  onHelp: () => void;
   canExport: boolean;
-  canFinalize: boolean;
   busy: boolean;
   mobileOpen: boolean;
   onMobileOpenChange: (open: boolean) => void;
@@ -33,6 +33,7 @@ type RailItem = {
 
 /**
  * PC는 캔버스 우측 레일, 모바일은 입력창의 + 버튼이 여는 하단 시트로 표시한다.
+ * 실사화는 여기 없다 — 입력창의 전송 버튼 왼쪽(prompt-bar.tsx)이 그 자리다.
  */
 export function ToolRail(props: ToolRailProps) {
   const mobileActionTimer = useRef<number | undefined>(undefined);
@@ -43,13 +44,6 @@ export function ToolRail(props: ToolRailProps) {
       icon: <Icon svg={<ArrowDownTrayIcon />} size={24} />,
       onClick: props.onExport,
       disabled: !props.canExport,
-    },
-    {
-      key: "finalize",
-      label: "실사화",
-      icon: <Icon svg={<Squares2X2Icon />} size={24} />,
-      onClick: props.onFinalize,
-      disabled: !props.canFinalize,
     },
   ];
   const tools: RailItem[] = [
@@ -71,6 +65,12 @@ export function ToolRail(props: ToolRailProps) {
       icon: <Icon svg={<PlusIcon />} size={24} />,
       onClick: props.onNewSession,
       disabled: props.busy,
+    },
+    {
+      key: "help",
+      label: "사용법",
+      icon: <Icon svg={<LightBulbIcon />} size={24} />,
+      onClick: props.onHelp,
     },
   ];
   const items = [...actions, ...tools];
@@ -94,6 +94,7 @@ export function ToolRail(props: ToolRailProps) {
       <Flex
         as="nav"
         aria-label="디자인 도구"
+        data-coach="tools"
         display={{ base: "none", md: "flex" }}
         alignItems="flex-start"
         gap="x2"
@@ -109,7 +110,7 @@ export function ToolRail(props: ToolRailProps) {
           title="디자인 도구"
           size="small"
         >
-          <Grid as="nav" aria-label="모바일 디자인 도구" columns={4} gap="x2">
+          <Grid as="nav" aria-label="모바일 디자인 도구" columns={3} gap="x2">
             {items.map((item) => {
               const { key, ...button } = item;
               return (

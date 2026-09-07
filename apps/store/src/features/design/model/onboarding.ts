@@ -1,6 +1,7 @@
 import { resolveStorage, type StorageLike } from "@/shared/lib/browser-storage";
 
-export const DESIGN_ONBOARDING_KEY = "design:onboarding:v1";
+// 코치마크 도입(2026-09)으로 키를 바꿨다 — 옛 키 이관 없음: 기존 사용자도 새 안내를 한 번 본다.
+export const DESIGN_ONBOARDING_KEY = "design:coachmark:v1";
 const DESIGN_ONBOARDING_COMPLETE = "1";
 
 type StorageOptions = {

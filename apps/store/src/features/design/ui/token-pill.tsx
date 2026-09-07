@@ -51,6 +51,7 @@ export function TokenPill({
         <HStack
           as="button"
           type="button"
+          data-coach="tokens"
           gap="x1_5"
           px="x3_5"
           py="x2"

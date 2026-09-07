@@ -106,6 +106,7 @@ export function MotifPanel({
     <VStack
       role="region"
       aria-label="모티프 선택"
+      data-coach="motifs"
       position="relative"
       className="motif-panel-hint"
       data-highlighted={highlighted}

@@ -40,6 +40,9 @@
 | `bg.layer-floating` | `--color-bg-layer-floating` | `#ffffff` | `bg-bg-layer-floating` |
 | `bg.overlay` | `--color-bg-overlay` | `#00000074` (45% 검정) | `backdrop:bg-bg-overlay` (딤 전용) |
 | `bg.image-scrim` | `--color-bg-image-scrim` | `#00000074` (45% 검정) | `bg-bg-image-scrim` (단색 딤) · `.scrim-{top,bottom,left,right}` (방향성 스크림 그라디언트, gradient.md 예외) |
+| `bg.ai-start` | `--color-bg-ai-start` | `#4338ca` | `.bg-ai-gradient` 시작색 — 실사화 버튼 전용(gradient.md 예외), 단독 소비 금지 |
+| `bg.ai-mid` | `--color-bg-ai-mid` | `#7c3aed` | `.bg-ai-gradient` 중간색(55%) — 같음 |
+| `bg.ai-end` | `--color-bg-ai-end` | `#db2777` | `.bg-ai-gradient` 끝색 — 같음. 소비: `ActionButton variant="ai"` |
 | `bg.critical-solid` | `--color-bg-critical-solid` | red-700 `#fa342c` | `bg-bg-critical-solid` |
 | `bg.critical-solid-hover` | `--color-bg-critical-solid-hover` | red-800 `#ca1d13` | `bg-bg-critical-solid-hover` |
 | `bg.critical-solid-pressed` | `--color-bg-critical-solid-pressed` | red-900 `#921708` | `bg-bg-critical-solid-pressed` |

@@ -1,4 +1,5 @@
 import {
+  Box,
   type DesignPreviewMode,
   SegmentedControl,
   SegmentedControlItem,
@@ -11,21 +12,25 @@ export type ViewToggleProps = {
   repeatLabel?: string;
 };
 
-/** 캔버스 우상단 뷰 세그먼트 — 넥타이 적용 모습 / 이어붙인 타일. */
+/** 캔버스 좌상단 뷰 세그먼트 — 넥타이 적용 모습 / 이어붙인 타일. SegmentedControl은 data 속성을 넘기지 않아 Box로 감싼다(코치마크 타깃). */
 export function ViewToggle({
   mode,
   onModeChange,
   repeatLabel = "타일",
 }: ViewToggleProps) {
   return (
-    <SegmentedControl
-      value={mode}
-      onValueChange={(value) => onModeChange(value as DesignPreviewMode)}
-      aria-label="미리보기 방식"
-      className="shadow-s1"
-    >
-      <SegmentedControlItem value="tie">넥타이</SegmentedControlItem>
-      <SegmentedControlItem value="repeat">{repeatLabel}</SegmentedControlItem>
-    </SegmentedControl>
+    <Box data-coach="view">
+      <SegmentedControl
+        value={mode}
+        onValueChange={(value) => onModeChange(value as DesignPreviewMode)}
+        aria-label="미리보기 방식"
+        className="shadow-s1"
+      >
+        <SegmentedControlItem value="tie">넥타이</SegmentedControlItem>
+        <SegmentedControlItem value="repeat">
+          {repeatLabel}
+        </SegmentedControlItem>
+      </SegmentedControl>
+    </Box>
   );
 }

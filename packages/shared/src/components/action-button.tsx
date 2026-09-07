@@ -16,6 +16,9 @@ const variants = {
     "border border-stroke-neutral bg-bg-layer-default text-fg-neutral hover:bg-bg-neutral-weak active:bg-bg-neutral-weak-pressed",
   ghost:
     "text-fg-neutral-muted hover:bg-bg-neutral-weak active:bg-bg-neutral-weak-pressed",
+  // AI 실행 전용(디자인 페이지 실사화 1개) — 모노크롬 예외, theme.css bg.ai-* 토큰의 기능성 그라디언트.
+  // 그라디언트는 hover 토큰이 없어 밝기로 상태를 낸다.
+  ai: "bg-ai-gradient text-fg-contrast hover:brightness-110 active:brightness-90",
   // 소셜 로그인 전용 브랜드 버튼 (모노크롬 예외 — theme.css brand-login 토큰)
   kakao:
     "bg-bg-kakao text-fg-neutral hover:bg-bg-kakao-hover active:bg-bg-kakao-pressed",

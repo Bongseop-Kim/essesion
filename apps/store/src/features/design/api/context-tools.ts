@@ -1,13 +1,7 @@
 import {
-  createDesignIdeas as createDesignIdeasRequest,
   previewPhotoMotif as previewPhotoMotifRequest,
   previewTextMotif as previewTextMotifRequest,
 } from "@essesion/api-client";
-
-type IdeaContext = {
-  prompt: string;
-  userMotifIds: string[];
-};
 
 export async function previewTextMotif(input: {
   text: string;
@@ -42,16 +36,4 @@ export async function previewPhotoMotif(input: { uploadId: string }) {
     warnings: response.data.warnings ?? [],
     background_confidence: response.data.background_confidence ?? null,
   };
-}
-
-export async function createDesignIdeas(context: IdeaContext) {
-  const response = await createDesignIdeasRequest({
-    body: {
-      prompt: context.prompt,
-      user_motif_ids: context.userMotifIds,
-      count: 4,
-    },
-    throwOnError: true,
-  });
-  return response.data.ideas;
 }
