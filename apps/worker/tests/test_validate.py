@@ -9,7 +9,7 @@ import copy
 import pytest
 from pydantic import ValidationError
 from worker.engine import generate
-from worker.engine.intent import ScatterSpec, StripeLayer, StripeParams
+from worker.engine.intent import MotifLayer, ScatterSpec, StripeLayer, StripeParams
 from worker.engine.seamless import assert_seamless_invariants
 from worker.engine.validate import IntentInvalid, ValidationResult, validate_intent
 from worker.motifs.registry import MotifDef
@@ -481,5 +481,8 @@ def test_bare_gap_lane_is_normalized_on_multi_band_stripes():
     ]
     intent["layers"][2]["placement"]["lane"] = "gap"
     result = validate_intent(intent)
-    assert result.intent.layers[2].placement.lane == "b0.gap"
+    motif = result.intent.layers[2]
+    assert isinstance(motif, MotifLayer)
+    assert motif.placement is not None
+    assert motif.placement.lane == "b0.gap"
     assert_seamless_invariants(result.intent)

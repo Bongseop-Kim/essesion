@@ -16,7 +16,8 @@
       "!apps/worker/src/worker/authoring/data",
       "!apps/worker/src/worker/render/assets",
       "!apps/worker/tests/golden",
-      "!apps/worker/tests/fixtures"
+      "!apps/worker/tests/fixtures",
+      "!docs/reviews/assets"
     ]
   },
   "formatter": {
