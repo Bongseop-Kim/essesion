@@ -1,11 +1,14 @@
 """구성 patch 단위 테스트 — 축별 적용/미적용, 모티프 불변, 결정론 (design-redesign 2단계)."""
 
+import copy
+
 import pytest
 from worker.engine.compose import compose_design
 from worker.engine.constraints import ConstraintInvalid, apply_generation_constraints
 from worker.engine.patch import DesignPatchV1, apply_patch, composition_snapshot, set_motif_slot
 from worker.engine.seamless import assert_seamless_invariants
 from worker.engine.validate import validate_intent
+from worker.warnings import WARNING_MESSAGES, customer_warnings
 
 from .intent_helpers import mvp_intent, register_test_motifs
 
@@ -79,6 +82,58 @@ def test_snapshot_round_trips_the_patchable_axes_without_motif_identity():
     assert "circle" not in repr(snapshot)
 
 
+def test_snapshot_motifs_are_ordered_read_only_context_without_ids():
+    intent = _lattice_intent()
+    intent["layers"].append(
+        {
+            "id": "motif_1",
+            "type": "motif",
+            "z_order": 2,
+            "params": {"motif_id": "bee", "size_mm": 4.0},
+            "placement": {"type": "lattice", "lattice": {"cell_w_mm": 8.0, "cell_h_mm": 8.0}},
+        }
+    )
+    motifs = [
+        {"id": "circle", "subject": "동그라미", "description": "원형 모티프"},
+        {"id": "bee", "subject": "벌", "description": None},
+    ]
+
+    snapshot = composition_snapshot(intent, motifs=motifs)
+
+    assert snapshot["motif_size_mm"] == [6.0, 4.0]
+    lattice_6 = {"arrangement": "lattice", "count_per_axis": 6, "rotation_deg": None}
+    assert snapshot["motifs"] == [
+        {"index": 1, "subject": "동그라미", "description": "원형 모티프", "placement": lattice_6},
+        {"index": 2, "subject": "벌", "description": None, "placement": lattice_6},
+    ]
+    assert "motif_id" not in repr(snapshot["motifs"])
+    assert "circle" not in repr(snapshot["motifs"]) and "bee" not in repr(snapshot["motifs"])
+
+
+def test_snapshot_without_the_motifs_argument_still_works():
+    snapshot = composition_snapshot(_lattice_intent())
+
+    assert snapshot["motif_size_mm"] == [6.0]
+    # 인자를 안 줘도 자리표시자로 안전하게 채운다 — 정체성을 모른다는 뜻이지 오류가 아니다.
+    assert snapshot["motifs"] == [
+        {
+            "index": 1,
+            "subject": None,
+            "description": None,
+            "placement": {"arrangement": "lattice", "count_per_axis": 6, "rotation_deg": None},
+        }
+    ]
+
+
+def test_patch_out_of_scope_reason_accepts_only_the_declared_vocabulary():
+    patch = _patch(out_of_scope=True, out_of_scope_reason="motif_position")
+    assert patch.out_of_scope_reason == "motif_position"
+    assert _patch().out_of_scope_reason is None
+
+    with pytest.raises(ValueError):
+        DesignPatchV1.model_validate({"note": "x", "out_of_scope_reason": "not_a_real_reason"})
+
+
 def test_background_patch_recolors_the_ground_slot_and_its_colorway():
     patched = apply_patch(_lattice_intent(), _patch(background={"color": "f5f0e6"}))
 
@@ -140,14 +195,16 @@ def test_placement_patch_keeps_lattice_cells_dividing_the_tile():
     )
 
     placement = patched["layers"][1]["placement"]
-    # 엇갈림은 짝수 축으로 올림 — (tile/cell)*0.5가 정수여야 토러스에서 닫힌다.
+    # 홀수 축 엇갈림은 (tile/cell)*0.5가 정수여야 닫힌다 — 개수를 올리지 않고 반복 단위를
+    # 두 배로 늘려 요청한 밀도(48mm당 5개 = 셀 9.6)를 그대로 지킨다.
+    assert patched["canvas"]["tile_mm"] == 96.0
     assert placement["lattice"] == {
-        "cell_w_mm": 8.0,
-        "cell_h_mm": 8.0,
+        "cell_w_mm": 9.6,
+        "cell_h_mm": 9.6,
         "drop_fraction": 0.5,
         "drop_axis": "column",
     }
-    assert 48 / placement["lattice"]["cell_w_mm"] == 6
+    assert 96 / placement["lattice"]["cell_w_mm"] == 10
 
 
 def test_placement_patch_keeps_the_two_motif_slots_staggered():
@@ -401,3 +458,228 @@ def test_same_intent_and_patch_render_byte_identical_svg():
 
     assert first.svg == second.svg
     assert first.id == second.id
+
+
+# ---- D4: 엇갈림 전환은 밀도를 바꾸지 않는다 (2026-09-07 S3 재현) ----
+
+
+def _sparse_lattice_intent() -> dict:
+    """S3 '성기게' 직후 상태 — tile 48, cell 16(축당 3), 크기 9."""
+    intent = _lattice_intent()
+    intent["layers"][1]["params"]["size_mm"] = 9.0
+    intent["layers"][1]["placement"]["lattice"] = {"cell_w_mm": 16.0, "cell_h_mm": 16.0}
+    return intent
+
+
+def _instances_per_tile(intent: dict) -> int:
+    layer = intent["layers"][1]
+    tile = intent["canvas"]["tile_mm"]
+    spec = layer["placement"]["lattice"]
+    return round(tile / spec["cell_w_mm"]) * round(tile / spec["cell_h_mm"])
+
+
+def test_staggered_arrangement_only_keeps_density_and_seams_on_an_odd_axis():
+    base = _sparse_lattice_intent()
+    warnings: list[str] = []
+
+    patched = apply_patch(base, _patch(placement={"arrangement": "staggered"}), warnings=warnings)
+
+    spec = patched["layers"][1]["placement"]["lattice"]
+    # 셀·크기 보존, tile만 두 배 — 같은 면적의 밀도가 9→16으로 늘지 않는다.
+    assert patched["canvas"]["tile_mm"] == 96.0
+    assert (spec["cell_w_mm"], spec["cell_h_mm"]) == (16.0, 16.0)
+    assert (spec["drop_fraction"], spec["drop_axis"]) == (0.5, "column")
+    assert patched["layers"][1]["params"]["size_mm"] == 9.0
+    before = _instances_per_tile(base) / base["canvas"]["tile_mm"] ** 2
+    after = _instances_per_tile(patched) / patched["canvas"]["tile_mm"] ** 2
+    assert after == pytest.approx(before)
+    assert warnings == []
+    # tile 경계 연속성 — 엔진 불변식과 실제 합성이 함께 통과해야 한다.
+    result = validate_intent(patched)
+    assert result.warnings == []
+    assert_seamless_invariants(result.intent)
+    compose_design(patched)
+
+
+def test_staggered_frame_doubling_keeps_stripe_geometry_verbatim():
+    """다른 레이어(줄무늬)의 시각 크기·밀도는 tile이 늘어도 그대로여야 한다."""
+    base = mvp_intent()
+    for layer in base["layers"]:
+        if layer["type"] == "motif":
+            layer["params"]["size_mm"] = 6.0
+            layer["placement"] = {
+                "type": "lattice",
+                "lattice": {"cell_w_mm": 16.0, "cell_h_mm": 16.0},
+            }
+    stripe_before = copy.deepcopy(next(x for x in base["layers"] if x["type"] == "stripe"))
+
+    patched = apply_patch(base, _patch(placement={"arrangement": "staggered"}))
+
+    assert patched["canvas"]["tile_mm"] == 96.0
+    stripe_after = next(x for x in patched["layers"] if x["type"] == "stripe")
+    assert stripe_after["params"] == stripe_before["params"]
+    result = validate_intent(patched)
+    assert result.warnings == []
+    assert_seamless_invariants(result.intent)
+
+
+def test_staggered_odd_axis_at_the_tile_cap_rounds_up_with_a_customer_warning():
+    base = _sparse_lattice_intent()
+    base["canvas"]["tile_mm"] = 192.0  # MAX_TILE_MM — 두 배로 늘릴 여유가 없다
+    base["layers"][1]["placement"]["lattice"] = {"cell_w_mm": 64.0, "cell_h_mm": 64.0}
+    warnings: list[str] = []
+
+    patched = apply_patch(base, _patch(placement={"arrangement": "staggered"}), warnings=warnings)
+
+    assert patched["canvas"]["tile_mm"] == 192.0
+    assert 192 / patched["layers"][1]["placement"]["lattice"]["cell_w_mm"] == 4
+    # 묵시적 성공이 아니라 고객 문구가 있는 코드로 남는다.
+    code = "stagger_density_adjusted"
+    assert customer_warnings(warnings) == [{"code": code, "message": WARNING_MESSAGES[code]}]
+
+
+def test_staggered_even_axis_does_not_touch_the_tile():
+    base = _lattice_intent()  # cell 8 → 축당 6
+
+    patched = apply_patch(base, _patch(placement={"arrangement": "staggered"}))
+
+    assert patched["canvas"]["tile_mm"] == 48
+    assert patched["layers"][1]["placement"]["lattice"]["cell_w_mm"] == 8.0
+
+
+# ---- D6: 첫 모티프 추가는 셀 안에 여백을 남긴다 (2026-09-07 S5 재현) ----
+
+
+def test_first_motif_layer_starts_at_half_the_cell():
+    stripes_only = mvp_intent()
+    stripes_only["layers"] = [layer for layer in stripes_only["layers"] if layer["type"] != "motif"]
+
+    added = set_motif_slot(stripes_only, slot=1, motif_id="circle")
+
+    layer = added["layers"][-1]
+    cell = layer["placement"]["lattice"]["cell_w_mm"]
+    assert cell == 8.0
+    assert layer["params"]["size_mm"] == 4.0  # 셀의 절반 — 종전 8.64는 셀보다 컸다
+    # 이후 명시적 확대는 그대로 작동한다.
+    enlarged = apply_patch(added, _patch(motif_size_mm=[8.0]))
+    assert enlarged["layers"][-1]["params"]["size_mm"] == 8.0
+
+
+# ---- 슬롯 지정 배치·줄 위/사이 배열 (2026-09-07 결정: 회전·밀도 슬롯 지정, 밀도는 겹침 허용) ----
+
+
+def _two_slot_intent() -> dict:
+    """슬롯 1=circle 격자, 슬롯 2=bee 반 칸 엇갈린 파생 격자."""
+    return set_motif_slot(_lattice_intent(), slot=2, motif_id="bee")
+
+
+def test_slot_rotation_patch_rotates_only_that_motif():
+    base = _two_slot_intent()
+
+    patched = apply_patch(base, _patch(placement={"slot": 2, "rotation_deg": 45.0}))
+
+    first, second = (layer["placement"] for layer in patched["layers"][1:3])
+    assert first.get("fixed_rotation_deg") is None
+    assert second["fixed_rotation_deg"] == 45.0
+    assert first["lattice"] == base["layers"][1]["placement"]["lattice"]
+
+
+def test_slot_density_patch_changes_only_that_motif_and_may_overlap():
+    base = _two_slot_intent()
+
+    patched = apply_patch(base, _patch(placement={"slot": 2, "count_per_axis": 3}))
+
+    first, second = (layer["placement"]["lattice"] for layer in patched["layers"][1:3])
+    assert first["cell_w_mm"] == 8.0  # 슬롯 1 그대로
+    assert second["cell_w_mm"] == 16.0  # 슬롯 2만 성기게 — 격자가 달라져 겹칠 수 있음은 허용
+    assert second["offset_x_mm"] == 8.0  # 반 칸 위상은 새 셀 기준으로 유지
+    compose_design(patched)
+
+
+def test_slot_out_of_range_is_rejected():
+    with pytest.raises(ConstraintInvalid, match="slot 2"):
+        apply_patch(_lattice_intent(), _patch(placement={"slot": 2, "rotation_deg": 10.0}))
+
+
+def test_snapshot_exposes_each_slot_placement():
+    snapshot = composition_snapshot(_two_slot_intent())
+
+    assert [m["placement"]["arrangement"] for m in snapshot["motifs"]] == ["lattice", "lattice"]
+    assert snapshot["motifs"][1]["index"] == 2
+
+
+def test_between_stripes_arrangement_hosts_motifs_in_the_widest_gap():
+    """S1 재현 — 산개된 벌을 줄 사이 빈 공간 가운데로."""
+    base = mvp_intent()
+    base["layers"] = base["layers"][:3]  # ground + stripe + circle
+    base["layers"][2]["placement"] = {
+        "type": "scatter",
+        "scatter": {"mode": "poisson", "min_dist_mm": 8.0, "count": 6},
+    }
+
+    patched = apply_patch(base, _patch(placement={"arrangement": "between_stripes"}))
+
+    placement = patched["layers"][2]["placement"]
+    assert placement["type"] == "path_following"
+    assert placement["host_layer"] == "stripe_base"
+    assert placement["lane"] == "b0.gap"
+    assert placement["spacing_mm"] == 8.0  # 산개 min_dist 8 → 축당 6 → tile/6
+    result = validate_intent(patched)
+    assert_seamless_invariants(result.intent)
+    compose_design(patched)
+    # 줄 자체는 건드리지 않는다.
+    assert patched["layers"][1]["params"] == base["layers"][1]["params"]
+
+
+def test_on_stripes_arrangement_uses_the_widest_band_center():
+    base = mvp_intent()
+    base["layers"][1]["params"]["bands"] = [
+        {"offset_mm": 0, "width_mm": 1.2, "color": "accent"},
+        {"offset_mm": 4.8, "width_mm": 3.6, "color": "gold"},
+    ]
+
+    patched = apply_patch(base, _patch(placement={"arrangement": "on_stripes", "slot": 1}))
+
+    assert patched["layers"][2]["placement"]["lane"] == "b1.center"
+    assert patched["layers"][3]["placement"]["lane"] == "end"  # 슬롯 2는 그대로
+    compose_design(patched)
+
+
+def test_between_stripes_picks_the_widest_gap_in_space_not_in_list_order():
+    base = mvp_intent()
+    base["layers"] = base["layers"][:3]
+    base["layers"][1]["params"]["period_mm"] = 24.0
+    base["layers"][1]["params"]["bands"] = [
+        {"offset_mm": 9, "width_mm": 3, "color": "accent"},
+        {"offset_mm": 0, "width_mm": 9, "color": "gold"},
+    ]
+
+    patched = apply_patch(base, _patch(placement={"arrangement": "between_stripes"}))
+
+    assert patched["layers"][2]["placement"]["lane"] == "b0.gap"  # 12 ~ 24
+    compose_design(patched)
+
+
+def test_between_stripes_with_no_gap_is_rejected():
+    base = mvp_intent()
+    base["layers"] = base["layers"][:3]
+    base["layers"][1]["params"]["period_mm"] = 12.0
+    base["layers"][1]["params"]["bands"] = [{"offset_mm": 0, "width_mm": 12, "color": "accent"}]
+
+    with pytest.raises(ConstraintInvalid, match="no gap"):
+        apply_patch(base, _patch(placement={"arrangement": "between_stripes"}))
+
+
+def test_between_stripes_without_a_stripe_layer_is_rejected():
+    with pytest.raises(ConstraintInvalid, match="stripe layer"):
+        apply_patch(_lattice_intent(), _patch(placement={"arrangement": "between_stripes"}))
+
+
+def test_snapshot_reads_hosted_arrangements_back():
+    base = mvp_intent()
+    base["layers"][2]["placement"]["lane"] = "gap"
+
+    snapshot = composition_snapshot(base)
+
+    arrangements = [m["placement"]["arrangement"] for m in snapshot["motifs"]]
+    assert arrangements == ["between_stripes", "on_stripes"]

@@ -152,6 +152,43 @@ async def get_motifs(session: AsyncSession, ids: Iterable[str]) -> dict[str, Mot
     }
 
 
+async def get_motif_meta(session: AsyncSession, ids: Iterable[str]) -> dict[str, MotifMeta]:
+    """id 집합 → {id: MotifMeta} — subject/description만, symbol/embedding 없이.
+
+    patch 저작이 모티프에 "이름"으로만 접근하도록 넘기는 읽기 전용 맥락용이라
+    `get_motifs`(symbol 포함)와 별도다. source·status로 거르지 않는다 — user_upload를
+    포함해 현재 intent가 실제로 참조하는 모티프라면 전부 대상이다.
+    """
+    id_list = list(dict.fromkeys(ids))
+    if not id_list:
+        return {}
+    rows = (
+        await session.execute(
+            select(
+                Motif.id,
+                Motif.subject,
+                Motif.scope,
+                Motif.style,
+                Motif.description,
+                Motif.tags,
+                Motif.source,
+            ).where(Motif.id.in_(id_list))
+        )
+    ).all()
+    return {
+        row[0]: MotifMeta(
+            id=row[0],
+            subject=row[1],
+            scope=row[2],
+            style=row[3],
+            description=row[4],
+            tags=tuple(row[5] or ()),
+            source=row[6],
+        )
+        for row in rows
+    }
+
+
 async def find_catalog(session: AsyncSession) -> list[MotifMeta]:
     """공개 카탈로그 전체를 ID 순으로 반환한다. scope는 검색 필터가 아니다."""
     rows = (

@@ -654,6 +654,19 @@ def test_authoring_prompt_leaves_supported_count_limits_to_the_schema():
     assert any("at most 4 bands" in line for line in feedback)
 
 
+def test_authoring_prompt_instructs_reporting_unmet_motif_subjects():
+    prompt = _build_prompt(
+        "사자와 꽃 가지 무늬",
+        errors=None,
+        catalog_candidates=[
+            {"catalog_ref": "catalog_1", "motif_id": "flower", "subject": "flower"}
+        ],
+    )
+
+    assert "unmet_motif_subjects" in prompt
+    assert "do not split one requested subject" in prompt
+
+
 def _bands_validation_error() -> ValidationError:
     try:
         DesignPlanV3.model_validate(
@@ -864,6 +877,44 @@ async def test_author_patch_asks_for_one_narrow_edit_without_motif_identity(llm)
     assert "motif_id" not in prompt and "catalog_ref" not in prompt
 
 
+_SNAPSHOT_WITH_MOTIFS = {
+    **_SNAPSHOT,
+    "motif_size_mm": [6.0],
+    "motifs": [{"index": 1, "subject": "동백꽃", "description": "빨간 동백꽃 자수"}],
+}
+
+
+def test_patch_prompt_carries_motif_context_and_the_reason_vocabulary():
+    prompt = _build_patch_prompt("동백꽃을 크게", snapshot=_SNAPSHOT_WITH_MOTIFS)
+
+    assert "동백꽃" in prompt
+    for reason in (
+        "target_missing",
+        "placement.slot",
+        "between_stripes",
+        "motif_position",
+        "motif_recolor",
+        "motif_change",
+    ):
+        assert reason in prompt
+
+
+@respx.mock
+async def test_author_patch_parses_a_target_missing_rejection(llm):
+    _mock_chat(
+        {
+            "out_of_scope": True,
+            "out_of_scope_reason": "target_missing",
+            "note": "말씀하신 무늬를 찾지 못해 바꾸지 않았어요.",
+        }
+    )
+
+    patch = await llm.author_patch("나비 모티프만 회전시켜줘", snapshot=_SNAPSHOT_WITH_MOTIFS)
+
+    assert patch.out_of_scope and not patch.has_changes
+    assert patch.out_of_scope_reason == "target_missing"
+
+
 @respx.mock
 async def test_author_patch_marks_a_motif_request_out_of_scope(llm):
     _mock_chat({"out_of_scope": True, "note": "무늬는 여기서 바꿀 수 없어요."})
@@ -935,6 +986,31 @@ async def test_initial_authoring_with_a_grounded_motif_returns_no_picker_signal(
     assert route.call_count == 1
     # 카탈로그가 모티프를 맞췄으니 안내할 것이 없다 — 정상 첫 생성에서 피커를 열지 않는다.
     assert design.motif_intent is None
+
+
+@respx.mock
+async def test_initial_authoring_with_a_partial_catalog_match_reports_the_unmet_subject(llm):
+    # 사자+꽃 요청인데 카탈로그에 꽃만 있어 모델이 flower로 채웠다 — plan은 성공해도
+    # unmet_motif_subjects가 처리 못한 대상을 직접 짚는다.
+    raw = load_example_set()[5].plan.model_dump(mode="json")
+    raw["motifs"] = [{"source": "catalog", "catalog_ref": "cand_1"}]
+    raw["unmet_motif_subjects"] = ["사자"]
+    route = _mock_chat(DesignPlanV3.model_validate(raw).model_dump(mode="json"))
+    diagnostics: dict[str, object] = {}
+
+    design = await llm.author_design(
+        "사자와 꽃 가지 무늬",
+        catalog_candidates=[{"catalog_ref": "cand_1", "motif_id": "flower", "subject": "flower"}],
+        diagnostics=diagnostics,
+    )
+
+    assert route.call_count == 1
+    assert design.motif_intent == {
+        "detected": True,
+        "subject": "사자",
+        "reason": "motif_mention",
+    }
+    assert diagnostics["unmet_motif_subjects"] == ["사자"]
 
 
 @respx.mock
@@ -1068,6 +1144,49 @@ def test_motif_intent_uses_raw_replacement_subject_without_translation():
         "subject": "나비",
         "reason": "motif_change",
     }
+
+
+def test_motif_intent_trusts_model_reported_unmet_subjects_without_vocabulary_check():
+    # 모델이 unmet_motif_subjects로 이미 처리 못한 대상을 짚었다 — 어휘 사전에
+    # 없는 말이라도(고유명사 등) 그대로 신뢰하고, 첫 항목을 subject로 쓴다.
+    signal = detect_motif_intent(
+        "사자와 꽃 가지 무늬",
+        motif_missing=True,
+        unmet_subjects=["사자", "덜 흔한 대상"],
+    )
+
+    assert signal == {"detected": True, "subject": "사자", "reason": "motif_mention"}
+
+
+def test_motif_intent_unmet_subjects_still_respects_color_change_guard():
+    # 모티프 색만 바꾸는 요청은 unmet_subjects가 있어도 피커로 보내지 않는다.
+    assert (
+        detect_motif_intent(
+            "모티프는 네이비로 바꿔줘",
+            unmet_subjects=["사자"],
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "짙은 초록 바탕에 굵은 아이보리 사선 줄과 가는 금색 보조 줄을 반복해줘. 모티프는 넣지 마.",
+        "네이비 스트라이프, 무늬 없이",
+        "navy stripes with no motif",
+        "navy stripes, do not use motifs",
+        "navy stripes, don't use any motif",
+    ],
+)
+def test_negated_motif_mention_is_not_a_catalog_miss(prompt: str):
+    # 모티프를 빼라는 첫 저작은 모티프 레이어가 없어도 정상이다 — 피커를 열지 않는다.
+    assert detect_motif_intent(prompt, motif_missing=True) is None
+
+
+def test_negated_and_requested_motif_words_keep_the_requested_one():
+    intent = detect_motif_intent("줄무늬 무늬는 빼고 동백꽃 모티프만 넣어줘", motif_missing=True)
+    assert intent == {"detected": True, "subject": "동백꽃", "reason": "motif_mention"}
 
 
 @pytest.mark.parametrize(
@@ -1349,3 +1468,58 @@ async def test_provider_usage_is_logged_per_operation(llm, caplog):
     assert "operation=author_design" in lines[0]
     assert "'prompt_tokens': 3300" in lines[0]
     assert "'completion_tokens': 210" in lines[0]
+
+
+def test_named_ground_keeps_model_color_when_unrecognized_word_directly_modifies_it():
+    # D1 회귀 — "짙은 초록"은 어휘에 없는 색이라 "바탕"을 직접 수식하는 것은 그 미등록
+    # 표현이다. 뒤에 멀리 있는 "아이보리"(줄 색)가 근접만으로 바탕을 가로채면 안 된다.
+    plan = DesignPlanV3.model_validate(
+        {
+            "colors": ["#14532D", "#F2E9D5", "#C9A227"],
+            "ground_color_index": 0,
+            "motifs": [],
+            "layers": [
+                {
+                    "type": "stripe",
+                    "direction": "diagonal_up",
+                    "period_ratio": 0.25,
+                    "bands": [
+                        {"offset_ratio": 0, "width_ratio": 0.2, "color_index": 1},
+                        {"offset_ratio": 0.5, "width_ratio": 0.1, "color_index": 2},
+                    ],
+                },
+            ],
+        }
+    )
+
+    normalized = normalize_requested_named_colors(
+        "짙은 초록 바탕에 굵은 아이보리 사선 줄과 가는 금색 보조 줄을 나란히 한 쌍으로 "
+        "반복해줘. 모티프는 넣지 마.",
+        plan,
+    )
+
+    assert normalized.colors[normalized.ground_color_index] == "#14532D"
+
+
+def test_named_ground_keeps_model_color_when_unregistered_english_word_modifies_it():
+    # D1의 영어판 — "emerald"는 어휘에 없지만 background를 직접 수식한다. 두 글자 뒤의
+    # "ivory"(줄 색)가 근접만으로 바탕을 가로채면 안 된다.
+    normalized = normalize_requested_named_colors(
+        "emerald background, ivory stripes",
+        _stripe_plan(["#14532D", "#123456"]),
+    )
+
+    assert normalized.colors[normalized.ground_color_index] == "#14532D"
+    assert normalized.colors[1] == "#FFFFF0"
+
+
+def test_named_ground_direct_modifier_with_intensity_word_still_applies():
+    # "바탕은 짙은 네이비로"처럼 역할과 색 사이에 강도 수식어가 끼어도 직접 수식 관계는
+    # 유지되어야 한다.
+    normalized = normalize_requested_named_colors(
+        "바탕은 짙은 네이비로, 아이보리 줄무늬",
+        _stripe_plan(["#EFE6D4", "#123456"]),
+    )
+
+    assert normalized.colors[normalized.ground_color_index] == "#000080"
+    assert normalized.colors[1] == "#FFFFF0"

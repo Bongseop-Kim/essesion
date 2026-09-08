@@ -30,6 +30,7 @@ export function StarterGallery({
   const desktopColumns = Math.min(examples.length, 4);
   return (
     <VStack
+      data-coach="starter"
       gap="x5"
       alignItems="center"
       width="full"

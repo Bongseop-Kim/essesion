@@ -30,7 +30,7 @@ Placement: `type ∈ {lattice, point_set, path_following, scatter}` + type별 sp
 - path_following: host_layer+lane 또는 standalone path(PathSpec: kind ∈ {straight, wave}, angle?, wavelength?(gt0), amplitude?(ge0)) + spacing_mm(gt0), phase_mm=0, rotation ∈ {follow_path, fixed}?
 - 모든 placement의 `fixed_rotation_deg?`는 구성 patch가 사용하는 결정론적 각도다. 생략 시 기존과 동일하게 0°이며 canonical layout JSON에서도 빠져 기존 layout id·SVG 바이트를 보존한다. path-following에서 `rotation=follow_path`면 tangent가 우선한다.
 
-`validate_intent`의 결정론적 repair(경고 발생): dpi→ALLOWED_DPI(150,300,600) 최근접, off-grid stripe period→`tile/(k·hypot(p,q))` 스냅(밴드 비례, round 6자리), 다중밴드 bare lane(start/center/end)→b0.*, ground-gap(coverage > 0.75) 축소·균등 배치. drop_fraction 허용값 `(0.5, 1/3, 0.25)`.
+`validate_intent`의 결정론적 repair(경고 발생): dpi→ALLOWED_DPI(150,300,600) 최근접, off-grid stripe period→`tile/(k·hypot(p,q))` 스냅(밴드 비례, round 6자리), 다중밴드 bare lane(start/center/end/gap)→b0.*, ground-gap(coverage > 0.75) 축소·균등 배치. drop_fraction 허용값 `(0.5, 1/3, 0.25)`.
 
 **전역 배율(patch `scale`)**: intent의 모든 길이(mm)를 tile_mm 포함해 일괄 f배하는 균일 배율은 모든 seamless 불변식(tile == k·period·hypot, divides(tile, cell), wave λ | closure, size ≤ tile)을 정확히 보존한다 — 재스냅이 걸리지 않는다. patch 경유 tile_mm은 [12, 192]mm(기본 48의 ¼~4배)로 누적 클램프. **tile_mm은 물리 치수가 아니라 화면 배율 캐리어다**(2026-08-19 확정) — 이 SVG/래스터는 그대로 실물 출력에 들어가지 않으며, 프론트는 SVG 루트 `width="Nmm"`을 읽어 반복 배율(N/48)을 비례시킨다. off-grid period repair는 authoring 등 다른 진입로의 최후 방어선으로 유지한다(patch의 off-grid period는 `engine.patch`가 tile 배율로 먼저 흡수).
 
@@ -58,7 +58,7 @@ Placement: `type ∈ {lattice, point_set, path_following, scatter}` + type별 sp
 
 - **lattice** (RNG 없음): `nx=round(tile/cw), ny=round(tile/ch)`; `nx*ny > 50_000`이면 오류. drop_axis=column → b1=(cw, ch·drop), b2=(0, ch); row → b1=(cw, 0), b2=(cw·drop, ch). `x=i·b1x+j·b2x+offset_x, y=i·b1y+j·b2y+offset_y`, 좌표 `% tile`(offset은 위상만 옮기므로 seamless 불변식과 무관), 회전은 `fixed_rotation_deg` 또는 0°. (block=drop 없음, half_drop=column, brick=row)
 - **scatter**: sateen(RNG 없음) — `cell=tile/n`, `Instance(i·cell, ((i·step)%n)·cell)`; poisson(유일한 RNG 소비처) — `rng=random.Random(seed)`, capacity=`max(1, int(tile²/(min_dist²·(√3/2))))`, target=count or capacity, 시도 상한 `target×30`, **x 먼저 y 나중** `rng.random()·tile`, 토러스 거리(`dx=min(|Δ|, tile-|Δ|)`) ≥ min_dist면 채택.
-- **path_following**: centerline은 host stripe lane 또는 standalone path. 각도 스냅 `snap_angle`(기울기 `Fraction.limit_denominator(16)`), 길이 `L=tile·hypot(p,q)`, `n=max(1,round(L/spacing)), spacing_eff=L/n`, `s=phase%L + k·spacing_eff (s < L-1e-9)`. straight: `x=offset·nx+s·dx`; wave: 법선방향 `amp·sin(2πs/λ)` 추가, tangent는 도함수 반영. rotation=follow_path면 tangent, 아니면 0.
+- **path_following**: centerline은 host stripe lane 또는 standalone path. stripe lane은 밴드 i마다 `b{i}.start|center|end`와 `b{i}.gap`(밴드 i 끝과 다음 밴드 — 마지막 밴드면 다음 period의 첫 밴드 — 시작 사이 중점, 2026-09-07 "줄 사이에" 배치용)이며, 단일 밴드는 bare `start|center|end|gap`도 받는다. 각도 스냅 `snap_angle`(기울기 `Fraction.limit_denominator(16)`), 길이 `L=tile·hypot(p,q)`, `n=max(1,round(L/spacing)), spacing_eff=L/n`, `s=phase%L + k·spacing_eff (s < L-1e-9)`. straight: `x=offset·nx+s·dx`; wave: 법선방향 `amp·sin(2πs/λ)` 추가, tangent는 도함수 반영. rotation=follow_path면 tangent, 아니면 0.
 - **point_set**: `(x%tile, y%tile, fixed_rotation_deg 또는 0)`.
 
 **seamless 경계 클론**: 렌더 AABB(scale→rotate→translate 순 계산)가 타일 경계를 넘으면 `(dx,dy) ∈ {-1,0,1}²\{(0,0)}` 고정 순서로 시프트 복제(교차하는 것만), 원본 뒤에 append. 전제 size_mm ≤ tile_mm.
@@ -113,9 +113,19 @@ frozen `ReproMeta{intent_version, seed, colorway_id, engine_version("0.1.0"), re
 
 줄어든 크기는 셀을 되돌려도 복구되지 않으므로(다음 patch가 `motif_size_mm`을 안 쓰면 영구),
 **구성 patch는 크기 대신 밀도를 양보한다**: `placement`만 바꾸고 `motif_size_mm`을 건드리지
-않은 patch는 현재 크기가 셀에 들어가는 최대 축 개수로 `count_per_axis`를 낮춘다(엇갈림은
-짝수 축으로 올림되므로 상한도 짝수로 내린다). 두 축을 함께 바꾼 patch는 요청한 밀도를 그대로
-받고 크기 클램프가 적용된다.
+않은 patch는 현재 크기가 셀에 들어가는 최대 축 개수로 `count_per_axis`를 낮춘다(엇갈림 상한은
+짝수로 내린다). 두 축을 함께 바꾼 patch는 요청한 밀도를 그대로 받고 크기 클램프가 적용된다.
+
+**엇갈림은 짝수 축에서만 닫힌다** — 반 칸 drop(`drop_axis`는 항상 `column`, 행/열 구분 patch
+없음)은 열이 tile을 한 바퀴 돌 때 누적 drop이 셀의 정수배여야 한다. 홀수 축을 만난 patch는
+개수를 올리지 않고(같은 면적의 밀도가 (n+1)²/n²로 늘어 2026-09-07 S3에서 9→16이 됐다)
+**셀·모티프 크기·줄무늬 params를 그대로 둔 채 `tile_mm`만 두 배로 늘려** 축을 2n으로 만든다
+(`engine.patch._stagger_frame`). tile_mm은 화면 배율 캐리어라 프론트가 그리는 mm 배율은
+같고, stripe period는 k만 두 배가 되어 on-grid를 유지한다. tile 상한(192mm)이나 축 상한(10)에
+걸려 두 배가 불가능하면 종전대로 짝수로 올리고 `stagger_density_adjusted` 경고를 고객 문구로
+내린다. `constraints.lattice_placement`의 짝수 올림은 그 경우의 백스톱으로 남는다.
+
+**슬롯 지정 배치(2026-09-07 결정)**: `placement.slot`(1..2)이 있으면 그 모티프 레이어만 바꾸고 나머지 레이어는 그대로 둔다(회전·밀도·배열 모두). 슬롯별 밀도는 두 격자가 달라져 **겹침을 허용한다** — 겹치지 않게 유지하는 것은 사용자의 선택이다. `arrangement`에 `on_stripes`(가장 넓은 밴드의 `b{i}.center`)·`between_stripes`(가장 넓은 빈 공간의 `b{i}.gap`)를 더해 줄무늬를 host로 하는 path_following으로 바꾼다 — 간격은 `tile/count_per_axis`, 회전은 fixed. 줄무늬가 없는 디자인에서는 `ConstraintInvalid`다. 줄무늬는 건드리지 않는다.
 
 `seamless_generation_logs.intent`에는 `{design, resolved_plan}`(+구성 patch 런은 `patch`,
 모티프 슬롯 교체 런은 `motif_slot`)이 기록된다 — 전부 단수 키다.

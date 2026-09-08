@@ -61,7 +61,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 
 | 컴포넌트 | 트리거 | 피하기 / 대신 |
 |---|---|---|
-| ActionButton | **액션 실행**(제출·저장·이동·삭제·CTA). variant: `brandSolid`=핵심 CTA(화면당 1개) · `neutralWeak`=대부분의 액션 · `neutralOutline`=보조 · `criticalSolid`=되돌릴 수 없는 작업 · `ghost`=최소 강조 · `kakao`/`naver`/`apple`=소셜 로그인 전용 | 정보/선택 표시(→Chip/Badge). 한 줄에 4개+ 나열, Solid+Outline 혼용 |
+| ActionButton | **액션 실행**(제출·저장·이동·삭제·CTA). variant: `brandSolid`=핵심 CTA(화면당 1개) · `neutralWeak`=대부분의 액션 · `neutralOutline`=보조 · `criticalSolid`=되돌릴 수 없는 작업 · `ghost`=최소 강조 · `ai`=AI 실행 1개(디자인 페이지 실사화 전용, 그라디언트 예외) · `kakao`/`naver`/`apple`=소셜 로그인 전용 | 정보/선택 표시(→Chip/Badge). 한 줄에 4개+ 나열, Solid+Outline 혼용 |
 | Chip | pill 선택/토글 — 필터·옵션·추천·태그 선택(단일/다중), 탭 대체 | 액션 실행(→ActionButton), 정적 정보(→Badge) |
 
 ### 폼 (컨트롤 라벨·설명·에러는 Field가 배선)

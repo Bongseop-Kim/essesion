@@ -3904,6 +3904,10 @@ export type DesignGenerateOut = {
 export type DesignGenerateRejectedOut = {
     motif_intent?: MotifIntentOut | null;
     /**
+     * Reason
+     */
+    reason?: 'motif_change' | 'motif_recolor' | 'motif_position' | 'target_missing' | 'no_change' | null;
+    /**
      * Rejected
      */
     rejected: 'motif';

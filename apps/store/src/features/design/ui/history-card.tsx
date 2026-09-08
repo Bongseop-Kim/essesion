@@ -65,6 +65,7 @@ export function HistoryCard({
     <VStack
       as="section"
       aria-label="편집 이력"
+      data-coach="history"
       alignItems="stretch"
       gap="x2"
       width={{ base: 84, md: 152 }}

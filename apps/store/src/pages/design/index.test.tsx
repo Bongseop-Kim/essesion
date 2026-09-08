@@ -263,6 +263,11 @@ describe("DesignPage canvas shell", () => {
     vi.stubGlobal("localStorage", memoryStorage());
     vi.stubGlobal("sessionStorage", memoryStorage());
     localStorage.setItem(DESIGN_ONBOARDING_KEY, "1");
+    // jsdom엔 checkVisibility가 없다 — 코치마크 타깃이 전부 "숨김"으로 판정되지 않게 항상 보이는 것으로.
+    Object.defineProperty(HTMLElement.prototype, "checkVisibility", {
+      configurable: true,
+      value: () => true,
+    });
     useSession.setState({
       status: "authenticated",
       accessToken: "access-token",
@@ -352,6 +357,9 @@ describe("DesignPage canvas shell", () => {
     expect((input as HTMLTextAreaElement).value).toBe("벌을 나비로 바꿔줘");
     expect(select).toHaveBeenCalled();
     expect(screen.queryByText(/그림을 바꾸는 건 왼쪽 .*모티프/)).toBeNull();
+    expect(ui.snackbar).toHaveBeenCalledWith(
+      "‘나비’ 모티프는 왼쪽에서 찾거나 만들 수 있어요.",
+    );
 
     pickSource(screen.getByRole("button", { name: "벌 바꾸기" }), 1, /^탐색/);
     await waitForDialog("탐색");
@@ -363,6 +371,31 @@ describe("DesignPage canvas shell", () => {
       screen.queryByRole("button", { name: "3번째 디자인으로 되돌리기" }),
     ).toBeNull();
     select.mockRestore();
+    queryClient.clear();
+  });
+
+  it("카탈로그에 없는 모티프 언급은 거절이 아닌 안내 문구를 쓴다", async () => {
+    api.generate.mockResolvedValue({
+      data: {
+        rejected: "motif",
+        motif_intent: {
+          detected: true,
+          subject: "사자",
+          reason: "motif_mention",
+        },
+      },
+    });
+    const queryClient = renderPage();
+
+    const input = await screen.findByLabelText("무엇을 바꿀까요?");
+    fireEvent.change(input, { target: { value: "사자 모티프 추가해줘" } });
+    fireEvent.click(screen.getByRole("button", { name: "디자인에 적용" }));
+
+    await waitFor(() =>
+      expect(ui.snackbar).toHaveBeenCalledWith(
+        "‘사자’ 모티프는 카탈로그에 없어 넣지 못했어요. 왼쪽에서 찾거나 만들 수 있어요.",
+      ),
+    );
     queryClient.clear();
   });
 
@@ -423,15 +456,23 @@ describe("DesignPage canvas shell", () => {
     queryClient.clear();
   });
 
-  it("온보딩을 닫기로 끝내도 다시 뜨지 않는다", async () => {
+  it("첫 진입 코치마크는 건너뛰기로 닫아도 다시 뜨지 않는다", async () => {
     localStorage.removeItem(DESIGN_ONBOARDING_KEY);
     const queryClient = renderPage();
 
-    await waitForDialog("AI 디자인 시작하기");
-    // 마지막 `디자인 시작하기`가 아니라 우상단 X로 나가도 "봤음"이어야 한다.
-    fireEvent.click(screen.getByRole("button", { name: "닫기" }));
+    const bubble = await screen.findByRole("dialog", {
+      name: "문장으로 만들고 고쳐요",
+    });
+    // 예시 0건·로그인: 입력창·모티프·이력·미리보기·토큰·도구·실사화 = 7스텝.
+    // 타깃의 data-coach가 리팩터링에 떨어져 나가면 이 숫자에서 잡힌다.
+    expect(within(bubble).getByText("1 / 7")).toBeTruthy();
+    fireEvent.click(within(bubble).getByRole("button", { name: "건너뛰기" }));
 
-    await waitFor(() => expect(openDialogs()).toEqual([]));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "문장으로 만들고 고쳐요" }),
+      ).toBeNull(),
+    );
     expect(localStorage.getItem(DESIGN_ONBOARDING_KEY)).toBe("1");
     queryClient.clear();
   });
@@ -878,15 +919,17 @@ describe("DesignPage canvas shell", () => {
     queryClient.clear();
   });
 
-  it("모바일에서는 토큰을 뷰 전환 아래에 두고 + 버튼으로 도구 시트를 연다", async () => {
+  it("모바일에서는 토큰이 상단 한 줄에 놓이고 + 버튼으로 도구 시트를 연다", async () => {
     tokenBalance = 0;
     const queryClient = renderPage();
 
     await screen.findByLabelText("무엇을 바꿀까요?");
+    // 미리보기 토글이 좌상단으로 가면서 토큰을 토글 아래로 내리던 absolute 래퍼가 사라졌다.
     const tokenButton = (await screen.findByText("0토큰")).closest("button");
-    expect(tokenButton?.parentElement?.style.position).toBe("absolute");
-    expect(tokenButton?.parentElement?.style.top).toBe("var(--spacing-x12)");
-    expect(tokenButton?.parentElement?.style.right).toBe("0px");
+    expect(tokenButton?.parentElement?.style.position).not.toBe("absolute");
+    expect(
+      screen.getByRole("radiogroup", { name: "미리보기 방식" }),
+    ).toBeTruthy();
     expect(
       screen.queryByRole("navigation", { name: "디자인 도구" }),
     ).toBeNull();
@@ -904,11 +947,14 @@ describe("DesignPage canvas shell", () => {
     const menu = screen.getByRole("navigation", {
       name: "모바일 디자인 도구",
     });
-    expect(menu.style.gridTemplateColumns).toBe("repeat(4, minmax(0, 1fr))");
+    // 실사화가 입력창으로 가고 사용법이 들어와 5개 — 4열이면 마지막 하나가 혼자 남아 3열로.
+    expect(menu.style.gridTemplateColumns).toBe("repeat(3, minmax(0, 1fr))");
     expect(within(menu).getByRole("button", { name: "내려받기" })).toBeTruthy();
     expect(
       within(menu).getByRole("button", { name: "새로 시작" }),
     ).toBeTruthy();
+    expect(within(menu).getByRole("button", { name: "사용법" })).toBeTruthy();
+    expect(within(menu).queryByRole("button", { name: "실사화" })).toBeNull();
     // 접기 토글·슬롯 메타는 모바일에서 숨어 접근성 트리에서도 빠진다(썸네일만 남는다).
     expect(
       screen.queryByRole("button", { name: "모티프 카드 접기" }),

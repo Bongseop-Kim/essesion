@@ -4,7 +4,7 @@ import {
   PlusIcon,
   SparklesIcon,
 } from "@heroicons/react/24/outline";
-import { type KeyboardEvent, useEffect, useRef } from "react";
+import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 
 /** 서버 검증과 동일 — api MAX_DESIGN_PROMPT_LENGTH(4_000) */
 const MAX_PROMPT_LENGTH = 4000;
@@ -15,7 +15,11 @@ export type PromptBarProps = {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
-  onOpenIdeas: () => void;
+  /** 실사화 — 전송 버튼 왼쪽. 디자인이 있고 작업 중이 아닐 때 켜진다. */
+  onFinalize: () => void;
+  canFinalize: boolean;
+  /** 디자인이 없다가 생기는 순간(false→true) 1회 점등 연출. 수정 중 잠깐 꺼지는 건 연출 대상이 아니다. */
+  hasDesign: boolean;
   onOpenTools: () => void;
   toolsOpen: boolean;
   placeholder: string;
@@ -38,7 +42,9 @@ export function PromptBar({
   value,
   onChange,
   onSubmit,
-  onOpenIdeas,
+  onFinalize,
+  canFinalize,
+  hasDesign,
   onOpenTools,
   toolsOpen,
   placeholder,
@@ -77,6 +83,19 @@ export function PromptBar({
 
   const locked = loading || disabled;
 
+  // 실사화 점등 — 디자인이 없다가 생기는 순간(첫 생성·예시 시작)에만. 이미 디자인이 있는 채로
+  // 열리거나, 수정 중 잠깐 꺼졌다 켜질 때는 variant 전환의 색만 돌아온다(하루 수십 번 보는 전환).
+  const [ignite, setIgnite] = useState(false);
+  const hadDesign = useRef(hasDesign);
+  useEffect(() => {
+    const appeared = hasDesign && !hadDesign.current;
+    hadDesign.current = hasDesign;
+    if (!appeared) return;
+    setIgnite(true);
+    const timer = window.setTimeout(() => setIgnite(false), 1_100);
+    return () => window.clearTimeout(timer);
+  }, [hasDesign]);
+
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== "Enter" || event.shiftKey) return;
     // 한글 조합 중 Enter는 조합 확정이다 — 전송하면 미완성 문장이 나간다.
@@ -89,6 +108,7 @@ export function PromptBar({
   return (
     <Flex
       as="form"
+      data-coach="prompt"
       // 한 줄일 때 textarea 콘텐츠 박스(31px)가 행 여유 높이(38px)보다 작아, flex-end면
       // 글자가 테두리 중앙보다 아래로 처진다. center면 글자·버튼 중심이 테두리 중심과 일치.
       alignItems="center"
@@ -114,6 +134,7 @@ export function PromptBar({
           size="small"
           iconOnly
           aria-label="디자인 도구 열기"
+          data-coach="tools"
           aria-haspopup="dialog"
           aria-expanded={toolsOpen}
           onClick={onOpenTools}
@@ -137,15 +158,20 @@ export function PromptBar({
       />
       <HStack gap="x1">
         <ActionButton
-          variant="ghost"
+          // 비활성은 그라디언트 없이 테두리만 — 활성화되며 색이 차오르는 전환이 점등의 첫 프레임.
+          variant={canFinalize ? "ai" : "neutralOutline"}
           size="small"
-          iconOnly
-          aria-label="아이디어 받기"
-          onClick={onOpenIdeas}
-          disabled={locked}
-          className="rounded-full"
+          aria-label="실사화"
+          data-coach="finalize"
+          onClick={onFinalize}
+          disabled={!canFinalize}
+          data-ignite={ignite || undefined}
+          className="finalize-button rounded-full max-md:w-9 max-md:px-0"
         >
           <Icon svg={<SparklesIcon />} size={20} />
+          <Box as="span" display={{ base: "none", md: "inline-block" }}>
+            실사화
+          </Box>
         </ActionButton>
         <ActionButton
           type="submit"

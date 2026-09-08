@@ -1454,6 +1454,7 @@ async def test_scope_rejected_edit_costs_nothing_and_leaves_no_turn(
             self.generate_payloads.append(payload)
             return {
                 "status": "scope_rejected",
+                "reason": "motif_change",
                 "motif_intent": {
                     "detected": True,
                     "subject": "나비",
@@ -1487,6 +1488,7 @@ async def test_scope_rejected_edit_costs_nothing_and_leaves_no_turn(
     assert rejected.status_code == 200, rejected.text
     assert rejected.json() == {
         "rejected": "motif",
+        "reason": "motif_change",
         "motif_intent": {
             "detected": True,
             "subject": "나비",

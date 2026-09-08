@@ -4,21 +4,21 @@ import {
   Box,
   type DesignPreviewMode,
   Flex,
-  Icon,
   Skeleton,
   snackbar,
   Text,
   VStack,
 } from "@essesion/shared";
-import { LightBulbIcon } from "@heroicons/react/24/outline";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { useAuthGuard } from "@/features/auth/ui/auth-guard-provider";
-import { createDesignIdeas } from "@/features/design/api/context-tools";
 import { designErrorMessage } from "@/features/design/model/errors";
-import { isDesignOnboardingComplete } from "@/features/design/model/onboarding";
+import {
+  completeDesignOnboarding,
+  isDesignOnboardingComplete,
+} from "@/features/design/model/onboarding";
 import {
   HISTORY_CARD_COLLAPSED_KEY,
   isPanelCollapsed,
@@ -51,6 +51,7 @@ import {
   CanvasNoticeLayer,
   designNotices,
 } from "@/features/design/ui/canvas-notice";
+import { CoachMark } from "@/features/design/ui/coach-mark";
 import { DesignCanvas } from "@/features/design/ui/design-canvas";
 import {
   type DesignOverlayName,
@@ -83,9 +84,9 @@ export function DesignPage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [freshSession, setFreshSession] = useState(false);
   const [previewMode, setPreviewMode] = useState<DesignPreviewMode>("tie");
-  const [overlay, setOverlay] = useState<DesignOverlayName | null>(() =>
-    isDesignOnboardingComplete() ? null : "onboarding",
-  );
+  const [overlay, setOverlay] = useState<DesignOverlayName | null>(null);
+  // 첫 진입 코치마크 — 복원·예시 로딩이 끝나고 다른 오버레이가 없을 때 한 번 뜬다(아래 effect).
+  const [coachOpen, setCoachOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() =>
     isPanelCollapsed(MOTIF_PANEL_COLLAPSED_KEY),
   );
@@ -157,7 +158,13 @@ export function DesignPage() {
       motifs.openSlot(1, "search", intent.subject ?? undefined);
       setMotifHintSignal((signal) => signal + 1);
       const named = intent.subject ? `‘${intent.subject}’ ` : "";
-      snackbar(`${named}모티프는 왼쪽에서 찾거나 만들 수 있어요.`);
+      snackbar(
+        intent.reason === "motif_mention"
+          ? intent.subject
+            ? `‘${intent.subject}’ 모티프는 카탈로그에 없어 넣지 못했어요. 왼쪽에서 찾거나 만들 수 있어요.`
+            : "요청한 모티프는 카탈로그에 없어 넣지 못했어요. 왼쪽에서 찾거나 만들 수 있어요."
+          : `${named}모티프는 왼쪽에서 찾거나 만들 수 있어요.`,
+      );
     },
   });
   const exporter = useDesignExport({
@@ -179,6 +186,20 @@ export function DesignPage() {
   });
   const busy = editor.pending || activateStep.isPending;
   const exportable = !!history.currentSvg && !busy;
+
+  useEffect(() => {
+    if (restoring || examplesQuery.isPending || overlay !== null) return;
+    if (isDesignOnboardingComplete()) return;
+    setCoachOpen(true);
+  }, [restoring, examplesQuery.isPending, overlay]);
+
+  // 진행 중 다른 오버레이가 열리면 안내를 끝낸다(모달 위 모달 금지). 조작을 시작했으니 "봤음".
+  useEffect(() => {
+    if (overlay !== null && coachOpen) {
+      completeDesignOnboarding();
+      setCoachOpen(false);
+    }
+  }, [overlay, coachOpen]);
 
   useEffect(() => {
     if (
@@ -291,44 +312,26 @@ export function DesignPage() {
         }
         mode={previewMode}
         topStart={
-          <ActionButton
-            variant="neutralOutline"
-            size="small"
-            className="whitespace-nowrap rounded-full bg-bg-layer-floating shadow-s1"
-            onClick={() => setOverlay("onboarding")}
-          >
-            <Icon svg={<LightBulbIcon />} size={20} />
-            Help
-          </ActionButton>
+          <ViewToggle mode={previewMode} onModeChange={setPreviewMode} />
         }
         topEnd={
-          <Flex position="relative" alignItems="center" gap="x2">
-            {authenticated ? (
-              <Box
-                position={{ base: "absolute", md: "static" }}
-                top="x12"
-                style={{ right: 0 }}
-              >
-                <TokenPill
-                  balance={balanceQuery.data?.total ?? null}
-                  generateCost={balanceQuery.data?.generate_cost ?? null}
-                  editCost={balanceQuery.data?.edit_cost ?? null}
-                  motifGenerateCost={
-                    balanceQuery.data?.motif_generate_cost ?? null
-                  }
-                  onPurchase={() => navigate("/token/purchase")}
-                  failed={balanceQuery.isLoadingError}
-                  onRetry={() => void balanceQuery.refetch()}
-                />
-              </Box>
-            ) : null}
-            <ViewToggle mode={previewMode} onModeChange={setPreviewMode} />
-          </Flex>
+          authenticated ? (
+            <TokenPill
+              balance={balanceQuery.data?.total ?? null}
+              generateCost={balanceQuery.data?.generate_cost ?? null}
+              editCost={balanceQuery.data?.edit_cost ?? null}
+              motifGenerateCost={balanceQuery.data?.motif_generate_cost ?? null}
+              onPurchase={() => navigate("/token/purchase")}
+              failed={balanceQuery.isLoadingError}
+              onRetry={() => void balanceQuery.refetch()}
+            />
+          ) : null
         }
         notice={
           <CanvasNoticeLayer
             notices={designNotices({
               rejected: editor.rejected,
+              rejectedReason: editor.rejectedReason,
               errorMessage: editor.error?.detail ?? editor.error?.message,
               warnings: [...editor.warnings, ...motifs.activateWarnings],
             })}
@@ -384,12 +387,11 @@ export function DesignPage() {
         right={
           <ToolRail
             onExport={() => ensureAuth() && setOverlay("export")}
-            onFinalize={() => ensureAuth() && setOverlay("finalize")}
             onSessions={() => ensureAuth() && setOverlay("sessions")}
             onFinalized={() => ensureAuth() && setOverlay("finalized")}
             onNewSession={() => ensureAuth() && openSession(null, true)}
+            onHelp={() => setCoachOpen(true)}
             canExport={exportable}
-            canFinalize={hasDesign && !busy}
             busy={busy}
             mobileOpen={mobileToolsOpen}
             onMobileOpenChange={setMobileToolsOpen}
@@ -401,7 +403,9 @@ export function DesignPage() {
               value={editor.prompt}
               onChange={editor.changePrompt}
               onSubmit={editor.submit}
-              onOpenIdeas={() => ensureAuth() && setOverlay("ideas")}
+              onFinalize={() => ensureAuth() && setOverlay("finalize")}
+              canFinalize={hasDesign && !busy}
+              hasDesign={hasDesign}
               onOpenTools={() => setMobileToolsOpen(true)}
               toolsOpen={mobileToolsOpen}
               // 여러 줄 입력창은 한 줄 높이에서 긴 문구를 잘라 보이므로 짧게 유지한다.
@@ -426,19 +430,10 @@ export function DesignPage() {
           // fresh=true — 삭제 직후 다른 세션이 자동 선택되지 않고 빈 캔버스로 남는다.
           if (sessionId === id) openSession(null, true);
         }}
-        onOnboardingComplete={() => setOverlay(null)}
         historyCells={history.cells}
         historyCurrentRunId={history.currentRunId}
         onSelectStep={selectStep}
         motifs={motifs}
-        prompt={editor.prompt}
-        onPromptChange={editor.changePrompt}
-        onRequestIdeas={async () =>
-          createDesignIdeas({
-            prompt: editor.prompt.trim(),
-            userMotifIds: [],
-          })
-        }
         motifGenerateCost={balanceQuery.data?.motif_generate_cost ?? null}
         finalizeCost={balanceQuery.data?.finalize_cost ?? null}
         onFinalize={finalize.submit}
@@ -447,6 +442,13 @@ export function DesignPage() {
         onExport={exporter.submit}
         exportLoading={exporter.exporting}
         exportDisabled={!exportable}
+      />
+      <CoachMark
+        open={coachOpen}
+        onClose={() => {
+          completeDesignOnboarding();
+          setCoachOpen(false);
+        }}
       />
     </>
   );

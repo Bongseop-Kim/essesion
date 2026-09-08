@@ -2,6 +2,7 @@
 
 import html
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from worker.config import get_settings
@@ -23,6 +24,23 @@ class Background:
         fill = escape_attr(palette.resolve_color(self.color_slot, colorway_id))
         side = fmt(tile_mm)
         return f'<rect x="0" y="0" width="{side}" height="{side}" fill="{fill}"/>'
+
+
+def band_gaps(bands: Sequence[tuple[float, float]], period: float) -> list[tuple[float, float]]:
+    """밴드 i의 끝에서 **공간상** 다음 밴드 시작까지 (start, end). 원래 인덱스 순으로 돌려준다.
+
+    밴드 목록은 offset 순이 아닐 수 있어 정렬해서 이웃을 찾는다. 마지막 밴드의 다음은 다음
+    period의 첫 밴드. 맞붙거나 겹치면 end <= start다.
+    """
+    order = sorted(range(len(bands)), key=lambda i: bands[i][0])
+    gaps: list[tuple[float, float]] = [(0.0, 0.0)] * len(bands)
+    for rank, i in enumerate(order):
+        offset, width = bands[i]
+        following_offset = bands[order[(rank + 1) % len(order)]][0]
+        if rank == len(order) - 1:
+            following_offset += period
+        gaps[i] = (offset + width, following_offset)
+    return gaps
 
 
 def build_stripe(params: StripeParams, tile_mm: float) -> "Stripe":
@@ -100,21 +118,30 @@ class Stripe:
         return f"<g>{''.join(parts)}</g>"
 
     def lanes(self) -> list[LaneField]:
-        """밴드별 leading/center/trailing edge를 lane으로 노출.
+        """밴드별 start/center/end와 다음 밴드까지의 빈 공간 가운데(gap)를 lane으로 노출.
 
-        단일 밴드 stripe는 bare 키워드(start/center/end)도 lane id로 등록한다.
+        단일 밴드 stripe는 bare 키워드(start/center/end/gap)도 lane id로 등록한다.
+        `b{i}.gap`은 밴드 i의 끝과 다음 밴드(마지막이면 다음 period의 첫 밴드) 시작 사이
+        중점이다 — "줄 사이에 놓아줘"(2026-09-07 S1)를 표현하는 유일한 lane이다.
         """
         p, q = self.snapped.p, self.snapped.q
         angle = self.snapped.angle_deg
-        single = len(self.params.bands) == 1
+        bands = self.params.bands
+        single = len(bands) == 1
+        period = self.params.period_mm
 
+        gaps = band_gaps([(band.offset_mm, band.width_mm) for band in bands], period)
         lanes: list[LaneField] = []
-        for i, band in enumerate(self.params.bands):
+        for i, band in enumerate(bands):
             edges = {
                 "start": band.offset_mm,
                 "center": band.offset_mm + band.width_mm / 2.0,
                 "end": band.offset_mm + band.width_mm,
             }
+            gap_start, gap_end = gaps[i]
+            # 맞붙은 밴드 사이엔 빈 공간이 없다 — gap lane을 내지 않아 between_stripes가 거절된다.
+            if gap_end > gap_start:
+                edges["gap"] = (gap_start + gap_end) / 2.0
             for name, offset in edges.items():
                 centerline = Centerline(angle_deg=angle, offset_mm=offset, p=p, q=q)
                 lanes.append(LaneField(id=f"b{i}.{name}", centerline_path=centerline))

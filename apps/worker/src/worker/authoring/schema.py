@@ -10,7 +10,14 @@ import copy
 import json
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from worker.engine.constraints import normalize_hex
 from worker.engine.determinism import stable_digest
@@ -190,12 +197,25 @@ StructureLayerPlan = Annotated[
     Field(discriminator="type"),
 ]
 
+# Free-text subject the model names but could not ground in any input or catalog candidate.
+# Bounded like other model-facing text (catalog subject/description) to keep it a short noun
+# phrase, not a sentence; sanitized again at the adapter boundary before it reaches diagnostics
+# or the motif-intent sidecar.
+MotifSubjectText = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40)
+]
+
 
 class DesignPlanV3(_StrictModel):
     colors: list[str] = Field(min_length=2, max_length=8)
     ground_color_index: int = Field(ge=0, le=7)
     motifs: list[PlanMotifSource] = Field(max_length=2)
     layers: list[StructureLayerPlan] = Field(max_length=MAX_STRUCTURE_LAYERS)
+    # Additive (no PLAN_CONTRACT_VERSION bump): motif subjects the request named that no input
+    # or catalog candidate covers. Defaults to [] so plans authored/stored before this field
+    # existed keep validating. Not part of structural_fingerprint (motifs+layers only) since it
+    # describes what is MISSING, not what the plan contains.
+    unmet_motif_subjects: list[MotifSubjectText] = Field(default_factory=list, max_length=2)
 
     @field_validator("colors", mode="before")
     @classmethod

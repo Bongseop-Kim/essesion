@@ -167,6 +167,13 @@
      (아래 @layer utilities — bg.image-scrim → 투명, Skeleton shimmer와 같은 기능성 그라디언트 예외). */
   --color-bg-image-scrim: #00000074;
 
+  /* ai — 디자인 페이지 실사화 버튼 전용 기능성 그라디언트(gradient.md 예외). "AI가 만든다"는 뜻을
+     전달하는 유일한 유색 면이며 장식·브랜딩용이 아니다. 소비: .bg-ai-gradient(아래 @layer utilities)와
+     ActionButton variant="ai"만. 다른 곳에서 쓰지 말 것. */
+  --color-bg-ai-start: #4338ca;
+  --color-bg-ai-mid: #7c3aed;
+  --color-bg-ai-end: #db2777;
+
   /* ── 간격 x-스케일 (4px 그리드, seed dimension) — 기본 --spacing은 유지(p-4 등 공존) ── */
   --spacing-x0_5: 2px;
   --spacing-x1: 4px;
@@ -320,6 +327,16 @@
       to left,
       var(--color-bg-image-scrim),
       transparent 55%
+    );
+  }
+
+  /* 실사화 버튼 전용 그라디언트(gradient.md 예외) — bg.ai-* 토큰만 소비. ActionButton variant="ai" 전용. */
+  .bg-ai-gradient {
+    background-image: linear-gradient(
+      135deg,
+      var(--color-bg-ai-start),
+      var(--color-bg-ai-mid) 55%,
+      var(--color-bg-ai-end)
     );
   }
 }

@@ -27,13 +27,32 @@ export type CanvasNoticeLayerProps = {
   notices: readonly CanvasNoticeItem[];
 };
 
-const REJECTED_NOTICE =
-  "그림을 바꾸는 건 왼쪽 모티프에서 할 수 있어요. 토큰은 쓰지 않았어요.";
+export type RejectedReason =
+  | "motif_change"
+  | "motif_recolor"
+  | "motif_position"
+  | "target_missing"
+  | "no_change";
+
+const REJECTED_NOTICE_BY_REASON: Record<RejectedReason, string> = {
+  motif_change:
+    "그림을 바꾸는 건 왼쪽 모티프에서 할 수 있어요. 토큰은 쓰지 않았어요.",
+  motif_recolor:
+    "모티프 색은 그림 자체에 고정돼 있어 문장으로는 바꿀 수 없어요. 왼쪽 모티프의 AI 생성으로 원하는 색의 그림을 새로 만들어 주세요. 토큰은 쓰지 않았어요.",
+  motif_position:
+    "이 위치로는 모티프를 옮길 수 없어요. 줄무늬가 있으면 '줄 위에' 또는 '줄 사이에' 배치를 요청해 보세요. 토큰은 쓰지 않았어요.",
+  target_missing:
+    "말씀하신 모티프가 지금 디자인에 없어서 바꾸지 않았어요. 토큰은 쓰지 않았어요.",
+  no_change:
+    "요청한 내용은 이미 그렇게 되어 있어서 바꾼 것이 없어요. 토큰은 쓰지 않았어요.",
+};
 
 /** 알림 우선순위: 안내 못 한 거절·오류(빨강) 먼저, 자동 조정 경고(노랑)가 뒤에. */
 export function designNotices(input: {
   /** 거절됐는데 피커로 안내할 시그널도 없었던 경우 — 조용히 끝나지 않게 한다. */
   rejected: boolean;
+  /** 거절 사유 코드 — 없으면 기본(모티프 교체) 문구로 취급한다. */
+  rejectedReason?: RejectedReason | null;
   errorMessage?: string | null;
   warnings: readonly { code: string; message: string }[];
 }): CanvasNoticeItem[] {
@@ -42,7 +61,8 @@ export function designNotices(input: {
     notices.push({
       id: "rejected",
       tone: "critical",
-      message: REJECTED_NOTICE,
+      message:
+        REJECTED_NOTICE_BY_REASON[input.rejectedReason ?? "motif_change"],
     });
   }
   if (input.errorMessage) {

@@ -10,7 +10,6 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { designErrorMessage } from "@/features/design/model/errors";
-import { completeDesignOnboarding } from "@/features/design/model/onboarding";
 import {
   designSessionsQueryOptions,
   finalizedJobsInfiniteQueryOptions,
@@ -31,18 +30,14 @@ import {
 } from "@/features/design/ui/finalize-dialog";
 import { FinalizedListModal } from "@/features/design/ui/finalized-list-modal";
 import { HistoryModal } from "@/features/design/ui/history-modal";
-import { IdeasModal } from "@/features/design/ui/ideas-modal";
 import { MotifModal } from "@/features/design/ui/motif-modal";
-import { OnboardingDialog } from "@/features/design/ui/onboarding-dialog";
 import { SessionListModal } from "@/features/design/ui/session-list-modal";
 
 export type DesignOverlayName =
-  | "onboarding"
   | "sessions"
   | "finalized"
   | "history"
   | "motifs"
-  | "ideas"
   | "finalize"
   | "export";
 
@@ -62,16 +57,12 @@ export type DesignOverlaysProps = {
   activeSessionId: string | null;
   onSelectSession: (sessionId: string) => void;
   onSessionDeleted: (sessionId: string) => void;
-  onOnboardingComplete: () => void;
   /** 전체 이력 격자 — 좌측 이력 카드와 같은 데이터·같은 되돌리기 호출을 쓴다. */
   historyCells: readonly DesignHistoryCell[];
   historyCurrentRunId: string | null;
   onSelectStep: (runId: string) => void;
   /** 모티프 모달 전체의 상태·호출 — 페이지가 소유해 모달을 넘나들어도 유지된다. */
   motifs: MotifSearchState;
-  prompt: string;
-  onPromptChange: (prompt: string) => void;
-  onRequestIdeas: () => Promise<string[]>;
   motifGenerateCost: number | null;
   /** 실사화 1회 토큰 단가 — 다이얼로그 제출 버튼에 표기 */
   finalizeCost: number | null;
@@ -94,14 +85,10 @@ export function DesignOverlays({
   activeSessionId,
   onSelectSession,
   onSessionDeleted,
-  onOnboardingComplete,
   historyCells,
   historyCurrentRunId,
   onSelectStep,
   motifs,
-  prompt,
-  onPromptChange,
-  onRequestIdeas,
   motifGenerateCost,
   finalizeCost,
   onFinalize,
@@ -191,15 +178,6 @@ export function DesignOverlays({
 
   return (
     <>
-      <OnboardingDialog
-        open={overlay === "onboarding"}
-        onOpenChange={(open) => {
-          // 닫기·완료 모두 "봤음"으로 기록한다 — 다시 보려면 캔버스의 `Help`.
-          if (!open) completeDesignOnboarding();
-          change("onboarding")(open);
-        }}
-        onComplete={onOnboardingComplete}
-      />
       <HistoryModal
         open={overlay === "history"}
         onOpenChange={change("history")}
@@ -215,13 +193,6 @@ export function DesignOverlays({
         onDeleteMotif={(motif) =>
           requestDelete({ kind: "motif", id: motif.id, name: motif.name })
         }
-      />
-      <IdeasModal
-        open={overlay === "ideas"}
-        currentPrompt={prompt}
-        onOpenChange={change("ideas")}
-        onRequest={onRequestIdeas}
-        onApply={onPromptChange}
       />
       <FinalizeDialog
         open={overlay === "finalize"}

@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from obs import request_id_var
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
-from svg_safety import scrub_svg
+from svg_safety import is_suspicious_facet_text, sanitize_facet_text, scrub_svg
 
 from worker.adapters import AdapterClientError, AdapterNotConfigured
 from worker.adapters.embedding import request_scoped
@@ -71,7 +71,12 @@ from worker.engine import (
 )
 from worker.engine.composition import compose
 from worker.engine.constraints import ConstraintInvalid, apply_generation_constraints
-from worker.engine.patch import apply_patch, composition_snapshot, set_motif_slot
+from worker.engine.patch import (
+    apply_patch,
+    composition_snapshot,
+    patch_left_intent_unchanged,
+    set_motif_slot,
+)
 from worker.engine.seamless import assert_seamless_invariants
 from worker.integrations import content_key
 from worker.motifs.fingerprint import registry_version_for
@@ -84,7 +89,7 @@ from worker.motifs.resolver import (
     prompt_catalog_candidates,
     resolve_spec,
 )
-from worker.motifs.store import get_motifs
+from worker.motifs.store import get_motif_meta, get_motifs
 from worker.motifs.text_svg import text_to_svg
 from worker.render.fabric import FabricError
 from worker.render.photoreal import prepare_photoreal_inputs, render_photoreal
@@ -594,6 +599,23 @@ async def _generate_from_prompt(
     )
 
 
+_MOTIF_CONTEXT_TEXT_MAX_LENGTH = 120
+
+
+def _safe_motif_context_text(value: object) -> str | None:
+    """모티프 subject/description을 patch 프롬프트 맥락에 넣기 전 위생 처리.
+
+    llm._safe_catalog_text와 같은 sanitize/의심 판정을 재사용한다. 여기 값은 자유
+    description이라 길이 상한이 없어, 프롬프트 예산을 위해 이 경로에서만 자른다.
+    """
+    if not isinstance(value, str):
+        return None
+    clean = sanitize_facet_text(value)
+    if is_suspicious_facet_text(clean):
+        return None
+    return clean[:_MOTIF_CONTEXT_TEXT_MAX_LENGTH]
+
+
 async def _generate_from_patch(
     body: GenerateRequest,
     request: Request,
@@ -619,11 +641,24 @@ async def _generate_from_patch(
         _record_adapter_failure(request, exc, stage="authoring")
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
+    motif_ids = iter_motif_ids(context.current_intent)
+    motif_meta = await get_motif_meta(session, motif_ids)
+    motifs_context: list[dict[str, str | None]] = []
+    for motif_id in motif_ids:
+        meta = motif_meta.get(motif_id)
+        motifs_context.append(
+            {
+                "id": motif_id,
+                "subject": _safe_motif_context_text(meta.subject if meta else None),
+                "description": _safe_motif_context_text(meta.description if meta else None),
+            }
+        )
+
     authoring_started = time.perf_counter()
     try:
         patch = await llm.author_patch(
             body.prompt,
-            snapshot=composition_snapshot(context.current_intent),
+            snapshot=composition_snapshot(context.current_intent, motifs=motifs_context),
             conversation_history=[item.model_dump(mode="json") for item in context.history],
             diagnostics=request.state.generation_diagnostics,
         )
@@ -644,7 +679,11 @@ async def _generate_from_patch(
         )
 
     request.state.generation_diagnostics["patch_axes"] = patch.changed_axes
-    motif_intent = detect_motif_intent(body.prompt, llm_out_of_scope=patch.out_of_scope)
+    request.state.generation_diagnostics["reject_reason"] = patch.out_of_scope_reason
+    # motif_change(또는 이유 없는 out_of_scope)만 피커를 연다 — 위치·재채색·per-motif
+    # 배치·target_missing 거절은 이 계약으로 표현 못 하는 다른 축이라 피커가 도움이 안 된다.
+    opens_picker = patch.out_of_scope and patch.out_of_scope_reason in (None, "motif_change")
+    motif_intent = detect_motif_intent(body.prompt, llm_out_of_scope=opens_picker)
     if motif_intent is not None:
         request.state.generation_diagnostics["motif_intent"] = motif_intent
     if not patch.has_changes:
@@ -652,7 +691,8 @@ async def _generate_from_patch(
         request.state.generation_diagnostics["failure_code"] = "scope_rejected"
         request.state.generation_diagnostics["failure_stage"] = "authoring"
         return ScopeRejectedResponse(
-            motif_intent=MotifIntentSignal.model_validate(motif_intent) if motif_intent else None
+            reason=patch.out_of_scope_reason,
+            motif_intent=MotifIntentSignal.model_validate(motif_intent) if motif_intent else None,
         )
 
     try:
@@ -660,6 +700,13 @@ async def _generate_from_patch(
         constrained_intent = apply_generation_constraints(patched, warnings=warnings)
     except ConstraintInvalid:
         _reject_generation(request, "constraint_conflict", "constraints")
+    if patch_left_intent_unchanged(context.current_intent, patched):
+        # 축은 채웠지만 결과가 그대로다(이미 최소 밀도 등) — 만든 것이 없으니 거절과 같이
+        # 무과금·턴 없이 끝낸다. note는 버린다(변경이 없다는 사실은 코드가 말한다).
+        request.state.generation_diagnostics["failure_code"] = "scope_rejected"
+        request.state.generation_diagnostics["failure_stage"] = "authoring"
+        request.state.generation_diagnostics["reject_reason"] = "no_change"
+        return ScopeRejectedResponse(reason="no_change")
 
     catalog = await get_motifs(session, iter_motif_ids(constrained_intent))
     compose_started = time.perf_counter()

@@ -96,6 +96,7 @@ GPT Image 생성이 신규 content-hash 행을 insert했을 때만 최초 유입
 - 모든 요청은 Plan v3 저작 경로만 사용한다. contract/compiler/prompt/example revision, retrieval 상태·선택 ID/유사도, fingerprint는 generation diagnostics와 intent log에 남긴다.
 - live 평가는 `eval_authoring.py --confirm-live`의 label 30-case corpus로 schema/compiler 성공률, 구조 다양성, retrieval expected-family recall, 시도 수와 latency를 측정한다. prompt/provider 원문은 출력·저장하지 않고 CI는 유료 호출을 실행하지 않는다. 정본·동기화·승격 절차는 [authoring-plan-v3.md](./authoring-plan-v3.md)다.
 - exact private motif id는 최대 2개 모두 compiler에 전달하되 LLM에는 ID를 공개하지 않는다. compiler가 모든 exact motif를 intent에 넣고 worker가 누락을 검증한다. user-upload source는 exact id 조회로만 렌더되고 일반 facet/embedding/variant 검색 및 registry fingerprint에서 제외된다.
+- plan은 additive 필드 `unmet_motif_subjects`(최대 2개 문자열, 기본 `[]`, contract version 변경 없음)를 가진다. 요청이 말한 모티프 주체 중 입력·카탈로그 어느 쪽도 커버하지 못한 것을 모델이 직접 짚는 용도이며, 무관한 후보로 채워 완결된 것처럼 보이는 plan을 막는다. `structural_fingerprint`는 모티프·레이어만 해시하므로 이 필드로 값이 바뀌지 않는다. 값이 있으면 `motif_mention` sidecar(worker-pipeline.md §5)로 이어진다.
 
 ### 6.1 모티프 색 불변 계약
 

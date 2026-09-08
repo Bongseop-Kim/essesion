@@ -416,6 +416,23 @@ def test_structural_fingerprint_includes_motif_identity():
     assert structural_fingerprint(first) != structural_fingerprint(second)
 
 
+def test_unmet_motif_subjects_defaults_empty_and_is_excluded_from_fingerprint():
+    # 이 필드 추가 이전에 저장된 예시 plan은 여전히 검증돼야 하고([] 기본값), 무엇이
+    # 빠졌는지만 말하는 필드라 구조 지문(모티프+레이어)에는 영향이 없어야 한다.
+    source = load_example_set()[5].plan.model_dump(mode="json")
+    without_field = json.loads(json.dumps(source))
+    without_field.pop("unmet_motif_subjects", None)
+    with_field = json.loads(json.dumps(source))
+    with_field["unmet_motif_subjects"] = ["사자"]
+
+    stored = DesignPlanV3.model_validate(without_field)
+    assert stored.unmet_motif_subjects == []
+
+    annotated = DesignPlanV3.model_validate(with_field)
+    assert annotated.unmet_motif_subjects == ["사자"]
+    assert structural_fingerprint(stored) == structural_fingerprint(annotated)
+
+
 def test_snapshot_resolved_plan_freezes_concrete_motif_identity():
     plan = load_example_set()[5].plan
     compiled = compile_design_plan_v3(
