@@ -1,5 +1,6 @@
 import { generateMotif, searchMotifs } from "@essesion/api-client";
 import {
+  getTokenBalanceQueryKey,
   listUserMotifsOptions,
   listUserMotifsQueryKey,
 } from "@essesion/api-client/query";
@@ -414,6 +415,10 @@ export function useMotifSearch({
       );
     } finally {
       setBusy(null);
+      // 차감(성공)이든 환불(실패)이든 잔액이 움직였다 — 같은 화면의 pill을 맞춘다.
+      await queryClient.invalidateQueries({
+        queryKey: getTokenBalanceQueryKey(),
+      });
     }
   };
 

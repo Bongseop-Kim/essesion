@@ -32,7 +32,7 @@ from db.models.design import (
 )
 from db.models.images import Image
 from db.models.seamless import Motif, SeamlessGenerationLog
-from db.models.tokens import DesignToken
+from db.models.tokens import DesignToken, TokenWork
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
@@ -2669,6 +2669,194 @@ async def test_motif_generate_without_tokens_never_reaches_the_worker(
     assert res.status_code == 400, res.text
     assert res.json()["code"] == "insufficient_tokens"
     assert app.state.worker.motif_calls == []
+
+
+class ProcessKilled(BaseException):
+    """강제 종료 스탠드인 — except Exception 보상 경로를 타지 않는다."""
+
+
+async def _work_rows(db_session):
+    """앱이 커밋한 최신 값으로 다시 읽는다 — 테스트 세션은 expire_on_commit=False다."""
+    return list(
+        await db_session.scalars(
+            select(TokenWork)
+            .order_by(TokenWork.work_id)
+            .execution_options(populate_existing=True)
+        )
+    )
+
+
+async def test_motif_generate_records_pending_work_and_closes_it_on_success(
+    client, app, db_session, settings
+):
+    """차감과 pending 기록은 한 트랜잭션 — 성공하면 결과 id와 함께 succeeded로 닫힌다."""
+    app.state.worker = MotifWorker()
+    await _seed_catalog_motif(db_session)
+    user = await make_user(db_session)
+    await _fund(db_session, user)
+    headers = auth_headers(user, settings)
+    sid = (await client.post("/design/sessions", headers=headers)).json()["id"]
+
+    res = await client.post(
+        f"/design/sessions/{sid}/motifs/generate",
+        json={"prompt": "꿀벌 한 마리"},
+        headers=headers,
+    )
+
+    assert res.status_code == 200, res.text
+    (work,) = await _work_rows(db_session)
+    assert work.kind == "motif_generate"
+    assert work.status == "succeeded"
+    assert work.result_id == _CATALOG_MOTIF_ID
+    assert work.finished_at is not None
+    assert work.deadline_at > work.started_at
+    # 차감 원장과 같은 멱등 키를 쓴다 — 복구 배치가 이 키로 반전한다.
+    assert work.work_id.startswith("motif_generate_")
+
+
+async def test_motif_generate_failure_refunds_and_marks_the_work_refunded(
+    client, app, db_session, settings
+):
+    app.state.worker = MotifWorker(fail=True)
+    user = await make_user(db_session)
+    await _fund(db_session, user)
+    headers = auth_headers(user, settings)
+    sid = (await client.post("/design/sessions", headers=headers)).json()["id"]
+
+    res = await client.post(
+        f"/design/sessions/{sid}/motifs/generate",
+        json={"prompt": "꿀벌 한 마리"},
+        headers=headers,
+    )
+
+    assert res.status_code == 502
+    (work,) = await _work_rows(db_session)
+    assert work.status == "refunded"
+    assert (await ledger.get_balance(db_session, user.id))["total"] == 30
+
+
+async def test_charge_survives_process_kill_and_the_batch_recovers_it(
+    client, app, db_session, settings
+):
+    """차감 직후 프로세스가 죽으면 결과도 환불도 없다 — pending 기록만 남고 배치가 회수한다."""
+
+    class KilledWorker(MotifWorker):
+        async def motif_generate(self, payload):
+            raise ProcessKilled("killed after charge")
+
+    app.state.worker = KilledWorker()
+    user = await make_user(db_session)
+    await _fund(db_session, user)
+    headers = auth_headers(user, settings)
+    sid = (await client.post("/design/sessions", headers=headers)).json()["id"]
+
+    with pytest.raises(ProcessKilled):
+        await client.post(
+            f"/design/sessions/{sid}/motifs/generate",
+            json={"prompt": "꿀벌 한 마리"},
+            headers=headers,
+        )
+
+    (work,) = await _work_rows(db_session)
+    assert work.status == "pending" and work.finished_at is None
+    assert (await ledger.get_balance(db_session, user.id))["total"] == 30 - int(MOTIF_COST[1])
+
+    # 기한이 지나면 복구 배치가 정확히 한 번 환불한다.
+    work.deadline_at = datetime.now(UTC) - timedelta(seconds=1)
+    await db_session.commit()
+    for expected in (1, 0):
+        recovered = await client.post(
+            "/batch/recover-token-works",
+            headers={"Authorization": f"Bearer {settings.batch_token}"},
+        )
+        assert recovered.json() == {"processed": expected}
+    (work,) = await _work_rows(db_session)
+    assert work.status == "refunded"
+    assert (await ledger.get_balance(db_session, user.id))["total"] == 30
+
+
+async def test_finalize_records_pending_work_and_closes_it_with_the_job(
+    client, app, db_session, settings
+):
+    app.state.worker = FakeWorker(app.state.sessionmaker)
+    user = await make_user(db_session)
+    await _fund(db_session, user)
+    headers = auth_headers(user, settings)
+    design_session = (await client.post("/design/sessions", headers=headers)).json()
+    assert (
+        await client.post(
+            "/design/generate",
+            json={"session_id": design_session["id"], "prompt": "first"},
+            headers=headers,
+        )
+    ).status_code == 200
+
+    job = await client.post(
+        f"/design/sessions/{design_session['id']}/finalize",
+        json={},
+        headers=headers,
+    )
+
+    assert job.status_code == 201, job.text
+    (work,) = await _work_rows(db_session)
+    assert work.kind == "design_finalize"
+    assert work.status == "succeeded"
+    assert work.result_id == job.json()["id"]
+
+
+async def test_late_finalize_never_publishes_over_a_refunded_charge(
+    client, app, db_session, settings
+):
+    """복구 배치와 늦은 성공이 겹쳐도 terminal 상태는 하나 — 환불 위에 완성본을 얹지 않는다."""
+
+    class LateFinalizeWorker(FakeWorker):
+        def __init__(self, sessionmaker, recover):
+            super().__init__(sessionmaker)
+            self._recover = recover
+
+        async def finalize(self, payload):
+            # 렌더가 도는 사이 기한이 지나 복구 배치가 먼저 환불한다.
+            assert self.sessionmaker is not None
+            async with self.sessionmaker() as session:
+                work = await session.scalar(select(TokenWork).with_for_update())
+                assert work is not None
+                work.deadline_at = datetime.now(UTC) - timedelta(seconds=1)
+                await session.commit()
+            assert (await self._recover()).json() == {"processed": 1}
+            return await super().finalize(payload)
+
+    batch_headers = {"Authorization": f"Bearer {settings.batch_token}"}
+    app.state.worker = FakeWorker(app.state.sessionmaker)
+    user = await make_user(db_session)
+    await _fund(db_session, user)
+    headers = auth_headers(user, settings)
+    design_session = (await client.post("/design/sessions", headers=headers)).json()
+    assert (
+        await client.post(
+            "/design/generate",
+            json={"session_id": design_session["id"], "prompt": "first"},
+            headers=headers,
+        )
+    ).status_code == 200
+    balance_before = (await ledger.get_balance(db_session, user.id))["total"]
+    app.state.worker = LateFinalizeWorker(
+        app.state.sessionmaker,
+        lambda: client.post("/batch/recover-token-works", headers=batch_headers),
+    )
+
+    late = await client.post(
+        f"/design/sessions/{design_session['id']}/finalize",
+        json={},
+        headers=headers,
+    )
+
+    assert late.status_code == 409, late.text
+    assert late.json()["code"] == "finalize_expired"
+    # 완성본은 남지 않고 환불은 정확히 한 번이다.
+    assert await db_session.scalar(select(func.count()).select_from(GenerationJob)) == 0
+    (work,) = await _work_rows(db_session)
+    assert work.status == "refunded"
+    assert (await ledger.get_balance(db_session, user.id))["total"] == balance_before
 
 
 async def test_motif_activate_swaps_the_slot_for_free_and_appends_a_step(

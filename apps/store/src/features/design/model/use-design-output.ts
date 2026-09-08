@@ -6,6 +6,7 @@ import {
   type GenerationJobOut,
 } from "@essesion/api-client";
 import {
+  getTokenBalanceQueryKey,
   listDesignSessionsQueryKey,
   listGenerationJobsQueryKey,
 } from "@essesion/api-client/query";
@@ -114,6 +115,9 @@ function useCreateFinalizeJob() {
           queryKey: listGenerationJobsQueryKey(),
         }),
       ]),
+    // 차감(성공)이든 환불(실패)이든 잔액이 움직였다 — 같은 화면의 pill을 맞춘다.
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: getTokenBalanceQueryKey() }),
   });
 }
 

@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from db.models.commerce import Claim, Order, OrderItem
+from db.models.tokens import DesignToken, TokenWork
 from sqlalchemy import func, select
 
 from .factories import make_coupon, make_order, make_user, make_user_coupon
@@ -241,3 +242,100 @@ async def test_batch_oidc_disables_token_fallback(oidc_client, monkeypatch):
     monkeypatch.setattr("api.deps.id_token.verify_oauth2_token", _fake_verify({}))
     res = await oidc_client.post("/batch/cancel-stale-orders", headers=BATCH_HEADERS)
     assert res.status_code == 401
+
+
+async def _pending_work(db_session, user, *, work_id, cost=100, overdue=True, status="pending"):
+    """차감 원장 한 줄 + 그 차감을 가리키는 작업 기록 — 실제 커밋 상태를 그대로 만든다."""
+    db_session.add(
+        DesignToken(user_id=user.id, amount=500, type="grant", token_class="free")
+    )
+    db_session.add(
+        DesignToken(
+            user_id=user.id,
+            amount=-cost,
+            type="use",
+            token_class="free",
+            work_id=f"{work_id}_use_free",
+        )
+    )
+    started_at = datetime.now(UTC) - timedelta(hours=1)
+    db_session.add(
+        TokenWork(
+            work_id=work_id,
+            user_id=user.id,
+            kind="motif_generate",
+            status=status,
+            started_at=started_at,
+            deadline_at=(
+                datetime.now(UTC) - timedelta(minutes=1)
+                if overdue
+                else datetime.now(UTC) + timedelta(minutes=10)
+            ),
+            finished_at=None if status == "pending" else datetime.now(UTC),
+        )
+    )
+    await db_session.commit()
+
+
+async def _balance(db_session, user_id):
+    return await db_session.scalar(
+        select(func.coalesce(func.sum(DesignToken.amount), 0)).where(
+            DesignToken.user_id == user_id
+        )
+    )
+
+
+async def test_recover_token_works_refunds_overdue_pending_exactly_once(client, db_session):
+    user = await make_user(db_session)
+    await _pending_work(db_session, user, work_id="motif_generate_overdue")
+
+    first = await client.post("/batch/recover-token-works", headers=BATCH_HEADERS)
+    second = await client.post("/batch/recover-token-works", headers=BATCH_HEADERS)
+
+    assert first.json() == {"processed": 1}
+    # 배치를 다시 돌려도 두 번 환불하지 않는다.
+    assert second.json() == {"processed": 0}
+    assert await _balance(db_session, user.id) == 500
+    work = await db_session.get(TokenWork, "motif_generate_overdue", populate_existing=True)
+    assert work is not None and work.status == "refunded" and work.finished_at is not None
+
+
+async def test_recover_token_works_leaves_running_and_finished_work_alone(client, db_session):
+    """정상 진행 중(기한 이내)과 이미 종결된 작업은 건드리지 않는다."""
+    user = await make_user(db_session)
+    await _pending_work(db_session, user, work_id="motif_generate_running", overdue=False)
+    await _pending_work(
+        db_session, user, work_id="motif_generate_done", status="succeeded", cost=7
+    )
+
+    response = await client.post("/batch/recover-token-works", headers=BATCH_HEADERS)
+
+    assert response.json() == {"processed": 0}
+    assert await _balance(db_session, user.id) == 1000 - 100 - 7
+
+
+async def test_recover_token_works_ignores_charges_without_a_work_record(client, db_session):
+    """기록 없는 차감은 자동 환불하지 않는다 — 성공 여부를 입증할 연결이 없다."""
+    user = await make_user(db_session)
+    db_session.add(
+        DesignToken(user_id=user.id, amount=500, type="grant", token_class="free")
+    )
+    db_session.add(
+        DesignToken(
+            user_id=user.id,
+            amount=-100,
+            type="use",
+            token_class="free",
+            work_id="motif_generate_orphan_use_free",
+        )
+    )
+    await db_session.commit()
+
+    response = await client.post("/batch/recover-token-works", headers=BATCH_HEADERS)
+
+    assert response.json() == {"processed": 0}
+    assert await _balance(db_session, user.id) == 400
+
+
+async def test_recover_token_works_requires_batch_auth(client):
+    assert (await client.post("/batch/recover-token-works")).status_code == 401

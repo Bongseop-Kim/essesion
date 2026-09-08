@@ -1,4 +1,4 @@
-# Cloud Scheduler → api /batch/* — 배치 4종 (ARCHITECTURE §7.4, domains.md 배치)
+# Cloud Scheduler → api /batch/* — 배치 5종 (ARCHITECTURE §7.4, domains.md 배치)
 # api가 공개 서비스라 Cloud Run IAM으로 못 막는다 — api 앱이 OIDC id-token의
 # audience + email 클레임(scheduler SA)을 직접 검증한다 (api deps.verify_batch_token).
 
@@ -15,6 +15,7 @@ locals {
     cancel-stale-orders            = "*/30 * * * *" # 대기중 30분 SLA — 최악 60분 내 정리 (호출 수 절반, perf-cost-reduction 리뷰 20번)
     cleanup-images                 = "40 4 * * *"   # 일 1회 — 만료·클레임 이미지 2단계 삭제(LIMIT 100)
     authoring-promotion-candidates = "0 5 * * *"    # 일 1회 — 승인 검토용 RAG 시범 후보 선별
+    recover-token-works            = "*/5 * * * *"  # 기한(15분) 지난 미완료 차감 환불 (LIMIT 100, money.md §6)
   }
 }
 

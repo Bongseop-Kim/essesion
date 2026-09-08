@@ -102,11 +102,11 @@ api의 design intent·turn JSON은 compact UTF-8 1MB 이하이면서 NaN/Infinit
   - 주문 인수물: api의 order-reference 복사는 **넥타이 실사 + 정본 타일 2장**을 `uploads/`로 옮긴다(원단 실사는 고객 설득용이라 싣지 않는다). 파일 개수·경로는 내부 계약이며 화면의 첨부 카드는 디자인 1개당 1개다.
 - 실패 계약: 영구 실패(`FabricError`/`IntentInvalid`/`RasterLimitError` — 같은 입력은 같은 실패)는 422 + 공개 코드 `FINALIZE_INVALID_INPUT`, 일시 실패는 5xx — api가 UpstreamError로 변환해 과금을 환불한다. 원시 예외는 워커 로그에만 남긴다.
 - `POST /export` — 동기(작고 빠름), generate 서비스에 두는 것도 가능하나 CPU 바운드이므로 finalize 서비스 소속.
-- finalize 과금·완성본 레코드는 api 소유(§5 과금). `create_finalize_job`은 provenance 검증 → `design_finalize_cost` 토큰 차지 → worker 동기 호출(`_shielded` — 클라 끊겨도 완주, generate와 동일) → 성공 시 `GenerationJob(status="succeeded")` 한 번에 INSERT. 실패 시 행을 남기지 않고 work_id 멱등 환불 — **보관함(`GET /design/jobs`)에는 성공만 존재한다**. `queued`/`processing` 상태와 잡 큐·폴링·취소·stale 회수 기계는 동기 전환으로 제거됐다.
+- finalize 과금·완성본 레코드는 api 소유(§5 과금). `create_finalize_job`은 provenance 검증 → `design_finalize_cost` 토큰 차지 → worker 동기 호출(`_shielded` — 클라 끊겨도 완주, generate와 동일) → 성공 시 `GenerationJob(status="succeeded")` 한 번에 INSERT. 실패 시 행을 남기지 않고 work_id 멱등 환불 — **보관함(`GET /design/jobs`)에는 성공만 존재한다**. `queued`/`processing` 상태와 잡 큐·폴링·취소·stale 회수 기계는 동기 전환으로 제거됐다. 다만 **환불 지점이 동기 경로뿐은 아니다**: 차감과 함께 `token_works` pending을 남기고, 프로세스가 응답 전에 죽으면 기한이 지난 pending을 복구 배치가 환불한다(money.md §6). 완성본 INSERT와 pending→succeeded 전환은 한 트랜잭션이며, 이미 refunded로 종결된 기록 위에는 완성본을 게시하지 않는다.
 
 **DB 접근**: 워커는 motifs(R/W)·seamless_generation_logs(W). SQLAlchemy async + essesion-db 모델 재사용(원본 psycopg 동기 → 스택 통일, ARCHITECTURE §2). 세션·과금·잡 테이블은 api 전용.
 
-**과금**: 토큰 차감/환불은 api 소유(`tokens.ledger.use_tokens/refund` — work_id 멱등). worker는 과금을 모른다. 확정된 단가: 첫 생성 = `admin_settings.design_token_cost_openai_render_standard`, 구성 수정(patch) = `admin_settings.design_edit_cost`, 모티프 검색·교체 = 0, 모티프 생성 = `admin_settings.design_motif_generate_cost`, 실사화 = `admin_settings.design_finalize_cost`, `scope_rejected`는 멱등 환불.
+**과금**: 토큰 차감/환불은 api 소유(`tokens.ledger.use_tokens/refund` — work_id 멱등). worker는 과금 상태를 읽지도 쓰지도 않으며 `token_works`를 모른다. 확정된 단가: 첫 생성 = `admin_settings.design_token_cost_openai_render_standard`, 구성 수정(patch) = `admin_settings.design_edit_cost`, 모티프 검색·교체 = 0, 모티프 생성 = `admin_settings.design_motif_generate_cost`, 실사화 = `admin_settings.design_finalize_cost`, `scope_rejected`는 멱등 환불.
 
 ## 6. 결정론 회귀 테스트
 

@@ -93,6 +93,10 @@ let examples: Record<string, unknown>[] = [];
 let tokenBalance = 455;
 /** 잔액 조회 실패 스위치 — 재조회만 실패시켜 캐시 유지를 확인한다. */
 let balanceFails = false;
+/** 세션 복원 조회 실패 스위치 3종 — 첫 조회 실패와 재시도 성공을 구분해 검증한다. */
+let sessionsFails = false;
+let sessionFails = false;
+let turnsFails = false;
 
 const step = (seq: number, runId: string, svg: string) => ({
   id: `turn-${seq}`,
@@ -129,10 +133,12 @@ const turns = [
 ];
 
 vi.mock("@/features/design/model/queries", () => ({
+  ACTIVE_GENERATION_WAIT_LIMIT_MS: 75 * 60_000,
   designSessionsQueryOptions: (authenticated: boolean) => ({
     queryKey: ["page-design-sessions"],
     queryFn: async () => {
       await sessionsGate;
+      if (sessionsFails) throw new Error("sessions unavailable");
       return [
         {
           id: "session-1",
@@ -149,13 +155,20 @@ vi.mock("@/features/design/model/queries", () => ({
   ],
   designSessionQueryOptions: ({ sessionId }: { sessionId: string | null }) => ({
     queryKey: ["page-design-session", sessionId],
-    queryFn: async () => ({ ...session, ...sessionOverride }),
+    queryFn: async () => {
+      if (sessionFails) throw new Error("session unavailable");
+      return { ...session, ...sessionOverride };
+    },
     enabled: !!sessionId,
+    refetchInterval: () => false as const,
   }),
   designTurnsQueryKey: (sessionId: string) => ["page-design-turns", sessionId],
   designTurnsQueryOptions: ({ sessionId }: { sessionId: string | null }) => ({
     queryKey: ["page-design-turns", sessionId],
-    queryFn: async () => turns,
+    queryFn: async () => {
+      if (turnsFails) throw new Error("turns unavailable");
+      return turns;
+    },
     enabled: !!sessionId,
   }),
   generationJobQueryKey: (jobId: string) => ["page-generation-job", jobId],
@@ -176,6 +189,7 @@ vi.mock("@/features/design/model/queries", () => ({
 // 잔액·예시는 shared/lib/live-queries의 래퍼를 그대로 쓴다 — 래퍼가 감싸는 raw 옵션만 바꾼다.
 vi.mock("@essesion/api-client/query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@essesion/api-client/query")>()),
+  getTokenBalanceQueryKey: () => ["page-design-balance"],
   getTokenBalanceOptions: () => ({
     queryKey: ["page-design-balance"],
     queryFn: async () => {
@@ -260,6 +274,9 @@ describe("DesignPage canvas shell", () => {
     examples = [];
     tokenBalance = 455;
     balanceFails = false;
+    sessionsFails = false;
+    sessionFails = false;
+    turnsFails = false;
     vi.stubGlobal("localStorage", memoryStorage());
     vi.stubGlobal("sessionStorage", memoryStorage());
     localStorage.setItem(DESIGN_ONBOARDING_KEY, "1");
@@ -453,6 +470,109 @@ describe("DesignPage canvas shell", () => {
       finish({ data: { rejected: "motif" } });
     });
     await waitFor(() => expect(disabled(input)).toBe(false));
+    queryClient.clear();
+  });
+
+  it("세션 목록 조회 실패는 빈 캔버스가 아니라 재시도 안내로 보여준다", async () => {
+    sessionsFails = true;
+    const queryClient = renderPage();
+
+    await screen.findByText("작업 중이던 디자인을 불러오지 못했어요");
+    // 서버 상태를 모르는 동안 편집을 잠근다 — 새로 시작만 열어 둔다.
+    expect(disabled(screen.getByLabelText("무엇을 바꿀까요?"))).toBe(true);
+    expect(screen.getByRole("button", { name: "새로 시작" })).toBeTruthy();
+
+    sessionsFails = false;
+    fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText("작업 중이던 디자인을 불러오지 못했어요"),
+      ).toBeNull(),
+    );
+    expect(disabled(screen.getByLabelText("무엇을 바꿀까요?"))).toBe(false);
+    queryClient.clear();
+  });
+
+  it("이력 조회만 실패해도 작업이 사라진 것처럼 보이지 않는다", async () => {
+    turnsFails = true;
+    const queryClient = renderPage();
+
+    await screen.findByText("작업 중이던 디자인을 불러오지 못했어요");
+
+    turnsFails = false;
+    fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
+
+    await screen.findByRole("button", {
+      name: "1번째 디자인으로 되돌리기",
+    });
+    queryClient.clear();
+  });
+
+  it("이미 그린 디자인이 있는 재조회 실패는 캔버스를 지킨 채 알린다", async () => {
+    const queryClient = renderPage();
+    await screen.findByLabelText("무엇을 바꿀까요?");
+
+    sessionFails = true;
+    await act(async () => {
+      await queryClient.refetchQueries({
+        queryKey: ["page-design-session", "session-1"],
+      });
+    });
+
+    await screen.findByText("최신 상태를 불러오지 못했어요");
+    // 캔버스의 디자인과 이력은 그대로다.
+    expect(
+      screen.getByRole("button", { name: "1번째 디자인으로 되돌리기" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText("작업 중이던 디자인을 불러오지 못했어요"),
+    ).toBeNull();
+    queryClient.clear();
+  });
+
+  it("새로고침 뒤에도 서버가 생성 중이면 잠그고, 끝나면 이력을 다시 읽는다", async () => {
+    sessionOverride = {
+      active_generation_id: RUN_2,
+      active_generation_started_at: new Date().toISOString(),
+    };
+    const queryClient = renderPage();
+
+    const input = await screen.findByLabelText("무엇을 바꿀까요?");
+    await waitFor(() => expect(disabled(input)).toBe(true));
+    expect(api.generate).not.toHaveBeenCalled();
+
+    sessionOverride = {};
+    await act(async () => {
+      await queryClient.refetchQueries({
+        queryKey: ["page-design-session", "session-1"],
+      });
+    });
+
+    await waitFor(() => expect(disabled(input)).toBe(false));
+    // 서버가 완료한 결과는 자동 재전송이 아니라 재조회로 들어온다.
+    expect(api.generate).not.toHaveBeenCalled();
+    queryClient.clear();
+  });
+
+  it("유료 모티프 생성이 끝나면 잔액을 다시 조회한다", async () => {
+    api.generateMotif.mockRejectedValue({ code: "upstream_error" });
+    const queryClient = renderPage();
+
+    pickSource(
+      await screen.findByRole("button", { name: "벌 바꾸기" }),
+      1,
+      /^AI 생성/,
+    );
+    await waitForDialog("AI 생성");
+    fireEvent.change(screen.getByLabelText("새로 만들 그림"), {
+      target: { value: "아주 작은 벌" },
+    });
+    tokenBalance = 452;
+    fireEvent.click(screen.getByRole("button", { name: /이 문장으로 만들기/ }));
+
+    // 실패 환불도 잔액을 움직인다 — 같은 화면의 pill이 따라와야 한다.
+    await screen.findByText("452토큰");
     queryClient.clear();
   });
 

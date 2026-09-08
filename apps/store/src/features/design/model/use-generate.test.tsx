@@ -272,6 +272,37 @@ describe("useGenerateDesign", () => {
     queryClient.clear();
   });
 
+  it("통신이 끊긴 실패는 marker를 남기고, 서버가 응답한 실패는 지운다", async () => {
+    const { storage } = memoryStorage();
+    const queryClient = new QueryClient();
+    const { result } = renderHook(
+      () =>
+        useGenerateDesign({
+          pendingStorage: storage,
+          onSessionReady: () => true,
+        }),
+      { wrapper: queryWrapper(queryClient) },
+    );
+
+    api.generate.mockRejectedValue(new TypeError("Failed to fetch"));
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({ sessionId: "session-a", prompt: "A" }),
+      ).rejects.toBeInstanceOf(TypeError);
+    });
+    // 서버가 완료했을 수 있다 — 세션 복구 조회가 이어받도록 표시를 남긴다.
+    expect(readPendingDesign({ storage })?.sessionId).toBe("session-a");
+
+    api.generate.mockRejectedValue({ code: "insufficient_tokens" });
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({ sessionId: "session-a", prompt: "A" }),
+      ).rejects.toMatchObject({ code: "insufficient_tokens" });
+    });
+    expect(readPendingDesign({ storage })).toBeNull();
+    queryClient.clear();
+  });
+
   it("승인되지 않은 stale generation은 과금 요청과 marker를 만들지 않는다", async () => {
     api.generate.mockResolvedValue({ data: generated });
     const { storage } = memoryStorage();

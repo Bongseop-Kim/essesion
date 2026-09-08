@@ -22217,6 +22217,33 @@
         ]
       }
     },
+    "/batch/recover-token-works": {
+      "post": {
+        "description": "기한이 지난 미완료 차감을 환불한다 — 프로세스 중단 복구 (money.md §6).\n\n대상은 api가 남긴 pending 기록뿐이다 — 기록 없는 오래된 차감은 자동 환불하지 않는다.\n외부 호출은 재실행하지 않으며, 회수 불가능한 provider 비용은 서비스가 부담한다.",
+        "operationId": "recover_token_works",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Recover Token Works",
+        "tags": [
+          "batch"
+        ]
+      }
+    },
     "/cart": {
       "get": {
         "operationId": "get_cart",
