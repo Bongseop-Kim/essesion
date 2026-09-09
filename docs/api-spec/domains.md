@@ -18,6 +18,8 @@
 
 Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10초. 헤더 `Authorization: HMAC-SHA256 apiKey=.., date=<ISO now>, salt=<uuid>, signature=HMAC_SHA256(secret, date+salt) hex`. SMS body `{message:{to, from, text, type:"SMS"}}`. 알림톡 `type:"ATA"` + `kakaoOptions:{pfId, templateId, variables, disableSms:false}`(실패 시 SMS 자동 대체, text=fallback). 실패는 throw 없이 false.
 
+- 배송 시작 알림톡(`SOLAPI_TEMPLATE_SHIPPING_STARTED`, 비면 미발송): 변수 `#{처리유형}`(sale 주문 / custom 주문 제작 / sample 샘플 제작 / repair 수선)·`#{주문번호}`·`#{택배사}`·`#{송장번호}`. fallback: `[ESSE SION] 접수하신 {처리유형} 상품의 배송이 시작되었습니다.\n주문번호 {주문번호}\n{택배사} {송장번호}\nhttps://essesion.shop/my-page/orders` (90바이트 초과라 LMS 대체). 발송 조건은 money.md §8.
+
 ## 2. 인증·프로필
 
 - 소셜 **4종 구현**(`SUPPORTED_PROVIDERS = google, kakao, naver, apple`). Apple만 `response_mode=form_post`라 콜백이 **POST**(`POST /auth/apple/callback`)로 오며, form 본문 파싱(`python-multipart` 필수 — 없으면 콜백 전체가 죽는다)과 client-secret JWT 생성 경로를 포함한다. Apple의 동의창 취소는 form의 `error` 필드로 오므로 라우터가 직접 걸러낸다(authlib의 form_post 분기는 GET 분기와 달리 error를 보지 않는다). 미등록 provider는 `/readyz`의 `oauth_*` capability로 드러난다. scope: kakao `profile_nickname account_email`, google `openid email`. 네이버는 scope 파라미터가 없고 개발자센터 콘솔의 동의 항목(이름·이메일·네이버페이 배송지)이 제공 정보를 정한다.

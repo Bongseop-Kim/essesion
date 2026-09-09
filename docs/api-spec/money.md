@@ -135,6 +135,8 @@
 - repair: {발송대기,발송중,발송확인중}→접수→수선중→수선완료→배송중→배송완료→완료. 취소 ← {대기중,결제중,발송대기,발송중,발송확인중} — 발송대기→접수는 §9 의도적 추가(고객 미등록 입고 시 관리자 강제 접수)
 - token: 취소 ← {대기중,결제중}만. **완료는 결제 confirm 전용.**
 
+- **배송중 알림톡**: status가 배송중 AND 송장 완비(택배사·송장번호 모두 존재; repair는 company_courier_company·company_tracking_number, 그 외는 courier_company·tracking_number)가 되는 순간 1회 발송. 두 조건 중 나중에 충족되는 쪽(상태 변경 또는 송장 저장) 커밋 직후 best-effort. 롤백 제외. 수신 4조건(notification_consent·notification_enabled·phone_verified·phone). 송장을 지웠다 다시 넣으면 재발송(의도). 템플릿 미설정이면 건너뜀.
+
 롤백 (현재 상태가 {배송중,배송완료,완료,취소,수거완료,재발송}이면 불가):
 - sale: 결제중→대기중, 진행중→대기중
 - custom: 결제중→대기중, 접수→대기중, 제작중→접수, 제작완료→제작중

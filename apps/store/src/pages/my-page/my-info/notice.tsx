@@ -114,7 +114,7 @@ export function NoticePage() {
               <Callout
                 tone="informative"
                 title="휴대폰 인증이 필요합니다"
-                description="서비스 알림을 켜면 먼저 휴대폰 인증을 진행합니다."
+                description="인증하지 않으면 주문·배송 진행 상태를 카카오톡으로 받을 수 없습니다. 서비스 알림을 켜면 먼저 휴대폰 인증을 진행합니다."
               />
             ) : null}
             <Box

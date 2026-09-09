@@ -74,7 +74,7 @@ export function MyPage() {
         </VStack>
         {!me.phone_verified ? (
           <Text textStyle="caption" color="fg.neutral-muted">
-            휴대폰을 인증하면 주문 상태 알림을 받을 수 있습니다.
+            인증하지 않으면 주문·배송 진행 상태를 카카오톡으로 받을 수 없습니다.
           </Text>
         ) : null}
       </VStack>

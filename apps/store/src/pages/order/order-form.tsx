@@ -43,6 +43,7 @@ import {
 import { CheckoutShell } from "@/features/checkout/ui/checkout-shell";
 import { couponDiscount, couponLabel } from "@/features/coupon/model/discount";
 import { CouponSelectModal } from "@/features/coupon/ui/coupon-select-modal";
+import { PhonePromptCallout } from "@/features/my-page/ui/phone-prompt-callout";
 import { reformServiceLabel } from "@/features/reform/model/reform";
 import {
   isRepairShipmentDraft,
@@ -320,6 +321,8 @@ export function OrderFormPage() {
             onChange={() => setAddressModalOpen(true)}
           />
         )}
+
+        <PhonePromptCallout />
 
         {hasReformItems ? (
           <VStack gap="x4" alignItems="stretch">

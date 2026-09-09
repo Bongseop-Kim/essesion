@@ -809,3 +809,161 @@ async def test_dashboard_top_products(client, db_session, settings):
     )
     assert too_wide.status_code == 400
     assert too_wide.json()["code"] == "invalid_range"
+
+
+# ---- 배송 시작 알림톡 (docs/plans 이관: phone-prompt-and-shipping-alimtalk) ----
+
+SHIPPING_TEMPLATE = "KA01TP-SHIPPING-STARTED-TEST"
+
+
+def _shipping_sent(app) -> list[dict]:
+    return [m for m in app.state.solapi.sent if m.get("template_id") == SHIPPING_TEMPLATE]
+
+
+async def _shipping_notifiable_user(db_session, settings):
+    settings.solapi_template_shipping_started = SHIPPING_TEMPLATE
+    user = await make_user(db_session, phone="01077776666")
+    user.phone_verified = True
+    user.notification_consent = True
+    await db_session.commit()
+    return user
+
+
+async def _tracking_update(client, settings, admin, order_id, body):
+    return await client.post(
+        f"/admin/orders/{order_id}/tracking", json=body, headers=auth_headers(admin, settings)
+    )
+
+
+async def test_shipping_alimtalk_when_status_follows_tracking(app, client, db_session, settings):
+    """송장 먼저 → 배송중 전이 시점에 1회. 이후 배송완료 전이는 재발송 없음."""
+    admin = await make_admin(db_session)
+    user = await _shipping_notifiable_user(db_session, settings)
+    order = await make_order(db_session, user, status="진행중")
+
+    res = await _tracking_update(
+        client,
+        settings,
+        admin,
+        order.id,
+        {"courier_company": "CJ대한통운", "tracking_number": "111"},
+    )
+    assert res.status_code == 200
+    assert _shipping_sent(app) == []  # 아직 배송중이 아니다
+
+    res = await _status_update(client, settings, admin, order.id, {"new_status": "배송중"})
+    assert res.status_code == 200
+    sent = _shipping_sent(app)
+    assert len(sent) == 1
+    assert sent[0]["to"] == "01077776666"
+    assert order.order_number in sent[0]["text"]
+    assert "CJ대한통운 111" in sent[0]["text"]
+    assert "접수하신 주문 상품" in sent[0]["text"]
+
+    res = await _status_update(client, settings, admin, order.id, {"new_status": "배송완료"})
+    assert res.status_code == 200
+    assert len(_shipping_sent(app)) == 1
+
+
+async def test_shipping_alimtalk_when_tracking_follows_status(app, client, db_session, settings):
+    """배송중 먼저 → 송장 완비 시점에 1회. 완비 상태의 송장 수정은 재발송 없음."""
+    admin = await make_admin(db_session)
+    user = await _shipping_notifiable_user(db_session, settings)
+    order = await make_order(db_session, user, status="진행중")
+
+    assert (
+        await _status_update(client, settings, admin, order.id, {"new_status": "배송중"})
+    ).status_code == 200
+    assert _shipping_sent(app) == []  # 송장 없이 배송중 — 보낼 변수가 없다
+
+    res = await _tracking_update(
+        client, settings, admin, order.id, {"courier_company": "한진택배", "tracking_number": "222"}
+    )
+    assert res.status_code == 200
+    assert len(_shipping_sent(app)) == 1
+
+    res = await _tracking_update(client, settings, admin, order.id, {"tracking_number": "333"})
+    assert res.status_code == 200
+    assert len(_shipping_sent(app)) == 1
+
+
+async def test_shipping_alimtalk_waits_for_courier(app, client, db_session, settings):
+    """송장번호만 있으면 미발송(빈 변수 금지). 택배사를 채우는 순간 발송.
+
+    shipped_at을 게이트로 썼다면 영구 미발송이던 경로.
+    """
+    admin = await make_admin(db_session)
+    user = await _shipping_notifiable_user(db_session, settings)
+    order = await make_order(db_session, user, status="배송중")
+
+    res = await _tracking_update(client, settings, admin, order.id, {"tracking_number": "444"})
+    assert res.status_code == 200
+    assert res.json()["shipped_at"] is not None
+    assert _shipping_sent(app) == []
+
+    res = await _tracking_update(client, settings, admin, order.id, {"courier_company": "롯데택배"})
+    assert res.status_code == 200
+    assert len(_shipping_sent(app)) == 1
+
+
+async def test_shipping_alimtalk_skips_opted_out_or_unconfigured(app, client, db_session, settings):
+    admin = await make_admin(db_session)
+    # 수신 조건 미충족 (phone_verified false)
+    settings.solapi_template_shipping_started = SHIPPING_TEMPLATE
+    user = await make_user(db_session, phone="01055554444")
+    user.notification_consent = True
+    await db_session.commit()
+    order = await make_order(
+        db_session, user, status="진행중", courier_company="우체국택배", tracking_number="555"
+    )
+    assert (
+        await _status_update(client, settings, admin, order.id, {"new_status": "배송중"})
+    ).status_code == 200
+    assert _shipping_sent(app) == []
+
+    # 템플릿 미설정이면 수신 가능 유저라도 건너뛴다
+    settings.solapi_template_shipping_started = ""
+    ok_user = await make_user(db_session, phone="01033332222")
+    ok_user.phone_verified = True
+    ok_user.notification_consent = True
+    await db_session.commit()
+    order2 = await make_order(
+        db_session, ok_user, status="진행중", courier_company="우체국택배", tracking_number="666"
+    )
+    assert (
+        await _status_update(client, settings, admin, order2.id, {"new_status": "배송중"})
+    ).status_code == 200
+    assert not [m for m in app.state.solapi.sent if m["to"] == "01033332222"]
+
+
+async def test_shipping_alimtalk_repair_uses_company_shipment(app, client, db_session, settings):
+    """repair: 고객→회사 송장만으로는 미발송, 회사→고객 송장(company_*) 완비 시 발송."""
+    admin = await make_admin(db_session)
+    user = await _shipping_notifiable_user(db_session, settings)
+    order = await make_order(
+        db_session,
+        user,
+        order_type="repair",
+        status="수선완료",
+        courier_company="CJ대한통운",
+        tracking_number="customer-777",
+    )
+
+    assert (
+        await _status_update(client, settings, admin, order.id, {"new_status": "배송중"})
+    ).status_code == 200
+    assert _shipping_sent(app) == []
+
+    res = await _tracking_update(
+        client,
+        settings,
+        admin,
+        order.id,
+        {"company_courier_company": "한진택배", "company_tracking_number": "company-888"},
+    )
+    assert res.status_code == 200
+    sent = _shipping_sent(app)
+    assert len(sent) == 1
+    assert "한진택배 company-888" in sent[0]["text"]
+    assert "customer-777" not in sent[0]["text"]
+    assert "접수하신 수선 상품" in sent[0]["text"]

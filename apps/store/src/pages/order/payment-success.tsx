@@ -21,6 +21,7 @@ import {
 } from "@/features/checkout/model/use-checkout-payment";
 import { usePaymentConfirm } from "@/features/checkout/model/use-payment-confirm";
 import { clearCustomOrderFormDraft } from "@/features/custom-order/model/draft";
+import { PhonePromptCallout } from "@/features/my-page/ui/phone-prompt-callout";
 import { submitRepairShipment } from "@/features/repair-shipping/api/submit";
 import { planRepairOutcome } from "@/features/repair-shipping/model/post-confirm";
 import {
@@ -242,6 +243,7 @@ export function PaymentSuccessPage() {
                 : "주문이 정상적으로 접수되었습니다."
           }
         />
+        <PhonePromptCallout />
         <VStack gap="x2" align="center">
           {repairResult?.kind === "register-cta" ? (
             <>
