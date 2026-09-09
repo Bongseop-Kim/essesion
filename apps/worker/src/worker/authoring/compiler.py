@@ -278,6 +278,27 @@ def _compile_path(
     return output
 
 
+def _separate_scatter_streams(layers: list[dict[str, object]]) -> None:
+    """포아송 산개 레이어가 둘 이상이면 레이어 id로 난수열을 가른다(worker-engine.md §3).
+
+    같은 seed를 쓰는 두 산개 레이어는 좌표가 포개진다. **둘 이상일 때만** salt를 붙여
+    기존 단일 산개 디자인의 컴파일 산출물(과 COMPILER_REVISION)을 그대로 둔다 —
+    구성 patch는 배치를 어차피 새로 만드므로 그쪽은 무조건 붙인다.
+    """
+    scatters: list[tuple[object, dict[str, object]]] = []
+    for layer in layers:
+        placement = layer.get("placement")
+        if not isinstance(placement, dict):
+            continue
+        scatter = placement.get("scatter")
+        if isinstance(scatter, dict) and scatter.get("mode") == "poisson":
+            scatters.append((layer["id"], scatter))
+    if len(scatters) < 2:
+        return
+    for layer_id, scatter in scatters:
+        scatter.setdefault("seed_salt", layer_id)
+
+
 def compile_design_plan_v3(
     plan: DesignPlanV3,
     *,
@@ -367,6 +388,8 @@ def compile_design_plan_v3(
         )
         if source.resolution is not None:
             motif_resolutions.append({"layer_id": layer_id, "scope": "whole", **source.resolution})
+
+    _separate_scatter_streams(layers)
 
     return AuthoredDesign(
         intent={

@@ -1,6 +1,6 @@
 {
-  "revision": "design-accuracy-v1",
-  "review_status": "draft",
+  "revision": "design-accuracy-v3",
+  "review_status": "reviewed",
   "motifs": {
     "eval-circle": "<symbol id=\"motif-eval-circle\" overflow=\"visible\"><circle cx=\"0\" cy=\"0\" r=\"0.5\" fill=\"#FFCC00\"/></symbol>",
     "eval-star": "<symbol id=\"motif-eval-star\" overflow=\"visible\"><polygon points=\"0,-0.5 0.15,-0.15 0.5,0 0.15,0.15 0,0.5 -0.15,0.15 -0.5,0 -0.15,-0.15\" fill=\"#00CCFF\"/></symbol>"
@@ -438,7 +438,7 @@
       "id": "accuracy-002",
       "split": "regression",
       "mode": "initial",
-      "prompt": "흰 바탕에 첨부한 원 하나를 반복하세요. 원 크기는 설계 단위 4, 배치는 격자로 해주세요.",
+      "prompt": "흰 바탕에 첨부한 원 하나를 작게 격자로 반복해 주세요.",
       "input_motif_ids": [
         "eval-circle"
       ],
@@ -446,25 +446,22 @@
       "checks": [
         {
           "fact": "background.color",
-          "op": "eq",
           "value": "#FFFFFF"
         },
         {
           "fact": "motif.ids",
-          "op": "eq",
           "value": [
             "eval-circle"
           ]
         },
         {
-          "fact": "motif.eval-circle.size_mm",
-          "op": "eq",
-          "value": 4
+          "fact": "motif.eval-circle.placement",
+          "value": "lattice"
         },
         {
-          "fact": "motif.eval-circle.placement",
-          "op": "eq",
-          "value": "lattice"
+          "fact": "motif.eval-circle.relative_size",
+          "op": "lte",
+          "value": 0.125
         }
       ]
     },
@@ -562,7 +559,7 @@
       "id": "accuracy-006",
       "split": "held_out",
       "mode": "initial",
-      "prompt": "흰색 45도 대각선 줄무늬를 네이비 #000080 바탕 위에 넣고 모티프는 빼주세요.",
+      "prompt": "흰색 대각선 줄무늬를 왼쪽 위에서 오른쪽 아래로 내려가게 넣고 바탕은 네이비 #000080, 모티프는 빼주세요.",
       "input_motif_ids": [],
       "before": null,
       "checks": [
@@ -1338,7 +1335,7 @@
       "id": "accuracy-024",
       "split": "held_out",
       "mode": "edit",
-      "prompt": "원과 별을 모두 산개 배치로 바꾸고 각각 한 타일에 18개씩, 크기와 색은 유지하세요.",
+      "prompt": "원과 별을 모두 산개 배치로 바꾸고 축마다 6개씩, 크기와 색은 유지하세요.",
       "input_motif_ids": [],
       "before": "base",
       "checks": [

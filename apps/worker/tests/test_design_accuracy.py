@@ -6,6 +6,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from shutil import which
 
 import pytest
 from worker.engine.patch import DesignPatchV1, apply_patch
@@ -217,3 +218,43 @@ def test_lane_conditions_score_the_whole_shape_not_only_the_center():
     assert spilling["motif.eval-circle.lane_contains_shape"] is False
     # 경계 반대편 이웃까지 포함해 겹침을 센다 — 클론이 원본과 겹치면 잡힌다.
     assert spilling["motif.eval-circle.self_overlaps"] > 0
+
+
+_RENDERER = which("rsvg-convert") or which("resvg")
+
+
+@pytest.mark.skipif(_RENDERER is None, reason="rsvg-convert/resvg not available")
+def test_alpha_mask_stage_filters_aabb_false_positives():
+    """AABB는 과대추정이다 — 마스크 2단계는 후보를 줄이되 진짜 겹침은 남긴다."""
+    stacked = copy.deepcopy(corpus().fixtures["base"])
+    for layer in stacked["layers"][2:]:  # 두 모티프를 같은 격자에 정확히 포갠다
+        layer["placement"] = {"type": "lattice", "lattice": {"cell_w_mm": 12, "cell_h_mm": 12}}
+    observation = scoring.Observation(case_id="sample", intent=stacked)
+    facts = scoring.facts(observation, corpus(), ink=True)
+    assert facts["motif.ink_overlaps"] > 0
+
+    sparse = copy.deepcopy(corpus().fixtures["base"])
+    for layer in sparse["layers"][2:]:
+        layer["placement"] = {
+            "type": "scatter",
+            "scatter": {"mode": "poisson", "min_dist_mm": 8, "count": 12},
+        }
+        layer["params"]["size_mm"] = 7.0  # AABB는 서로 닿지만 실제 잉크는 덜 겹친다
+    loose = scoring.facts(scoring.Observation(case_id="sample", intent=sparse), corpus(), ink=True)
+    assert loose["motif.overlaps"] > loose["motif.ink_overlaps"]
+    # 렌더러 없이 돌린 채점은 이 사실을 만들지 않는다 — 조건이 조용히 통과하지 않는다.
+    assert "motif.ink_overlaps" not in scoring.facts(observation, corpus())
+
+
+def test_absolute_bounds_reject_values_outside_the_range():
+    """`lte`/`gte`는 경계값을 포함하고 그 바깥은 떨어뜨린다 — 002의 '아주 작게' 조건."""
+    raw = candidate(2)
+    assert one_case(2, raw)["passed"] == 1
+    raw["layers"][1]["params"]["size_mm"] = 6.0  # 48 × 0.125 — 갤러리의 "작은 모티프", 경계 통과
+    assert one_case(2, raw)["passed"] == 1
+    raw["layers"][1]["params"]["size_mm"] = 8.0  # v1 실모델이 낸 값 — 작지 않다
+    assert one_case(2, raw)["passed"] == 0
+    with pytest.raises(ValueError, match="numeric bound"):
+        scoring.Check(fact="tile_mm", op="lte", value="48")
+    with pytest.raises(ValueError, match="requires a non-null value"):
+        scoring.Check(fact="tile_mm", op="gte")

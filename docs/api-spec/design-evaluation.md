@@ -7,9 +7,19 @@
 ## 데이터와 평가 범위
 
 - 기준: [design_accuracy_cases.json](../../apps/worker/scripts/design_accuracy_cases.json)
+- 수집(유료): [collect_design_accuracy.py](../../apps/worker/scripts/collect_design_accuracy.py) — worker 라우트와 같은 경로로 실모델 출력을 모은다
 - 실행: [eval_design_accuracy.py](../../apps/worker/scripts/eval_design_accuracy.py)
 - 채점기 검증: [test_design_accuracy.py](../../apps/worker/tests/test_design_accuracy.py)
 - 기존 유료 평가: [eval_authoring.py](../../apps/worker/scripts/eval_authoring.py). 컴파일·RAG·지연 평가를 유지한다.
+
+v3에서 고친 것(2026-09-09, 사람 확정): 002는 "설계 단위 4" → "작게" + `relative_size lte 0.125`,
+006은 대각선 방향을 문장에 명시(내려가는 대각선 = 45°), 024는 이 계약으로 표현할 수 없는 "타일당 18개" →
+축당 개수("축마다 6개씩")로 바꿨다. **0.125는 임의값이 아니라** 예시
+`gallery_14_motif_lattice_small_size`의 `size_ratio` — 이 엔진이 "작은 모티프"라고 부르는 크기다.
+조건 자체를 느슨하게 만들지 않았다: v1이 낸 0.167은 v3에서도 실패한다.
+
+30건이 모두 통과한다는 것은 **이 코퍼스가 현재 모델을 더 이상 변별하지 못한다**는 뜻이기도 하다.
+통과율을 모델 품질의 상한으로 읽지 말고, 변별력이 필요하면 사례를 늘린다.
 
 | 사례 | 수 | 판정 대상 |
 |---|---:|---|
@@ -37,6 +47,7 @@
 | 연산 | 의미 |
 |---|---|
 | `eq` | 지정 값과 같음. 배열은 순서를 포함해 비교 |
+| `lte` / `gte` | 지정한 수치 상·하한 안(경계 포함). "아주 작게"처럼 baseline이 없는 첫 생성의 정도 표현용 |
 | `unchanged` | 같은 fixture의 관측값과 같음 |
 | `lt_before` / `gt_before` | baseline보다 실제 값이 감소/증가. 동일 값은 실패 |
 
@@ -56,11 +67,13 @@
 | `normalized_positions`, `relative_size` | 좌표·크기를 tile_mm으로 나눔. 전역 배율 변경의 비율 보존 검사 |
 | `lane`, `stripe_host` | 실제 존재하는 stripe host와 정규화된 lane 연결. 중심선 연결만 검증 |
 | `lane_contains_shape` | 회전 반영 AABB 전체가 lane이 가리키는 띠 안에 들어가는지. `b{i}.center`는 밴드, `b{i}.gap`은 빈 공간이 기준이며 경계 clone도 함께 본다. 중심만 사이에 있는 것과 도형 전체가 들어간 것을 가르는 조건이다. 시작/끝 lane은 면적이 없어 이 사실을 내지 않음 |
-| `self_overlaps`, `motif.overlaps` | 경계 clone까지 포함한 인스턴스 쌍 중 회전 반영 AABB가 겹치는 수(레이어 내부 / 전체). **AABB는 과대추정**이라 0은 비겹침 증명이지만 양수는 후보 쌍일 뿐이다 — 가는 도형·곡선은 실제로 안 겹칠 수 있다. 명세가 격자에서 15%까지의 겹침을 허용하므로 이 값은 진단이며, 겹침 0을 요구하는 조건은 사례가 명시할 때만 쓴다 |
+| `self_overlaps`, `motif.overlaps` | 경계 clone까지 포함한 인스턴스 쌍 중 회전 반영 AABB가 겹치는 수(레이어 내부 / 전체). **AABB는 과대추정**이라 0은 비겹침 증명이지만 양수는 후보 쌍일 뿐이다. 실측(2026-09-09, 산개 두 슬롯): AABB 후보 79쌍 중 실제 잉크 겹침은 52쌍으로 **오탐 34%**. 명세가 격자에서 15%까지의 겹침을 허용하므로 이 값은 진단이며, 겹침 0을 요구하는 조건은 사례가 명시할 때만 쓴다 |
+| `self_ink_overlaps`, `motif.ink_overlaps` | `--ink-overlap`을 준 실행에서만 나오는 2단계 판정. AABB가 겹친 쌍만 알파 마스크로 다시 본다(해상도 8px/mm, 알파 임계 16, 안전 여백 없음). 렌더러(rsvg-convert/resvg)가 필요하다. 저해상도라 **비겹침의 증명이 아니다** — 가는 선은 놓칠 수 있다. 플래그 없이 돌리면 이 사실 자체가 없으므로 이 값을 쓰는 조건은 조용히 통과하지 않고 실패한다 |
 | `rejection` | 저장된 거절 이유와 기대 이유 일치. 과금 환불·턴 삭제는 별도 API 테스트의 책임 |
 
-알파 마스크 대조(AABB가 겹친 후보에만 적용)는 아직 없다 — 마스크 해상도·임계값·안전 여백을
-먼저 정해야 하므로 남은 플랜으로 둔다. 그때까지 겹침 판정은 AABB 수준의 진단이다.
+```bash
+uv run python apps/worker/scripts/eval_design_accuracy.py --outputs obs.json --ink-overlap
+```
 
 `compose_design`이 반환한 정규화 intent를 사용한다. 따라서 validator repair 이후를 검사한다.
 관측 입력은 worker가 제약 적용까지 마친 **최종 resolved intent**여야 한다. 저작 Plan이나 적용 전 patch를 그대로 입력하지 않는다.
@@ -73,6 +86,13 @@ geometry 충돌·seam·미적 균형·물리 색 재현은 별도 평가 대상�
 
 ```bash
 uv run python apps/worker/scripts/eval_design_accuracy.py --check-corpus
+```
+
+실모델 출력은 수집 스크립트로 모은다(유료, 동의 필요). 편집 사례는 코퍼스 fixture를 baseline으로 쓰고,
+fixture 모티프의 subject는 프로덕션이 DB에서 읽는 값을 스크립트 상수로 공급한다.
+
+```bash
+uv run python apps/worker/scripts/collect_design_accuracy.py --confirm-live --out obs.json --meta meta.json
 ```
 
 실제 저장 결과는 JSON 배열로 준비하고 다음 명령으로 채점한다.
@@ -107,6 +127,12 @@ uv run python apps/worker/scripts/eval_design_accuracy.py --outputs /private/tmp
    코퍼스 hash와 엔진 버전만으로 생성 조건 전체가 재현되는 것은 아니다.
 3. 새 실패는 컴파일 오류와 의미 오류를 구분한다. retrieval/authoring 세부 귀속과 지연은 기존 유료 평가·생성 diagnostics와 대조한다.
 4. 현재 테스트의 수작업 후보 30건 통과는 **채점 기준의 충족 가능성 검사**다. 실제 모델 100% 정확도를 뜻하지 않는다.
+
+2026-09-09 첫 실모델 기준선(v1, 27/30)과 기준 확정 후 재측정(v3, 30/30 2회)은
+[실행 기록](../reviews/design-accuracy-baseline-2026-09-09.md)에 있다.
+v1 실패 3건이 전부 기준 쪽 문제였고, 사람 확정을 거쳐 문장·조건을 고친 것이 현재의
+`design-accuracy-v3`(`review_status=reviewed`)다.
+**revision이 다른 수치를 같은 지표로 비교하지 않는다** — 기준이 달라졌다.
 
 원자 조건과 의존 관계 설계는 [T2I-CompBench](https://arxiv.org/abs/2307.06350)와
 [DSG](https://arxiv.org/abs/2310.18235)를 참고했다(2026-09-08 조사). 여기서는 이미지 질문응답 대신 intent·좌표를 직접 판정한다.
