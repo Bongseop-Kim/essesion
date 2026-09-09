@@ -2,7 +2,7 @@
 
 `docs/plans/design-engine-accuracy.md`(제거됨)의 2·3·4·5단계와 6단계의 명세 갱신을 실행했다.
 1단계(사람의 기준 검토·실모델 기준선)와 7단계(RAG·샘플러 비교)는 실행 조건이 갖춰지지 않아
-[남은 플랜](../plans/design-accuracy-baseline.md)으로 옮겼다.
+[기준선 기록](./design-accuracy-baseline-2026-09-09.md)에서 실행했고, 남은 것은 [후속 플랜](../plans/design-accuracy-followups.md)에 있다.
 평가 기반 자체는 [2026-09-08 기록](./design-evaluation-foundation-2026-09-08.md)에 있다.
 
 provider 호출·과금·worker HTTP 계약은 건드리지 않았다. **실모델 정확도는 여전히 미측정이다.**

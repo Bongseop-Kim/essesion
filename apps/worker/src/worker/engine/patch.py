@@ -112,7 +112,9 @@ class DesignPatchV1(_Patch):
     stripe: StripePatch | None = None
     placement: PlacementPatch | None = None
     # 모티프 레이어 순서대로. 남는 값은 무시한다(모델이 레이어 수를 세지 못해도 안전).
-    motif_size_mm: list[float] | None = Field(default=None, max_length=2)
+    # null 항목은 "그 모티프는 그대로" — 안 바꿀 값을 모델이 베껴 넣지 않아도 된다.
+    # 베끼게 했더니 10회 중 2회 대상이 아닌 모티프까지 같은 값으로 바뀌었다(2026-09-09 실측).
+    motif_size_mm: list[float | None] | None = Field(default=None, max_length=2)
     # 전역 배율 — intent의 모든 길이(mm)를 tile_mm 포함해 일괄 f배. 균일 배율은 모든
     # seamless 불변식을 보존하므로 재스냅이 걸리지 않는다. motif_size_mm은 배율 적용
     # **후** 최종 프레임의 절대값으로 적용된다.

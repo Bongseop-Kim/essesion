@@ -29,6 +29,7 @@ v3에서 30건이 모두 통과해 변별력이 사라졌으므로 v4에서 7건
 | accuracy-027~030 | 4 | 거절: 모티프 재색·없는 대상·모티프 교체·없는 줄 사이 배치 |
 | accuracy-031~035 | 5 | 첫 생성 변별용(v4): 지명색과 역할의 결합, 명시 hex 준수, 추상 요청 속 명시 조건 |
 | accuracy-036~037 | 2 | 수정 변별용(v4): 한 문장이 두 대상을 반대로 움직이기, 한 슬롯만 줄 위로 |
+| accuracy-040~045 | 6 | 대화 체인 2개(v6): 첫 생성 → 그 결과를 이어서 2턴 더. baseline이 fixture가 아니라 **직전 턴의 실제 산출물**이다 |
 
 `regression` 24건과 `held_out` 13건은 **앞으로 학습/예시에 쓰지 않을 집합 구분**이다.
 프로덕션 few-shot에 이 파일을 시드하지 않는다. 2026-09-09에 활성 예시 25건과의 어휘 겹침을 검사했고
@@ -39,8 +40,10 @@ v3에서 30건이 모두 통과해 변별력이 사라졌으므로 v4에서 7건
 첫 생성에서는 `input_motif_ids` 순서로 해당 symbol을 제공한 결과만 이 기준으로 평가한다.
 카탈로그 검색·고양이 등 자연어 대상 식별 정확도는 이 작은 fixture 평가의 범위 밖이다.
 
-편집 baseline은 fixture에 고정되어 있다. `rotated` → `red_rotated` 맥락 사례는 앞서 적용된 회전 보존을 검증한다.
-모델의 이전 오답을 다음 턴에 연결하는 end-to-end 대화 평가는 아직 수행하지 않는다.
+편집 baseline은 기본적으로 fixture에 고정되어 있다. `rotated` → `red_rotated` 맥락 사례는 앞서 적용된 회전 보존을 검증한다.
+**`before`에 fixture 대신 앞선 사례 id를 적으면 대화 체인**이 된다(040~045): 그 턴의 baseline은 직전 턴이 실제로 만든
+intent이고, `conversation_history`도 실제 문장·note로 채워진다. 1턴의 오답이 2턴으로 전파되며, 체인 턴은
+거절된 턴을 이어받을 수 없다(코퍼스 검증에서 막는다).
 크기와 면적은 현재 엔진의 설계 단위이며, mm 값을 실물 생산 치수의 정확도라고 해석하지 않는다.
 
 ## 정답 조건
@@ -99,6 +102,13 @@ fixture 모티프의 subject는 프로덕션이 DB에서 읽는 값을 스크립
 uv run python apps/worker/scripts/collect_design_accuracy.py --confirm-live --out obs.json --meta meta.json
 ```
 
+간헐적 실패는 1회 실행으로 보이지 않는다. `--repeat N`은 같은 사례를 N회 돌려 `obs.1.json`…처럼
+회차별 파일로 남기고, 사례별 성공률은 회차마다 채점해서 센다.
+
+```bash
+uv run python apps/worker/scripts/collect_design_accuracy.py --confirm-live --repeat 10 --case accuracy-013 --out obs.json --meta meta.json
+```
+
 실제 저장 결과는 JSON 배열로 준비하고 다음 명령으로 채점한다.
 
 ```bash
@@ -109,7 +119,7 @@ uv run python apps/worker/scripts/eval_design_accuracy.py --outputs /private/tmp
 
 | 필드 | 내용 |
 |---|---|
-| `case_id` | 코퍼스의 사례 ID |
+| `case_id` | 코퍼스의 사례 ID (체인 턴은 코퍼스 순서대로 수집해야 baseline이 채워진다) |
 | `intent` | 성공한 worker 최종 intent 객체. 실패/거절이면 생략 |
 | `rejection` | 거절 이유 문자열. 성공이면 생략. intent와 동시에 제공할 수 없음 |
 | `colorway_id` | 실제 선택된 colorway. 생략하면 엔진 기본 선택을 사용 |

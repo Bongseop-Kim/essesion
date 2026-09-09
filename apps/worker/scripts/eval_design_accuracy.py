@@ -56,6 +56,7 @@ class Case(StrictModel):
     prompt: str = Field(min_length=1)
     # Exact fixture symbols are supplied in this order; no live catalog search is scored.
     input_motif_ids: list[str] = Field(default_factory=list)
+    # A fixture name, or an earlier case id when the turn continues that case's own output.
     before: str | None = None
     checks: list[Check] = Field(min_length=1)
 
@@ -71,13 +72,21 @@ class Corpus(StrictModel):
     def valid_cases(self) -> Corpus:
         if len({case.id for case in self.cases}) != len(self.cases):
             raise ValueError("duplicate case ID")
+        seen: set[str] = set()
+        for case in self.cases:
+            # A conversation turn may only continue a case that already ran and produced a design.
+            if case.before is not None and case.before not in self.fixtures:
+                if case.before not in seen:
+                    raise ValueError(f"unknown baseline: {case.before}")
+                earlier = next(item for item in self.cases if item.id == case.before)
+                if earlier.mode == "reject":
+                    raise ValueError(f"{case.id} continues a rejected turn: {case.before}")
+            seen.add(case.id)
         for case in self.cases:
             if len(set(case.input_motif_ids)) != len(case.input_motif_ids):
                 raise ValueError("duplicate input motif")
             if set(case.input_motif_ids) - self.motifs.keys():
                 raise ValueError("unknown input motif")
-            if case.before is not None and case.before not in self.fixtures:
-                raise ValueError(f"unknown fixture: {case.before}")
             if case.mode != "initial" and case.before is None:
                 raise ValueError("edit/reject needs a baseline")
             if any(check.op not in _ABSOLUTE_OPS for check in case.checks) and case.before is None:
@@ -419,14 +428,17 @@ def evaluate(
         raise ValueError("duplicate or unknown observation ID")
     rows = []
     totals: dict[str, list[int]] = defaultdict(lambda: [0, 0])
+    produced: dict[str, dict[str, Any]] = {}
     for case in corpus.cases:
-        before = (
-            facts(
+        before: dict[str, Any] = {}
+        if case.before in corpus.fixtures:
+            before = facts(
                 Observation(case_id=case.id, intent=corpus.fixtures[case.before]), corpus, ink=ink
             )
-            if case.before
-            else {}
-        )
+        elif case.before is not None:
+            # Conversation turn: judged against what the model actually produced earlier, so a
+            # turn-1 mistake propagates instead of being papered over by a clean fixture.
+            before = produced.get(case.before, {})
         error = None
         actual: dict[str, Any] = {}
         if case.id not in by_id:
@@ -434,6 +446,7 @@ def evaluate(
         else:
             try:
                 actual = facts(by_id[case.id], corpus, ink=ink)
+                produced[case.id] = actual
             except Exception as exc:
                 # Invalid engine input is a failed observation, never a smaller denominator.
                 error = type(exc).__name__
@@ -536,7 +549,8 @@ def validate_corpus(corpus: Corpus, *, ink: bool = False) -> None:
                 raise ValueError(f"unknown fact in {case.id}: {check.fact}")
             if check.op not in _ABSOLUTE_OPS:
                 assert case.before is not None
-                if check.fact not in samples[case.before]:
+                # Chain turns have no fixture to sample — their baseline is a live observation.
+                if case.before in samples and check.fact not in samples[case.before]:
                     raise ValueError(f"missing baseline fact in {case.id}: {check.fact}")
 
 

@@ -5,7 +5,13 @@ import copy
 import pytest
 from worker.engine.compose import compose_design
 from worker.engine.constraints import ConstraintInvalid, apply_generation_constraints
-from worker.engine.patch import DesignPatchV1, apply_patch, composition_snapshot, set_motif_slot
+from worker.engine.patch import (
+    DesignPatchV1,
+    apply_patch,
+    composition_snapshot,
+    patch_left_intent_unchanged,
+    set_motif_slot,
+)
 from worker.engine.placement import place
 from worker.engine.primitives import Stripe, build_primitive
 from worker.engine.seamless import assert_seamless_invariants
@@ -798,3 +804,17 @@ def test_sequential_patches_stay_valid_and_seamless():
             current = apply_generation_constraints(apply_patch(current, second))
             assert_seamless_invariants(validate_intent(current).intent)
             compose_design(current)
+
+
+def test_null_motif_size_entry_keeps_that_motif_untouched():
+    """"원만 작게"는 별 값을 베끼지 않고 null로 둔다 — 비대상 모티프가 따라 바뀌면 안 된다."""
+    base = _two_slot_intent()
+    before = _rendered(base)
+
+    patched = apply_patch(base, _patch(motif_size_mm=[2.0, None]))
+    after = _rendered(patched)
+
+    assert after["motif_0"]["size_mm"] == 2.0
+    assert after["motif_slot_2"] == before["motif_slot_2"]
+    # 전부 null이면 만든 것이 없다 — 라우트가 no_change로 되돌리는 입력이다.
+    assert patch_left_intent_unchanged(base, apply_patch(base, _patch(motif_size_mm=[None, None])))

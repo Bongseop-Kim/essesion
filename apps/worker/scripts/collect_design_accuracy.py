@@ -117,7 +117,12 @@ async def _initial(
     }
 
 
-async def _edit(client: LLMClient, case: dict, baseline: dict) -> dict[str, Any]:
+async def _edit(
+    client: LLMClient,
+    case: dict,
+    baseline: dict,
+    history: list[dict[str, object]] | None = None,
+) -> dict[str, Any]:
     motifs = [
         {"id": motif_id, "subject": MOTIF_SUBJECTS.get(motif_id), "description": None}
         for motif_id in sorted(iter_motif_ids(baseline))
@@ -126,10 +131,14 @@ async def _edit(client: LLMClient, case: dict, baseline: dict) -> dict[str, Any]
     patch = await client.author_patch(
         case["prompt"],
         snapshot=composition_snapshot(baseline, motifs=motifs),
-        conversation_history=[],
+        conversation_history=history or [],
         diagnostics=diagnostics,
     )
-    meta = {"axes": patch.changed_axes, "attempts": diagnostics.get("authoring_attempts")}
+    meta = {
+        "axes": patch.changed_axes,
+        "attempts": diagnostics.get("authoring_attempts"),
+        "note": patch.note,
+    }
     if not patch.has_changes:
         reason = patch.out_of_scope_reason
         return {
@@ -143,7 +152,12 @@ async def _edit(client: LLMClient, case: dict, baseline: dict) -> dict[str, Any]
     return {"observation": {"case_id": case["id"], "intent": constrained}, "meta": meta}
 
 
-async def _run(args: argparse.Namespace) -> None:
+def _numbered(path: Path, index: int) -> Path:
+    """반복 실행은 `obs.json` → `obs.1.json`처럼 회차 번호를 끼워 따로 남긴다."""
+    return path.with_suffix(f".{index}{path.suffix}")
+
+
+async def _run(args: argparse.Namespace, repeat_index: int | None = None) -> None:
     settings = get_settings()
     api_key = os.environ.get("OPENAI_API_KEY") or settings.openai_api_key
     if not api_key:
@@ -163,6 +177,9 @@ async def _run(args: argparse.Namespace) -> None:
 
     observations: list[dict[str, Any]] = []
     rows: list[dict[str, Any]] = []
+    # 체인 턴이 참조할 직전 턴의 산출물과 문장 이력.
+    produced: dict[str, dict[str, Any]] = {}
+    chat_history: dict[str, list[dict[str, object]]] = {}
     try:
         for case in cases:
             started = time.perf_counter()
@@ -179,8 +196,14 @@ async def _run(args: argparse.Namespace) -> None:
                             use_examples=not args.no_examples,
                         )
                 else:
-                    baseline = corpus["fixtures"][case["before"]]
-                    result = await _edit(client, case, baseline)
+                    before = case["before"]
+                    if before in corpus["fixtures"]:
+                        baseline, history = corpus["fixtures"][before], []
+                    else:
+                        # 대화 이어가기 — 직전 턴이 **실제로 만든** 결과와 그 문장을 넘긴다.
+                        baseline = produced[before]
+                        history = chat_history[before]
+                    result = await _edit(client, case, baseline, history)
             except (IntentInvalid, ConstraintInvalid) as exc:
                 error = type(exc).__name__
             except AdapterClientError:
@@ -190,6 +213,19 @@ async def _run(args: argparse.Namespace) -> None:
             elapsed = round((time.perf_counter() - started) * 1000, 1)
             if result:
                 observations.append(result["observation"])
+                intent = result["observation"].get("intent")
+                if intent is not None:
+                    produced[case["id"]] = intent
+                    parent = case.get("before")
+                    # 프로덕션의 ConversationHistoryItem과 같은 모양이어야 프롬프트가 같다.
+                    summary = (result.get("meta") or {}).get("note")
+                    chat_history[case["id"]] = [
+                        *(chat_history.get(parent, []) if parent else []),
+                        {
+                            "user_prompt": case["prompt"],
+                            "assistant_summary": summary or "요청대로 적용했습니다.",
+                        },
+                    ]
             rows.append(
                 {
                     "id": case["id"],
@@ -206,8 +242,11 @@ async def _run(args: argparse.Namespace) -> None:
         await embedding.aclose()
         await engine.dispose()
 
-    args.out.write_text(json.dumps(observations, ensure_ascii=False), encoding="utf-8")
+    out_path = args.out if repeat_index is None else _numbered(args.out, repeat_index)
+    meta_path = args.meta if repeat_index is None else _numbered(args.meta, repeat_index)
+    out_path.write_text(json.dumps(observations, ensure_ascii=False), encoding="utf-8")
     meta = {
+        "repeat_index": repeat_index,
         "collected_cases": len(cases),
         "written_observations": len(observations),
         "model": settings.llm_model,
@@ -221,7 +260,7 @@ async def _run(args: argparse.Namespace) -> None:
         "code_sha": _code_sha(),
         "cases": rows,
     }
-    args.meta.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+    meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({key: meta[key] for key in meta if key != "cases"}, ensure_ascii=False))
 
 
@@ -234,10 +273,19 @@ def main() -> None:
     parser.add_argument("--case", action="append")
     # RAG A/B: 같은 사례를 예시 없이 저작해 held-out 비교의 대조군을 만든다.
     parser.add_argument("--no-examples", action="store_true")
+    # 간헐적 실패 측정: 같은 사례를 N회 돌려 회차별 파일로 남긴다(사례별 성공률은 채점기로 낸다).
+    parser.add_argument("--repeat", type=int, default=None)
     args = parser.parse_args()
     if not args.confirm_live:
         raise SystemExit("Refusing live provider calls without --confirm-live")
-    asyncio.run(_run(args))
+    if args.repeat is None:
+        asyncio.run(_run(args))
+        return
+    if args.repeat < 2:
+        raise SystemExit("--repeat must be 2 or more")
+    for index in range(1, args.repeat + 1):
+        print(f"--- repeat {index}/{args.repeat}")
+        asyncio.run(_run(args, repeat_index=index))
 
 
 if __name__ == "__main__":

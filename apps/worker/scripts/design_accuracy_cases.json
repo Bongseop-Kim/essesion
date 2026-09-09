@@ -1,5 +1,5 @@
 {
-  "revision": "design-accuracy-v5",
+  "revision": "design-accuracy-v6",
   "review_status": "reviewed",
   "motifs": {
     "eval-circle": "<symbol id=\"motif-eval-circle\" overflow=\"visible\"><circle cx=\"0\" cy=\"0\" r=\"0.5\" fill=\"#FFCC00\"/></symbol>",
@@ -1721,6 +1721,143 @@
         },
         {
           "fact": "stripe.geometry",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-040",
+      "split": "held_out",
+      "mode": "initial",
+      "prompt": "첨부한 원과 별을 격자로 배치하고 바탕은 네이비 #000080으로 해주세요.",
+      "input_motif_ids": [
+        "eval-circle",
+        "eval-star"
+      ],
+      "checks": [
+        {
+          "fact": "background.color",
+          "value": "#000080"
+        },
+        {
+          "fact": "motif.ids",
+          "value": [
+            "eval-circle",
+            "eval-star"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "accuracy-041",
+      "split": "held_out",
+      "mode": "edit",
+      "before": "accuracy-040",
+      "prompt": "바탕만 빨강 #FF0000으로 바꾸고 원과 별은 그대로 두세요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "background.color",
+          "value": "#FF0000"
+        },
+        {
+          "fact": "motif.ids",
+          "value": [
+            "eval-circle",
+            "eval-star"
+          ]
+        },
+        {
+          "fact": "motif.eval-circle.appearance",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.eval-star.appearance",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-042",
+      "split": "held_out",
+      "mode": "edit",
+      "before": "accuracy-041",
+      "prompt": "방금 바꾼 빨간 바탕은 그대로 두고 원만 45도 돌려 주세요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "background.color",
+          "value": "#FF0000"
+        },
+        {
+          "fact": "motif.eval-circle.rotation",
+          "value": [
+            45
+          ]
+        },
+        {
+          "fact": "motif.eval-circle.centers",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.eval-star.appearance",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-043",
+      "split": "held_out",
+      "mode": "initial",
+      "prompt": "첨부한 원을 격자로 반복하고 바탕은 흰색 #FFFFFF으로 해주세요.",
+      "input_motif_ids": [
+        "eval-circle"
+      ],
+      "checks": [
+        {
+          "fact": "background.color",
+          "value": "#FFFFFF"
+        },
+        {
+          "fact": "motif.ids",
+          "value": [
+            "eval-circle"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "accuracy-044",
+      "split": "held_out",
+      "mode": "edit",
+      "before": "accuracy-043",
+      "prompt": "원을 더 촘촘하게 해주세요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "motif.eval-circle.density",
+          "op": "gt_before"
+        },
+        {
+          "fact": "background.color",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-045",
+      "split": "held_out",
+      "mode": "edit",
+      "before": "accuracy-044",
+      "prompt": "조금 더 촘촘하게요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "motif.eval-circle.density",
+          "op": "gt_before"
+        },
+        {
+          "fact": "background.color",
           "op": "unchanged"
         }
       ]

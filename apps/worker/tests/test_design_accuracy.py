@@ -33,6 +33,8 @@ def one_case(index, intent=None, rejection=None):
 
 def candidate(index):
     """Hand-specified satisfying candidates; these are not model benchmark outputs."""
+    if index >= 38:  # 대화 체인 — baseline이 fixture가 아니라 직전 턴이다
+        return _chain_candidate(index)
     data = corpus()
     before = data.cases[index - 1].before or "base"
     raw = copy.deepcopy(data.fixtures[before])
@@ -120,9 +122,35 @@ def _added_candidate(index):
     return apply_patch(raw, DesignPatchV1.model_validate({"note": "test", **patch}))
 
 
+def _chain_candidate(index):
+    """038~043(대화 체인)의 후보 — 각 턴은 **직전 턴 후보**에서 출발한다."""
+    base = copy.deepcopy(corpus().fixtures["base"])
+    base["layers"] = [base["layers"][0], *base["layers"][2:]]  # 줄무늬 없는 두 모티프 격자
+    if index == 38:
+        return base
+    if index == 39:
+        return _recolor(_chain_candidate(38), "ground", "#FF0000")
+    if index == 40:
+        return apply_patch(
+            _chain_candidate(39),
+            DesignPatchV1.model_validate(
+                {"note": "t", "placement": {"slot": 1, "rotation_deg": 45}}
+            ),
+        )
+    single = copy.deepcopy(corpus().fixtures["base"])
+    single["layers"] = [single["layers"][0], single["layers"][2]]
+    single = _recolor(single, "ground", "#FFFFFF")
+    if index == 41:
+        return single
+    denser = DesignPatchV1.model_validate(
+        {"note": "t", "placement": {"count_per_axis": 6 if index == 42 else 8}}
+    )
+    return apply_patch(_chain_candidate(41) if index == 42 else _chain_candidate(42), denser)
+
+
 def test_all_criteria_have_satisfying_candidates_and_cli_can_validate():
     data = corpus()
-    assert len(data.cases) == len({c.prompt for c in data.cases}) == 37
+    assert len(data.cases) == len({c.prompt for c in data.cases}) == 43
     observations = [
         scoring.Observation(case_id=c.id, rejection=c.checks[0].value)
         if c.mode == "reject"
@@ -130,8 +158,8 @@ def test_all_criteria_have_satisfying_candidates_and_cli_can_validate():
         for i, c in enumerate(data.cases, 1)
     ]
     report = scoring.evaluate(data, observations)
-    assert report["passed"] == 37, report["cases"]
-    assert report["by_mode"]["edit"] == {"passed": 20, "total": 20}
+    assert report["passed"] == 43, report["cases"]
+    assert report["by_mode"]["edit"] == {"passed": 24, "total": 24}
     result = subprocess.run(
         [sys.executable, str(SCRIPT), "--check-corpus"],
         check=True,

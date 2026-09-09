@@ -1,6 +1,6 @@
 # 디자인 평가 기준 기반 — 2026-09-08
 
-엔진 정확도 플랜(2026-09-09 [실행 완료](./design-engine-accuracy-2026-09-09.md), 남은 항목은 [기준선 플랜](../plans/design-accuracy-baseline.md))의 평가 기반을 구현했다.
+엔진 정확도 플랜(2026-09-09 [실행 완료](./design-engine-accuracy-2026-09-09.md), 남은 항목은 [후속 플랜](../plans/design-accuracy-followups.md))의 평가 기반을 구현했다.
 생성 엔진·provider·과금 경로는 변경하지 않았다. 사람이 검토하기 전인 기준 초안이며 실모델 평가는 미실행이다.
 
 ## 결과
@@ -26,4 +26,4 @@
 
 사람의 기준 검토, 실제 모델 출력 수집·반복 평가, RAG 누출 검사, 모델 출력이 이어지는 대화 평가는 남았다.
 전체 도형의 비겹침·줄 침범, 래스터 seam, 시각적 균형은 이 채점기로 보증하지 않는다.
-평가 통과율을 모델의 실측 정확도로 보고하지 않는다. 남은 작업은 [기준선 플랜](../plans/design-accuracy-baseline.md)에 있다.
+평가 통과율을 모델의 실측 정확도로 보고하지 않는다. 이후의 실모델 측정은 [기준선 기록](./design-accuracy-baseline-2026-09-09.md), 남은 작업은 [후속 플랜](../plans/design-accuracy-followups.md)에 있다.
