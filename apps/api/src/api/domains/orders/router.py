@@ -9,7 +9,7 @@ from db.models.commerce import (
     Review,
     ShippingAddress,
 )
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, BackgroundTasks, Request
 from sqlalchemy import select
 
 from api.db import SessionDep
@@ -355,17 +355,35 @@ async def submit_repair_no_tracking(
 
 @router.post("/admin/orders/{order_id}/status", response_model=AdminStatusUpdateResponse)
 async def admin_update_order_status(
-    order_id: uuid.UUID, body: AdminStatusUpdateRequest, session: SessionDep, admin: AdminUser
+    order_id: uuid.UUID,
+    body: AdminStatusUpdateRequest,
+    session: SessionDep,
+    admin: AdminUser,
+    request: Request,
+    background: BackgroundTasks,
 ) -> AdminStatusUpdateResponse:
     result = await service.admin_update_status(
-        session, admin, order_id, body.new_status, body.memo, body.is_rollback
+        session,
+        admin,
+        order_id,
+        body.new_status,
+        body.memo,
+        body.is_rollback,
+        solapi=request.app.state.solapi,
+        settings=request.app.state.settings,
+        background=background,
     )
     return AdminStatusUpdateResponse(**result)
 
 
 @router.post("/admin/orders/{order_id}/tracking", response_model=OrderOut)
 async def admin_update_order_tracking(
-    order_id: uuid.UUID, body: AdminTrackingUpdateRequest, session: SessionDep, admin: AdminUser
+    order_id: uuid.UUID,
+    body: AdminTrackingUpdateRequest,
+    session: SessionDep,
+    admin: AdminUser,
+    request: Request,
+    background: BackgroundTasks,
 ) -> OrderOut:
     order = await service.admin_update_tracking(
         session,
@@ -374,5 +392,8 @@ async def admin_update_order_tracking(
         tracking_number=body.tracking_number,
         company_courier_company=body.company_courier_company,
         company_tracking_number=body.company_tracking_number,
+        solapi=request.app.state.solapi,
+        settings=request.app.state.settings,
+        background=background,
     )
     return OrderOut.model_validate(order)

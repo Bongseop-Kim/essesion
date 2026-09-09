@@ -26,6 +26,7 @@ def manual_order_body(**overrides) -> dict:
                     "turn_knot": True,
                     "dimple": True,
                     "total_length_cm": 145,
+                    "wearer_height_cm": 175,
                 },
                 "width": {"target_width_cm": 8},
                 "note": "지퍼 교체 요청",
@@ -51,6 +52,7 @@ async def test_manual_order_crud_flow(client, db_session, settings):
     assert data["is_received"] is True
     assert data["is_paid"] is False
     assert data["items"][0]["automatic"]["total_length_cm"] == 145
+    assert data["items"][0]["automatic"]["wearer_height_cm"] == 175
     assert data["items"][0]["restoration"] is None
 
     detail = await client.get(f"/admin/manual-orders/{data['id']}", headers=headers)
@@ -96,6 +98,33 @@ async def test_manual_order_stale_update_conflicts(client, db_session, settings)
     stale = await client.put(
         f"/admin/manual-orders/{order['id']}",
         json=manual_order_body(expected_updated_at=order["updated_at"], is_confirmed=True),
+        headers=headers,
+    )
+    assert stale.status_code == 409
+    assert stale.json()["code"] == "stale_resource"
+
+
+async def test_manual_order_status_patch(client, db_session, settings):
+    headers = await admin_headers(db_session, settings)
+    body = manual_order_body()
+    del body["items"][0]["automatic"]["wearer_height_cm"]  # 키는 선택 입력
+    created = await client.post("/admin/manual-orders", json=body, headers=headers)
+    order = created.json()
+    assert order["is_confirmed"] is False
+    assert order["items"][0]["automatic"]["wearer_height_cm"] is None
+
+    patched = await client.patch(
+        f"/admin/manual-orders/{order['id']}/status",
+        json={"is_confirmed": True, "expected_updated_at": order["updated_at"]},
+        headers=headers,
+    )
+    assert patched.status_code == 200, patched.text
+    assert patched.json()["is_confirmed"] is True
+    assert patched.json()["items"] == order["items"]
+
+    stale = await client.patch(
+        f"/admin/manual-orders/{order['id']}/status",
+        json={"is_confirmed": False, "expected_updated_at": order["updated_at"]},
         headers=headers,
     )
     assert stale.status_code == 409

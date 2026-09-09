@@ -39,6 +39,7 @@ import {
   getErrorMessage,
 } from "../../shared/lib/format";
 import type { ManualOrderKind } from "../../shared/lib/manual-order-kind";
+import { recommendedTieLengthCm } from "../../shared/lib/tie-length";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { NumberField } from "../../shared/ui/number-field";
@@ -59,6 +60,7 @@ type ItemDraft = {
   turnKnot: boolean;
   dimple: boolean;
   totalLengthCm: string;
+  wearerHeightCm: string;
   hasWidth: boolean;
   targetWidthCm: string;
   hasRestoration: boolean;
@@ -107,6 +109,7 @@ function createItemDraft(
     turnKnot: false,
     dimple: false,
     totalLengthCm: "",
+    wearerHeightCm: "",
     hasWidth: false,
     targetWidthCm: "",
     hasRestoration: false,
@@ -185,6 +188,7 @@ export function manualOrderDraftFrom(order: ManualOrderOut): ManualOrderDraft {
         dimple: item.automatic?.dimple ?? false,
         totalLengthCm:
           item.automatic == null ? "" : String(item.automatic.total_length_cm),
+        wearerHeightCm: String(item.automatic?.wearer_height_cm ?? ""),
         hasWidth: item.width != null,
         targetWidthCm:
           item.width == null ? "" : String(item.width.target_width_cm),
@@ -220,7 +224,12 @@ export function manualOrderDraftFrom(order: ManualOrderOut): ManualOrderDraft {
 
 type ItemErrors = Partial<
   Record<
-    "quantity" | "category" | "totalLengthCm" | "targetWidthCm" | "tieWidthCm",
+    | "quantity"
+    | "category"
+    | "totalLengthCm"
+    | "wearerHeightCm"
+    | "targetWidthCm"
+    | "tieWidthCm",
     string
   >
 >;
@@ -271,7 +280,14 @@ function validateItem(item: ItemDraft, kind: ManualOrderKind): ItemErrors {
     errors.category = "대분류를 하나 이상 선택해 주세요.";
   }
   if (item.hasAutomatic && positiveNumber(item.totalLengthCm) === undefined) {
-    errors.totalLengthCm = "0보다 큰 총장(cm)을 입력해 주세요.";
+    errors.totalLengthCm = "0보다 큰 넥타이 길이(cm)를 입력해 주세요.";
+  }
+  if (
+    item.hasAutomatic &&
+    item.wearerHeightCm.trim() !== "" &&
+    positiveNumber(item.wearerHeightCm) === undefined
+  ) {
+    errors.wearerHeightCm = "0보다 큰 키(cm)를 입력해 주세요.";
   }
   if (item.hasWidth && positiveNumber(item.targetWidthCm) === undefined) {
     errors.targetWidthCm = "0보다 큰 폭(cm)을 입력해 주세요.";
@@ -339,6 +355,10 @@ function itemBody(item: ItemDraft): ManualOrderItem {
             item.turnKnot || (item.mechanism === "zipper" && item.dimple),
           dimple: item.mechanism === "zipper" && item.dimple,
           total_length_cm: Number(item.totalLengthCm),
+          wearer_height_cm:
+            item.wearerHeightCm.trim() === ""
+              ? null
+              : Number(item.wearerHeightCm),
         }
       : null,
     width: item.hasWidth
@@ -884,7 +904,29 @@ export function ManualOrderForm({
                         <TextField
                           type="number"
                           min={1}
-                          label="[자동] 총장"
+                          label="[자동] 키"
+                          suffix="cm"
+                          description="키 입력 시 권장 길이가 자동 채워집니다 · 수정 가능"
+                          value={item.wearerHeightCm}
+                          errorMessage={itemErrors.wearerHeightCm}
+                          disabled={pending}
+                          onChange={(event) => {
+                            const value = event.currentTarget.value;
+                            const height = positiveNumber(value);
+                            updateItem(index, {
+                              wearerHeightCm: value,
+                              ...(height !== undefined && {
+                                totalLengthCm: String(
+                                  recommendedTieLengthCm(height),
+                                ),
+                              }),
+                            });
+                          }}
+                        />
+                        <TextField
+                          type="number"
+                          min={1}
+                          label="[자동] 넥타이 길이"
                           suffix="cm"
                           required
                           value={item.totalLengthCm}

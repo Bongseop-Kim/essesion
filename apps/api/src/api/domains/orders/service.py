@@ -3,6 +3,7 @@
 수식·검증·상태 문자열은 기존 시스템 명세 그대로. 오류 메시지도 원문(영/한) 보존.
 """
 
+import logging
 import uuid
 from collections import defaultdict
 from collections.abc import Sequence
@@ -25,10 +26,12 @@ from db.models.commerce import (
     UserCoupon,
 )
 from db.models.images import Image
+from fastapi import BackgroundTasks
 from obs import request_id_var
 from sqlalchemy import CursorResult, exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.config import Settings
 from api.db import advisory_xact_lock
 from api.domains.images.service import (
     claim_completed_order_images,
@@ -49,8 +52,11 @@ from api.domains.reform.schemas import ReformPricingOut
 from api.domains.reform.service import claim_reform_image, get_reform_pricing, reform_snapshot
 from api.errors import DomainError, ForbiddenError, NotFoundError
 from api.integrations.gcs import GcsClient
+from api.integrations.solapi import SolapiClient
 from api.numbering import generate_number
 from api.pricing import find_pricing_constants, get_pricing_constants
+
+logger = logging.getLogger(__name__)
 
 KST = ZoneInfo("Asia/Seoul")
 
@@ -1030,6 +1036,9 @@ async def admin_update_status(
     new_status: str,
     memo: str | None,
     is_rollback: bool,
+    solapi: SolapiClient | None = None,
+    settings: Settings | None = None,
+    background: BackgroundTasks | None = None,
 ) -> dict:
     from api.domains.orders.status_machine import validate_transition
 
@@ -1064,6 +1073,10 @@ async def admin_update_status(
     previous = order.status
     log_status(session, order, new_status, changed_by=admin.id, memo=memo, is_rollback=is_rollback)
     await session.commit()
+    # 배송중 진입 + 송장 완비 → 배송 시작 알림톡.
+    # 송장이 아직 없으면 admin_update_tracking 쪽이 보낸다.
+    if not is_rollback and new_status == "배송중" and _shipment_ready(order):
+        await _notify_shipping_started(session, order, solapi, settings, background)
     return {"success": True, "previous_status": previous, "new_status": new_status}
 
 
@@ -1075,6 +1088,9 @@ async def admin_update_tracking(
     tracking_number: str | None,
     company_courier_company: str | None,
     company_tracking_number: str | None,
+    solapi: SolapiClient | None = None,
+    settings: Settings | None = None,
+    background: BackgroundTasks | None = None,
 ) -> Order:
     await advisory_xact_lock(session, f"order:{order_id}")
     order = await session.scalar(select(Order).where(Order.id == order_id).with_for_update())
@@ -1093,6 +1109,7 @@ async def admin_update_tracking(
         raise DomainError(
             f"Tracking cannot be updated for order status: {order.status}", code="invalid_status"
         )
+    ready_before = _shipment_ready(order)
     now = datetime.now(UTC)
     if courier_company is not None:
         order.courier_company = courier_company.strip() or None
@@ -1108,4 +1125,93 @@ async def admin_update_tracking(
         order.company_shipped_at = (order.company_shipped_at or now) if value else None
     await session.commit()
     await session.refresh(order)
+    # 송장 완비 false→true 전이 + 이미 배송중 → 배송 시작 알림톡.
+    # 완비 상태의 수정은 재발송하지 않는다.
+    # 송장을 지웠다 다시 넣으면 다시 발송된다 — 송장이 바뀐 재발송이라 의도된 동작.
+    if order.status == "배송중" and not ready_before and _shipment_ready(order):
+        await _notify_shipping_started(session, order, solapi, settings, background)
     return order
+
+
+SHIPPING_STARTED_FALLBACK = (
+    "[ESSE SION] 접수하신 {kind} 상품의 배송이 시작되었습니다.\n"
+    "주문번호 {order_number}\n{courier} {tracking}\nhttps://essesion.shop/my-page/orders"
+)
+# 템플릿 본문 "접수하신 #{처리유형} 상품" 자리에 들어가는 명사구. token은 배송중 전이가 없다.
+SHIPPING_KIND_LABEL = {
+    "sale": "주문",
+    "custom": "주문 제작",
+    "sample": "샘플 제작",
+    "repair": "수선",
+}
+
+
+def _outbound_shipment(order: Order) -> tuple[str | None, str | None]:
+    """회사→고객 송장. repair는 company_* (tracking_number는 고객→회사 송장, money.md §8)."""
+    if order.order_type == "repair":
+        return order.company_courier_company, order.company_tracking_number
+    return order.courier_company, order.tracking_number
+
+
+def _shipment_ready(order: Order) -> bool:
+    courier, tracking = _outbound_shipment(order)
+    return bool(courier and tracking)
+
+
+async def _notify_shipping_started(
+    session: AsyncSession,
+    order: Order,
+    solapi: SolapiClient | None,
+    settings: Settings | None,
+    background: BackgroundTasks | None,
+) -> None:
+    """배송 시작 알림톡 — best-effort. 실패·미설정은 로그만 남기고 상태·송장 저장에 영향 없음.
+
+    호출 시점은 커밋 뒤(solapi HTTP 최대 10초가 FOR UPDATE 잠금을 붙잡지 않게).
+    발송 조건 판정은 호출자가 한다: 배송중 AND 송장 완비가 이번 호출에서 성립.
+    이력 테이블 없음 — 배송중은 롤백 불가라 재진입이 없고,
+    송장 쪽은 완비 false→true 전이가 게이트다.
+    """
+    if solapi is None or settings is None or not settings.solapi_template_shipping_started:
+        return
+    kind = SHIPPING_KIND_LABEL.get(order.order_type)
+    courier, tracking = _outbound_shipment(order)
+    if kind is None or not courier or not tracking:
+        return
+    user = await session.get(User, order.user_id)
+    if user is None or not (
+        user.notification_consent
+        and user.notification_enabled
+        and user.phone_verified
+        and user.phone
+    ):
+        return
+    phone = user.phone
+    order_number = order.order_number
+    template_id = settings.solapi_template_shipping_started
+
+    async def _send() -> None:
+        try:
+            sent = await solapi.send_alimtalk(
+                phone,
+                template_id,
+                {
+                    "#{처리유형}": kind,
+                    "#{주문번호}": order_number,
+                    "#{택배사}": courier,
+                    "#{송장번호}": tracking,
+                },
+                SHIPPING_STARTED_FALLBACK.format(
+                    kind=kind, order_number=order_number, courier=courier, tracking=tracking
+                ),
+            )
+        except Exception:
+            logger.exception("배송 시작 알림톡 발송 예외: order_number=%s", order_number)
+            return
+        if not sent:
+            logger.warning("배송 시작 알림톡 발송 실패: order_number=%s", order_number)
+
+    if background is not None:
+        background.add_task(_send)  # 관리자 응답을 solapi HTTP 뒤로 미루지 않는다
+    else:
+        await _send()

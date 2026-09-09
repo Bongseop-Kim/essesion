@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 
 import type { MeResponse, PaymentConfirmResponse } from "@essesion/api-client";
-import { act, cleanup, render } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -12,20 +13,20 @@ type ConfirmedHandler = (
 
 const confirmHarness = vi.hoisted(() => ({
   onConfirmed: null as ConfirmedHandler | null,
+  result: {
+    valid: true,
+    confirmed: false,
+    failed: false,
+    data: null as unknown,
+    isPending: true,
+  },
 }));
 const cartHarness = vi.hoisted(() => ({ removeItems: vi.fn() }));
 
 vi.mock("@/features/checkout/model/use-payment-confirm", () => ({
   usePaymentConfirm: (onConfirmed: ConfirmedHandler) => {
     confirmHarness.onConfirmed = onConfirmed;
-    return {
-      valid: true,
-      confirmed: false,
-      failed: false,
-      data: null,
-      isPending: true,
-      retry: vi.fn(),
-    };
+    return { ...confirmHarness.result, retry: vi.fn() };
   },
 }));
 
@@ -84,10 +85,13 @@ function savePending(
 }
 
 function renderPage() {
+  const queryClient = new QueryClient();
   return render(
-    <MemoryRouter>
-      <PaymentSuccessPage />
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <PaymentSuccessPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
@@ -106,6 +110,13 @@ describe("payment success pending boundary", () => {
       }),
     );
     confirmHarness.onConfirmed = null;
+    confirmHarness.result = {
+      valid: true,
+      confirmed: false,
+      failed: false,
+      data: null,
+      isPending: true,
+    };
     useSession.setState({
       status: "authenticated",
       accessToken: "access-a",
@@ -303,5 +314,45 @@ describe("payment success pending boundary", () => {
       readPendingCheckout(CHECKOUT_PENDING_KEY, "user-a")?.paymentGroupId,
     ).toBe("group-new");
     expect(cartHarness.removeItems).not.toHaveBeenCalled();
+  });
+
+  it("미인증 사용자에게는 결제완료 화면에 인증 유도 Callout이 보인다", () => {
+    confirmHarness.result = {
+      valid: true,
+      confirmed: true,
+      failed: false,
+      data: null,
+      isPending: false,
+    };
+    useSession.setState({
+      status: "authenticated",
+      accessToken: "access-a",
+      user: user("user-a"),
+    });
+    renderPage();
+
+    expect(
+      screen.getByText("주문·배송 진행 상황을 카카오톡으로 안내해드립니다"),
+    ).toBeTruthy();
+  });
+
+  it("인증된 사용자에게는 인증 유도 Callout이 보이지 않는다", () => {
+    confirmHarness.result = {
+      valid: true,
+      confirmed: true,
+      failed: false,
+      data: null,
+      isPending: false,
+    };
+    useSession.setState({
+      status: "authenticated",
+      accessToken: "access-a",
+      user: { ...user("user-a"), phone_verified: true },
+    });
+    renderPage();
+
+    expect(
+      screen.queryByText("주문·배송 진행 상황을 카카오톡으로 안내해드립니다"),
+    ).toBeNull();
   });
 });

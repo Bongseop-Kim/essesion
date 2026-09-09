@@ -31,6 +31,7 @@ export const ADMIN_NAVIGATION_GROUPS: readonly AdminNavigationGroup[] = [
       { key: "incidents", label: "결제 이상", href: "/incidents" },
       { key: "inquiries", label: "문의 관리", href: "/inquiries" },
       { key: "reviews", label: "후기 관리", href: "/reviews" },
+      { key: "popups", label: "팝업 공지", href: "/popups" },
     ],
   },
   {

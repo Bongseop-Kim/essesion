@@ -859,6 +859,24 @@ export type AdminDesignExampleUpdateRequest = {
 };
 
 /**
+ * AdminEventFields
+ */
+export type AdminEventFields = {
+    /**
+     * Image Upload Id
+     */
+    image_upload_id: string;
+    /**
+     * Image Url
+     */
+    image_url: string;
+    /**
+     * Template
+     */
+    template: 'event';
+};
+
+/**
  * AdminInquiryActorOut
  */
 export type AdminInquiryActorOut = {
@@ -1295,6 +1313,70 @@ export type AdminOrderSummaryOut = {
      * Status
      */
     status: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * AdminPopupNoticeOut
+ */
+export type AdminPopupNoticeOut = {
+    /**
+     * Active Now
+     */
+    active_now: boolean;
+    /**
+     * Body
+     */
+    body: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Enabled
+     */
+    enabled: boolean;
+    /**
+     * Ends On
+     */
+    ends_on: string;
+    /**
+     * Fields
+     */
+    fields: ({
+        template: 'holiday';
+    } & HolidayFields) | ({
+        template: 'operation';
+    } & OperationFields) | ({
+        template: 'event';
+    } & AdminEventFields);
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Link Url
+     */
+    link_url: string | null;
+    /**
+     * Starts On
+     */
+    starts_on: string;
+    /**
+     * Template
+     */
+    template: 'holiday' | 'operation' | 'event';
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Title Emphasis
+     */
+    title_emphasis: string | null;
     /**
      * Updated At
      */
@@ -4206,6 +4288,22 @@ export type DesignWarningOut = {
 };
 
 /**
+ * EventFields
+ *
+ * 이벤트·프로모션 — 배너 이미지가 주인공. 이미지는 admin 업로드를 완료한 행이어야 한다.
+ */
+export type EventFields = {
+    /**
+     * Image Upload Id
+     */
+    image_upload_id: string;
+    /**
+     * Template
+     */
+    template: 'event';
+};
+
+/**
  * FinalizeRequest
  */
 export type FinalizeRequest = {
@@ -4604,6 +4702,44 @@ export type HttpValidationError = {
 };
 
 /**
+ * HolidayFields
+ *
+ * 휴무·명절 안내 — 날짜 4개로 달력과 범례가 자동 생성된다.
+ */
+export type HolidayFields = {
+    /**
+     * Closed From
+     */
+    closed_from: string;
+    /**
+     * Closed To
+     */
+    closed_to: string;
+    /**
+     * Cutoff On
+     */
+    cutoff_on: string;
+    /**
+     * Cutoff Time
+     *
+     * KST HH:MM
+     */
+    cutoff_time: string;
+    /**
+     * Footnote
+     */
+    footnote?: string | null;
+    /**
+     * Resume On
+     */
+    resume_on: string;
+    /**
+     * Template
+     */
+    template: 'holiday';
+};
+
+/**
  * ImageOut
  */
 export type ImageOut = {
@@ -4840,7 +4976,9 @@ export type LoginRequest = {
 /**
  * ManualAutomaticSpec
  *
- * 자동수선 — 종이 양식의 총장(cm)을 받는다(reform의 wearer_height_cm와 다름).
+ * 자동수선 — 작업 기준값은 넥타이 길이(total_length_cm), 키는 참고용 선택 입력.
+ *
+ * reform의 AutomaticReform은 키만 받는다(고객용). 관리자 화면은 키를 넣으면 길이를 계산해 채운다.
  */
 export type ManualAutomaticSpec = {
     /**
@@ -4859,6 +4997,10 @@ export type ManualAutomaticSpec = {
      * Turn Knot
      */
     turn_knot?: boolean;
+    /**
+     * Wearer Height Cm
+     */
+    wearer_height_cm?: number | null;
 };
 
 /**
@@ -5110,6 +5252,22 @@ export type ManualOrderOut = {
      * Updated At
      */
     updated_at: string;
+};
+
+/**
+ * ManualOrderStatusPatch
+ *
+ * 상세 화면에서 확인 상태만 바꾼다 — 전체 본문(품목·이미지 목록) 재전송 없이.
+ */
+export type ManualOrderStatusPatch = {
+    /**
+     * Expected Updated At
+     */
+    expected_updated_at: string;
+    /**
+     * Is Confirmed
+     */
+    is_confirmed: boolean;
 };
 
 /**
@@ -5569,6 +5727,40 @@ export type NotificationPreferencesRequest = {
      * Notification Enabled
      */
     notification_enabled?: boolean | null;
+};
+
+/**
+ * OperationFields
+ *
+ * 배송·운영 안내 — 라벨·값 표.
+ */
+export type OperationFields = {
+    /**
+     * Footnote
+     */
+    footnote?: string | null;
+    /**
+     * Rows
+     */
+    rows: Array<OperationRow>;
+    /**
+     * Template
+     */
+    template: 'operation';
+};
+
+/**
+ * OperationRow
+ */
+export type OperationRow = {
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Value
+     */
+    value: string;
 };
 
 /**
@@ -6657,6 +6849,202 @@ export type PhotoMotifPreviewRequest = {
 };
 
 /**
+ * PopupImageCompleteOut
+ */
+export type PopupImageCompleteOut = {
+    /**
+     * Completed At
+     */
+    completed_at: string;
+    /**
+     * Content Type
+     */
+    content_type: string;
+    /**
+     * Public Url
+     */
+    public_url: string;
+    /**
+     * Size Bytes
+     */
+    size_bytes: number;
+    /**
+     * Upload Id
+     */
+    upload_id: string;
+};
+
+/**
+ * PopupImageUploadOut
+ */
+export type PopupImageUploadOut = {
+    /**
+     * Expires At
+     */
+    expires_at: string;
+    /**
+     * Required Headers
+     */
+    required_headers: {
+        [key: string]: string;
+    };
+    /**
+     * Upload Id
+     */
+    upload_id: string;
+    /**
+     * Upload Url
+     */
+    upload_url: string;
+};
+
+/**
+ * PopupImageUploadRequest
+ */
+export type PopupImageUploadRequest = {
+    /**
+     * Content Type
+     */
+    content_type: string;
+    /**
+     * Filename
+     */
+    filename: string;
+    /**
+     * Size Bytes
+     */
+    size_bytes: number;
+};
+
+/**
+ * PopupNoticeCreateRequest
+ */
+export type PopupNoticeCreateRequest = {
+    /**
+     * Body
+     */
+    body?: string | null;
+    /**
+     * Ends On
+     */
+    ends_on: string;
+    /**
+     * Fields
+     */
+    fields: ({
+        template: 'holiday';
+    } & HolidayFields) | ({
+        template: 'operation';
+    } & OperationFields) | ({
+        template: 'event';
+    } & EventFields);
+    /**
+     * Link Url
+     */
+    link_url?: string | null;
+    /**
+     * Starts On
+     */
+    starts_on: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Title Emphasis
+     */
+    title_emphasis?: string | null;
+};
+
+/**
+ * PopupNoticeOut
+ *
+ * store 렌더에 필요한 것만 — 이미지는 공개 URL로 치환한다.
+ */
+export type PopupNoticeOut = {
+    /**
+     * Body
+     */
+    body: string | null;
+    /**
+     * Fields
+     */
+    fields: ({
+        template: 'holiday';
+    } & HolidayFields) | ({
+        template: 'operation';
+    } & OperationFields) | ({
+        template: 'event';
+    } & PublicEventFields);
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Link Url
+     */
+    link_url: string | null;
+    /**
+     * Template
+     */
+    template: 'holiday' | 'operation' | 'event';
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Title Emphasis
+     */
+    title_emphasis: string | null;
+};
+
+/**
+ * PopupNoticeUpdateRequest
+ *
+ * 생략은 "안 바꿈", null은 "지움"(exclude_unset으로 구분).
+ */
+export type PopupNoticeUpdateRequest = {
+    /**
+     * Body
+     */
+    body?: string | null;
+    /**
+     * Enabled
+     */
+    enabled?: boolean | null;
+    /**
+     * Ends On
+     */
+    ends_on?: string | null;
+    /**
+     * Fields
+     */
+    fields?: ({
+        template: 'holiday';
+    } & HolidayFields) | ({
+        template: 'operation';
+    } & OperationFields) | ({
+        template: 'event';
+    } & EventFields) | null;
+    /**
+     * Link Url
+     */
+    link_url?: string | null;
+    /**
+     * Starts On
+     */
+    starts_on?: string | null;
+    /**
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Title Emphasis
+     */
+    title_emphasis?: string | null;
+};
+
+/**
  * PricingUpdateItem
  */
 export type PricingUpdateItem = {
@@ -6844,6 +7232,20 @@ export type ProfileUpdateRequest = {
      * Name
      */
     name?: string | null;
+};
+
+/**
+ * PublicEventFields
+ */
+export type PublicEventFields = {
+    /**
+     * Image Url
+     */
+    image_url: string;
+    /**
+     * Template
+     */
+    template: 'event';
 };
 
 /**
@@ -10323,6 +10725,36 @@ export type CreateManualOrderImageReadUrlResponses = {
 
 export type CreateManualOrderImageReadUrlResponse = CreateManualOrderImageReadUrlResponses[keyof CreateManualOrderImageReadUrlResponses];
 
+export type PatchManualOrderStatusData = {
+    body: ManualOrderStatusPatch;
+    path: {
+        /**
+         * Manual Order Id
+         */
+        manual_order_id: string;
+    };
+    query?: never;
+    url: '/admin/manual-orders/{manual_order_id}/status';
+};
+
+export type PatchManualOrderStatusErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PatchManualOrderStatusError = PatchManualOrderStatusErrors[keyof PatchManualOrderStatusErrors];
+
+export type PatchManualOrderStatusResponses = {
+    /**
+     * Successful Response
+     */
+    200: ManualOrderOut;
+};
+
+export type PatchManualOrderStatusResponse = PatchManualOrderStatusResponses[keyof PatchManualOrderStatusResponses];
+
 export type ListAdminMotifsData = {
     body?: never;
     path?: never;
@@ -10840,6 +11272,194 @@ export type AdminResolvePaymentIncidentResponses = {
 };
 
 export type AdminResolvePaymentIncidentResponse = AdminResolvePaymentIncidentResponses[keyof AdminResolvePaymentIncidentResponses];
+
+export type ListAdminPopupsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/admin/popups';
+};
+
+export type ListAdminPopupsResponses = {
+    /**
+     * Response List Admin Popups
+     *
+     * Successful Response
+     */
+    200: Array<AdminPopupNoticeOut>;
+};
+
+export type ListAdminPopupsResponse = ListAdminPopupsResponses[keyof ListAdminPopupsResponses];
+
+export type CreateAdminPopupData = {
+    body: PopupNoticeCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/admin/popups';
+};
+
+export type CreateAdminPopupErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateAdminPopupError = CreateAdminPopupErrors[keyof CreateAdminPopupErrors];
+
+export type CreateAdminPopupResponses = {
+    /**
+     * Successful Response
+     */
+    201: AdminPopupNoticeOut;
+};
+
+export type CreateAdminPopupResponse = CreateAdminPopupResponses[keyof CreateAdminPopupResponses];
+
+export type CreateAdminPopupImageUploadUrlData = {
+    body: PopupImageUploadRequest;
+    path?: never;
+    query?: never;
+    url: '/admin/popups/images/upload-url';
+};
+
+export type CreateAdminPopupImageUploadUrlErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateAdminPopupImageUploadUrlError = CreateAdminPopupImageUploadUrlErrors[keyof CreateAdminPopupImageUploadUrlErrors];
+
+export type CreateAdminPopupImageUploadUrlResponses = {
+    /**
+     * Successful Response
+     */
+    200: PopupImageUploadOut;
+};
+
+export type CreateAdminPopupImageUploadUrlResponse = CreateAdminPopupImageUploadUrlResponses[keyof CreateAdminPopupImageUploadUrlResponses];
+
+export type DeleteAdminPopupImageUploadData = {
+    body?: never;
+    path: {
+        /**
+         * Upload Id
+         */
+        upload_id: string;
+    };
+    query?: never;
+    url: '/admin/popups/images/{upload_id}';
+};
+
+export type DeleteAdminPopupImageUploadErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteAdminPopupImageUploadError = DeleteAdminPopupImageUploadErrors[keyof DeleteAdminPopupImageUploadErrors];
+
+export type DeleteAdminPopupImageUploadResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteAdminPopupImageUploadResponse = DeleteAdminPopupImageUploadResponses[keyof DeleteAdminPopupImageUploadResponses];
+
+export type CompleteAdminPopupImageUploadData = {
+    body?: never;
+    path: {
+        /**
+         * Upload Id
+         */
+        upload_id: string;
+    };
+    query?: never;
+    url: '/admin/popups/images/{upload_id}/complete';
+};
+
+export type CompleteAdminPopupImageUploadErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CompleteAdminPopupImageUploadError = CompleteAdminPopupImageUploadErrors[keyof CompleteAdminPopupImageUploadErrors];
+
+export type CompleteAdminPopupImageUploadResponses = {
+    /**
+     * Successful Response
+     */
+    200: PopupImageCompleteOut;
+};
+
+export type CompleteAdminPopupImageUploadResponse = CompleteAdminPopupImageUploadResponses[keyof CompleteAdminPopupImageUploadResponses];
+
+export type DeleteAdminPopupData = {
+    body?: never;
+    path: {
+        /**
+         * Popup Id
+         */
+        popup_id: string;
+    };
+    query?: never;
+    url: '/admin/popups/{popup_id}';
+};
+
+export type DeleteAdminPopupErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteAdminPopupError = DeleteAdminPopupErrors[keyof DeleteAdminPopupErrors];
+
+export type DeleteAdminPopupResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteAdminPopupResponse = DeleteAdminPopupResponses[keyof DeleteAdminPopupResponses];
+
+export type UpdateAdminPopupData = {
+    body: PopupNoticeUpdateRequest;
+    path: {
+        /**
+         * Popup Id
+         */
+        popup_id: string;
+    };
+    query?: never;
+    url: '/admin/popups/{popup_id}';
+};
+
+export type UpdateAdminPopupErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateAdminPopupError = UpdateAdminPopupErrors[keyof UpdateAdminPopupErrors];
+
+export type UpdateAdminPopupResponses = {
+    /**
+     * Successful Response
+     */
+    200: AdminPopupNoticeOut;
+};
+
+export type UpdateAdminPopupResponse = UpdateAdminPopupResponses[keyof UpdateAdminPopupResponses];
 
 export type GetAdminPricingData = {
     body?: never;
@@ -13485,6 +14105,24 @@ export type TossWebhookResponses = {
 };
 
 export type TossWebhookResponse = TossWebhookResponses[keyof TossWebhookResponses];
+
+export type GetActivePopupData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/popups/active';
+};
+
+export type GetActivePopupResponses = {
+    /**
+     * Response Get Active Popup
+     *
+     * Successful Response
+     */
+    200: PopupNoticeOut | null;
+};
+
+export type GetActivePopupResponse = GetActivePopupResponses[keyof GetActivePopupResponses];
 
 export type ListProductsData = {
     body?: never;

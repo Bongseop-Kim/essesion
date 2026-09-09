@@ -1486,6 +1486,31 @@
         "title": "AdminDesignExampleUpdateRequest",
         "type": "object"
       },
+      "AdminEventFields": {
+        "properties": {
+          "image_upload_id": {
+            "format": "uuid",
+            "title": "Image Upload Id",
+            "type": "string"
+          },
+          "image_url": {
+            "title": "Image Url",
+            "type": "string"
+          },
+          "template": {
+            "const": "event",
+            "title": "Template",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template",
+          "image_url",
+          "image_upload_id"
+        ],
+        "title": "AdminEventFields",
+        "type": "object"
+      },
       "AdminInquiryActorOut": {
         "properties": {
           "email": {
@@ -2402,6 +2427,128 @@
           "customer"
         ],
         "title": "AdminOrderSummaryOut",
+        "type": "object"
+      },
+      "AdminPopupNoticeOut": {
+        "properties": {
+          "active_now": {
+            "title": "Active Now",
+            "type": "boolean"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "ends_on": {
+            "format": "date",
+            "title": "Ends On",
+            "type": "string"
+          },
+          "fields": {
+            "discriminator": {
+              "mapping": {
+                "event": "#/components/schemas/AdminEventFields",
+                "holiday": "#/components/schemas/HolidayFields",
+                "operation": "#/components/schemas/OperationFields"
+              },
+              "propertyName": "template"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/HolidayFields"
+              },
+              {
+                "$ref": "#/components/schemas/OperationFields"
+              },
+              {
+                "$ref": "#/components/schemas/AdminEventFields"
+              }
+            ],
+            "title": "Fields"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "link_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Url"
+          },
+          "starts_on": {
+            "format": "date",
+            "title": "Starts On",
+            "type": "string"
+          },
+          "template": {
+            "enum": [
+              "holiday",
+              "operation",
+              "event"
+            ],
+            "title": "Template",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "title_emphasis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Emphasis"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "template",
+          "title",
+          "title_emphasis",
+          "body",
+          "fields",
+          "link_url",
+          "starts_on",
+          "ends_on",
+          "enabled",
+          "active_now",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AdminPopupNoticeOut",
         "type": "object"
       },
       "AdminProductCreateRequest": {
@@ -7732,6 +7879,28 @@
         "title": "DesignWarningOut",
         "type": "object"
       },
+      "EventFields": {
+        "additionalProperties": false,
+        "description": "이벤트·프로모션 — 배너 이미지가 주인공. 이미지는 admin 업로드를 완료한 행이어야 한다.",
+        "properties": {
+          "image_upload_id": {
+            "format": "uuid",
+            "title": "Image Upload Id",
+            "type": "string"
+          },
+          "template": {
+            "const": "event",
+            "title": "Template",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template",
+          "image_upload_id"
+        ],
+        "title": "EventFields",
+        "type": "object"
+      },
       "FinalizeRequest": {
         "properties": {
           "colorway_id": {
@@ -8541,6 +8710,65 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HolidayFields": {
+        "additionalProperties": false,
+        "description": "휴무·명절 안내 — 날짜 4개로 달력과 범례가 자동 생성된다.",
+        "properties": {
+          "closed_from": {
+            "format": "date",
+            "title": "Closed From",
+            "type": "string"
+          },
+          "closed_to": {
+            "format": "date",
+            "title": "Closed To",
+            "type": "string"
+          },
+          "cutoff_on": {
+            "format": "date",
+            "title": "Cutoff On",
+            "type": "string"
+          },
+          "cutoff_time": {
+            "description": "KST HH:MM",
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "Cutoff Time",
+            "type": "string"
+          },
+          "footnote": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Footnote"
+          },
+          "resume_on": {
+            "format": "date",
+            "title": "Resume On",
+            "type": "string"
+          },
+          "template": {
+            "const": "holiday",
+            "title": "Template",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template",
+          "cutoff_on",
+          "cutoff_time",
+          "closed_from",
+          "closed_to",
+          "resume_on"
+        ],
+        "title": "HolidayFields",
+        "type": "object"
+      },
       "ImageOut": {
         "properties": {
           "created_at": {
@@ -8951,7 +9179,7 @@
       },
       "ManualAutomaticSpec": {
         "additionalProperties": false,
-        "description": "자동수선 — 종이 양식의 총장(cm)을 받는다(reform의 wearer_height_cm와 다름).",
+        "description": "자동수선 — 작업 기준값은 넥타이 길이(total_length_cm), 키는 참고용 선택 입력.\n\nreform의 AutomaticReform은 키만 받는다(고객용). 관리자 화면은 키를 넣으면 길이를 계산해 채운다.",
         "properties": {
           "dimple": {
             "default": false,
@@ -8975,6 +9203,18 @@
             "default": false,
             "title": "Turn Knot",
             "type": "boolean"
+          },
+          "wearer_height_cm": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wearer Height Cm"
           }
         },
         "required": [
@@ -9432,6 +9672,27 @@
           "updated_at"
         ],
         "title": "ManualOrderOut",
+        "type": "object"
+      },
+      "ManualOrderStatusPatch": {
+        "additionalProperties": false,
+        "description": "상세 화면에서 확인 상태만 바꾼다 — 전체 본문(품목·이미지 목록) 재전송 없이.",
+        "properties": {
+          "expected_updated_at": {
+            "format": "date-time",
+            "title": "Expected Updated At",
+            "type": "string"
+          },
+          "is_confirmed": {
+            "title": "Is Confirmed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "is_confirmed",
+          "expected_updated_at"
+        ],
+        "title": "ManualOrderStatusPatch",
         "type": "object"
       },
       "ManualOrderUpdateRequest": {
@@ -10354,6 +10615,67 @@
           }
         },
         "title": "NotificationPreferencesRequest",
+        "type": "object"
+      },
+      "OperationFields": {
+        "additionalProperties": false,
+        "description": "배송·운영 안내 — 라벨·값 표.",
+        "properties": {
+          "footnote": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Footnote"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/OperationRow"
+            },
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "Rows",
+            "type": "array"
+          },
+          "template": {
+            "const": "operation",
+            "title": "Template",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template",
+          "rows"
+        ],
+        "title": "OperationFields",
+        "type": "object"
+      },
+      "OperationRow": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "value"
+        ],
+        "title": "OperationRow",
         "type": "object"
       },
       "OrderCreateRequest": {
@@ -12274,6 +12596,400 @@
         "title": "PhotoMotifPreviewRequest",
         "type": "object"
       },
+      "PopupImageCompleteOut": {
+        "properties": {
+          "completed_at": {
+            "format": "date-time",
+            "title": "Completed At",
+            "type": "string"
+          },
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "public_url": {
+            "title": "Public Url",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "upload_id": {
+            "format": "uuid",
+            "title": "Upload Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_id",
+          "public_url",
+          "content_type",
+          "size_bytes",
+          "completed_at"
+        ],
+        "title": "PopupImageCompleteOut",
+        "type": "object"
+      },
+      "PopupImageUploadOut": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "required_headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Required Headers",
+            "type": "object"
+          },
+          "upload_id": {
+            "format": "uuid",
+            "title": "Upload Id",
+            "type": "string"
+          },
+          "upload_url": {
+            "title": "Upload Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_id",
+          "upload_url",
+          "required_headers",
+          "expires_at"
+        ],
+        "title": "PopupImageUploadOut",
+        "type": "object"
+      },
+      "PopupImageUploadRequest": {
+        "properties": {
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "filename": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Filename",
+            "type": "string"
+          },
+          "size_bytes": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 10485760.0,
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "filename",
+          "content_type",
+          "size_bytes"
+        ],
+        "title": "PopupImageUploadRequest",
+        "type": "object"
+      },
+      "PopupNoticeCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body"
+          },
+          "ends_on": {
+            "format": "date",
+            "title": "Ends On",
+            "type": "string"
+          },
+          "fields": {
+            "discriminator": {
+              "mapping": {
+                "event": "#/components/schemas/EventFields",
+                "holiday": "#/components/schemas/HolidayFields",
+                "operation": "#/components/schemas/OperationFields"
+              },
+              "propertyName": "template"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/HolidayFields"
+              },
+              {
+                "$ref": "#/components/schemas/OperationFields"
+              },
+              {
+                "$ref": "#/components/schemas/EventFields"
+              }
+            ],
+            "title": "Fields"
+          },
+          "link_url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "pattern": "^(https://.+|/([^/].*)?)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Url"
+          },
+          "starts_on": {
+            "format": "date",
+            "title": "Starts On",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "title_emphasis": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Emphasis"
+          }
+        },
+        "required": [
+          "title",
+          "fields",
+          "starts_on",
+          "ends_on"
+        ],
+        "title": "PopupNoticeCreateRequest",
+        "type": "object"
+      },
+      "PopupNoticeOut": {
+        "description": "store 렌더에 필요한 것만 — 이미지는 공개 URL로 치환한다.",
+        "properties": {
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body"
+          },
+          "fields": {
+            "discriminator": {
+              "mapping": {
+                "event": "#/components/schemas/PublicEventFields",
+                "holiday": "#/components/schemas/HolidayFields",
+                "operation": "#/components/schemas/OperationFields"
+              },
+              "propertyName": "template"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/HolidayFields"
+              },
+              {
+                "$ref": "#/components/schemas/OperationFields"
+              },
+              {
+                "$ref": "#/components/schemas/PublicEventFields"
+              }
+            ],
+            "title": "Fields"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "link_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Url"
+          },
+          "template": {
+            "enum": [
+              "holiday",
+              "operation",
+              "event"
+            ],
+            "title": "Template",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "title_emphasis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Emphasis"
+          }
+        },
+        "required": [
+          "id",
+          "template",
+          "title",
+          "title_emphasis",
+          "body",
+          "fields",
+          "link_url"
+        ],
+        "title": "PopupNoticeOut",
+        "type": "object"
+      },
+      "PopupNoticeUpdateRequest": {
+        "additionalProperties": false,
+        "description": "생략은 \"안 바꿈\", null은 \"지움\"(exclude_unset으로 구분).",
+        "properties": {
+          "body": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "ends_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends On"
+          },
+          "fields": {
+            "anyOf": [
+              {
+                "discriminator": {
+                  "mapping": {
+                    "event": "#/components/schemas/EventFields",
+                    "holiday": "#/components/schemas/HolidayFields",
+                    "operation": "#/components/schemas/OperationFields"
+                  },
+                  "propertyName": "template"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/HolidayFields"
+                  },
+                  {
+                    "$ref": "#/components/schemas/OperationFields"
+                  },
+                  {
+                    "$ref": "#/components/schemas/EventFields"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fields"
+          },
+          "link_url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "pattern": "^(https://.+|/([^/].*)?)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Url"
+          },
+          "starts_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts On"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "title_emphasis": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Emphasis"
+          }
+        },
+        "title": "PopupNoticeUpdateRequest",
+        "type": "object"
+      },
       "PricingUpdateItem": {
         "properties": {
           "amount": {
@@ -12598,6 +13314,25 @@
           }
         },
         "title": "ProfileUpdateRequest",
+        "type": "object"
+      },
+      "PublicEventFields": {
+        "properties": {
+          "image_url": {
+            "title": "Image Url",
+            "type": "string"
+          },
+          "template": {
+            "const": "event",
+            "title": "Template",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template",
+          "image_url"
+        ],
+        "title": "PublicEventFields",
         "type": "object"
       },
       "PublicInquiryListOut": {
@@ -19356,6 +20091,64 @@
         ]
       }
     },
+    "/admin/manual-orders/{manual_order_id}/status": {
+      "patch": {
+        "operationId": "patch_manual_order_status",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "manual_order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Manual Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualOrderStatusPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManualOrderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Patch Manual Order Status",
+        "tags": [
+          "admin-manual-orders"
+        ]
+      }
+    },
     "/admin/motifs": {
       "get": {
         "operationId": "list_admin_motifs",
@@ -20472,6 +21265,313 @@
         "summary": "Admin Resolve Payment Incident",
         "tags": [
           "admin-operations"
+        ]
+      }
+    },
+    "/admin/popups": {
+      "get": {
+        "operationId": "list_admin_popups",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AdminPopupNoticeOut"
+                  },
+                  "title": "Response List Admin Popups",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Admin Popups",
+        "tags": [
+          "admin-popups"
+        ]
+      },
+      "post": {
+        "description": "등록 직후는 비활성 — `enabled`를 켜야 store에 노출된다.",
+        "operationId": "create_admin_popup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PopupNoticeCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPopupNoticeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Admin Popup",
+        "tags": [
+          "admin-popups"
+        ]
+      }
+    },
+    "/admin/popups/images/upload-url": {
+      "post": {
+        "operationId": "create_admin_popup_image_upload_url",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PopupImageUploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PopupImageUploadOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Admin Popup Image Upload Url",
+        "tags": [
+          "admin-popups"
+        ]
+      }
+    },
+    "/admin/popups/images/{upload_id}": {
+      "delete": {
+        "operationId": "delete_admin_popup_image_upload",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "upload_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Upload Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Admin Popup Image Upload",
+        "tags": [
+          "admin-popups"
+        ]
+      }
+    },
+    "/admin/popups/images/{upload_id}/complete": {
+      "post": {
+        "operationId": "complete_admin_popup_image_upload",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "upload_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Upload Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PopupImageCompleteOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Complete Admin Popup Image Upload",
+        "tags": [
+          "admin-popups"
+        ]
+      }
+    },
+    "/admin/popups/{popup_id}": {
+      "delete": {
+        "operationId": "delete_admin_popup",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "popup_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Popup Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Admin Popup",
+        "tags": [
+          "admin-popups"
+        ]
+      },
+      "patch": {
+        "operationId": "update_admin_popup",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "popup_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Popup Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PopupNoticeUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPopupNoticeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Admin Popup",
+        "tags": [
+          "admin-popups"
         ]
       }
     },
@@ -25252,6 +26352,36 @@
         "summary": "Toss Webhook",
         "tags": [
           "payments"
+        ]
+      }
+    },
+    "/popups/active": {
+      "get": {
+        "description": "store 첫 진입 팝업 — 활성이고 KST 오늘이 기간 안인 것 중 1건. 없으면 null.",
+        "operationId": "get_active_popup",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/PopupNoticeOut"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Active Popup"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Active Popup",
+        "tags": [
+          "popups"
         ]
       }
     },

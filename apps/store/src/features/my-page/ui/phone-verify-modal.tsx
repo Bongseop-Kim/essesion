@@ -97,7 +97,7 @@ export function PhoneVerifyModal({
       open={open}
       onOpenChange={onOpenChange}
       title="휴대폰 인증"
-      description="알림을 받을 휴대폰 번호를 인증해 주세요."
+      description="인증하지 않으면 주문·배송 진행 상태를 카카오톡으로 받을 수 없습니다. 알림을 받을 휴대폰 번호를 인증해 주세요."
       showCloseButton
       size="small"
       footer={

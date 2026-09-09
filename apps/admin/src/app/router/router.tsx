@@ -363,6 +363,27 @@ const pageRoutes: RouteObject[] = [
     },
   },
   {
+    path: "popups",
+    lazy: async () => {
+      const { PopupsPage } = await import("../../pages/popups/list");
+      return { Component: PopupsPage };
+    },
+  },
+  {
+    path: "popups/new",
+    lazy: async () => {
+      const { PopupNewPage } = await import("../../pages/popups/form");
+      return { Component: PopupNewPage };
+    },
+  },
+  {
+    path: "popups/:popupId/edit",
+    lazy: async () => {
+      const { PopupEditPage } = await import("../../pages/popups/form");
+      return { Component: PopupEditPage };
+    },
+  },
+  {
     path: "motifs/:motifId",
     lazy: async () => {
       const { MotifDetailPage } = await import("../../pages/motifs/detail");

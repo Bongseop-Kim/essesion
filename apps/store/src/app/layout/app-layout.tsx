@@ -23,6 +23,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router";
 
 import { AuthGuardProvider } from "@/features/auth/ui/auth-guard-provider";
 import { LogoutButton } from "@/features/auth/ui/logout-button";
+import { PopupNoticeModal } from "@/features/popup-notice/ui/popup-notice-modal";
 import { trackPageView } from "@/shared/lib/analytics";
 import { isReplayMaskedPath } from "@/shared/lib/product-analytics";
 import { useSession } from "@/shared/store/session";
@@ -317,6 +318,8 @@ export function AppLayout() {
           <Outlet />
         </Box>
         {isFocusedRoute ? null : <StoreFooter />}
+        {/* 팝업 공지 — 디자인 페이지는 코치마크와 겹치니 띄우지 않는다 */}
+        <PopupNoticeModal disabled={isFocusedRoute} />
         <SnackbarHost />
       </Layout>
     </AuthGuardProvider>

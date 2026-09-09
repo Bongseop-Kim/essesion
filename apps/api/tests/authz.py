@@ -313,6 +313,24 @@ ADMIN_CASES: list[AdminCase] = [
     ),
     AdminCase("admin_coupons_list", "GET", "/admin/coupons"),
     AdminCase("admin_design_examples_list", "GET", "/admin/design/examples"),
+    AdminCase("admin_popups_list", "GET", "/admin/popups"),
+    AdminCase(
+        "admin_popups_create",
+        "POST",
+        "/admin/popups",
+        {
+            "title": "t",
+            "fields": {"template": "operation", "rows": [{"label": "a", "value": "b"}]},
+            "starts_on": "2026-01-01",
+            "ends_on": "2026-01-02",
+        },
+    ),
+    AdminCase(
+        "admin_popups_image_upload_url",
+        "POST",
+        "/admin/popups/images/upload-url",
+        {"filename": "b.png", "content_type": "image/png", "size_bytes": 1},
+    ),
     AdminCase("admin_manual_orders_list", "GET", "/admin/manual-orders"),
     AdminCase(
         "admin_manual_orders_create",

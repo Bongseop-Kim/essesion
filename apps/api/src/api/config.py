@@ -73,6 +73,7 @@ class Settings(BaseSettings):
     solapi_template_quote_received: str = ""
     solapi_template_phone_code: str = ""  # 비면 인증번호를 알림톡 대신 평문 SMS로 보낸다
     solapi_template_payment_done: str = ""  # 비면 결제완료 알림을 건너뛴다
+    solapi_template_shipping_started: str = ""  # 비면 배송중 알림을 건너뛴다
     gcs_upload_bucket: str = ""  # 비공개 업로드 버킷 (공개 생성물 assets와 분리 — ARCHITECTURE §5)
     gcs_assets_bucket: str = ""  # 공개 상품·생성물 버킷
     # 공개 자산 서빙 origin — 설정하면 storage.googleapis.com 직통 대신 이 origin으로

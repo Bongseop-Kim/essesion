@@ -18,6 +18,8 @@
 
 Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10초. 헤더 `Authorization: HMAC-SHA256 apiKey=.., date=<ISO now>, salt=<uuid>, signature=HMAC_SHA256(secret, date+salt) hex`. SMS body `{message:{to, from, text, type:"SMS"}}`. 알림톡 `type:"ATA"` + `kakaoOptions:{pfId, templateId, variables, disableSms:false}`(실패 시 SMS 자동 대체, text=fallback). 실패는 throw 없이 false.
 
+- 배송 시작 알림톡(`SOLAPI_TEMPLATE_SHIPPING_STARTED`, 비면 미발송): 변수 `#{처리유형}`(sale 주문 / custom 주문 제작 / sample 샘플 제작 / repair 수선)·`#{주문번호}`·`#{택배사}`·`#{송장번호}`. fallback: `[ESSE SION] 접수하신 {처리유형} 상품의 배송이 시작되었습니다.\n주문번호 {주문번호}\n{택배사} {송장번호}\nhttps://essesion.shop/my-page/orders` (90바이트 초과라 LMS 대체). 발송 조건은 money.md §8.
+
 ## 2. 인증·프로필
 
 - 소셜 **4종 구현**(`SUPPORTED_PROVIDERS = google, kakao, naver, apple`). Apple만 `response_mode=form_post`라 콜백이 **POST**(`POST /auth/apple/callback`)로 오며, form 본문 파싱(`python-multipart` 필수 — 없으면 콜백 전체가 죽는다)과 client-secret JWT 생성 경로를 포함한다. Apple의 동의창 취소는 form의 `error` 필드로 오므로 라우터가 직접 걸러낸다(authlib의 form_post 분기는 GET 분기와 달리 error를 보지 않는다). 미등록 provider는 `/readyz`의 `oauth_*` capability로 드러난다. scope: kakao `profile_nickname account_email`, google `openid email`. 네이버는 scope 파라미터가 없고 개발자센터 콘솔의 동의 항목(이름·이메일·네이버페이 배송지)이 제공 정보를 정한다.
@@ -67,9 +69,10 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 ## 8. 이미지 (GCS — ImageKit 대체)
 
 - 업로드: api가 GCS **서명 업로드 URL** 발급(엔드포인트가 object_key 결정) → 클라 업로드 → 도메인 엔티티에 재연결. 견적 이미지는 발급 시 본인 소유 스테이징 행을 만들고 선언 크기·10MiB PUT 상한을 서명하며 24시간 후 미귀속 행을 정리한다. 수선 사진은 비회원도 발급할 수 있으며 JPG/PNG/WebP·10MiB 상한, 15분 PUT URL, 24시간 claim token을 적용한다. 완료 등록에서 GCS metadata(size/content-type)를 검증하고, 로그인 장바구니 동기화 시 사용자 소유로 전환한다.
-- 등록 종류: reform_upload / repair_shipping_upload(entity_id=file key, 부분 unique upsert — 소유자만 갱신), 범용 등록(entity_type별 소유권 검증: product=admin, quote_request/custom_order/reform=해당 엔티티 소유자).
+- 등록 종류: reform_upload / repair_shipping_upload(entity_id=file key, 부분 unique upsert — 소유자만 갱신), 범용 등록(entity_type별 소유권 검증: product=admin, quote_request/custom_order/reform=해당 엔티티 소유자). 팝업 배너는 `popup_upload → popup`(admin 전용, 공개 assets 버킷 — §10 팝업 공지).
 - 재연결: 주문 생성 시 reform_upload→reform(entity_id=order_id), 수선 발송 제출 시 repair_shipping_upload→repair_shipping.
 - 수기 주문 첨부(admin 전용): `manual_order_upload`(`uploads/manual_order_upload/`, TTL 24h, JPG/PNG/WebP·10MiB, 발급자=admin 본인) → 저장 시 `manual_order`(entity_id=수기주문 id, expires_at=NULL). 주문 단위 목록(`image_upload_ids`)과 품목별 목록(`items[].image_upload_ids`)을 합쳐 최대 5장씩 받고, 한 이미지는 한 곳에만 붙는다(중복 422). 등록·수정 요청은 **남길 이미지 전체 목록**이며 빠진 이미지는 `expires_at = now()`로 만료된다(삭제도 동일). 링크 시점에 GCS metadata를 재검증하고, 읽기는 소속 검증 뒤 서명 읽기 URL만 발급한다(다른 주문 이미지는 404).
+- 수기 주문 확인 상태(admin 전용): `PATCH /admin/manual-orders/{id}/status`는 `is_confirmed`만 갱신한다(본문·이미지 목록 재전송 없음). 낙관적 잠금은 PUT과 동일 — `expected_updated_at`이 다르면 409 `stale_resource`. 자동수선 품목의 `wearer_height_cm`(키)은 선택·참고용이고 작업 기준값은 `total_length_cm`(넥타이 길이, 필수)이다.
 - 만료: 미귀속 수선 업로드와 장바구니에서 제거·교체된 수선 업로드는 +24시간, 견적 확정·종료는 +90일(§7). 주문에 연결되거나 로그인 장바구니에서 사용 중인 수선 이미지는 NULL. 정리 배치: `deleted_at IS NULL AND (expires_at < now() OR deletion_claimed_at IS NOT NULL)` 배치 100건 — ①claim(deletion_claimed_at=now) ②GCS 삭제 ③성공분 deleted_at=now (2단계 멱등 삭제).
 
 ## 9. 수선 발송 제출 (고객)
@@ -102,6 +105,10 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
     (수기 주문 품목은 JSONB이고 product_id가 없다).
 - 상품 옵션 전체 교체(admin): DELETE 후 재삽입, **옵션 ≥1개면 products.stock=NULL 강제**(옵션 재고 관리로 전환).
 - 디자인 예시 큐레이션: `GET·POST /admin/design/examples`, `PATCH·DELETE /admin/design/examples/{id}`. 등록은 run 하나당 1개(unique)이고, intent가 `source='user_upload'` 모티프를 쓰면 409(`private_motif_example`). 등록 직후는 비게시 — `published`를 켜야 store 갤러리에 노출된다.
+- **팝업 공지**(store 첫 진입 기간 한정 안내): `GET·POST /admin/popups`, `PATCH·DELETE /admin/popups/{id}`, 배너 이미지 `POST /admin/popups/images/upload-url` → `POST /admin/popups/images/{upload_id}/complete` → 저장 시 연결, `DELETE /admin/popups/images/{upload_id}`(스테이징 만료). 공개 조회 `GET /popups/active`는 `enabled`이고 **KST 오늘**이 `starts_on ≤ 오늘 ≤ ends_on`인 행 중 `starts_on desc, created_at desc` 첫 1건을 주고, 없으면 200 + `null`. 공개 응답은 렌더에 필요한 것만(id·template·title·title_emphasis·body·fields·link_url) — 기간·활성 여부는 admin 응답(`active_now` 계산값 포함)에만 있다.
+  - 템플릿은 `fields.template`으로 판별하는 3종: `holiday`(cutoff_on·cutoff_time `HH:MM`·closed_from·closed_to·resume_on·footnote — `cutoff_on ≤ closed_from ≤ closed_to < resume_on` 아니면 422; store가 이 날짜로 달력·범례를 그린다) · `operation`(rows[{label ≤20자, value ≤80자}] 1–4행·footnote) · `event`(image_upload_id — 본인이 완료 등록한 `popup_upload` 행만, 아니면 422 `invalid_popup_image`/`popup_image_not_completed`; `link_url` 필수 422 `popup_link_required`).
+  - 공통 검증: `ends_on < starts_on` 422 `invalid_popup_period`(PATCH는 병합 뒤 검증), `link_url`은 `/`로 시작하는 내부 경로 또는 `https://`만, `body`는 평문에 `**굵게**` 마크만 허용(store가 해석). PATCH에서 생략은 "안 바꿈", null은 "지움", `fields`는 통째로 교체.
+  - 이미지: 상품 이미지와 같은 규칙(공개 assets 버킷, `popups/` 접두, JPG/PNG/WebP·10MiB, 24시간 TTL). 저장 시 `popup_upload → popup(entity_id=팝업 id, expires_at=NULL)`, 교체·템플릿 변경·팝업 삭제로 빠진 이미지는 `expires_at = now()`로 만료돼 정리 배치가 지운다. 등록 직후는 `enabled=false`.
 
 ## 11. 디자인(`/design`) 엔드포인트
 

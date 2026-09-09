@@ -138,8 +138,8 @@ async def cleanup_images(session: SessionDep, request: Request) -> BatchResult:
     gcs = request.app.state.gcs
     processed = 0
     for image in targets:
-        uses_assets_bucket = image.entity_type.startswith(("product_", "review_photo"))
-        # 상품·후기 사진은 공개 assets 버킷 소속이다.
+        uses_assets_bucket = image.entity_type.startswith(("product_", "review_photo", "popup"))
+        # 상품·후기·팝업 배너 사진은 공개 assets 버킷 소속이다.
         bucket_name = assets_bucket_name(request.app.state.settings) if uses_assets_bucket else None
         if await gcs.delete_object(
             image.object_key, bucket_name=bucket_name
