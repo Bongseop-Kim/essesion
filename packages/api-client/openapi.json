@@ -8951,7 +8951,7 @@
       },
       "ManualAutomaticSpec": {
         "additionalProperties": false,
-        "description": "자동수선 — 종이 양식의 총장(cm)을 받는다(reform의 wearer_height_cm와 다름).",
+        "description": "자동수선 — 작업 기준값은 넥타이 길이(total_length_cm), 키는 참고용 선택 입력.\n\nreform의 AutomaticReform은 키만 받는다(고객용). 관리자 화면은 키를 넣으면 길이를 계산해 채운다.",
         "properties": {
           "dimple": {
             "default": false,
@@ -8975,6 +8975,18 @@
             "default": false,
             "title": "Turn Knot",
             "type": "boolean"
+          },
+          "wearer_height_cm": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wearer Height Cm"
           }
         },
         "required": [
@@ -9432,6 +9444,27 @@
           "updated_at"
         ],
         "title": "ManualOrderOut",
+        "type": "object"
+      },
+      "ManualOrderStatusPatch": {
+        "additionalProperties": false,
+        "description": "상세 화면에서 확인 상태만 바꾼다 — 전체 본문(품목·이미지 목록) 재전송 없이.",
+        "properties": {
+          "expected_updated_at": {
+            "format": "date-time",
+            "title": "Expected Updated At",
+            "type": "string"
+          },
+          "is_confirmed": {
+            "title": "Is Confirmed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "is_confirmed",
+          "expected_updated_at"
+        ],
+        "title": "ManualOrderStatusPatch",
         "type": "object"
       },
       "ManualOrderUpdateRequest": {
@@ -19351,6 +19384,64 @@
           }
         ],
         "summary": "Create Manual Order Image Read Url",
+        "tags": [
+          "admin-manual-orders"
+        ]
+      }
+    },
+    "/admin/manual-orders/{manual_order_id}/status": {
+      "patch": {
+        "operationId": "patch_manual_order_status",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "manual_order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Manual Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualOrderStatusPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManualOrderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Patch Manual Order Status",
         "tags": [
           "admin-manual-orders"
         ]

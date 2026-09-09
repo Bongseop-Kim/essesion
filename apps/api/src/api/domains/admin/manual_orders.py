@@ -39,12 +39,16 @@ MAX_TOTAL_IMAGES = 50  # 주문 단위 + 품목 전체 상한 — 링크 1건당
 
 
 class ManualAutomaticSpec(StrictModel):
-    """자동수선 — 종이 양식의 총장(cm)을 받는다(reform의 wearer_height_cm와 다름)."""
+    """자동수선 — 작업 기준값은 넥타이 길이(total_length_cm), 키는 참고용 선택 입력.
+
+    reform의 AutomaticReform은 키만 받는다(고객용). 관리자 화면은 키를 넣으면 길이를 계산해 채운다.
+    """
 
     mechanism: Literal["zipper", "string"]
     turn_knot: bool = False  # 마감: False=방, True=돌려묶기
     dimple: bool = False  # False=기본, True=딤플
     total_length_cm: float = Field(gt=0)
+    wearer_height_cm: float | None = Field(default=None, gt=0)
 
     @model_validator(mode="after")
     def validate_addons(self) -> "ManualAutomaticSpec":
@@ -160,6 +164,13 @@ class ManualOrderCreateRequest(BaseModel):
 
 
 class ManualOrderUpdateRequest(ManualOrderCreateRequest):
+    expected_updated_at: AwareDatetime
+
+
+class ManualOrderStatusPatch(StrictModel):
+    """상세 화면에서 확인 상태만 바꾼다 — 전체 본문(품목·이미지 목록) 재전송 없이."""
+
+    is_confirmed: bool
     expected_updated_at: AwareDatetime
 
 
@@ -429,6 +440,22 @@ async def update_manual_order(
     await session.commit()
     await session.refresh(row)
     return _out(row, images)
+
+
+@router.patch("/{manual_order_id}/status", response_model=ManualOrderOut)
+async def patch_manual_order_status(
+    manual_order_id: uuid.UUID,
+    body: ManualOrderStatusPatch,
+    session: SessionDep,
+    admin: AdminUser,
+) -> ManualOrderOut:
+    row = await _manual_order_or_404(session, manual_order_id, lock=True)
+    if row.updated_at != body.expected_updated_at:
+        raise ConflictError("수기 주문이 다른 관리자에 의해 변경되었습니다", code="stale_resource")
+    row.is_confirmed = body.is_confirmed
+    await session.commit()
+    await session.refresh(row)
+    return _out(row, await _images_of(session, row.id))
 
 
 @router.delete("/{manual_order_id}", status_code=204)

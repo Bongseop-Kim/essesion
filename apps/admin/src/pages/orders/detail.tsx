@@ -52,6 +52,7 @@ import {
   formatRepairReceiptReason,
   getErrorMessage,
 } from "../../shared/lib/format";
+import { recommendedTieLengthCm } from "../../shared/lib/tie-length";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { type DetailItem, DetailList } from "../../shared/ui/detail-list";
@@ -96,7 +97,8 @@ function snapshotLabel(item: OrderItemOut) {
 }
 
 // 수기 주문 상세(manual-orders/detail.tsx)의 품목 표기와 동일한 형식.
-// 스토어 수선은 총장 대신 착용자 키를 받고(reform 스키마), 품목별 특이사항이 없다.
+// 스토어 수선은 넥타이 길이 대신 착용자 키를 받고(reform 스키마) recommendedTieLengthCm로
+// 권장 길이를 환산해 보여준다. 품목별 특이사항이 없다.
 function repairItemDetailItems(item: OrderItemOut): DetailItem[] {
   const tie = decodeTieSpec(item.item_data);
   const categories = [
@@ -143,10 +145,16 @@ function repairItemDetailItems(item: OrderItemOut): DetailItem[] {
       },
     );
     if (tie.automatic.wearerHeightCm !== null) {
-      items.push({
-        label: "[자동] 착용자 키",
-        value: `${tie.automatic.wearerHeightCm}cm`,
-      });
+      items.push(
+        {
+          label: "[자동] 키",
+          value: `${tie.automatic.wearerHeightCm}cm`,
+        },
+        {
+          label: "[자동] 넥타이 길이",
+          value: `${recommendedTieLengthCm(tie.automatic.wearerHeightCm)}cm (키 기준 권장)`,
+        },
+      );
     }
   }
   if (tie?.width?.targetWidthCm != null) {

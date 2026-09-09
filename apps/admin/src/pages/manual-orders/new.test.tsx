@@ -87,7 +87,7 @@ describe("ManualRepairNewPage", () => {
     await user.click(screen.getByRole("checkbox", { name: "자동수선" }));
     await user.click(screen.getByRole("radio", { name: "돌려묶기" }));
     await user.click(screen.getByRole("radio", { name: "딤플" }));
-    await user.type(screen.getByLabelText(/\[자동\] 총장/), "145");
+    await user.type(screen.getByLabelText(/\[자동\] 넥타이 길이/), "145");
     await user.click(screen.getByRole("checkbox", { name: "폭수선" }));
     await user.type(screen.getByLabelText(/\[폭\] 폭/), "8.5");
     await user.type(screen.getByLabelText("특이사항"), "지퍼 교체 요청");
@@ -116,6 +116,7 @@ describe("ManualRepairNewPage", () => {
                   turn_knot: true,
                   dimple: true,
                   total_length_cm: 145,
+                  wearer_height_cm: null,
                 },
                 width: { target_width_cm: 8.5 },
                 restoration: null,
@@ -132,6 +133,43 @@ describe("ManualRepairNewPage", () => {
       ),
     );
     expect(await screen.findByText("등록 완료")).toBeTruthy();
+  });
+
+  it("[자동] 키를 입력하면 권장 넥타이 길이가 자동으로 채워지고, 이후 수동 수정이 우선한다", async () => {
+    const user = userEvent.setup();
+    renderRepairPage();
+
+    await fillOrderInfo(user);
+    await user.click(screen.getByRole("checkbox", { name: "자동수선" }));
+    await user.type(screen.getByLabelText(/\[자동\] 키/), "175");
+
+    expect(
+      (screen.getByLabelText(/\[자동\] 넥타이 길이/) as HTMLInputElement).value,
+    ).toBe("51");
+
+    const totalLength = screen.getByLabelText(/\[자동\] 넥타이 길이/);
+    await user.clear(totalLength);
+    await user.type(totalLength, "49");
+
+    await user.click(screen.getByRole("button", { name: "수기 수선 등록" }));
+
+    await waitFor(() =>
+      expect(api.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            items: [
+              expect.objectContaining({
+                automatic: expect.objectContaining({
+                  total_length_cm: 49,
+                  wearer_height_cm: 175,
+                }),
+              }),
+            ],
+          }),
+        }),
+        expect.anything(),
+      ),
+    );
   });
 
   it("끈 타입을 선택하면 딤플이 해제되고 비활성화된다(돌려묶기는 유지)", async () => {

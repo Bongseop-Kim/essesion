@@ -3,7 +3,9 @@ import {
   createManualOrderImageReadUrlMutation,
   deleteManualOrderMutation,
   getManualOrderOptions,
+  getManualOrderQueryKey,
   listManualOrdersQueryKey,
+  patchManualOrderStatusMutation,
 } from "@essesion/api-client/query";
 import {
   ActionButton,
@@ -87,11 +89,17 @@ function itemDetailItems(item: ManualOrderItemOut): DetailItem[] {
           />
         ),
       },
-      {
-        label: "[자동] 총장",
-        value: `${item.automatic.total_length_cm}cm`,
-      },
     );
+    if (item.automatic.wearer_height_cm != null) {
+      items.push({
+        label: "[자동] 키",
+        value: `${item.automatic.wearer_height_cm}cm`,
+      });
+    }
+    items.push({
+      label: "[자동] 넥타이 길이",
+      value: `${item.automatic.total_length_cm}cm`,
+    });
   }
   if (item.width != null) {
     items.push({
@@ -250,6 +258,31 @@ function ManualOrderDetail({ kind }: { kind: ManualOrderKind }) {
       snackbar(`${noun}을 삭제하지 못했습니다.`);
     },
   });
+  const statusMutation = useMutation({
+    ...patchManualOrderStatusMutation(),
+    onSuccess: async (data) => {
+      snackbar(`확인 상태를 변경했습니다.`);
+      queryClient.setQueryData(
+        getManualOrderQueryKey({ path: { manual_order_id: data.id } }),
+        data,
+      );
+      await queryClient.invalidateQueries({
+        queryKey: listManualOrdersQueryKey(),
+      });
+    },
+    onError: (error) => {
+      const code =
+        typeof error === "object" && error !== null
+          ? Reflect.get(error, "code")
+          : undefined;
+      if (code === "stale_resource") {
+        snackbar("다른 관리자가 변경했습니다. 다시 불러옵니다.");
+        void query.refetch();
+        return;
+      }
+      snackbar("확인 상태를 변경하지 못했습니다.");
+    },
+  });
   const order = query.data;
 
   if (query.isLoading) return <ManualOrderDetailLoading noun={noun} />;
@@ -298,6 +331,21 @@ function ManualOrderDetail({ kind }: { kind: ManualOrderKind }) {
             onClick={() => navigate("/manual-orders")}
           >
             목록으로
+          </ActionButton>
+          <ActionButton
+            variant="neutralWeak"
+            loading={statusMutation.isPending}
+            onClick={() =>
+              statusMutation.mutate({
+                path: { manual_order_id: order.id },
+                body: {
+                  is_confirmed: !order.is_confirmed,
+                  expected_updated_at: order.updated_at,
+                },
+              })
+            }
+          >
+            {order.is_confirmed ? "확인 취소" : "확인 처리"}
           </ActionButton>
           <ActionButton
             variant="neutralWeak"

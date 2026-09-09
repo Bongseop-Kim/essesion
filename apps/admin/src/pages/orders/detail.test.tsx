@@ -676,6 +676,7 @@ describe("OrderDetailPage", () => {
     expect(screen.getByText("돌려묶기 선택 안 됨")).toBeTruthy();
     expect(screen.getByText("175cm")).toBeTruthy();
     expect(screen.getByText("182cm")).toBeTruthy();
+    expect(screen.getByText("51cm (키 기준 권장)")).toBeTruthy();
     expect(screen.getByText("7.5cm")).toBeTruthy();
     expect(screen.getByText("원형을 유지해 주세요.")).toBeTruthy();
     expect(screen.getByText("010-2222-3333")).toBeTruthy();

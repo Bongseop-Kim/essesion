@@ -4840,7 +4840,9 @@ export type LoginRequest = {
 /**
  * ManualAutomaticSpec
  *
- * 자동수선 — 종이 양식의 총장(cm)을 받는다(reform의 wearer_height_cm와 다름).
+ * 자동수선 — 작업 기준값은 넥타이 길이(total_length_cm), 키는 참고용 선택 입력.
+ *
+ * reform의 AutomaticReform은 키만 받는다(고객용). 관리자 화면은 키를 넣으면 길이를 계산해 채운다.
  */
 export type ManualAutomaticSpec = {
     /**
@@ -4859,6 +4861,10 @@ export type ManualAutomaticSpec = {
      * Turn Knot
      */
     turn_knot?: boolean;
+    /**
+     * Wearer Height Cm
+     */
+    wearer_height_cm?: number | null;
 };
 
 /**
@@ -5110,6 +5116,22 @@ export type ManualOrderOut = {
      * Updated At
      */
     updated_at: string;
+};
+
+/**
+ * ManualOrderStatusPatch
+ *
+ * 상세 화면에서 확인 상태만 바꾼다 — 전체 본문(품목·이미지 목록) 재전송 없이.
+ */
+export type ManualOrderStatusPatch = {
+    /**
+     * Expected Updated At
+     */
+    expected_updated_at: string;
+    /**
+     * Is Confirmed
+     */
+    is_confirmed: boolean;
 };
 
 /**
@@ -10322,6 +10344,36 @@ export type CreateManualOrderImageReadUrlResponses = {
 };
 
 export type CreateManualOrderImageReadUrlResponse = CreateManualOrderImageReadUrlResponses[keyof CreateManualOrderImageReadUrlResponses];
+
+export type PatchManualOrderStatusData = {
+    body: ManualOrderStatusPatch;
+    path: {
+        /**
+         * Manual Order Id
+         */
+        manual_order_id: string;
+    };
+    query?: never;
+    url: '/admin/manual-orders/{manual_order_id}/status';
+};
+
+export type PatchManualOrderStatusErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PatchManualOrderStatusError = PatchManualOrderStatusErrors[keyof PatchManualOrderStatusErrors];
+
+export type PatchManualOrderStatusResponses = {
+    /**
+     * Successful Response
+     */
+    200: ManualOrderOut;
+};
+
+export type PatchManualOrderStatusResponse = PatchManualOrderStatusResponses[keyof PatchManualOrderStatusResponses];
 
 export type ListAdminMotifsData = {
     body?: never;

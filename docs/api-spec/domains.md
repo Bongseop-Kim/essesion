@@ -72,6 +72,7 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 - 등록 종류: reform_upload / repair_shipping_upload(entity_id=file key, 부분 unique upsert — 소유자만 갱신), 범용 등록(entity_type별 소유권 검증: product=admin, quote_request/custom_order/reform=해당 엔티티 소유자).
 - 재연결: 주문 생성 시 reform_upload→reform(entity_id=order_id), 수선 발송 제출 시 repair_shipping_upload→repair_shipping.
 - 수기 주문 첨부(admin 전용): `manual_order_upload`(`uploads/manual_order_upload/`, TTL 24h, JPG/PNG/WebP·10MiB, 발급자=admin 본인) → 저장 시 `manual_order`(entity_id=수기주문 id, expires_at=NULL). 주문 단위 목록(`image_upload_ids`)과 품목별 목록(`items[].image_upload_ids`)을 합쳐 최대 5장씩 받고, 한 이미지는 한 곳에만 붙는다(중복 422). 등록·수정 요청은 **남길 이미지 전체 목록**이며 빠진 이미지는 `expires_at = now()`로 만료된다(삭제도 동일). 링크 시점에 GCS metadata를 재검증하고, 읽기는 소속 검증 뒤 서명 읽기 URL만 발급한다(다른 주문 이미지는 404).
+- 수기 주문 확인 상태(admin 전용): `PATCH /admin/manual-orders/{id}/status`는 `is_confirmed`만 갱신한다(본문·이미지 목록 재전송 없음). 낙관적 잠금은 PUT과 동일 — `expected_updated_at`이 다르면 409 `stale_resource`. 자동수선 품목의 `wearer_height_cm`(키)은 선택·참고용이고 작업 기준값은 `total_length_cm`(넥타이 길이, 필수)이다.
 - 만료: 미귀속 수선 업로드와 장바구니에서 제거·교체된 수선 업로드는 +24시간, 견적 확정·종료는 +90일(§7). 주문에 연결되거나 로그인 장바구니에서 사용 중인 수선 이미지는 NULL. 정리 배치: `deleted_at IS NULL AND (expires_at < now() OR deletion_claimed_at IS NOT NULL)` 배치 100건 — ①claim(deletion_claimed_at=now) ②GCS 삭제 ③성공분 deleted_at=now (2단계 멱등 삭제).
 
 ## 9. 수선 발송 제출 (고객)
