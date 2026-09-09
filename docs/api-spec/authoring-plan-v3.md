@@ -129,6 +129,10 @@ embedding/DB 오류나 빈 active 집합은 상태 코드만 진단에 남기고
 
 ## 평가와 추적
 
+요청 의미·편집 보존 조건은 [디자인 의미 정확도 평가](./design-evaluation.md)의
+30건 draft 코퍼스와 오프라인 채점기로 별도 평가한다. 아래 live 도구의 컴파일 성공률을
+의미 정확도로 해석하지 않는다.
+
 실제 provider 평가 호출은 명시적 동의와 `OPENAI_API_KEY`·`DATABASE_URL`이 있을 때만 실행한다.
 
 ```bash

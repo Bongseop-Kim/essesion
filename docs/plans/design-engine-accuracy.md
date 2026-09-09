@@ -1,8 +1,11 @@
 # 결정론 디자인 엔진의 의미·배치 정확도 개선
 
-2026-09-08 코드 조사와 웹 자료 검토를 바탕으로 작성한 **미실행 플랜**이다.
+2026-09-08 코드 조사와 웹 자료 검토를 바탕으로 작성한 **남은 작업 플랜**이다.
 현재 `문장 → Plan/Patch → 결정론 컴파일·검증 → SVG` 흐름을 유지한다.
 먼저 요청 반영 정확도를 측정하고, 확인된 실패만 수정한다. 줄 번호는 작성 시점 기준이며 실행 전 심볼을 다시 찾는다.
+
+평가 기준 초안·오프라인 채점기는 [실행 기록](../reviews/design-evaluation-foundation-2026-09-08.md)으로 옮겼다.
+아래에는 사람 검토·실모델 기준선과 아직 실행하지 않은 엔진 개선만 남긴다.
 
 [디자인 생성 신뢰성 작업](../reviews/design-generation-reliability-2026-09-08.md)이 통신·복구·과금을
 이미 다뤘고(2026-09-08 실행 완료), 이 문서는 요청 의미·편집 범위·기하·배치 결과를 다룬다.
@@ -43,21 +46,16 @@ LLM 직접 SVG 생성, 매 요청 VLM 검수, 자동 모델 교체, 학습·파�
 
 ## 절차
 
-1. **요청 조건을 직접 판정하는 평가를 추가한다.**
-   [eval_authoring.py](../../apps/worker/scripts/eval_authoring.py):35와
-   [test_authoring_eval.py](../../apps/worker/tests/test_authoring_eval.py):1을 확장한다.
-   사람이 검토한 한국어 사례 30~50개를 시작 규모로 삼고, 첫 생성과 연속 편집을 모두 포함한다.
-   근거: 컴파일 성공과 의미 정확도는 서로 다른 결과다.
-   - 사례마다 ID, 문장, 초기 intent/모티프 fixture, 필수 조건, 보존 조건, 허용 조정·거절을 기록한다.
-     첫 생성의 정답은 SVG 한 장이 아니라 허용 가능한 조건 집합이다.
-   - 색의 대상 연결, 모티프 일치, 줄 위/사이, 상대 밀도·크기, “A만/B는 그대로”, 미지원·모호한 요청을 포함한다.
-     모티프가 없으면 위치 조건을 통과시키지 않는 등 조건 의존성을 명시한다.
-   - 기존 예시/실패 회귀와 held-out 사례를 분리한다. 동일하거나 사실상 같은 정답 예시가 RAG에 들어가지 않게 한다.
-     모델이 자기 Plan에서 만든 조건을 독립적인 정답으로 채택하지 않는다.
-   - repair/clamp/snap 이후의 intent와 실제 배치 결과를 검사한다. 현재 평가의 가상 모티프 ID만으로 렌더 품질을 판정하지 말고
-     존재하는 고정 fixture를 사용한다. 검증 함수를 통과한 원본 대신 최종 정규화 결과를 후속 검사에 전달한다.
-   - 조건별 충족률, 전 조건 충족률, 비대상 변경률, 정당/오류 거절, 수량 부족을 분리해 집계한다.
-     컴파일 성공률·지연·호출 횟수도 유지하고, 실패를 retrieval/authoring/compiler/placement/render로 귀속한다.
+1. **평가 초안을 검토하고 실제 모델 기준선을 확보한다.**
+   [design_accuracy_cases.json](../../apps/worker/scripts/design_accuracy_cases.json):1의 30건 draft와
+   [평가 명세](../api-spec/design-evaluation.md)를 사람이 검토한다.
+   근거: 수작업 후보가 채점기를 통과하는 것과 실제 모델의 의미 정확도는 다르다.
+   - 문장·조건·held-out 집합을 확정하고 실제 RAG 집합과 중복을 점검한다. 검토 전 `reviewed`로 표시하지 않는다.
+   - 실행 동의 후 고정 모티프를 제공한 실제 생성·편집 결과를 수집해 오프라인 채점기에 연결한다.
+     실제 최종 intent·선택 colorway·seed를 사용한다. 모델·prompt/compiler revision·코드 SHA·반복 횟수·시간을 함께 기록한다.
+   - 고정 baseline 편집 외에 이전 모델 출력을 다음 턴에 연결하는 대화 기준선을 측정한다.
+     현재의 원·별 fixture 평가는 카탈로그 의미 검색을 검증하지 않으므로 grounding 평가는 별도로 보강한다.
+   - 실패는 기존 생성 diagnostics와 대조해 retrieval/authoring/compiler/placement/render로 귀속한다.
 
 2. **산개 개수 미달과 두 레이어 포개짐을 회귀로 고정한다.**
    [placement.py](../../apps/worker/src/worker/engine/placement.py):176,
