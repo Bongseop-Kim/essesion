@@ -495,12 +495,13 @@ Seamless admin 상세는 API가 부여한 `run_id`로 디자인 세션의 genera
 
 ### 7.4 배치 작업
 
-Cloud Scheduler가 bounded batch **4종**을 API `/batch/*`로 호출한다(`infra/scheduler.tf`, KST).
+Cloud Scheduler가 bounded batch **5종**을 API `/batch/*`로 호출한다(`infra/scheduler.tf`, KST).
 
 - 주문 자동 구매확정
 - stale pending 주문 취소
 - 만료 이미지 정리
 - authoring 승격 후보 선별 (매일 05:00)
+- 미완료 토큰 차감 복구 (5분 주기 — `token_works` pending 기한 초과분 환불, money.md §6)
 
 비로컬 batch는 audience와 호출 service account email을 **모두** 검증한다. audience 불일치는 배치
 전원이 401로 조용히 실패하는 형태로 나타나므로 개통 시 반드시 대조한다. 로컬만 개발 token 폴백을 허용한다.

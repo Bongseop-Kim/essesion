@@ -90,17 +90,23 @@ export function writePendingDesign(
   }
 }
 
-export function clearPendingDesign(options: StorageOptions = {}): void {
+export function clearPendingDesign(
+  options: StorageOptions & { sessionId?: string } = {},
+): void {
   const storage = resolveStorage(options.storage);
   if (!storage) return;
 
   try {
-    if (options.operationId) {
+    if (options.operationId || options.sessionId) {
       const pending = parsePendingDesign(
         storage.getItem(DESIGN_PENDING_KEY),
         options.now ?? Date.now(),
       );
-      if (pending?.operationId !== options.operationId) return;
+      if (options.operationId && pending?.operationId !== options.operationId) {
+        return;
+      }
+      // 다른 세션의 표시는 지우지 않는다 — 세션을 바꿔도 원래 세션의 복구 표시가 남는다.
+      if (options.sessionId && pending?.sessionId !== options.sessionId) return;
     }
     storage.removeItem(DESIGN_PENDING_KEY);
   } catch {

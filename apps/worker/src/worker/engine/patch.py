@@ -112,7 +112,9 @@ class DesignPatchV1(_Patch):
     stripe: StripePatch | None = None
     placement: PlacementPatch | None = None
     # 모티프 레이어 순서대로. 남는 값은 무시한다(모델이 레이어 수를 세지 못해도 안전).
-    motif_size_mm: list[float] | None = Field(default=None, max_length=2)
+    # null 항목은 "그 모티프는 그대로" — 안 바꿀 값을 모델이 베껴 넣지 않아도 된다.
+    # 베끼게 했더니 10회 중 2회 대상이 아닌 모티프까지 같은 값으로 바뀌었다(2026-09-09 실측).
+    motif_size_mm: list[float | None] | None = Field(default=None, max_length=2)
     # 전역 배율 — intent의 모든 길이(mm)를 tile_mm 포함해 일괄 f배. 균일 배율은 모든
     # seamless 불변식을 보존하므로 재스냅이 걸리지 않는다. motif_size_mm은 배율 적용
     # **후** 최종 프레임의 절대값으로 적용된다.
@@ -628,8 +630,17 @@ def _apply_placement(
                 # 밀도만 바꾸는 patch는 기존 host/lane·위상을 유지하고 간격만 조정한다.
                 arrangement = None
         if arrangement == "scatter":
+            # 레이어 id로 난수열을 가른다 — 전역 patch가 두 슬롯에 같은 산개 설정을 주어도
+            # 좌표가 포개지지 않는다. motif_id는 넣지 않는다(모티프 교체로 좌표가 바뀌면 안 됨).
+            layer_id = layer.get("id")
             placement = scatter_placement(
-                tile=tile, axis=count, count=max(4, round(count * count * 0.5))
+                tile=tile,
+                axis=count,
+                # 축당 개수²의 절반 — 육각 충전 상한의 40~43%라 dart throwing이 실제로 채운다.
+                # 하한이 4였을 때 축 2(min_dist=tile/2)만 상한의 87%를 요구해 늘 2개만 놓였다
+                # (2026-09-09 브라우저 실측 "아주 성기게"). 하한을 2로 낮춰 요청과 결과를 맞춘다.
+                count=max(2, round(count * count * 0.5)),
+                seed_salt=layer_id if isinstance(layer_id, str) else None,
             )
         elif arrangement in ("on_stripes", "between_stripes"):
             host_id, lane = _stripe_lane(raw, arrangement)
@@ -715,7 +726,9 @@ def apply_patch(
         # 홀수 축 엇갈림은 밀도를 올리지 않고 반복 단위를 늘려 닫는다.
         tile, count_factor = _stagger_frame(raw, patch.placement, tile, warnings)
         # 밀도 양보는 크기를 안 건드린 patch만 — 둘 다 바꾼 patch는 지금처럼 크기를 클램프한다.
-        cap = MAX_AXIS_COUNT if patch.motif_size_mm is not None else _density_cap(raw, tile)
+        # 전부 null인 리스트는 크기를 안 바꾼 것이다(null = 그 모티프는 그대로).
+        resized = any(_positive_float(size) is not None for size in patch.motif_size_mm or ())
+        cap = MAX_AXIS_COUNT if resized else _density_cap(raw, tile)
         _apply_placement(raw, patch.placement, tile=tile, cap=cap, count_factor=count_factor)
     if patch.motif_size_mm is not None:
         for layer, size in zip(_layers(raw, "motif"), patch.motif_size_mm, strict=False):

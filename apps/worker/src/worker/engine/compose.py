@@ -58,13 +58,14 @@ def compose_design(
     effective_seed = intent.seed if seed is None else int(seed)
     intent = intent.model_copy(update={"seed": effective_seed})
     layout_id = layout_id_for(intent)
+    warnings = list(base.warnings)
     return ComposedDesign(
         id=_design_id(layout_id, colorway_id, effective_seed),
-        svg=compose(intent, base.palette, colorway_id, motifs=motifs),
+        svg=compose(intent, base.palette, colorway_id, motifs=motifs, warnings=warnings),
         layout_id=layout_id,
         intent=intent,
         colorway_id=colorway_id,
         seed=effective_seed,
         source_fidelity=SOURCE_FIDELITY_VECTOR,
-        warnings=list(base.warnings),
+        warnings=warnings,
     )

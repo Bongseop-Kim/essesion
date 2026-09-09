@@ -11768,6 +11768,22 @@ export type CleanupImagesResponses = {
 
 export type CleanupImagesResponse = CleanupImagesResponses[keyof CleanupImagesResponses];
 
+export type RecoverTokenWorksData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/batch/recover-token-works';
+};
+
+export type RecoverTokenWorksResponses = {
+    /**
+     * Successful Response
+     */
+    200: BatchResult;
+};
+
+export type RecoverTokenWorksResponse = RecoverTokenWorksResponses[keyof RecoverTokenWorksResponses];
+
 export type GetCartData = {
     body?: never;
     path?: never;

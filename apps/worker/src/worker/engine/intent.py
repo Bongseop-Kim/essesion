@@ -72,6 +72,10 @@ class ScatterSpec(BaseModel):
     count: int | None = Field(default=None, gt=0, le=10_000)
     sateen_n: int | None = Field(default=None, gt=1, le=1_024)
     sateen_step: int | None = Field(default=None, gt=0, le=1_024)
+    # 레이어별 난수열 분리 — 같은 산개 설정의 두 슬롯이 정확히 같은 좌표에 놓이지 않게 한다.
+    # 격자의 offset_x/y_mm와 같은 역할. 없으면 전역 seed를 그대로 써서 기존 intent는
+    # byte-identical하게 재현된다(worker-engine.md §3).
+    seed_salt: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 class PointSetSpec(BaseModel):

@@ -70,6 +70,19 @@ export function parseDesignError(error: unknown): DesignErrorFeedback {
   };
 }
 
+/**
+ * 서버가 응답한 실패인가 — 통신이 끊긴 실패와 구분한다.
+ *
+ * api의 오류 본문 계약은 `{code, detail}`(domains.md §12)이라 그 모양이면 서버가
+ * 판정을 내려준 것이다. fetch 자체가 던진 오류는 서버 완료 여부가 불명확하다.
+ */
+export function isServerRejection(error: unknown): boolean {
+  return (
+    isRecord(error) &&
+    (typeof error.code === "string" || typeof error.detail === "string")
+  );
+}
+
 /** Preserve safe API detail messages for helper flows that do not use error-kind UI. */
 export function designErrorMessage(error: unknown, fallback: string): string {
   const detail = parseDesignError(error).detail;

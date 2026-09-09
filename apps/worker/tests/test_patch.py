@@ -5,7 +5,15 @@ import copy
 import pytest
 from worker.engine.compose import compose_design
 from worker.engine.constraints import ConstraintInvalid, apply_generation_constraints
-from worker.engine.patch import DesignPatchV1, apply_patch, composition_snapshot, set_motif_slot
+from worker.engine.patch import (
+    DesignPatchV1,
+    apply_patch,
+    composition_snapshot,
+    patch_left_intent_unchanged,
+    set_motif_slot,
+)
+from worker.engine.placement import place
+from worker.engine.primitives import Stripe, build_primitive
 from worker.engine.seamless import assert_seamless_invariants
 from worker.engine.validate import validate_intent
 from worker.warnings import WARNING_MESSAGES, customer_warnings
@@ -175,7 +183,12 @@ def test_placement_patch_derives_scatter_density_from_the_axis_count():
 
     placement = patched["layers"][1]["placement"]
     assert placement["type"] == "scatter"
-    assert placement["scatter"] == {"mode": "poisson", "min_dist_mm": 12.0, "count": 8}
+    assert placement["scatter"] == {
+        "mode": "poisson",
+        "min_dist_mm": 12.0,
+        "count": 8,
+        "seed_salt": "motif_0",
+    }
 
 
 def test_null_axes_leave_everything_else_untouched():
@@ -238,6 +251,13 @@ def test_placement_patch_yields_density_so_the_clamp_never_shrinks_the_motif():
     # 크기를 함께 바꾼 patch는 지금처럼 요청한 밀도를 그대로 받는다.
     dense = apply_patch(base, _patch(placement={"count_per_axis": 10}, motif_size_mm=[4.0]))
     assert 48 / dense["layers"][1]["placement"]["lattice"]["cell_w_mm"] == 10
+
+    # 전부 null인 리스트는 크기를 안 바꾼 것 — 같은 밀도 양보를 받는다.
+    null_sized = apply_patch(
+        base,
+        _patch(placement={"arrangement": "lattice", "count_per_axis": 10}, motif_size_mm=[None]),
+    )
+    assert null_sized["layers"][1]["placement"] == third["layers"][1]["placement"]
 
 
 def test_rotation_only_patch_keeps_the_current_placement_type():
@@ -683,3 +703,125 @@ def test_snapshot_reads_hosted_arrangements_back():
 
     arrangements = [m["placement"]["arrangement"] for m in snapshot["motifs"]]
     assert arrangements == ["between_stripes", "on_stripes"]
+
+
+# --- 편집 범위 회귀 (design-engine-accuracy 3·5단계) --------------------------
+#
+# 골든에 없는 편집 조합을 결정론 스윕으로 훑는다. Hypothesis는 쓰지 않는다 — 잠금 파일에는
+# 있지만 dev 의존성으로 선언돼 있지 않아서, 여기 불변식에 필요한 만큼은 곱집합으로 덮는다.
+
+
+def _rendered(intent: dict, *, seed: int | None = None) -> dict[str, dict]:
+    """모티프 레이어별 실제 인스턴스 — raw JSON이 아니라 좌표로 편집 범위를 판정한다."""
+    design = compose_design(intent, seed=seed)
+    resolved = design.intent
+    tile = resolved.canvas.tile_mm
+    hosts = {
+        layer.id: build_primitive(layer, tile)
+        for layer in resolved.layers
+        if layer.type in ("background", "stripe")
+    }
+    out: dict[str, dict] = {}
+    for layer in resolved.layers:
+        if layer.type != "motif":
+            continue
+        placement = layer.placement
+        assert placement is not None
+        host = hosts.get(placement.host_layer) if placement.host_layer else None
+        assert host is None or isinstance(host, Stripe)
+        points = place(layer, host, tile, resolved.seed)
+        out[layer.id] = {
+            "motif_id": layer.params.motif_id,
+            "size_mm": layer.params.size_mm,
+            "relative_size": layer.params.size_mm / tile,
+            "positions": sorted((p.x_mm, p.y_mm, p.rotation_deg) for p in points),
+            "normalized": sorted(
+                (round(p.x_mm / tile, 9), round(p.y_mm / tile, 9), p.rotation_deg) for p in points
+            ),
+            "density": len(points) / tile**2,
+        }
+    return out
+
+
+def test_background_patch_changes_only_the_ground_color():
+    """바탕색만 바꾸면 모티프 좌표·크기·회전·정체성이 전부 그대로여야 한다."""
+    base = _two_slot_intent()
+
+    patched = apply_patch(base, _patch(background={"color": "#F5F0E6"}))
+
+    assert _rendered(patched) == _rendered(base)
+    assert _slot_hex(patched, "ground") == "#F5F0E6"
+
+
+def test_slot_edit_leaves_the_other_slot_rendering_identically():
+    base = _two_slot_intent()
+    before = _rendered(base)
+
+    for axis in ({"rotation_deg": 30.0}, {"count_per_axis": 4}, {"arrangement": "scatter"}):
+        patched = apply_patch(base, _patch(placement={"slot": 1, **axis}))
+        after = _rendered(patched)
+        assert after["motif_slot_2"] == before["motif_slot_2"], axis
+        assert after["motif_0"] != before["motif_0"], axis
+
+
+def test_uniform_scale_preserves_the_normalized_composition():
+    """전역 배율은 tile 대비 비율만 남긴다 — 표현이 달라도 같은 그림이다."""
+    base = _two_slot_intent()
+    before = _rendered(base)
+
+    for factor in (0.5, 0.75, 1.5, 2.0):  # 48mm 기준 12..192 안 — 클램프 없음
+        after = _rendered(apply_patch(base, _patch(scale=factor)))
+        for layer_id, facts in after.items():
+            assert facts["normalized"] == before[layer_id]["normalized"], factor
+            assert facts["relative_size"] == pytest.approx(before[layer_id]["relative_size"])
+
+
+def test_clamp_free_scale_round_trips():
+    base = _two_slot_intent()
+
+    for factor in (0.5, 1.25, 2.0):
+        there = apply_patch(base, _patch(scale=factor))
+        back = apply_patch(there, _patch(scale=1 / factor))
+        assert _rendered(back) == _rendered(base), factor
+
+
+def test_lattice_offset_shifted_by_a_full_cell_is_the_same_design():
+    """주기 이동 동치 — 셀 하나만큼 민 격자는 같은 인스턴스 집합이다."""
+    base = _lattice_intent()
+    shifted = copy.deepcopy(base)
+    cell = base["layers"][1]["placement"]["lattice"]["cell_w_mm"]
+    shifted["layers"][1]["placement"]["lattice"]["offset_x_mm"] = cell
+    shifted["layers"][1]["placement"]["lattice"]["offset_y_mm"] = -cell
+
+    assert _rendered(shifted) == _rendered(base)
+
+
+def test_sequential_patches_stay_valid_and_seamless():
+    """연속 편집 곱집합 — 어떤 순서로 겹쳐도 유효한 intent와 seamless 불변식을 지킨다."""
+    steps = (
+        _patch(placement={"arrangement": "staggered", "count_per_axis": 5}),
+        _patch(scale=1.5),
+        _patch(placement={"slot": 2, "arrangement": "scatter", "count_per_axis": 3}),
+        _patch(motif_size_mm=[3.0, 5.0]),
+        _patch(background={"color": "#101010"}),
+    )
+    for first in steps:
+        for second in steps:
+            current = apply_generation_constraints(apply_patch(_two_slot_intent(), first))
+            current = apply_generation_constraints(apply_patch(current, second))
+            assert_seamless_invariants(validate_intent(current).intent)
+            compose_design(current)
+
+
+def test_null_motif_size_entry_keeps_that_motif_untouched():
+    """ "원만 작게"는 별 값을 베끼지 않고 null로 둔다 — 비대상 모티프가 따라 바뀌면 안 된다."""
+    base = _two_slot_intent()
+    before = _rendered(base)
+
+    patched = apply_patch(base, _patch(motif_size_mm=[2.0, None]))
+    after = _rendered(patched)
+
+    assert after["motif_0"]["size_mm"] == 2.0
+    assert after["motif_slot_2"] == before["motif_slot_2"]
+    # 전부 null이면 만든 것이 없다 — 라우트가 no_change로 되돌리는 입력이다.
+    assert patch_left_intent_unchanged(base, apply_patch(base, _patch(motif_size_mm=[None, None])))

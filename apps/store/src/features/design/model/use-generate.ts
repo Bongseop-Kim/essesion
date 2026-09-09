@@ -15,6 +15,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { trackEvent } from "@/shared/lib/analytics";
 
+import { isServerRejection } from "./errors";
 import {
   clearPendingDesign,
   type StorageLike,
@@ -87,6 +88,8 @@ export function useGenerateDesign(options?: {
         storage: options?.pendingStorage,
         operationId,
       });
+      // 서버가 결과를 내놨는지 — 통신이 끊긴 경우에만 pending 표시를 남긴다.
+      let settled = false;
       try {
         const { data: response } = await generateDesign({
           body: {
@@ -106,6 +109,7 @@ export function useGenerateDesign(options?: {
         });
         const out =
           response && !rejected ? (response as DesignGenerateOut) : null;
+        settled = true;
         return {
           sessionId,
           rejected,
@@ -118,11 +122,18 @@ export function useGenerateDesign(options?: {
           rejectedReason:
             (response as DesignGenerateRejectedOut | undefined)?.reason ?? null,
         };
+      } catch (error) {
+        // 서버가 응답한 실패는 결과가 없음이 확정이다. fetch가 끊긴 실패는 서버가
+        // 완료했을 수 있으므로 표시를 남겨 세션 복구 조회가 잇는다.
+        settled = isServerRejection(error);
+        throw error;
       } finally {
-        clearPendingDesign({
-          storage: options?.pendingStorage,
-          operationId,
-        });
+        if (settled) {
+          clearPendingDesign({
+            storage: options?.pendingStorage,
+            operationId,
+          });
+        }
         await Promise.all([
           queryClient.invalidateQueries({
             queryKey: listDesignSessionsQueryKey(),

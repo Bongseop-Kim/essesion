@@ -28,6 +28,7 @@ from worker.adapters.embedding import DEFAULT_MODEL as DEFAULT_EMBEDDING_MODEL
 from worker.adapters.embedding import OpenAIEmbeddingClient
 from worker.adapters.llm import DEFAULT_MODEL, LLMClient
 from worker.authoring.retrieval import retrieve_examples
+from worker.config import get_settings
 from worker.engine.validate import IntentInvalid, validate_intent
 
 DEFAULT_CORPUS = Path(__file__).with_name("authoring_prompts.json")
@@ -152,7 +153,8 @@ async def _main() -> None:
     args = _arguments()
     if not args.confirm_live:
         raise SystemExit("Refusing live provider calls without --confirm-live")
-    api_key = os.environ.get("OPENAI_API_KEY", "")
+    settings = get_settings()
+    api_key = os.environ.get("OPENAI_API_KEY", "") or settings.openai_api_key
     if not api_key:
         raise SystemExit("OPENAI_API_KEY is required")
     raw_cases = json.loads(args.corpus.read_text(encoding="utf-8"))
@@ -164,7 +166,7 @@ async def _main() -> None:
             raise SystemExit("--limit must be positive")
         cases = cases[: args.limit]
     models = list(dict.fromkeys(args.models or [DEFAULT_MODEL]))
-    database_url = os.environ.get("DATABASE_URL", "")
+    database_url = os.environ.get("DATABASE_URL", "") or settings.database_url
     if not database_url:
         raise SystemExit("DATABASE_URL is required for RAG evaluation")
     engine = create_async_engine(database_url)

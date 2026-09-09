@@ -125,6 +125,8 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 | `POST /design/export` | 이미 만든 SVG의 PNG/TIFF 변환 | 무료 |
 | `GET /design/jobs` · `DELETE /design/jobs/{id}` · `POST /design/jobs/{id}/order-reference` | 완성본 목록·삭제·주문 연결(인수물 = 넥타이 실사 + 정본 타일 2장, 화면 첨부 카드는 1개) | — |
 
+**미완료 차감 복구**: 모티프 생성·실사화는 토큰을 먼저 차감하고 외부 호출에 들어가므로, 차감과 같은 트랜잭션에 `token_works` pending 기록을 남긴다. 프로세스가 응답 전에 죽으면 기한(15분)이 지난 pending을 `POST /batch/recover-token-works`(5분 주기, LIMIT 100)가 정확히 한 번 환불한다. 늦게 돌아온 요청은 refunded 기록 위에 결과를 게시하지 않고 `motif_generate_expired`·`finalize_expired`로 거절한다. 규칙 전문은 [money.md](./money.md) §6. store는 세션 단건의 `active_generation_id`로 진행 중 생성을 복원한다 — 이 기록은 클라이언트에 노출되지 않는다.
+
 **역할 명시**: 정본은 intent JSON + 결정론 타일이다. AI 실사 이미지는 시각적 설득·참고물이다.
 직조 실현 가능성 판단은 원단 디자이너(사람)의 영역이며 시스템은 이를 자동 판정하지 않는다.
 파이프라인 2단 구조와 3곳 결속(weave)은 `worker-pipeline.md` §2.

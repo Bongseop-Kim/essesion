@@ -2,15 +2,17 @@ import type { DesignExampleOut } from "@essesion/api-client";
 import {
   ActionButton,
   Box,
+  ContentPlaceholder,
   type DesignPreviewMode,
   Flex,
+  HStack,
   Skeleton,
   snackbar,
   Text,
   VStack,
 } from "@essesion/shared";
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { useAuthGuard } from "@/features/auth/ui/auth-guard-provider";
@@ -30,6 +32,7 @@ import {
   readPendingDesign,
 } from "@/features/design/model/pending";
 import {
+  designSessionQueryKey,
   designSessionQueryOptions,
   designSessionsQueryOptions,
   designTurnsQueryOptions,
@@ -39,6 +42,7 @@ import {
   svgTileScale,
   svgToDataUri,
 } from "@/features/design/model/svg-preview";
+import { useActiveGeneration } from "@/features/design/model/use-active-generation";
 import {
   useDesignExport,
   useFinalizeFlow,
@@ -76,6 +80,7 @@ const DESCRIPTION =
 /** 풀블리드 캔버스 + 떠 있는 컨트롤 4그룹을 조립하는 컨테이너. */
 export function DesignPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const status = useSession((state) => state.status);
   const authenticated = status === "authenticated";
   const { requireAuth } = useAuthGuard();
@@ -122,6 +127,25 @@ export function DesignPage() {
     [sessionQuery.data?.current_motifs],
   );
   const hasDesign = !!sessionQuery.data?.current_intent;
+
+  const clearPending = useCallback(() => setPending(null), []);
+  // 서버가 아직 생성 중인지 — 새로고침으로 mutation을 잃어도 여기서 복구한다.
+  const active = useActiveGeneration({
+    sessionId,
+    session: sessionQuery.data,
+    onSettled: clearPending,
+  });
+  // 조회 실패를 "작업이 없음"과 구분한다 — 서버 오류가 작업 유실로 보이면 안 된다.
+  const restoreFailures = [sessionsQuery, sessionQuery, turnsQuery].filter(
+    (query) => query.isError,
+  );
+  const restoreFailed =
+    authenticated && !freshSession && restoreFailures.length > 0;
+  // 캔버스에 그릴 게 없을 때만 자리 표시로 바꾼다. 그림이 남아 있으면 유지한 채 알린다.
+  const restoreLost = restoreFailed && !history.currentSvg;
+  const retryRestore = () => {
+    for (const query of restoreFailures) void query.refetch();
+  };
 
   const examples = examplesQuery.data ?? [];
   // 세션 복원이 끝나기 전에는 빈 캔버스를 그리지 않는다 — 예시 갤러리가 깜빡였다가
@@ -184,7 +208,8 @@ export function DesignPage() {
       window.setTimeout(() => setOverlay("finalized"), reduced ? 0 : 250);
     },
   });
-  const busy = editor.pending || activateStep.isPending;
+  // 복구 중에는 서버가 세션을 잠그고 있다 — 편집·교체·되돌리기를 함께 잠근다.
+  const busy = editor.pending || activateStep.isPending || active.recovering;
   const exportable = !!history.currentSvg && !busy;
 
   useEffect(() => {
@@ -216,6 +241,12 @@ export function DesignPage() {
     editor.reset();
     setSessionId(nextSessionId);
     setFreshSession(fresh);
+    // 같은 세션을 다시 열어도 서버 상태를 명시적으로 다시 본다.
+    if (nextSessionId) {
+      void queryClient.invalidateQueries({
+        queryKey: designSessionQueryKey(nextSessionId),
+      });
+    }
   };
 
   const runOnSession = async (
@@ -258,38 +289,32 @@ export function DesignPage() {
       <Text as="h1" className="sr-only">
         AI 넥타이 디자인
       </Text>
-      {pending ? (
-        <Flex
-          align="center"
-          gap="x2"
-          width="full"
-          minHeight="x10"
-          px="x4"
-          py="x2_5"
-          className="bg-bg-informative-weak text-fg-informative"
-        >
-          <Flex minWidth={0} flex={1} wrap align="baseline" gap="x1_5">
-            <Text as="span" textStyle="bodySm" className="font-bold">
-              진행 중이던 생성이 있어요
-            </Text>
-            <Text as="span" textStyle="bodySm">
-              디자인을 열면 서버에 저장된 결과를 확인할 수 있어요.
-            </Text>
-          </Flex>
-          <ActionButton
-            variant="ghost"
-            size="xsmall"
-            className="shrink-0 underline underline-offset-2"
-            onClick={() => {
-              if (!ensureAuth()) return;
-              openSession(pending.sessionId, false);
-              clearPendingDesign();
-              setPending(null);
-            }}
-          >
-            열기
-          </ActionButton>
-        </Flex>
+      {restoreFailed && !restoreLost ? (
+        <PageNotice
+          title="최신 상태를 불러오지 못했어요"
+          description="화면의 디자인은 그대로예요. 다시 시도하면 최신 상태를 가져옵니다."
+          actionLabel="다시 시도"
+          onAction={retryRestore}
+        />
+      ) : active.expired ? (
+        <PageNotice
+          title="생성 결과를 아직 확인하지 못했어요"
+          description="토큰은 서버가 정리해요. 다시 확인해 결과가 나왔는지 볼 수 있어요."
+          actionLabel="다시 확인"
+          onAction={() => void sessionQuery.refetch()}
+        />
+      ) : pending && pending.sessionId !== sessionId ? (
+        <PageNotice
+          title="진행 중이던 생성이 있어요"
+          description="디자인을 열면 서버에 저장된 결과를 확인할 수 있어요."
+          actionLabel="열기"
+          onAction={() => {
+            if (!ensureAuth()) return;
+            openSession(pending.sessionId, false);
+            clearPendingDesign();
+            setPending(null);
+          }}
+        />
       ) : null}
 
       <DesignCanvas
@@ -302,6 +327,29 @@ export function DesignPage() {
             <Box height="full" maxWidth="full" style={{ aspectRatio: 1 }}>
               <Skeleton width="full" height="full" radius="r4" />
             </Box>
+          ) : restoreLost ? (
+            <ContentPlaceholder
+              title="작업 중이던 디자인을 불러오지 못했어요"
+              description="서버 조회가 실패했을 뿐이라 저장된 디자인은 사라지지 않았어요."
+              action={
+                <HStack gap="x2">
+                  <ActionButton
+                    variant="neutralWeak"
+                    size="small"
+                    onClick={retryRestore}
+                  >
+                    다시 시도
+                  </ActionButton>
+                  <ActionButton
+                    variant="ghost"
+                    size="small"
+                    onClick={() => openSession(null, true)}
+                  >
+                    새로 시작
+                  </ActionButton>
+                </HStack>
+              }
+            />
           ) : !hasDesign && !busy && examples.length > 0 ? (
             <StarterGallery
               examples={examples}
@@ -372,7 +420,9 @@ export function DesignPage() {
             <HistoryCard
               cells={history.designCells}
               currentIndex={history.currentIndex}
-              pending={editor.generating || motifs.replacing}
+              pending={
+                editor.generating || motifs.replacing || active.recovering
+              }
               disabled={busy}
               collapsed={historyCollapsed}
               onCollapsedChange={(next) => {
@@ -413,7 +463,7 @@ export function DesignPage() {
                 hasDesign ? "무엇을 바꿀까요?" : "원하는 넥타이를 알려주세요"
               }
               loading={busy}
-              disabled={status === "loading"}
+              disabled={status === "loading" || restoreLost}
               selectSignal={editor.selectSignal}
             />
           </Box>
@@ -451,5 +501,48 @@ export function DesignPage() {
         }}
       />
     </>
+  );
+}
+
+/** 페이지 전체 공지 한 줄 — 페이지당 1개(shared 하네스의 오버레이·피드백 선택). */
+function PageNotice({
+  title,
+  description,
+  actionLabel,
+  onAction,
+}: {
+  title: string;
+  description: string;
+  actionLabel: string;
+  onAction: () => void;
+}) {
+  return (
+    <Flex
+      role="status"
+      align="center"
+      gap="x2"
+      width="full"
+      minHeight="x10"
+      px="x4"
+      py="x2_5"
+      className="bg-bg-informative-weak text-fg-informative"
+    >
+      <Flex minWidth={0} flex={1} wrap align="baseline" gap="x1_5">
+        <Text as="span" textStyle="bodySm" className="font-bold">
+          {title}
+        </Text>
+        <Text as="span" textStyle="bodySm">
+          {description}
+        </Text>
+      </Flex>
+      <ActionButton
+        variant="ghost"
+        size="xsmall"
+        className="shrink-0 underline underline-offset-2"
+        onClick={onAction}
+      >
+        {actionLabel}
+      </ActionButton>
+    </Flex>
   );
 }

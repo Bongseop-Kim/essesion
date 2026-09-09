@@ -37,6 +37,8 @@ def compose(
     palette: Palette,
     colorway_id: str | None = None,
     motifs: MotifCatalog | None = None,
+    *,
+    warnings: list[str] | None = None,
 ) -> str:
     tile = intent.canvas.tile_mm
     layers = sorted(intent.layers, key=lambda layer: (layer.z_order, layer.id))
@@ -51,7 +53,15 @@ def compose(
     fragments: list[str] = []
     for layer in layers:
         fragment = _render_layer(
-            layer, hosts, palette, colorway_id, tile, symbol_defs, intent.seed, motifs
+            layer,
+            hosts,
+            palette,
+            colorway_id,
+            tile,
+            symbol_defs,
+            intent.seed,
+            motifs,
+            warnings if warnings is not None else [],
         )
         if not fragment:
             continue
@@ -87,13 +97,14 @@ def _render_layer(
     symbol_defs: dict[str, str],
     seed: int,
     motifs: MotifCatalog | None,
+    warnings: list[str],
 ) -> str:
     if layer.type == "background":
         return hosts[layer.id].render(tile, palette, colorway_id)
     if layer.type == "stripe":
         return hosts[layer.id].render(palette, colorway_id)
     if layer.type == "motif":
-        return _render_motif_layer(layer, hosts, tile, symbol_defs, seed, motifs)
+        return _render_motif_layer(layer, hosts, tile, symbol_defs, seed, motifs, warnings)
     raise ValueError(f"unsupported layer type: {layer.type!r}")
 
 
@@ -104,6 +115,7 @@ def _render_motif_layer(
     symbol_defs: dict[str, str],
     seed: int,
     motifs: MotifCatalog | None,
+    warnings: list[str],
 ) -> str:
     placement = layer.placement
     if placement is None:
@@ -119,6 +131,13 @@ def _render_motif_layer(
     motif = resolve_motif(layer.params.motif_id, motifs)
     size_mm = layer.params.size_mm
     placed = place(layer, host, tile, seed)
+    # 요청 개수는 목표치다 — dart throwing이 채우지 못하면 조용히 줄이지 않고 알린다.
+    scatter = placement.scatter
+    if scatter is not None and scatter.count is not None and len(placed) < scatter.count:
+        warnings.append(
+            f"layer {layer.id!r}: scatter placed {len(placed)} of {scatter.count} "
+            f"requested instances (min_dist_mm {scatter.min_dist_mm})"
+        )
     instances = clone_instances(placed, motif=motif, size_mm=size_mm, tile_mm=tile)
 
     symbol_defs.setdefault(f"motif-{motif.id}", motif.symbol)

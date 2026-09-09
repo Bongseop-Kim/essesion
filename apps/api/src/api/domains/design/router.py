@@ -47,6 +47,7 @@ from api.db import USER_LOCK, SessionDep, advisory_xact_lock
 from api.deps import CurrentUser, SettingsDep, ensure_owner
 from api.domains.images.service import MAX_ORDER_IMAGE_BYTES, order_upload_entity_type
 from api.domains.tokens import ledger
+from api.domains.tokens import work as token_work
 from api.errors import ConflictError, DomainError, UpstreamError, WorkerRequestError
 from api.integrations.gcs import assets_bucket_name, public_asset_url
 from api.schemas import ORMModel, StrictModel
@@ -1982,14 +1983,19 @@ async def _run_finalize(
         user_id,
         work_id,
         cost_key=ledger.DESIGN_FINALIZE_COST_SETTING,
+        commit=False,
     )
     if not charge.success:
+        await session.rollback()
         detail = (
             "환불 심사 중에는 실사화할 수 없습니다"
             if charge.error == "refund_pending"
             else "디자인 토큰이 부족합니다"
         )
         raise DomainError(detail, code=charge.error or "insufficient_tokens")
+    # 차감과 pending 기록을 한 트랜잭션으로 — 중단되면 복구 배치가 이 기록으로 환불한다.
+    token_work.start(session, user_id=user_id, kind="design_finalize", work_id=work_id)
+    await session.commit()
 
     started_at = datetime.now(UTC)
     try:
@@ -2011,6 +2017,13 @@ async def _run_finalize(
         }
         if "object_key" not in stored:
             raise UpstreamError("실사화 결과 형식이 올바르지 않습니다")
+        work = await token_work.claim(session, user_id, work_id)
+        if work is None:
+            # 기한이 지나 복구 배치가 환불했다 — refunded 위에 완성본을 뒤늦게 게시하지 않는다.
+            raise ConflictError(
+                "실사화가 만료돼 토큰을 환불했습니다. 다시 시도해 주세요",
+                code="finalize_expired",
+            )
         job = GenerationJob(
             id=job_id,
             user_id=user_id,
@@ -2025,11 +2038,12 @@ async def _run_finalize(
             finished_at=datetime.now(UTC),
         )
         session.add(job)
+        # 완성본 INSERT와 succeeded 전환은 원자적으로 — 둘이 어긋나면 결과와 과금이 갈린다.
+        token_work.finish(work, "succeeded", result_id=str(job_id))
         await session.commit()
     except Exception:
-        # 동기 경로라 환불 지점은 여기뿐이다 — work_id 멱등이라 중복 환불 없음.
-        await session.rollback()
-        await ledger.refund_failed_generation(session, user_id, charge.cost, work_id)
+        # 원장 반전과 refunded 전환을 한 트랜잭션으로. 이미 종결된 기록이면 아무것도 하지 않는다.
+        await token_work.release(session, user_id=user_id, work_id=work_id, amount=charge.cost)
         raise
     await session.refresh(job)
     return _generation_job_out(job, request.app.state.settings)
@@ -2411,6 +2425,8 @@ async def generate_motif(
             else "디자인 토큰이 부족합니다"
         )
         raise DomainError(detail, code=charge.error or "insufficient_tokens")
+    # 차감과 pending 기록을 한 트랜잭션으로 — 중단되면 복구 배치가 이 기록으로 환불한다.
+    token_work.start(session, user_id=user.id, kind="motif_generate", work_id=work_id)
     await session.commit()
 
     payload: dict[str, Any] = {
@@ -2431,12 +2447,21 @@ async def generate_motif(
 
 
 async def _save_generated_motif(
-    session: SessionDep, *, user_id: uuid.UUID, motif_id: str, name: str
+    session: SessionDep, *, user_id: uuid.UUID, motif_id: str, name: str, work_id: str
 ) -> bool:
-    """생성 결과를 내 모티프에 남긴다 — 적용하지 않아도 나중에 다시 고를 수 있게.
+    """생성 결과를 내 모티프에 남기고 미완료 기록을 succeeded로 종결한다.
 
-    한도 초과·저장 실패면 저장만 건너뛴다(생성 자체는 실패가 아니다).
+    한도 초과·저장 실패면 저장만 건너뛴다(생성 자체는 실패가 아니다) — 그때도 종결은 남겨
+    성공한 생성이 복구 배치의 환불 대상으로 남지 않게 한다.
     """
+    work = await token_work.claim(session, user_id, work_id)
+    if work is None:
+        # 결과를 확인하는 사이 기한이 지나 복구 배치가 환불했다 — 라이브러리 링크도 남기지 않는다.
+        await session.commit()
+        raise ConflictError(
+            "모티프 생성이 만료돼 토큰을 환불했습니다. 다시 시도해 주세요",
+            code="motif_generate_expired",
+        )
     existing, count = await _user_motif_link_state(session, user_id=user_id, motif_id=motif_id)
     saved = True
     if existing is None:
@@ -2444,11 +2469,16 @@ async def _save_generated_motif(
             saved = False
         else:
             session.add(UserMotif(user_id=user_id, motif_id=motif_id, name=name))
+    token_work.finish(work, "succeeded", result_id=motif_id)
     try:
         await session.commit()
     except Exception:
         logger.warning("생성 모티프 저장 실패 — 생성 응답은 그대로 반환", exc_info=True)
         await session.rollback()
+        retried = await token_work.claim(session, user_id, work_id)
+        if retried is not None:
+            token_work.finish(retried, "succeeded", result_id=motif_id)
+        await session.commit()
         return False
     return saved
 
@@ -2466,7 +2496,9 @@ async def _dispatch_motif_generation(
     """클라이언트가 끊겨도 선차감한 토큰을 정합하게 되돌린다."""
 
     async def _release() -> None:
-        await ledger.refund_failed_generation(session, user_id, charge_cost, charge_work_id)
+        await token_work.release(
+            session, user_id=user_id, work_id=charge_work_id, amount=charge_cost
+        )
 
     try:
         response = await request.app.state.worker.motif_generate(payload)
@@ -2488,6 +2520,7 @@ async def _dispatch_motif_generation(
         user_id=user_id,
         motif_id=out.motif_id,
         name=name or results[0].name or "만든 모티프",
+        work_id=charge_work_id,
     )
     return MotifGenerateOut(request_id=out.request_id, motif=results[0], saved=saved)
 

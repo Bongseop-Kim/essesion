@@ -83,16 +83,18 @@ def lattice_placement(*, tile: float, count: int, staggered: bool) -> dict[str, 
     return {"type": "lattice", "lattice": lattice}
 
 
-def scatter_placement(*, tile: float, axis: int, count: int) -> dict[str, Any]:
-    """축당 axis개 간격의 Poisson 산개."""
-    return {
-        "type": "scatter",
-        "scatter": {
-            "mode": "poisson",
-            "min_dist_mm": round(tile / axis, 6),
-            "count": count,
-        },
+def scatter_placement(
+    *, tile: float, axis: int, count: int, seed_salt: str | None = None
+) -> dict[str, Any]:
+    """축당 axis개 간격의 Poisson 산개. seed_salt는 레이어별 난수열을 가른다."""
+    scatter: dict[str, Any] = {
+        "mode": "poisson",
+        "min_dist_mm": round(tile / axis, 6),
+        "count": count,
     }
+    if seed_salt:
+        scatter["seed_salt"] = seed_salt
+    return {"type": "scatter", "scatter": scatter}
 
 
 def lattice_size_limit(cell_mm: float) -> float:

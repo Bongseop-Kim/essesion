@@ -1,0 +1,1801 @@
+{
+  "revision": "design-accuracy-v8",
+  "review_status": "reviewed",
+  "motifs": {
+    "eval-circle": "<symbol id=\"motif-eval-circle\" overflow=\"visible\"><circle cx=\"0\" cy=\"0\" r=\"0.5\" fill=\"#FFCC00\"/></symbol>",
+    "eval-star": "<symbol id=\"motif-eval-star\" overflow=\"visible\"><polygon points=\"0,-0.5 0.15,-0.15 0.5,0 0.15,0.15 0,0.5 -0.15,0.15 -0.5,0 -0.15,-0.15\" fill=\"#00CCFF\"/></symbol>"
+  },
+  "fixtures": {
+    "base": {
+      "intent_version": 1,
+      "canvas": {
+        "tile_mm": 48,
+        "dpi": 300
+      },
+      "seed": 104729,
+      "production": {
+        "method": "print",
+        "max_colors": 12
+      },
+      "palette": {
+        "slots": [
+          {
+            "id": "ground",
+            "hex": "#000080"
+          },
+          {
+            "id": "stripe",
+            "hex": "#FFFFFF"
+          }
+        ]
+      },
+      "colorways": [
+        {
+          "id": "default",
+          "mapping": {
+            "ground": "#000080",
+            "stripe": "#FFFFFF"
+          }
+        }
+      ],
+      "layers": [
+        {
+          "id": "ground",
+          "type": "background",
+          "z_order": 0,
+          "params": {
+            "color": "ground"
+          }
+        },
+        {
+          "id": "stripes",
+          "type": "stripe",
+          "z_order": 1,
+          "params": {
+            "angle": 0,
+            "period_mm": 12,
+            "bands": [
+              {
+                "offset_mm": 0,
+                "width_mm": 3,
+                "color": "stripe"
+              }
+            ]
+          }
+        },
+        {
+          "id": "circle",
+          "type": "motif",
+          "z_order": 2,
+          "params": {
+            "motif_id": "eval-circle",
+            "size_mm": 4
+          },
+          "placement": {
+            "type": "lattice",
+            "lattice": {
+              "cell_w_mm": 12,
+              "cell_h_mm": 12
+            }
+          }
+        },
+        {
+          "id": "star",
+          "type": "motif",
+          "z_order": 3,
+          "params": {
+            "motif_id": "eval-star",
+            "size_mm": 4
+          },
+          "placement": {
+            "type": "lattice",
+            "lattice": {
+              "cell_w_mm": 12,
+              "cell_h_mm": 12,
+              "offset_x_mm": 6,
+              "offset_y_mm": 6
+            }
+          }
+        }
+      ]
+    },
+    "rotated": {
+      "intent_version": 1,
+      "canvas": {
+        "tile_mm": 48,
+        "dpi": 300
+      },
+      "seed": 104729,
+      "production": {
+        "method": "print",
+        "max_colors": 12
+      },
+      "palette": {
+        "slots": [
+          {
+            "id": "ground",
+            "hex": "#000080"
+          },
+          {
+            "id": "stripe",
+            "hex": "#FFFFFF"
+          }
+        ]
+      },
+      "colorways": [
+        {
+          "id": "default",
+          "mapping": {
+            "ground": "#000080",
+            "stripe": "#FFFFFF"
+          }
+        }
+      ],
+      "layers": [
+        {
+          "id": "ground",
+          "type": "background",
+          "z_order": 0,
+          "params": {
+            "color": "ground"
+          }
+        },
+        {
+          "id": "stripes",
+          "type": "stripe",
+          "z_order": 1,
+          "params": {
+            "angle": 0,
+            "period_mm": 12,
+            "bands": [
+              {
+                "offset_mm": 0,
+                "width_mm": 3,
+                "color": "stripe"
+              }
+            ]
+          }
+        },
+        {
+          "id": "circle",
+          "type": "motif",
+          "z_order": 2,
+          "params": {
+            "motif_id": "eval-circle",
+            "size_mm": 4
+          },
+          "placement": {
+            "type": "lattice",
+            "lattice": {
+              "cell_w_mm": 12,
+              "cell_h_mm": 12
+            },
+            "fixed_rotation_deg": 45
+          }
+        },
+        {
+          "id": "star",
+          "type": "motif",
+          "z_order": 3,
+          "params": {
+            "motif_id": "eval-star",
+            "size_mm": 4
+          },
+          "placement": {
+            "type": "lattice",
+            "lattice": {
+              "cell_w_mm": 12,
+              "cell_h_mm": 12,
+              "offset_x_mm": 6,
+              "offset_y_mm": 6
+            }
+          }
+        }
+      ]
+    },
+    "red_rotated": {
+      "intent_version": 1,
+      "canvas": {
+        "tile_mm": 48,
+        "dpi": 300
+      },
+      "seed": 104729,
+      "production": {
+        "method": "print",
+        "max_colors": 12
+      },
+      "palette": {
+        "slots": [
+          {
+            "id": "ground",
+            "hex": "#000080"
+          },
+          {
+            "id": "stripe",
+            "hex": "#FFFFFF"
+          }
+        ]
+      },
+      "colorways": [
+        {
+          "id": "default",
+          "mapping": {
+            "ground": "#FF0000",
+            "stripe": "#FFFFFF"
+          }
+        }
+      ],
+      "layers": [
+        {
+          "id": "ground",
+          "type": "background",
+          "z_order": 0,
+          "params": {
+            "color": "ground"
+          }
+        },
+        {
+          "id": "stripes",
+          "type": "stripe",
+          "z_order": 1,
+          "params": {
+            "angle": 0,
+            "period_mm": 12,
+            "bands": [
+              {
+                "offset_mm": 0,
+                "width_mm": 3,
+                "color": "stripe"
+              }
+            ]
+          }
+        },
+        {
+          "id": "circle",
+          "type": "motif",
+          "z_order": 2,
+          "params": {
+            "motif_id": "eval-circle",
+            "size_mm": 4
+          },
+          "placement": {
+            "type": "lattice",
+            "lattice": {
+              "cell_w_mm": 12,
+              "cell_h_mm": 12
+            },
+            "fixed_rotation_deg": 45
+          }
+        },
+        {
+          "id": "star",
+          "type": "motif",
+          "z_order": 3,
+          "params": {
+            "motif_id": "eval-star",
+            "size_mm": 4
+          },
+          "placement": {
+            "type": "lattice",
+            "lattice": {
+              "cell_w_mm": 12,
+              "cell_h_mm": 12,
+              "offset_x_mm": 6,
+              "offset_y_mm": 6
+            }
+          }
+        }
+      ]
+    },
+    "solid": {
+      "intent_version": 1,
+      "canvas": {
+        "tile_mm": 48,
+        "dpi": 300
+      },
+      "seed": 104729,
+      "production": {
+        "method": "print",
+        "max_colors": 12
+      },
+      "palette": {
+        "slots": [
+          {
+            "id": "ground",
+            "hex": "#000080"
+          },
+          {
+            "id": "stripe",
+            "hex": "#FFFFFF"
+          }
+        ]
+      },
+      "colorways": [
+        {
+          "id": "default",
+          "mapping": {
+            "ground": "#000080",
+            "stripe": "#FFFFFF"
+          }
+        }
+      ],
+      "layers": [
+        {
+          "id": "ground",
+          "type": "background",
+          "z_order": 0,
+          "params": {
+            "color": "ground"
+          }
+        }
+      ]
+    },
+    "no_stripes": {
+      "intent_version": 1,
+      "canvas": {
+        "tile_mm": 48,
+        "dpi": 300
+      },
+      "seed": 104729,
+      "production": {
+        "method": "print",
+        "max_colors": 12
+      },
+      "palette": {
+        "slots": [
+          {
+            "id": "ground",
+            "hex": "#000080"
+          },
+          {
+            "id": "stripe",
+            "hex": "#FFFFFF"
+          }
+        ]
+      },
+      "colorways": [
+        {
+          "id": "default",
+          "mapping": {
+            "ground": "#000080",
+            "stripe": "#FFFFFF"
+          }
+        }
+      ],
+      "layers": [
+        {
+          "id": "ground",
+          "type": "background",
+          "z_order": 0,
+          "params": {
+            "color": "ground"
+          }
+        },
+        {
+          "id": "circle",
+          "type": "motif",
+          "z_order": 2,
+          "params": {
+            "motif_id": "eval-circle",
+            "size_mm": 4
+          },
+          "placement": {
+            "type": "lattice",
+            "lattice": {
+              "cell_w_mm": 12,
+              "cell_h_mm": 12
+            }
+          }
+        },
+        {
+          "id": "star",
+          "type": "motif",
+          "z_order": 3,
+          "params": {
+            "motif_id": "eval-star",
+            "size_mm": 4
+          },
+          "placement": {
+            "type": "lattice",
+            "lattice": {
+              "cell_w_mm": 12,
+              "cell_h_mm": 12,
+              "offset_x_mm": 6,
+              "offset_y_mm": 6
+            }
+          }
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "accuracy-001",
+      "split": "regression",
+      "mode": "initial",
+      "prompt": "바탕을 파랑 #0000FF 단색으로 만들고 줄무늬나 모티프는 넣지 마세요.",
+      "input_motif_ids": [],
+      "before": null,
+      "checks": [
+        {
+          "fact": "background.color",
+          "op": "eq",
+          "value": "#0000FF"
+        },
+        {
+          "fact": "stripe.count",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "accuracy-002",
+      "split": "regression",
+      "mode": "initial",
+      "prompt": "흰 바탕에 첨부한 원 하나를 작게 격자로 반복해 주세요.",
+      "input_motif_ids": ["eval-circle"],
+      "before": null,
+      "checks": [
+        {
+          "fact": "background.color",
+          "value": "#FFFFFF"
+        },
+        {
+          "fact": "motif.ids",
+          "value": ["eval-circle"]
+        },
+        {
+          "fact": "motif.eval-circle.placement",
+          "value": "lattice"
+        },
+        {
+          "fact": "motif.eval-circle.relative_size",
+          "op": "lte",
+          "value": 0.125
+        }
+      ]
+    },
+    {
+      "id": "accuracy-003",
+      "split": "held_out",
+      "mode": "initial",
+      "prompt": "첨부한 원과 별 두 모티프를 모두 쓰고 바탕은 네이비 #000080으로 해주세요.",
+      "input_motif_ids": ["eval-circle", "eval-star"],
+      "before": null,
+      "checks": [
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": ["eval-circle", "eval-star"]
+        },
+        {
+          "fact": "background.color",
+          "op": "eq",
+          "value": "#000080"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-004",
+      "split": "regression",
+      "mode": "initial",
+      "prompt": "네이비 #000080 바탕에 흰색 가로 줄무늬만 넣어주세요.",
+      "input_motif_ids": [],
+      "before": null,
+      "checks": [
+        {
+          "fact": "background.color",
+          "op": "eq",
+          "value": "#000080"
+        },
+        {
+          "fact": "stripe.colors_used",
+          "op": "eq",
+          "value": ["#FFFFFF"]
+        },
+        {
+          "fact": "stripe.angle",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "accuracy-005",
+      "split": "regression",
+      "mode": "initial",
+      "prompt": "네이비 #000080 바탕에 흰색 세로 줄무늬만 넣어주세요.",
+      "input_motif_ids": [],
+      "before": null,
+      "checks": [
+        {
+          "fact": "background.color",
+          "op": "eq",
+          "value": "#000080"
+        },
+        {
+          "fact": "stripe.colors_used",
+          "op": "eq",
+          "value": ["#FFFFFF"]
+        },
+        {
+          "fact": "stripe.angle",
+          "op": "eq",
+          "value": 90
+        },
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "accuracy-006",
+      "split": "held_out",
+      "mode": "initial",
+      "prompt": "흰색 대각선 줄무늬를 왼쪽 위에서 오른쪽 아래로 내려가게 넣고 바탕은 네이비 #000080, 모티프는 빼주세요.",
+      "input_motif_ids": [],
+      "before": null,
+      "checks": [
+        {
+          "fact": "background.color",
+          "op": "eq",
+          "value": "#000080"
+        },
+        {
+          "fact": "stripe.colors_used",
+          "op": "eq",
+          "value": ["#FFFFFF"]
+        },
+        {
+          "fact": "stripe.angle",
+          "op": "eq",
+          "value": 45
+        },
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "accuracy-007",
+      "split": "regression",
+      "mode": "initial",
+      "prompt": "첨부한 원 모티프를 한 타일에 12개 산개 배치해 주세요.",
+      "input_motif_ids": ["eval-circle"],
+      "before": null,
+      "checks": [
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": ["eval-circle"]
+        },
+        {
+          "fact": "motif.eval-circle.placement",
+          "op": "eq",
+          "value": "scatter"
+        },
+        {
+          "fact": "motif.eval-circle.count",
+          "op": "eq",
+          "value": 12
+        }
+      ]
+    },
+    {
+      "id": "accuracy-008",
+      "split": "regression",
+      "mode": "initial",
+      "prompt": "첨부한 원만 격자에 반 칸씩 엇갈려 배치해 주세요.",
+      "input_motif_ids": ["eval-circle"],
+      "before": null,
+      "checks": [
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": ["eval-circle"]
+        },
+        {
+          "fact": "motif.eval-circle.placement",
+          "op": "eq",
+          "value": "lattice"
+        },
+        {
+          "fact": "motif.eval-circle.drop",
+          "op": "eq",
+          "value": 0.5
+        }
+      ]
+    },
+    {
+      "id": "accuracy-009",
+      "split": "held_out",
+      "mode": "edit",
+      "prompt": "바탕색만 빨강 #FF0000으로 바꾸고 줄무늬와 원, 별은 그대로 두세요.",
+      "input_motif_ids": [],
+      "before": "base",
+      "checks": [
+        {
+          "fact": "background.color",
+          "op": "eq",
+          "value": "#FF0000"
+        },
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": ["eval-circle", "eval-star"]
+        },
+        {
+          "fact": "stripe.colors",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.geometry",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.eval-circle.appearance",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.eval-star.appearance",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-010",
+      "split": "regression",
+      "mode": "edit",
+      "prompt": "줄무늬 색만 검정 #000000으로 바꿔주세요. 바탕과 원, 별은 그대로 두세요.",
+      "input_motif_ids": [],
+      "before": "base",
+      "checks": [
+        {
+          "fact": "stripe.colors",
+          "op": "eq",
+          "value": ["#000000"]
+        },
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": ["eval-circle", "eval-star"]
+        },
+        {
+          "fact": "background.color",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.geometry",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.eval-circle.appearance",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.eval-star.appearance",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-011",
+      "split": "regression",
+      "mode": "edit",
+      "prompt": "원만 45도 회전하고 위치와 크기, 별과 줄무늬는 그대로 두세요.",
+      "input_motif_ids": [],
+      "before": "base",
+      "checks": [
+        {
+          "fact": "motif.eval-circle.rotation",
+          "op": "eq",
+          "value": [45]
+        },
+        {
+          "fact": "motif.eval-circle.centers",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.eval-circle.size_mm",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": ["eval-circle", "eval-star"]
+        },
+        {
+          "fact": "motif.eval-star.appearance",
+          "op": "unchanged"
+        },
+        {
+          "fact": "background.color",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.colors",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.geometry",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-012",
+      "split": "held_out",
+      "mode": "edit",
+      "prompt": "별만 90도 회전하고 위치와 크기, 원과 줄무늬는 그대로 두세요.",
+      "input_motif_ids": [],
+      "before": "base",
+      "checks": [
+        {
+          "fact": "motif.eval-star.rotation",
+          "op": "eq",
+          "value": [90]
+        },
+        {
+          "fact": "motif.eval-star.centers",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.eval-star.size_mm",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": ["eval-circle", "eval-star"]
+        },
+        {
+          "fact": "motif.eval-circle.appearance",
+          "op": "unchanged"
+        },
+        {
+          "fact": "background.color",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.colors",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.geometry",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-013",
+      "split": "regression",
+      "mode": "edit",
+      "prompt": "원만 지금보다 작게 하고 원의 위치와 별, 줄무늬, 바탕은 그대로 두세요.",
+      "input_motif_ids": [],
+      "before": "base",
+      "checks": [
+        {
+          "fact": "motif.eval-circle.size_mm",
+          "op": "lt_before"
+        },
+        {
+          "fact": "motif.eval-circle.positions",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": ["eval-circle", "eval-star"]
+        },
+        {
+          "fact": "motif.eval-star.appearance",
+          "op": "unchanged"
+        },
+        {
+          "fact": "background.color",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.colors",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.geometry",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-014",
+      "split": "regression",
+      "mode": "edit",
+      "prompt": "원만 더 성기게 배치하고 크기와 별, 줄무늬, 바탕은 그대로 두세요.",
+      "input_motif_ids": [],
+      "before": "base",
+      "checks": [
+        {
+          "fact": "motif.eval-circle.density",
+          "op": "lt_before"
+        },
+        {
+          "fact": "motif.eval-circle.size_mm",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": ["eval-circle", "eval-star"]
+        },
+        {
+          "fact": "motif.eval-star.appearance",
+          "op": "unchanged"
+        },
+        {
+          "fact": "background.color",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.colors",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.geometry",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-015",
+      "split": "held_out",
+      "mode": "edit",
+      "prompt": "원만 더 촘촘하게 배치하고 크기와 별, 줄무늬, 바탕은 그대로 두세요.",
+      "input_motif_ids": [],
+      "before": "base",
+      "checks": [
+        {
+          "fact": "motif.eval-circle.density",
+          "op": "gt_before"
+        },
+        {
+          "fact": "motif.eval-circle.size_mm",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": ["eval-circle", "eval-star"]
+        },
+        {
+          "fact": "motif.eval-star.appearance",
+          "op": "unchanged"
+        },
+        {
+          "fact": "background.color",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.colors",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.geometry",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-016",
+      "split": "regression",
+      "mode": "edit",
+      "prompt": "줄무늬만 없애고 바탕과 원, 별은 그대로 두세요.",
+      "input_motif_ids": [],
+      "before": "base",
+      "checks": [
+        {
+          "fact": "stripe.count",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "fact": "background.color",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": ["eval-circle", "eval-star"]
+        },
+        {
+          "fact": "motif.eval-circle.appearance",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.eval-star.appearance",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-017",
+      "split": "regression",
+      "mode": "edit",
+      "prompt": "원 중심을 흰 줄무늬 한가운데에 놓고 별과 바탕, 줄무늬는 그대로 두세요.",
+      "input_motif_ids": [],
+      "before": "base",
+      "checks": [
+        {
+          "fact": "motif.eval-circle.lane",
+          "op": "eq",
+          "value": "b0.center"
+        },
+        {
+          "fact": "motif.eval-circle.stripe_host",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "fact": "motif.eval-circle.size_mm",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": ["eval-circle", "eval-star"]
+        },
+        {
+          "fact": "motif.eval-star.appearance",
+          "op": "unchanged"
+        },
+        {
+          "fact": "background.color",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.colors",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.geometry",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-018",
+      "split": "held_out",
+      "mode": "edit",
+      "prompt": "원 중심을 흰 줄무늬 사이 빈 공간의 가운데로 옮기고 별과 바탕, 줄무늬는 그대로 두세요.",
+      "input_motif_ids": [],
+      "before": "base",
+      "checks": [
+        {
+          "fact": "motif.eval-circle.lane",
+          "op": "eq",
+          "value": "b0.gap"
+        },
+        {
+          "fact": "motif.eval-circle.stripe_host",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "fact": "motif.eval-circle.size_mm",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": ["eval-circle", "eval-star"]
+        },
+        {
+          "fact": "motif.eval-star.appearance",
+          "op": "unchanged"
+        },
+        {
+          "fact": "background.color",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.colors",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.geometry",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-019",
+      "split": "regression",
+      "mode": "edit",
+      "prompt": "전체 패턴을 2배 확대하고 상대적인 위치와 비율, 색은 유지해 주세요.",
+      "input_motif_ids": [],
+      "before": "base",
+      "checks": [
+        {
+          "fact": "tile_mm",
+          "op": "eq",
+          "value": 96
+        },
+        {
+          "fact": "motif.eval-circle.size_mm",
+          "op": "eq",
+          "value": 8
+        },
+        {
+          "fact": "motif.eval-star.size_mm",
+          "op": "eq",
+          "value": 8
+        },
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": ["eval-circle", "eval-star"]
+        },
+        {
+          "fact": "motif.eval-circle.normalized_positions",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.eval-star.normalized_positions",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.eval-circle.relative_size",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.eval-star.relative_size",
+          "op": "unchanged"
+        },
+        {
+          "fact": "background.color",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.colors",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-020",
+      "split": "regression",
+      "mode": "edit",
+      "prompt": "전체 패턴을 절반으로 축소하고 상대적인 위치와 비율, 색은 유지해 주세요.",
+      "input_motif_ids": [],
+      "before": "base",
+      "checks": [
+        {
+          "fact": "tile_mm",
+          "op": "eq",
+          "value": 24
+        },
+        {
+          "fact": "motif.eval-circle.size_mm",
+          "op": "eq",
+          "value": 2
+        },
+        {
+          "fact": "motif.eval-star.size_mm",
+          "op": "eq",
+          "value": 2
+        },
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": ["eval-circle", "eval-star"]
+        },
+        {
+          "fact": "motif.eval-circle.normalized_positions",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.eval-star.normalized_positions",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.eval-circle.relative_size",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.eval-star.relative_size",
+          "op": "unchanged"
+        },
+        {
+          "fact": "background.color",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.colors",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-021",
+      "split": "held_out",
+      "mode": "edit",
+      "prompt": "별만 지금보다 크게 하고 별의 위치와 원, 줄무늬, 바탕은 그대로 두세요.",
+      "input_motif_ids": [],
+      "before": "base",
+      "checks": [
+        {
+          "fact": "motif.eval-star.size_mm",
+          "op": "gt_before"
+        },
+        {
+          "fact": "motif.eval-star.positions",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": ["eval-circle", "eval-star"]
+        },
+        {
+          "fact": "motif.eval-circle.appearance",
+          "op": "unchanged"
+        },
+        {
+          "fact": "background.color",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.colors",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.geometry",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-022",
+      "split": "regression",
+      "mode": "edit",
+      "prompt": "지금 45도인 원의 회전은 유지하고 바탕만 빨강 #FF0000으로 바꿔주세요.",
+      "input_motif_ids": [],
+      "before": "rotated",
+      "checks": [
+        {
+          "fact": "background.color",
+          "op": "eq",
+          "value": "#FF0000"
+        },
+        {
+          "fact": "motif.eval-circle.rotation",
+          "op": "eq",
+          "value": [45]
+        },
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": ["eval-circle", "eval-star"]
+        },
+        {
+          "fact": "motif.eval-circle.appearance",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.eval-star.appearance",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.colors",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.geometry",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-023",
+      "split": "regression",
+      "mode": "edit",
+      "prompt": "빨간 바탕은 유지하고 원의 회전만 45도에서 0도로 되돌려 주세요. 별과 줄무늬는 그대로 두세요.",
+      "input_motif_ids": [],
+      "before": "red_rotated",
+      "checks": [
+        {
+          "fact": "motif.eval-circle.rotation",
+          "op": "eq",
+          "value": [0]
+        },
+        {
+          "fact": "motif.eval-circle.centers",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.eval-circle.size_mm",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": ["eval-circle", "eval-star"]
+        },
+        {
+          "fact": "motif.eval-star.appearance",
+          "op": "unchanged"
+        },
+        {
+          "fact": "background.color",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.colors",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.geometry",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-024",
+      "split": "held_out",
+      "mode": "edit",
+      "prompt": "원과 별을 모두 산개 배치로 바꾸고 축마다 6개씩, 크기와 색은 유지하세요.",
+      "input_motif_ids": [],
+      "before": "base",
+      "checks": [
+        {
+          "fact": "motif.eval-circle.placement",
+          "op": "eq",
+          "value": "scatter"
+        },
+        {
+          "fact": "motif.eval-star.placement",
+          "op": "eq",
+          "value": "scatter"
+        },
+        {
+          "fact": "motif.eval-circle.count",
+          "op": "eq",
+          "value": 18
+        },
+        {
+          "fact": "motif.eval-star.count",
+          "op": "eq",
+          "value": 18
+        },
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": ["eval-circle", "eval-star"]
+        },
+        {
+          "fact": "motif.eval-circle.size_mm",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.eval-star.size_mm",
+          "op": "unchanged"
+        },
+        {
+          "fact": "background.color",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.colors",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.geometry",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-025",
+      "split": "regression",
+      "mode": "edit",
+      "prompt": "원은 반 칸 엇갈림 격자로 바꾸고 원 크기와 별, 줄무늬, 바탕은 그대로 두세요.",
+      "input_motif_ids": [],
+      "before": "base",
+      "checks": [
+        {
+          "fact": "motif.eval-circle.placement",
+          "op": "eq",
+          "value": "lattice"
+        },
+        {
+          "fact": "motif.eval-circle.drop",
+          "op": "eq",
+          "value": 0.5
+        },
+        {
+          "fact": "motif.eval-circle.size_mm",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": ["eval-circle", "eval-star"]
+        },
+        {
+          "fact": "motif.eval-star.appearance",
+          "op": "unchanged"
+        },
+        {
+          "fact": "background.color",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.colors",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.geometry",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-026",
+      "split": "regression",
+      "mode": "edit",
+      "prompt": "별만 더 성기게 배치하고 크기와 원, 줄무늬, 바탕은 그대로 두세요.",
+      "input_motif_ids": [],
+      "before": "base",
+      "checks": [
+        {
+          "fact": "motif.eval-star.density",
+          "op": "lt_before"
+        },
+        {
+          "fact": "motif.eval-star.size_mm",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.ids",
+          "op": "eq",
+          "value": ["eval-circle", "eval-star"]
+        },
+        {
+          "fact": "motif.eval-circle.appearance",
+          "op": "unchanged"
+        },
+        {
+          "fact": "background.color",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.colors",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.geometry",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-027",
+      "split": "held_out",
+      "mode": "reject",
+      "prompt": "원의 색만 초록색으로 다시 칠해 주세요.",
+      "input_motif_ids": [],
+      "before": "base",
+      "checks": [
+        {
+          "fact": "rejection",
+          "op": "eq",
+          "value": "motif_recolor"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-028",
+      "split": "regression",
+      "mode": "reject",
+      "prompt": "없는 고양이 모티프만 45도로 회전해 주세요.",
+      "input_motif_ids": [],
+      "before": "base",
+      "checks": [
+        {
+          "fact": "rejection",
+          "op": "eq",
+          "value": "target_missing"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-029",
+      "split": "regression",
+      "mode": "reject",
+      "prompt": "원을 고양이 모티프로 교체해 주세요.",
+      "input_motif_ids": [],
+      "before": "base",
+      "checks": [
+        {
+          "fact": "rejection",
+          "op": "eq",
+          "value": "motif_change"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-030",
+      "split": "held_out",
+      "mode": "reject",
+      "prompt": "줄무늬가 없는 이 디자인에서 원만 줄 사이에 놓아 주세요.",
+      "input_motif_ids": [],
+      "before": "no_stripes",
+      "checks": [
+        {
+          "fact": "rejection",
+          "op": "eq",
+          "value": "motif_position"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-031",
+      "split": "held_out",
+      "mode": "initial",
+      "prompt": "금색 #FFD700 줄무늬를 네이비 #000080 바탕에 넣어 주세요. 모티프는 빼고요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "background.color",
+          "value": "#000080"
+        },
+        {
+          "fact": "stripe.colors_used",
+          "value": ["#FFD700"]
+        },
+        {
+          "fact": "motif.ids",
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "accuracy-032",
+      "split": "regression",
+      "mode": "initial",
+      "prompt": "줄무늬는 흰색 #FFFFFF, 바탕은 네이비 #000080으로 해주세요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "background.color",
+          "value": "#000080"
+        },
+        {
+          "fact": "stripe.colors_used",
+          "value": ["#FFFFFF"]
+        }
+      ]
+    },
+    {
+      "id": "accuracy-033",
+      "split": "regression",
+      "mode": "initial",
+      "prompt": "네이비 #000080 바탕에 흰색 #FFFFFF 굵은 줄과 금색 #FFD700 가는 줄이 한 쌍으로 반복되게 해주세요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "background.color",
+          "value": "#000080"
+        },
+        {
+          "fact": "stripe.count",
+          "value": 1
+        },
+        {
+          "fact": "stripe.colors",
+          "value": ["#FFFFFF", "#FFD700"]
+        }
+      ]
+    },
+    {
+      "id": "accuracy-034",
+      "split": "held_out",
+      "mode": "initial",
+      "prompt": "차분한 봄 느낌으로 만들되 바탕은 크림색 #F5F0E6으로 하고 모티프는 넣지 마세요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "background.color",
+          "value": "#F5F0E6"
+        },
+        {
+          "fact": "motif.ids",
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "accuracy-035",
+      "split": "regression",
+      "mode": "initial",
+      "prompt": "화려한 파티용으로 만들되 줄무늬는 넣지 마세요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "stripe.count",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "accuracy-036",
+      "split": "held_out",
+      "mode": "edit",
+      "before": "base",
+      "prompt": "원은 크게, 별은 작게 해주세요. 배치와 색은 그대로요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "motif.eval-circle.size_mm",
+          "op": "gt_before"
+        },
+        {
+          "fact": "motif.eval-star.size_mm",
+          "op": "lt_before"
+        },
+        {
+          "fact": "motif.eval-circle.centers",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.eval-star.centers",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.ids",
+          "value": ["eval-circle", "eval-star"]
+        },
+        {
+          "fact": "background.color",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.colors",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.geometry",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-037",
+      "split": "regression",
+      "mode": "edit",
+      "before": "base",
+      "prompt": "별만 줄무늬 위에 올리고 원은 그대로 두세요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "motif.eval-star.lane",
+          "value": "b0.center"
+        },
+        {
+          "fact": "motif.eval-star.stripe_host",
+          "value": true
+        },
+        {
+          "fact": "motif.eval-star.size_mm",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.ids",
+          "value": ["eval-circle", "eval-star"]
+        },
+        {
+          "fact": "motif.eval-circle.appearance",
+          "op": "unchanged"
+        },
+        {
+          "fact": "background.color",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.colors",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.geometry",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-040",
+      "split": "held_out",
+      "mode": "initial",
+      "prompt": "첨부한 원과 별을 격자로 배치하고 바탕은 네이비 #000080으로 해주세요.",
+      "input_motif_ids": ["eval-circle", "eval-star"],
+      "checks": [
+        {
+          "fact": "background.color",
+          "value": "#000080"
+        },
+        {
+          "fact": "motif.ids",
+          "value": ["eval-circle", "eval-star"]
+        }
+      ]
+    },
+    {
+      "id": "accuracy-041",
+      "split": "held_out",
+      "mode": "edit",
+      "before": "accuracy-040",
+      "prompt": "바탕만 빨강 #FF0000으로 바꾸고 원과 별은 그대로 두세요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "background.color",
+          "value": "#FF0000"
+        },
+        {
+          "fact": "motif.ids",
+          "value": ["eval-circle", "eval-star"]
+        },
+        {
+          "fact": "motif.eval-circle.appearance",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.eval-star.appearance",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-042",
+      "split": "held_out",
+      "mode": "edit",
+      "before": "accuracy-041",
+      "prompt": "방금 바꾼 빨간 바탕은 그대로 두고 원만 45도 돌려 주세요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "background.color",
+          "value": "#FF0000"
+        },
+        {
+          "fact": "motif.eval-circle.rotation",
+          "value": [45]
+        },
+        {
+          "fact": "motif.eval-circle.centers",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.eval-star.appearance",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-043",
+      "split": "held_out",
+      "mode": "initial",
+      "prompt": "첨부한 원을 격자로 반복하고 바탕은 흰색 #FFFFFF으로 해주세요.",
+      "input_motif_ids": ["eval-circle"],
+      "checks": [
+        {
+          "fact": "background.color",
+          "value": "#FFFFFF"
+        },
+        {
+          "fact": "motif.ids",
+          "value": ["eval-circle"]
+        }
+      ]
+    },
+    {
+      "id": "accuracy-044",
+      "split": "held_out",
+      "mode": "edit",
+      "before": "accuracy-043",
+      "prompt": "원을 더 촘촘하게 해주세요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "motif.eval-circle.density",
+          "op": "gt_before"
+        },
+        {
+          "fact": "background.color",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-045",
+      "split": "held_out",
+      "mode": "edit",
+      "before": "accuracy-044",
+      "prompt": "조금 더 촘촘하게요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "motif.eval-circle.density",
+          "op": "gt_before"
+        },
+        {
+          "fact": "background.color",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-050",
+      "split": "held_out",
+      "mode": "initial",
+      "prompt": "고양이 무늬를 격자로 반복한 넥타이를 만들어 주세요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "motif.subjects",
+          "value": ["cat"]
+        },
+        {
+          "fact": "motif.approximate_match",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "accuracy-051",
+      "split": "held_out",
+      "mode": "initial",
+      "prompt": "동백꽃을 흩뿌린 넥타이를 만들어 주세요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "motif.subjects",
+          "value": ["동백꽃"]
+        },
+        {
+          "fact": "motif.approximate_match",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "accuracy-052",
+      "split": "regression",
+      "mode": "initial",
+      "prompt": "말 무늬 하나를 격자로 반복하고 바탕은 네이비 #000080으로 해주세요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "motif.subjects",
+          "value": ["horse"]
+        },
+        {
+          "fact": "background.color",
+          "value": "#000080"
+        }
+      ]
+    }
+  ]
+}

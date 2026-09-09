@@ -1,9 +1,11 @@
 """배치 — Cloud Scheduler가 호출 (money.md §7). 로컬은 batch_token Bearer로 수동 실행."""
 
+import logging
 from datetime import UTC, datetime, timedelta
 
 from db.models.commerce import Claim, Order
 from db.models.images import Image
+from db.models.tokens import TokenWork
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 from sqlalchemy import and_, exists, func, not_, or_, select
@@ -12,7 +14,10 @@ from api.db import SessionDep
 from api.deps import BatchAuth
 from api.domains.orders.service import log_status, restore_reserved_order_coupons
 from api.domains.orders.status_machine import ACTIVE_CLAIM_STATUSES
+from api.domains.tokens import work as token_work
 from api.integrations.gcs import assets_bucket_name
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/batch", tags=["batch"], dependencies=[BatchAuth])
 
@@ -21,6 +26,7 @@ STALE_PENDING_AFTER = timedelta(minutes=30)
 CLEANUP_BATCH_SIZE = 100
 CLEANUP_RETRY_AFTER = timedelta(minutes=5)
 ORDER_BATCH_SIZE = 500
+TOKEN_WORK_BATCH_SIZE = 100
 
 
 class BatchResult(BaseModel):
@@ -141,4 +147,41 @@ async def cleanup_images(session: SessionDep, request: Request) -> BatchResult:
             image.deleted_at = datetime.now(UTC)  # ③ finalize (soft delete)
             processed += 1
     await session.commit()
+    return BatchResult(processed=processed)
+
+
+@router.post("/recover-token-works", response_model=BatchResult)
+async def recover_token_works(session: SessionDep) -> BatchResult:
+    """기한이 지난 미완료 차감을 환불한다 — 프로세스 중단 복구 (money.md §6).
+
+    대상은 api가 남긴 pending 기록뿐이다 — 기록 없는 오래된 차감은 자동 환불하지 않는다.
+    외부 호출은 재실행하지 않으며, 회수 불가능한 provider 비용은 서비스가 부담한다.
+    """
+    now = datetime.now(UTC)
+    candidates = (
+        await session.execute(
+            select(TokenWork.work_id, TokenWork.user_id)
+            .where(TokenWork.status == "pending", TokenWork.deadline_at < now)
+            .order_by(TokenWork.deadline_at, TokenWork.work_id)
+            .limit(TOKEN_WORK_BATCH_SIZE)
+        )
+    ).all()
+
+    processed = 0
+    for work_id, user_id in candidates:
+        # 성공 완료와 경쟁하면 release가 잠금 아래에서 상태·기한을 다시 보고 한쪽만 커밋한다.
+        try:
+            released = await token_work.release(
+                session,
+                user_id=user_id,
+                work_id=work_id,
+                amount=None,
+                deadline_before=now,
+            )
+        except Exception:
+            # 한 건의 실패가 배치 전체를 막지 않는다 — 다음 배치가 다시 집는다.
+            logger.warning("미완료 차감 복구 실패: %s", work_id, exc_info=True)
+            await session.rollback()
+            continue
+        processed += int(released)
     return BatchResult(processed=processed)

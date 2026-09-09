@@ -465,3 +465,40 @@ def test_compiler_never_emits_semantic_motif_placeholders():
 
     assert _motif_ids(compiled.intent) == ["circle"]
     assert "semantic_" not in json.dumps(compiled.intent)
+
+
+def test_two_scattered_motifs_compile_to_separate_random_streams():
+    """산개 레이어가 둘이면 좌표가 포개지지 않게 갈린다 — 하나뿐이면 산출물이 그대로다."""
+    plan = DesignPlanV3.model_validate(
+        {
+            "colors": ["#10243A", "#EF8A7A"],
+            "ground_color_index": 0,
+            "motifs": [
+                {"source": "input", "input_index": 1},
+                {"source": "input", "input_index": 2},
+            ],
+            "layers": [
+                {
+                    "type": "motif",
+                    "motif_index": index,
+                    "size_ratio": 0.1,
+                    "placement": {
+                        "type": "scatter",
+                        "mode": "poisson",
+                        "count": 8,
+                        "min_distance_ratio": 0.2,
+                    },
+                }
+                for index in (0, 1)
+            ],
+        }
+    )
+    compiled = compile_design_plan_v3(plan, motif_ids=["a", "b"]).intent
+    scatters = [
+        layer["placement"]["scatter"] for layer in compiled["layers"] if layer["type"] == "motif"
+    ]
+    assert [scatter["seed_salt"] for scatter in scatters] == ["motif_0", "motif_1"]
+
+    single = plan.model_copy(update={"layers": plan.layers[:1], "motifs": plan.motifs[:1]})
+    only = compile_design_plan_v3(single, motif_ids=["a"]).intent
+    assert "seed_salt" not in only["layers"][1]["placement"]["scatter"]
