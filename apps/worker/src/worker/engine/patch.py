@@ -726,7 +726,9 @@ def apply_patch(
         # 홀수 축 엇갈림은 밀도를 올리지 않고 반복 단위를 늘려 닫는다.
         tile, count_factor = _stagger_frame(raw, patch.placement, tile, warnings)
         # 밀도 양보는 크기를 안 건드린 patch만 — 둘 다 바꾼 patch는 지금처럼 크기를 클램프한다.
-        cap = MAX_AXIS_COUNT if patch.motif_size_mm is not None else _density_cap(raw, tile)
+        # 전부 null인 리스트는 크기를 안 바꾼 것이다(null = 그 모티프는 그대로).
+        resized = any(_positive_float(size) is not None for size in patch.motif_size_mm or ())
+        cap = MAX_AXIS_COUNT if resized else _density_cap(raw, tile)
         _apply_placement(raw, patch.placement, tile=tile, cap=cap, count_factor=count_factor)
     if patch.motif_size_mm is not None:
         for layer, size in zip(_layers(raw, "motif"), patch.motif_size_mm, strict=False):

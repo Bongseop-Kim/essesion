@@ -246,9 +246,7 @@ async def test_batch_oidc_disables_token_fallback(oidc_client, monkeypatch):
 
 async def _pending_work(db_session, user, *, work_id, cost=100, overdue=True, status="pending"):
     """차감 원장 한 줄 + 그 차감을 가리키는 작업 기록 — 실제 커밋 상태를 그대로 만든다."""
-    db_session.add(
-        DesignToken(user_id=user.id, amount=500, type="grant", token_class="free")
-    )
+    db_session.add(DesignToken(user_id=user.id, amount=500, type="grant", token_class="free"))
     db_session.add(
         DesignToken(
             user_id=user.id,
@@ -279,9 +277,7 @@ async def _pending_work(db_session, user, *, work_id, cost=100, overdue=True, st
 
 async def _balance(db_session, user_id):
     return await db_session.scalar(
-        select(func.coalesce(func.sum(DesignToken.amount), 0)).where(
-            DesignToken.user_id == user_id
-        )
+        select(func.coalesce(func.sum(DesignToken.amount), 0)).where(DesignToken.user_id == user_id)
     )
 
 
@@ -304,9 +300,7 @@ async def test_recover_token_works_leaves_running_and_finished_work_alone(client
     """정상 진행 중(기한 이내)과 이미 종결된 작업은 건드리지 않는다."""
     user = await make_user(db_session)
     await _pending_work(db_session, user, work_id="motif_generate_running", overdue=False)
-    await _pending_work(
-        db_session, user, work_id="motif_generate_done", status="succeeded", cost=7
-    )
+    await _pending_work(db_session, user, work_id="motif_generate_done", status="succeeded", cost=7)
 
     response = await client.post("/batch/recover-token-works", headers=BATCH_HEADERS)
 
@@ -317,9 +311,7 @@ async def test_recover_token_works_leaves_running_and_finished_work_alone(client
 async def test_recover_token_works_ignores_charges_without_a_work_record(client, db_session):
     """기록 없는 차감은 자동 환불하지 않는다 — 성공 여부를 입증할 연결이 없다."""
     user = await make_user(db_session)
-    db_session.add(
-        DesignToken(user_id=user.id, amount=500, type="grant", token_class="free")
-    )
+    db_session.add(DesignToken(user_id=user.id, amount=500, type="grant", token_class="free"))
     db_session.add(
         DesignToken(
             user_id=user.id,

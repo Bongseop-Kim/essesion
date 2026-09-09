@@ -1104,9 +1104,9 @@ def test_explicit_hex_next_to_a_named_color_wins_over_the_table():
         ("gold", "#D4AF37")
     ]
     for prompt in ("금색 #FFD700 줄무늬", "#FFD700 금색 줄무늬", "금색은 #ffd700으로"):
-        assert [
-            (name, hex_value) for name, hex_value, _ in requested_named_colors(prompt)
-        ] == [("gold", "#FFD700")], prompt
+        assert [(name, hex_value) for name, hex_value, _ in requested_named_colors(prompt)] == [
+            ("gold", "#FFD700")
+        ], prompt
 
     normalized = normalize_requested_named_colors(
         "금색 #FFD700 줄무늬를 네이비 #000080 바탕에 넣어 주세요",

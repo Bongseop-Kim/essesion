@@ -137,9 +137,7 @@ def _pair_overlaps(boxes: list[Box], others: list[Box] | None = None) -> int:
     # ponytail: O(n^2) over one tile's instances (max_placement_instances bounded); an offline
     # scorer, not a render path. Grid-bucket it if a corpus ever needs thousands of instances.
     if others is None:
-        return sum(
-            _overlaps(a, b) for index, a in enumerate(boxes) for b in boxes[index + 1 :]
-        )
+        return sum(_overlaps(a, b) for index, a in enumerate(boxes) for b in boxes[index + 1 :])
     return sum(_overlaps(a, b) for a in boxes for b in others)
 
 
@@ -239,9 +237,7 @@ def _shape_inside_lane(
     nx, ny = -math.sin(angle), math.cos(angle)
     for inst in instances:
         min_x, min_y, max_x, max_y = rendered_aabb(motif, inst, size_mm)
-        projections = [
-            x * nx + y * ny for x in (min_x, max_x) for y in (min_y, max_y)
-        ]
+        projections = [x * nx + y * ny for x in (min_x, max_x) for y in (min_y, max_y)]
         near, far = min(projections), max(projections)
         # Bands repeat every period; slide the span to the copy that starts just below `near`.
         shift = math.floor((near - low) / period) * period
@@ -355,9 +351,7 @@ def facts(observation: Observation, corpus: Corpus, *, ink: bool = False) -> dic
         # Whole-shape geometry: boundary clones included, so a neighbour across the tile edge
         # counts the same as one inside it.
         motif = symbols[layer.params.motif_id]
-        cloned = clone_instances(
-            positions, motif=motif, size_mm=layer.params.size_mm, tile_mm=tile
-        )
+        cloned = clone_instances(positions, motif=motif, size_mm=layer.params.size_mm, tile_mm=tile)
         boxes = [rendered_aabb(motif, inst, layer.params.size_mm) for inst in cloned]
         boxes_by_layer[key] = boxes
         out[f"{key}.self_overlaps"] = _pair_overlaps(boxes)
@@ -368,8 +362,7 @@ def facts(observation: Observation, corpus: Corpus, *, ink: bool = False) -> dic
                 for inst in cloned
             }
             candidates = [
-                (box, masks[inst.rotation_deg])
-                for box, inst in zip(boxes, cloned, strict=True)
+                (box, masks[inst.rotation_deg]) for box, inst in zip(boxes, cloned, strict=True)
             ]
             ink_by_layer[key] = candidates
             out[f"{key}.self_ink_overlaps"] = _ink_overlaps(candidates)
@@ -582,9 +575,10 @@ def main() -> None:
     # 알파 마스크 2단계 — 렌더러(rsvg-convert/resvg)가 필요하고 AABB 오탐을 걸러낸다.
     parser.add_argument("--ink-overlap", action="store_true")
     args = parser.parse_args()
-    corpus = Corpus.model_validate_json(args.corpus.read_text())
-    validate_corpus(corpus, ink=args.ink_overlap)
+    corpus = Corpus.model_validate_json(args.corpus.read_text(encoding="utf-8"))
     if args.check_corpus:
+        # --outputs 경로는 evaluate()가 같은 검증을 하므로 여기서 두 번 돌리지 않는다.
+        validate_corpus(corpus, ink=args.ink_overlap)
         print(
             json.dumps(
                 {
@@ -598,7 +592,8 @@ def main() -> None:
         )
         return
     observations = [
-        Observation.model_validate(item) for item in json.loads(args.outputs.read_text())
+        Observation.model_validate(item)
+        for item in json.loads(args.outputs.read_text(encoding="utf-8"))
     ]
     report = evaluate(corpus, observations, ink=args.ink_overlap)
     print(json.dumps(report, ensure_ascii=False, indent=2))

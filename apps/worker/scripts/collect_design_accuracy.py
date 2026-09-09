@@ -106,7 +106,7 @@ async def _initial(
             case["prompt"],
             embedding_client=embedding,
             embedding_model=embedding.model,
-            available_motif_count=min(2, len(motif_ids)),
+            available_motif_count=min(2, len(motif_ids) + len(candidates)),
         )
         examples = retrieval.prompt_examples()
         status = retrieval.status

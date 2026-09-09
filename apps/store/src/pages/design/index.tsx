@@ -518,6 +518,7 @@ function PageNotice({
 }) {
   return (
     <Flex
+      role="status"
       align="center"
       gap="x2"
       width="full"

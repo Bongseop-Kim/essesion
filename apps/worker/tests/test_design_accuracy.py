@@ -291,9 +291,7 @@ def test_stacked_slots_are_scored_as_overlapping_shapes():
 
 def test_lane_conditions_score_the_whole_shape_not_only_the_center():
     """`between_stripes`는 중심만이 아니라 도형 전체가 빈 공간에 들어가야 참이다."""
-    fitting = scoring.facts(
-        scoring.Observation(case_id="sample", intent=candidate(18)), corpus()
-    )
+    fitting = scoring.facts(scoring.Observation(case_id="sample", intent=candidate(18)), corpus())
     assert fitting["motif.eval-circle.lane"] == "b0.gap"
     assert fitting["motif.eval-circle.lane_contains_shape"] is True
 

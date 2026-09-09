@@ -262,7 +262,9 @@ def _build_patch_prompt(
         "read-only subject/description — this is context only, never a field you can set. "
         "`motif_size_mm` follows exactly that same order. To resize only one motif, set its "
         "entry and leave every other entry null — a null entry keeps that motif's current size "
-        "exactly. Never copy a size onto a motif the request did not ask to resize. Never "
+        "exactly. Never copy a size onto a motif the request did not ask to resize, except when "
+        "`scale` changes and the motifs must keep their current size: then set every entry to "
+        "its current value. Never "
         "invent or assume a motif that is not listed there.",
         "If the request names a motif that is not in the `motifs` list, or it is ambiguous which "
         "listed motif is meant, do not change any motif axis for it: set out_of_scope to true "

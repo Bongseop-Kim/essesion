@@ -45,9 +45,7 @@ def _centers(intent: dict, layer_index: int, seed: int | None = None) -> list[tu
     placement = Placement.model_validate(layer["placement"])
     tile = intent["canvas"]["tile_mm"]
     effective = intent["seed"] if seed is None else seed
-    return sorted(
-        (point.x_mm, point.y_mm) for point in place_scatter(placement, tile, effective)
-    )
+    return sorted((point.x_mm, point.y_mm) for point in place_scatter(placement, tile, effective))
 
 
 def _lattice_intent() -> dict:
@@ -69,9 +67,7 @@ def test_dart_throwing_falls_short_of_the_requested_count():
         assert len(points) < 30
         assert len(points) >= 22
         closest = min(
-            _torus_dist(*a, *b, 48.0)
-            for index, a in enumerate(points)
-            for b in points[index + 1 :]
+            _torus_dist(*a, *b, 48.0) for index, a in enumerate(points) for b in points[index + 1 :]
         )
         assert closest >= 8.0
 
@@ -133,7 +129,7 @@ def test_intent_without_seed_salt_keeps_the_legacy_stream():
 
 
 def test_sparsest_scatter_preset_asks_for_what_it_can_place():
-    """"아주 성기게"(축당 2개)가 못 채울 개수를 요구하면 안 된다 — 2026-09-09 브라우저 실측 회귀."""
+    """축당 2개 "아주 성기게" 프리셋이 못 채울 개수를 요구하면 안 된다 — 2026-09-09 실측 회귀."""
     patched = apply_generation_constraints(
         apply_patch(
             _lattice_intent(),

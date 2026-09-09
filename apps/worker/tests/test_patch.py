@@ -252,6 +252,13 @@ def test_placement_patch_yields_density_so_the_clamp_never_shrinks_the_motif():
     dense = apply_patch(base, _patch(placement={"count_per_axis": 10}, motif_size_mm=[4.0]))
     assert 48 / dense["layers"][1]["placement"]["lattice"]["cell_w_mm"] == 10
 
+    # 전부 null인 리스트는 크기를 안 바꾼 것 — 같은 밀도 양보를 받는다.
+    null_sized = apply_patch(
+        base,
+        _patch(placement={"arrangement": "lattice", "count_per_axis": 10}, motif_size_mm=[None]),
+    )
+    assert null_sized["layers"][1]["placement"] == third["layers"][1]["placement"]
+
 
 def test_rotation_only_patch_keeps_the_current_placement_type():
     patched = apply_patch(mvp_intent(), _patch(placement={"rotation_deg": -45.0}))
@@ -807,7 +814,7 @@ def test_sequential_patches_stay_valid_and_seamless():
 
 
 def test_null_motif_size_entry_keeps_that_motif_untouched():
-    """"원만 작게"는 별 값을 베끼지 않고 null로 둔다 — 비대상 모티프가 따라 바뀌면 안 된다."""
+    """ "원만 작게"는 별 값을 베끼지 않고 null로 둔다 — 비대상 모티프가 따라 바뀌면 안 된다."""
     base = _two_slot_intent()
     before = _rendered(base)
 

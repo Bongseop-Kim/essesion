@@ -50,7 +50,9 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "status IN ('pending', 'succeeded', 'refunded')", name=op.f("ck_token_works_status")
         ),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"], name=op.f("fk_token_works_user_id_users")),
+        sa.ForeignKeyConstraint(
+            ["user_id"], ["users.id"], name=op.f("fk_token_works_user_id_users")
+        ),
         sa.PrimaryKeyConstraint("work_id", name=op.f("pk_token_works")),
     )
     op.create_index(

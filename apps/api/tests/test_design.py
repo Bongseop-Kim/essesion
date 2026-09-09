@@ -2679,9 +2679,7 @@ async def _work_rows(db_session):
     """앱이 커밋한 최신 값으로 다시 읽는다 — 테스트 세션은 expire_on_commit=False다."""
     return list(
         await db_session.scalars(
-            select(TokenWork)
-            .order_by(TokenWork.work_id)
-            .execution_options(populate_existing=True)
+            select(TokenWork).order_by(TokenWork.work_id).execution_options(populate_existing=True)
         )
     )
 

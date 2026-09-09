@@ -439,9 +439,7 @@
       "split": "regression",
       "mode": "initial",
       "prompt": "흰 바탕에 첨부한 원 하나를 작게 격자로 반복해 주세요.",
-      "input_motif_ids": [
-        "eval-circle"
-      ],
+      "input_motif_ids": ["eval-circle"],
       "before": null,
       "checks": [
         {
@@ -450,9 +448,7 @@
         },
         {
           "fact": "motif.ids",
-          "value": [
-            "eval-circle"
-          ]
+          "value": ["eval-circle"]
         },
         {
           "fact": "motif.eval-circle.placement",
@@ -470,19 +466,13 @@
       "split": "held_out",
       "mode": "initial",
       "prompt": "첨부한 원과 별 두 모티프를 모두 쓰고 바탕은 네이비 #000080으로 해주세요.",
-      "input_motif_ids": [
-        "eval-circle",
-        "eval-star"
-      ],
+      "input_motif_ids": ["eval-circle", "eval-star"],
       "before": null,
       "checks": [
         {
           "fact": "motif.ids",
           "op": "eq",
-          "value": [
-            "eval-circle",
-            "eval-star"
-          ]
+          "value": ["eval-circle", "eval-star"]
         },
         {
           "fact": "background.color",
@@ -507,9 +497,7 @@
         {
           "fact": "stripe.colors_used",
           "op": "eq",
-          "value": [
-            "#FFFFFF"
-          ]
+          "value": ["#FFFFFF"]
         },
         {
           "fact": "stripe.angle",
@@ -539,9 +527,7 @@
         {
           "fact": "stripe.colors_used",
           "op": "eq",
-          "value": [
-            "#FFFFFF"
-          ]
+          "value": ["#FFFFFF"]
         },
         {
           "fact": "stripe.angle",
@@ -571,9 +557,7 @@
         {
           "fact": "stripe.colors_used",
           "op": "eq",
-          "value": [
-            "#FFFFFF"
-          ]
+          "value": ["#FFFFFF"]
         },
         {
           "fact": "stripe.angle",
@@ -592,17 +576,13 @@
       "split": "regression",
       "mode": "initial",
       "prompt": "첨부한 원 모티프를 한 타일에 12개 산개 배치해 주세요.",
-      "input_motif_ids": [
-        "eval-circle"
-      ],
+      "input_motif_ids": ["eval-circle"],
       "before": null,
       "checks": [
         {
           "fact": "motif.ids",
           "op": "eq",
-          "value": [
-            "eval-circle"
-          ]
+          "value": ["eval-circle"]
         },
         {
           "fact": "motif.eval-circle.placement",
@@ -621,17 +601,13 @@
       "split": "regression",
       "mode": "initial",
       "prompt": "첨부한 원만 격자에 반 칸씩 엇갈려 배치해 주세요.",
-      "input_motif_ids": [
-        "eval-circle"
-      ],
+      "input_motif_ids": ["eval-circle"],
       "before": null,
       "checks": [
         {
           "fact": "motif.ids",
           "op": "eq",
-          "value": [
-            "eval-circle"
-          ]
+          "value": ["eval-circle"]
         },
         {
           "fact": "motif.eval-circle.placement",
@@ -661,10 +637,7 @@
         {
           "fact": "motif.ids",
           "op": "eq",
-          "value": [
-            "eval-circle",
-            "eval-star"
-          ]
+          "value": ["eval-circle", "eval-star"]
         },
         {
           "fact": "stripe.colors",
@@ -695,17 +668,12 @@
         {
           "fact": "stripe.colors",
           "op": "eq",
-          "value": [
-            "#000000"
-          ]
+          "value": ["#000000"]
         },
         {
           "fact": "motif.ids",
           "op": "eq",
-          "value": [
-            "eval-circle",
-            "eval-star"
-          ]
+          "value": ["eval-circle", "eval-star"]
         },
         {
           "fact": "background.color",
@@ -736,9 +704,7 @@
         {
           "fact": "motif.eval-circle.rotation",
           "op": "eq",
-          "value": [
-            45
-          ]
+          "value": [45]
         },
         {
           "fact": "motif.eval-circle.centers",
@@ -751,10 +717,7 @@
         {
           "fact": "motif.ids",
           "op": "eq",
-          "value": [
-            "eval-circle",
-            "eval-star"
-          ]
+          "value": ["eval-circle", "eval-star"]
         },
         {
           "fact": "motif.eval-star.appearance",
@@ -785,9 +748,7 @@
         {
           "fact": "motif.eval-star.rotation",
           "op": "eq",
-          "value": [
-            90
-          ]
+          "value": [90]
         },
         {
           "fact": "motif.eval-star.centers",
@@ -800,10 +761,7 @@
         {
           "fact": "motif.ids",
           "op": "eq",
-          "value": [
-            "eval-circle",
-            "eval-star"
-          ]
+          "value": ["eval-circle", "eval-star"]
         },
         {
           "fact": "motif.eval-circle.appearance",
@@ -842,10 +800,7 @@
         {
           "fact": "motif.ids",
           "op": "eq",
-          "value": [
-            "eval-circle",
-            "eval-star"
-          ]
+          "value": ["eval-circle", "eval-star"]
         },
         {
           "fact": "motif.eval-star.appearance",
@@ -884,10 +839,7 @@
         {
           "fact": "motif.ids",
           "op": "eq",
-          "value": [
-            "eval-circle",
-            "eval-star"
-          ]
+          "value": ["eval-circle", "eval-star"]
         },
         {
           "fact": "motif.eval-star.appearance",
@@ -926,10 +878,7 @@
         {
           "fact": "motif.ids",
           "op": "eq",
-          "value": [
-            "eval-circle",
-            "eval-star"
-          ]
+          "value": ["eval-circle", "eval-star"]
         },
         {
           "fact": "motif.eval-star.appearance",
@@ -969,10 +918,7 @@
         {
           "fact": "motif.ids",
           "op": "eq",
-          "value": [
-            "eval-circle",
-            "eval-star"
-          ]
+          "value": ["eval-circle", "eval-star"]
         },
         {
           "fact": "motif.eval-circle.appearance",
@@ -1009,10 +955,7 @@
         {
           "fact": "motif.ids",
           "op": "eq",
-          "value": [
-            "eval-circle",
-            "eval-star"
-          ]
+          "value": ["eval-circle", "eval-star"]
         },
         {
           "fact": "motif.eval-star.appearance",
@@ -1057,10 +1000,7 @@
         {
           "fact": "motif.ids",
           "op": "eq",
-          "value": [
-            "eval-circle",
-            "eval-star"
-          ]
+          "value": ["eval-circle", "eval-star"]
         },
         {
           "fact": "motif.eval-star.appearance",
@@ -1106,10 +1046,7 @@
         {
           "fact": "motif.ids",
           "op": "eq",
-          "value": [
-            "eval-circle",
-            "eval-star"
-          ]
+          "value": ["eval-circle", "eval-star"]
         },
         {
           "fact": "motif.eval-circle.normalized_positions",
@@ -1163,10 +1100,7 @@
         {
           "fact": "motif.ids",
           "op": "eq",
-          "value": [
-            "eval-circle",
-            "eval-star"
-          ]
+          "value": ["eval-circle", "eval-star"]
         },
         {
           "fact": "motif.eval-circle.normalized_positions",
@@ -1213,10 +1147,7 @@
         {
           "fact": "motif.ids",
           "op": "eq",
-          "value": [
-            "eval-circle",
-            "eval-star"
-          ]
+          "value": ["eval-circle", "eval-star"]
         },
         {
           "fact": "motif.eval-circle.appearance",
@@ -1252,17 +1183,12 @@
         {
           "fact": "motif.eval-circle.rotation",
           "op": "eq",
-          "value": [
-            45
-          ]
+          "value": [45]
         },
         {
           "fact": "motif.ids",
           "op": "eq",
-          "value": [
-            "eval-circle",
-            "eval-star"
-          ]
+          "value": ["eval-circle", "eval-star"]
         },
         {
           "fact": "motif.eval-circle.appearance",
@@ -1293,9 +1219,7 @@
         {
           "fact": "motif.eval-circle.rotation",
           "op": "eq",
-          "value": [
-            0
-          ]
+          "value": [0]
         },
         {
           "fact": "motif.eval-circle.centers",
@@ -1308,10 +1232,7 @@
         {
           "fact": "motif.ids",
           "op": "eq",
-          "value": [
-            "eval-circle",
-            "eval-star"
-          ]
+          "value": ["eval-circle", "eval-star"]
         },
         {
           "fact": "motif.eval-star.appearance",
@@ -1362,10 +1283,7 @@
         {
           "fact": "motif.ids",
           "op": "eq",
-          "value": [
-            "eval-circle",
-            "eval-star"
-          ]
+          "value": ["eval-circle", "eval-star"]
         },
         {
           "fact": "motif.eval-circle.size_mm",
@@ -1414,10 +1332,7 @@
         {
           "fact": "motif.ids",
           "op": "eq",
-          "value": [
-            "eval-circle",
-            "eval-star"
-          ]
+          "value": ["eval-circle", "eval-star"]
         },
         {
           "fact": "motif.eval-star.appearance",
@@ -1456,10 +1371,7 @@
         {
           "fact": "motif.ids",
           "op": "eq",
-          "value": [
-            "eval-circle",
-            "eval-star"
-          ]
+          "value": ["eval-circle", "eval-star"]
         },
         {
           "fact": "motif.eval-circle.appearance",
@@ -1552,9 +1464,7 @@
         },
         {
           "fact": "stripe.colors_used",
-          "value": [
-            "#FFD700"
-          ]
+          "value": ["#FFD700"]
         },
         {
           "fact": "motif.ids",
@@ -1575,9 +1485,7 @@
         },
         {
           "fact": "stripe.colors_used",
-          "value": [
-            "#FFFFFF"
-          ]
+          "value": ["#FFFFFF"]
         }
       ]
     },
@@ -1598,10 +1506,7 @@
         },
         {
           "fact": "stripe.colors",
-          "value": [
-            "#FFFFFF",
-            "#FFD700"
-          ]
+          "value": ["#FFFFFF", "#FFD700"]
         }
       ]
     },
@@ -1661,10 +1566,7 @@
         },
         {
           "fact": "motif.ids",
-          "value": [
-            "eval-circle",
-            "eval-star"
-          ]
+          "value": ["eval-circle", "eval-star"]
         },
         {
           "fact": "background.color",
@@ -1702,10 +1604,7 @@
         },
         {
           "fact": "motif.ids",
-          "value": [
-            "eval-circle",
-            "eval-star"
-          ]
+          "value": ["eval-circle", "eval-star"]
         },
         {
           "fact": "motif.eval-circle.appearance",
@@ -1730,10 +1629,7 @@
       "split": "held_out",
       "mode": "initial",
       "prompt": "첨부한 원과 별을 격자로 배치하고 바탕은 네이비 #000080으로 해주세요.",
-      "input_motif_ids": [
-        "eval-circle",
-        "eval-star"
-      ],
+      "input_motif_ids": ["eval-circle", "eval-star"],
       "checks": [
         {
           "fact": "background.color",
@@ -1741,10 +1637,7 @@
         },
         {
           "fact": "motif.ids",
-          "value": [
-            "eval-circle",
-            "eval-star"
-          ]
+          "value": ["eval-circle", "eval-star"]
         }
       ]
     },
@@ -1762,10 +1655,7 @@
         },
         {
           "fact": "motif.ids",
-          "value": [
-            "eval-circle",
-            "eval-star"
-          ]
+          "value": ["eval-circle", "eval-star"]
         },
         {
           "fact": "motif.eval-circle.appearance",
@@ -1791,9 +1681,7 @@
         },
         {
           "fact": "motif.eval-circle.rotation",
-          "value": [
-            45
-          ]
+          "value": [45]
         },
         {
           "fact": "motif.eval-circle.centers",
@@ -1810,9 +1698,7 @@
       "split": "held_out",
       "mode": "initial",
       "prompt": "첨부한 원을 격자로 반복하고 바탕은 흰색 #FFFFFF으로 해주세요.",
-      "input_motif_ids": [
-        "eval-circle"
-      ],
+      "input_motif_ids": ["eval-circle"],
       "checks": [
         {
           "fact": "background.color",
@@ -1820,9 +1706,7 @@
         },
         {
           "fact": "motif.ids",
-          "value": [
-            "eval-circle"
-          ]
+          "value": ["eval-circle"]
         }
       ]
     },
@@ -1871,9 +1755,7 @@
       "checks": [
         {
           "fact": "motif.subjects",
-          "value": [
-            "cat"
-          ]
+          "value": ["cat"]
         },
         {
           "fact": "motif.approximate_match",
@@ -1890,9 +1772,7 @@
       "checks": [
         {
           "fact": "motif.subjects",
-          "value": [
-            "동백꽃"
-          ]
+          "value": ["동백꽃"]
         },
         {
           "fact": "motif.approximate_match",
@@ -1909,9 +1789,7 @@
       "checks": [
         {
           "fact": "motif.subjects",
-          "value": [
-            "horse"
-          ]
+          "value": ["horse"]
         },
         {
           "fact": "background.color",

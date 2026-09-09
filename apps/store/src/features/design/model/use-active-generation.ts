@@ -74,8 +74,8 @@ export function useActiveGeneration({
     if (observed.current === "idle") return;
     const wasActive = observed.current !== null;
     observed.current = "idle";
-    // 서버가 응답으로 "진행 중 아님"을 확인했을 때만 표시를 지운다.
-    clearPendingDesign();
+    // 서버가 응답으로 "진행 중 아님"을 확인했을 때만, 이 세션의 표시만 지운다.
+    clearPendingDesign({ sessionId });
     settle.current();
     if (!wasActive) return;
     void Promise.all([

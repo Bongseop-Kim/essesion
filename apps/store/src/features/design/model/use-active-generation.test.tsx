@@ -104,6 +104,18 @@ describe("useActiveGeneration", () => {
     vi.stubGlobal("localStorage", memoryStorage());
   });
 
+  it("다른 세션의 진행 표시는 지우지 않는다", async () => {
+    writePendingDesign("session-2");
+    const { queryClient, rerender } = setup("session-1");
+
+    rerender({ sessionId: "session-1", session: sessionOut({}) });
+
+    await waitFor(() =>
+      expect(localStorage.getItem(DESIGN_PENDING_KEY)).toBeTruthy(),
+    );
+    queryClient.clear();
+  });
+
   it("새로고침으로 mutation을 잃어도 서버 완료를 이력·잔액에 반영한다", async () => {
     writePendingDesign("session-1");
     const { invalidated, onSettled, queryClient, rerender, result } =
