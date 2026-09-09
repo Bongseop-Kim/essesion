@@ -87,11 +87,17 @@ async def test_public_active_returns_one_enabled_popup_in_period(client, db_sess
 
     # 등록 직후는 비활성이라 공개 조회에 나오지 않는다.
     created = await create_popup(client, headers)
+    for title in (None, ""):
+        response = await client.patch(
+            f"/admin/popups/{created['id']}", json={"title": title}, headers=headers
+        )
+        assert response.status_code == 422, response.text
     assert created["enabled"] is False and created["active_now"] is False
     assert (await client.get("/popups/active")).json() is None
 
     await enable(client, headers, created["id"])
     active = (await client.get("/popups/active")).json()
+    assert active["title"] == created["title"]
     assert active["id"] == created["id"]
     assert active["template"] == "holiday"
     assert active["fields"]["cutoff_time"] == "14:00"

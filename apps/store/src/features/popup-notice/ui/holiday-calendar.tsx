@@ -107,7 +107,7 @@ export function HolidayCalendar(props: HolidayCalendarProps) {
               월
             </Text>
           </HStack>
-          <Grid columns={7} role="grid" aria-label="휴무 일정 달력">
+          <Grid columns={7}>
             {WEEKDAY_LABELS.map((label) => (
               <Text
                 key={label}

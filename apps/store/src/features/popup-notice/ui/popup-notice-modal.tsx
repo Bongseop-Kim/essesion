@@ -16,7 +16,11 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 
 import { splitBold } from "../model/bold-markup";
-import { dismissForToday, isDismissedToday } from "../model/dismissal";
+import {
+  dismissForToday,
+  isDismissedToday,
+  kstToday,
+} from "../model/dismissal";
 import { HolidayCalendar } from "./holiday-calendar";
 import { BoxGlyph, TruckGlyph } from "./icons";
 import { OperationTable } from "./operation-table";
@@ -155,9 +159,16 @@ export function PopupNoticeModal({ disabled = false }: PopupNoticeModalProps) {
   const query = useQuery({
     ...getActivePopupOptions(),
     enabled: !disabled,
-    staleTime: Number.POSITIVE_INFINITY,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchInterval: () =>
+      Date.parse(`${kstToday()}T00:00:00+09:00`) + 86_400_000 - Date.now(),
   });
-  const popup = query.data ?? null;
+  const popup =
+    query.isError ||
+    (query.isFetching && kstToday(new Date(query.dataUpdatedAt)) !== kstToday())
+      ? null
+      : (query.data ?? null);
   const [closedId, setClosedId] = useState<string | null>(null);
 
   if (disabled || popup === null) return null;

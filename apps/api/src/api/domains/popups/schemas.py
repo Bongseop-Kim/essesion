@@ -103,6 +103,13 @@ class PopupNoticeUpdateRequest(StrictModel):
     ends_on: date | None = None
     enabled: bool | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_title(cls, data: object) -> object:
+        if isinstance(data, dict) and "title" in data and data["title"] is None:
+            raise ValueError("제목은 비울 수 없습니다")
+        return data
+
 
 PERIOD_ERROR = "종료일은 시작일보다 앞설 수 없습니다"
 LINK_REQUIRED_ERROR = "이벤트 팝업은 링크가 필요합니다"

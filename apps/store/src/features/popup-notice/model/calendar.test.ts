@@ -69,14 +69,20 @@ describe("buildHolidayCalendar", () => {
     ]);
   });
 
-  it("3주를 넘는 기간은 3주에서 자른다", () => {
+  it("3주를 넘는 기간도 휴무 종료일과 재개일까지 표시한다", () => {
     const calendar = buildHolidayCalendar({
       cutoff_on: "2026-09-01",
       closed_from: "2026-09-02",
       closed_to: "2026-09-25",
       resume_on: "2026-09-28",
     });
-    expect(calendar.weeks).toHaveLength(3);
+    expect(calendar.weeks).toHaveLength(5);
+    expect(calendar.weeks.flat()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ iso: "2026-09-25", kind: "closed" }),
+        expect.objectContaining({ iso: "2026-09-28", kind: "resume" }),
+      ]),
+    );
   });
 });
 

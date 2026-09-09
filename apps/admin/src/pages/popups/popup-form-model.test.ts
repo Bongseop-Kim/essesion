@@ -42,7 +42,7 @@ describe("validateDraft", () => {
 
   it("운영 안내는 빈 행을, 이벤트는 이미지·링크 누락을 막는다", () => {
     expect(
-      validateDraft({ ...holidayDraft, template: "operation" }).rows,
+      validateDraft({ ...holidayDraft, template: "operation" })["rows.0.label"],
     ).toBeTruthy();
     const event = validateDraft({ ...holidayDraft, template: "event" });
     expect(event.image).toBeTruthy();
@@ -51,6 +51,22 @@ describe("validateDraft", () => {
       validateDraft({ ...holidayDraft, linkUrl: "javascript:alert(1)" })
         .linkUrl,
     ).toMatch(/내부 경로/);
+  });
+
+  it("운영 안내 오류를 행과 필드별로 구분한다", () => {
+    expect(
+      validateDraft({
+        ...holidayDraft,
+        template: "operation",
+        rows: [
+          { label: " ", value: "시행일" },
+          { label: "요금", value: " " },
+        ],
+      }),
+    ).toEqual({
+      "rows.0.label": "1행 라벨을 입력해 주세요.",
+      "rows.1.value": "2행 값을 입력해 주세요.",
+    });
   });
 });
 

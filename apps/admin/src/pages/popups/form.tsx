@@ -22,7 +22,7 @@ import {
   VStack,
 } from "@essesion/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
 import { getErrorMessage } from "../../shared/lib/format";
@@ -60,11 +60,20 @@ function PopupForm({
 }: PopupFormProps) {
   const [draft, setDraft] = useState<PopupDraft>(initial);
   const [attempted, setAttempted] = useState(false);
+  const [invalidSubmitCount, setInvalidSubmitCount] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string>();
   const errors = attempted ? validateDraft(draft) : {};
   const patch = (changes: Partial<PopupDraft>) =>
     setDraft((current) => ({ ...current, ...changes }));
+
+  useEffect(() => {
+    if (invalidSubmitCount === 0) return;
+    formRef.current
+      ?.querySelector<HTMLElement>("[aria-invalid='true']")
+      ?.focus();
+  }, [invalidSubmitCount]);
 
   const addImage = async (files: File[]) => {
     const file = files[0];
@@ -73,18 +82,18 @@ function PopupForm({
     setUploading(true);
     try {
       const result = await uploadPopupImage(file);
-      setDraft((current) => {
-        if (current.image?.staged)
-          void discardPopupImageUpload(current.image.uploadId);
-        return {
-          ...current,
-          image: {
-            uploadId: result.uploadId,
-            src: result.publicUrl,
-            staged: true,
-          },
-        };
-      });
+      const previousUploadId = draft.image?.staged
+        ? draft.image.uploadId
+        : null;
+      setDraft((current) => ({
+        ...current,
+        image: {
+          uploadId: result.uploadId,
+          src: result.publicUrl,
+          staged: true,
+        },
+      }));
+      if (previousUploadId) void discardPopupImageUpload(previousUploadId);
     } catch (caught) {
       setUploadError(
         getErrorMessage(caught, "배너 이미지를 업로드하지 못했습니다."),
@@ -101,12 +110,19 @@ function PopupForm({
   return (
     <VStack
       as="form"
+      ref={formRef}
+      noValidate
       gap="x6"
       alignItems="stretch"
       onSubmit={(event: React.FormEvent) => {
         event.preventDefault();
         setAttempted(true);
-        if (Object.keys(validateDraft(draft)).length > 0) return;
+        const validationErrors = validateDraft(draft);
+        if (Object.keys(validationErrors).length > 0) {
+          setInvalidSubmitCount((count) => count + 1);
+          return;
+        }
+        if (submitting || uploading) return;
         onSubmit(draft);
       }}
     >
@@ -247,7 +263,8 @@ function PopupForm({
               <HStack key={index} gap="x2" align="flex-start">
                 <Box width={160} flexShrink={0}>
                   <TextField
-                    aria-label={`${index + 1}행 라벨`}
+                    label={`${index + 1}행 라벨`}
+                    errorMessage={errors[`rows.${index}.label`]}
                     placeholder="시행일"
                     maxLength={20}
                     value={row.label}
@@ -264,7 +281,8 @@ function PopupForm({
                 </Box>
                 <Box flex={1}>
                   <TextField
-                    aria-label={`${index + 1}행 값`}
+                    label={`${index + 1}행 값`}
+                    errorMessage={errors[`rows.${index}.value`]}
                     placeholder="2026년 10월 1일(목) 결제분부터"
                     maxLength={80}
                     value={row.value}
@@ -377,6 +395,18 @@ function PopupForm({
         </Grid>
       </AdminCard>
 
+      {Object.keys(errors).length > 0 && (
+        <VStack gap="x1" alignItems="stretch" role="alert">
+          <Text textStyle="labelSm" color="fg.critical">
+            입력한 팝업 내용을 확인해 주세요.
+          </Text>
+          {Object.entries(errors).map(([key, message]) => (
+            <Text key={key} textStyle="caption" color="fg.critical">
+              {message}
+            </Text>
+          ))}
+        </VStack>
+      )}
       <HStack gap="x2" justify="flex-end">
         <ActionButton type="button" variant="ghost" onClick={onCancel}>
           취소

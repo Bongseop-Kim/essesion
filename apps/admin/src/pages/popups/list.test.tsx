@@ -1,5 +1,11 @@
 import type { AdminPopupNoticeOut } from "@essesion/api-client";
-import { screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -113,7 +119,9 @@ describe("PopupNewPage", () => {
     await user.type(screen.getByLabelText(/노출 종료일/), "2026-09-27");
     await user.click(screen.getByRole("button", { name: "비활성으로 등록" }));
 
-    expect(await screen.findByText(/순서여야 합니다/)).toBeTruthy();
+    expect(
+      within(screen.getByRole("alert")).getByText(/순서여야 합니다/),
+    ).toBeTruthy();
     expect(api.create).not.toHaveBeenCalled();
 
     const resume = screen.getByLabelText(/출고 재개일/);
@@ -143,4 +151,42 @@ describe("PopupNewPage", () => {
       }),
     );
   });
+});
+
+it("동시에 갱신하는 각 행을 완료 또는 실패할 때까지 비활성화한다", async () => {
+  let resolveFirst!: () => void;
+  let rejectSecond!: (error: Error) => void;
+  api.update
+    .mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveFirst = resolve;
+        }),
+    )
+    .mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectSecond = reject;
+        }),
+    );
+  api.list.mockResolvedValue(
+    ["a", "b"].map((id) => ({ ...popup, id, title: id })),
+  );
+  renderAdminPage(<PopupsPage />);
+  const first = (await screen.findByRole("switch", {
+    name: "a 활성",
+  })) as HTMLInputElement;
+  const second = screen.getByRole("switch", {
+    name: "b 활성",
+  }) as HTMLInputElement;
+  fireEvent.click(first);
+  await waitFor(() => expect(first.disabled).toBe(true));
+  expect(second.disabled).toBe(false);
+  fireEvent.click(second);
+  await waitFor(() => expect(second.disabled).toBe(true));
+  await act(async () => resolveFirst());
+  await waitFor(() => expect(first.disabled).toBe(false));
+  expect(second.disabled).toBe(true);
+  await act(async () => rejectSecond(new Error("실패")));
+  await waitFor(() => expect(second.disabled).toBe(false));
 });

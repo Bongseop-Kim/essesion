@@ -30,8 +30,6 @@ export type HolidayCalendar = {
   weeks: CalendarDay[][];
 };
 
-// ponytail: 3주를 넘는 휴무는 없다 — 넘으면 뒤를 자른다. 필요해지면 상한을 올린다.
-const MAX_WEEKS = 3;
 const DAY_MS = 86_400_000;
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"] as const;
 
@@ -71,10 +69,7 @@ export function buildHolidayCalendar(dates: HolidayDates): HolidayCalendar {
   const start = first - new Date(first).getUTCDay() * DAY_MS;
   const last = Math.max(resume, closedTo);
   const end = last + (6 - new Date(last).getUTCDay()) * DAY_MS;
-  const weekCount = Math.min(
-    MAX_WEEKS,
-    Math.round((end - start + DAY_MS) / (7 * DAY_MS)),
-  );
+  const weekCount = Math.round((end - start + DAY_MS) / (7 * DAY_MS));
   const month = new Date(closedFrom).getUTCMonth();
 
   const weeks: CalendarDay[][] = [];

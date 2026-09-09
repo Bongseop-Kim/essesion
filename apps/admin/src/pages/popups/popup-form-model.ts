@@ -110,7 +110,9 @@ export function draftFromPopup(popup: AdminPopupNoticeOut): PopupDraft {
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-export type DraftErrors = Partial<Record<keyof PopupDraft, string>>;
+export type DraftErrors = Partial<
+  Record<keyof PopupDraft | `rows.${number}.${"label" | "value"}`, string>
+>;
 
 /** 서버(`popups/schemas.py`)와 같은 규칙 — 제출 전에 같은 문구로 막는다. */
 export function validateDraft(draft: PopupDraft): DraftErrors {
@@ -154,12 +156,13 @@ export function validateDraft(draft: PopupDraft): DraftErrors {
         "마감일 ≤ 휴무 시작 ≤ 휴무 종료 < 재개일 순서여야 합니다.";
     }
   } else if (draft.template === "operation") {
-    if (
-      draft.rows.length === 0 ||
-      draft.rows.some((row) => !row.label.trim() || !row.value.trim())
-    ) {
-      errors.rows = "모든 행의 라벨과 값을 입력해 주세요.";
-    }
+    if (draft.rows.length === 0) errors.rows = "항목을 추가해 주세요.";
+    draft.rows.forEach((row, index) => {
+      if (!row.label.trim())
+        errors[`rows.${index}.label`] = `${index + 1}행 라벨을 입력해 주세요.`;
+      if (!row.value.trim())
+        errors[`rows.${index}.value`] = `${index + 1}행 값을 입력해 주세요.`;
+    });
   } else {
     if (!draft.image) errors.image = "배너 이미지를 올려 주세요.";
     if (!draft.linkUrl.trim())

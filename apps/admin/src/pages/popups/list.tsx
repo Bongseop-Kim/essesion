@@ -42,6 +42,7 @@ export function PopupsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const query = useQuery(listAdminPopupsOptions());
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<AdminPopupNoticeOut | null>(
     null,
   );
@@ -51,6 +52,16 @@ export function PopupsPage() {
 
   const update = useMutation({
     ...updateAdminPopupMutation(),
+    onMutate: ({ path }) => {
+      setPendingIds((current) => new Set(current).add(path.popup_id));
+    },
+    onSettled: (_data, _error, { path }) => {
+      setPendingIds((current) => {
+        const next = new Set(current);
+        next.delete(path.popup_id);
+        return next;
+      });
+    },
     onSuccess: refresh,
     onError: (error) =>
       snackbar(getErrorMessage(error, "팝업을 바꾸지 못했습니다.")),
@@ -104,6 +115,7 @@ export function PopupsPage() {
       render: (row) => (
         <Switch
           checked={row.enabled}
+          disabled={pendingIds.has(row.id)}
           aria-label={`${row.title} 활성`}
           onChange={(event) =>
             update.mutate({
