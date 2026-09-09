@@ -1077,6 +1077,24 @@ def _stripe_plan(colors: list[str]) -> DesignPlanV3:
     )
 
 
+def test_explicit_hex_next_to_a_named_color_wins_over_the_table():
+    """사용자가 "금색 #FFD700"처럼 값을 적었으면 표의 금색(#D4AF37)이 아니라 그 값이다."""
+    assert [(name, hex_value) for name, hex_value, _ in requested_named_colors("금색 줄무늬")] == [
+        ("gold", "#D4AF37")
+    ]
+    for prompt in ("금색 #FFD700 줄무늬", "#FFD700 금색 줄무늬", "금색은 #ffd700으로"):
+        assert [
+            (name, hex_value) for name, hex_value, _ in requested_named_colors(prompt)
+        ] == [("gold", "#FFD700")], prompt
+
+    normalized = normalize_requested_named_colors(
+        "금색 #FFD700 줄무늬를 네이비 #000080 바탕에 넣어 주세요",
+        _stripe_plan(["#123456", "#EFE6D4"]),
+    )
+    assert normalized.colors[normalized.ground_color_index] == "#000080"
+    assert normalized.colors[1] == "#FFD700"
+
+
 def test_named_ground_tie_uses_prompt_order_instead_of_color_name():
     # 바탕 슬롯은 하나뿐이라 "background" 근처의 두 색 중 먼저 나온 navy가 바탕을 갖고,
     # ivory는 남은 stripe 슬롯으로 밀린다.

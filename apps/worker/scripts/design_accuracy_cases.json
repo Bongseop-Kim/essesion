@@ -1,5 +1,5 @@
 {
-  "revision": "design-accuracy-v3",
+  "revision": "design-accuracy-v5",
   "review_status": "reviewed",
   "motifs": {
     "eval-circle": "<symbol id=\"motif-eval-circle\" overflow=\"visible\"><circle cx=\"0\" cy=\"0\" r=\"0.5\" fill=\"#FFCC00\"/></symbol>",
@@ -505,7 +505,7 @@
           "value": "#000080"
         },
         {
-          "fact": "stripe.colors",
+          "fact": "stripe.colors_used",
           "op": "eq",
           "value": [
             "#FFFFFF"
@@ -537,7 +537,7 @@
           "value": "#000080"
         },
         {
-          "fact": "stripe.colors",
+          "fact": "stripe.colors_used",
           "op": "eq",
           "value": [
             "#FFFFFF"
@@ -569,7 +569,7 @@
           "value": "#000080"
         },
         {
-          "fact": "stripe.colors",
+          "fact": "stripe.colors_used",
           "op": "eq",
           "value": [
             "#FFFFFF"
@@ -1536,6 +1536,192 @@
           "fact": "rejection",
           "op": "eq",
           "value": "motif_position"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-031",
+      "split": "held_out",
+      "mode": "initial",
+      "prompt": "금색 #FFD700 줄무늬를 네이비 #000080 바탕에 넣어 주세요. 모티프는 빼고요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "background.color",
+          "value": "#000080"
+        },
+        {
+          "fact": "stripe.colors_used",
+          "value": [
+            "#FFD700"
+          ]
+        },
+        {
+          "fact": "motif.ids",
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "accuracy-032",
+      "split": "regression",
+      "mode": "initial",
+      "prompt": "줄무늬는 흰색 #FFFFFF, 바탕은 네이비 #000080으로 해주세요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "background.color",
+          "value": "#000080"
+        },
+        {
+          "fact": "stripe.colors_used",
+          "value": [
+            "#FFFFFF"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "accuracy-033",
+      "split": "regression",
+      "mode": "initial",
+      "prompt": "네이비 #000080 바탕에 흰색 #FFFFFF 굵은 줄과 금색 #FFD700 가는 줄이 한 쌍으로 반복되게 해주세요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "background.color",
+          "value": "#000080"
+        },
+        {
+          "fact": "stripe.count",
+          "value": 1
+        },
+        {
+          "fact": "stripe.colors",
+          "value": [
+            "#FFFFFF",
+            "#FFD700"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "accuracy-034",
+      "split": "held_out",
+      "mode": "initial",
+      "prompt": "차분한 봄 느낌으로 만들되 바탕은 크림색 #F5F0E6으로 하고 모티프는 넣지 마세요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "background.color",
+          "value": "#F5F0E6"
+        },
+        {
+          "fact": "motif.ids",
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "accuracy-035",
+      "split": "regression",
+      "mode": "initial",
+      "prompt": "화려한 파티용으로 만들되 줄무늬는 넣지 마세요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "stripe.count",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "accuracy-036",
+      "split": "held_out",
+      "mode": "edit",
+      "before": "base",
+      "prompt": "원은 크게, 별은 작게 해주세요. 배치와 색은 그대로요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "motif.eval-circle.size_mm",
+          "op": "gt_before"
+        },
+        {
+          "fact": "motif.eval-star.size_mm",
+          "op": "lt_before"
+        },
+        {
+          "fact": "motif.eval-circle.centers",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.eval-star.centers",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.ids",
+          "value": [
+            "eval-circle",
+            "eval-star"
+          ]
+        },
+        {
+          "fact": "background.color",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.colors",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.geometry",
+          "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-037",
+      "split": "regression",
+      "mode": "edit",
+      "before": "base",
+      "prompt": "별만 줄무늬 위에 올리고 원은 그대로 두세요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "motif.eval-star.lane",
+          "value": "b0.center"
+        },
+        {
+          "fact": "motif.eval-star.stripe_host",
+          "value": true
+        },
+        {
+          "fact": "motif.eval-star.size_mm",
+          "op": "unchanged"
+        },
+        {
+          "fact": "motif.ids",
+          "value": [
+            "eval-circle",
+            "eval-star"
+          ]
+        },
+        {
+          "fact": "motif.eval-circle.appearance",
+          "op": "unchanged"
+        },
+        {
+          "fact": "background.color",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.colors",
+          "op": "unchanged"
+        },
+        {
+          "fact": "stripe.geometry",
+          "op": "unchanged"
         }
       ]
     }

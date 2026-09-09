@@ -76,21 +76,62 @@ def candidate(index):
         25: {"placement": {"slot": 1, "arrangement": "staggered"}},
         26: {"placement": {"slot": 2, "count_per_axis": 2}},
     }
-    return apply_patch(raw, DesignPatchV1.model_validate({"note": "test", **changes[index]}))
+    if index <= 26:
+        return apply_patch(raw, DesignPatchV1.model_validate({"note": "test", **changes[index]}))
+    return _added_candidate(index)
+
+
+def _recolor(raw, slot, hex_value):
+    """슬롯 hex와 default colorway 매핑을 함께 바꾼다 — 채점은 colorway 해석색을 본다."""
+    for item in raw["palette"]["slots"]:
+        if item["id"] == slot:
+            item["hex"] = hex_value
+    raw["colorways"][0]["mapping"][slot] = hex_value
+    return raw
+
+
+def _added_candidate(index):
+    """031~037(2026-09-09 추가)의 충족 가능 후보 — 손으로 지정한 값이지 모델 출력이 아니다."""
+    raw = copy.deepcopy(corpus().fixtures["base"])
+    if index in (31, 32, 33, 34, 35):
+        raw["layers"] = raw["layers"][:2]  # 배경 + 줄무늬
+    if index == 31:
+        return _recolor(raw, "stripe", "#FFD700")
+    if index == 32:
+        return raw
+    if index == 33:
+        params = raw["layers"][1]["params"]
+        raw["palette"]["slots"].append({"id": "accent", "hex": "#FFD700"})
+        raw["colorways"][0]["mapping"]["accent"] = "#FFD700"
+        params["bands"] = [
+            {"offset_mm": 0.0, "width_mm": 4.0, "color": "stripe"},
+            {"offset_mm": 6.0, "width_mm": 1.5, "color": "accent"},
+        ]
+        return raw
+    if index == 34:
+        return _recolor(raw, "ground", "#F5F0E6")
+    if index == 35:
+        raw["layers"] = [raw["layers"][0], *copy.deepcopy(corpus().fixtures["base"])["layers"][2:]]
+        return raw
+    patch = {
+        36: {"motif_size_mm": [6.0, 2.0]},
+        37: {"placement": {"slot": 2, "arrangement": "on_stripes"}},
+    }[index]
+    return apply_patch(raw, DesignPatchV1.model_validate({"note": "test", **patch}))
 
 
 def test_all_criteria_have_satisfying_candidates_and_cli_can_validate():
     data = corpus()
-    assert len(data.cases) == len({c.prompt for c in data.cases}) == 30
+    assert len(data.cases) == len({c.prompt for c in data.cases}) == 37
     observations = [
-        scoring.Observation(case_id=c.id, intent=candidate(i))
-        if i <= 26
-        else scoring.Observation(case_id=c.id, rejection=c.checks[0].value)
+        scoring.Observation(case_id=c.id, rejection=c.checks[0].value)
+        if c.mode == "reject"
+        else scoring.Observation(case_id=c.id, intent=candidate(i))
         for i, c in enumerate(data.cases, 1)
     ]
     report = scoring.evaluate(data, observations)
-    assert report["passed"] == 30, report["cases"]
-    assert report["by_mode"]["edit"] == {"passed": 18, "total": 18}
+    assert report["passed"] == 37, report["cases"]
+    assert report["by_mode"]["edit"] == {"passed": 20, "total": 20}
     result = subprocess.run(
         [sys.executable, str(SCRIPT), "--check-corpus"],
         check=True,
@@ -141,7 +182,7 @@ def test_actual_count_is_scored_and_no_change_is_not_a_relative_improvement():
 
 def test_missing_invalid_and_wrongly_rejected_outputs_stay_in_denominator(tmp_path):
     data = corpus()
-    assert scoring.evaluate(data, [])["total"] == 30
+    assert scoring.evaluate(data, [])["total"] == len(data.cases)
     assert scoring.evaluate(data, [])["passed"] == 0
     assert one_case(1, rejection="motif_change")["passed"] == 0
     assert one_case(27, rejection="target_missing")["passed"] == 0
@@ -156,7 +197,7 @@ def test_missing_invalid_and_wrongly_rejected_outputs_stay_in_denominator(tmp_pa
     )
     assert result.returncode == 1
     report = json.loads(result.stdout)
-    assert report["total"] == 30 and report["passed"] == 0
+    assert report["total"] == len(data.cases) and report["passed"] == 0
     assert "prompt" not in result.stdout
     outputs.write_text('[{"case_id":"secret-prompt", "unexpected":"private-value"}]')
     result = subprocess.run(

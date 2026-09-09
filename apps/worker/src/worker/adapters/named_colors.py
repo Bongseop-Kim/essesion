@@ -13,6 +13,7 @@ from __future__ import annotations
 import re
 
 from worker.authoring.schema import DesignPlanV3
+from worker.engine.constraints import normalize_hex
 from worker.engine.palette import hex_to_rgb
 
 _GROUND_MODIFIER_WORDS = r"짙은|진한|밝은|연한|어두운|옅은|deep|dark|light|pale|rich|soft"
@@ -82,6 +83,22 @@ _NAMED_COLOR_EXCLUDED_AFTER_LIST = re.compile(
 _NAMED_COLOR_EXCLUDED_INSTEAD = re.compile(r"\s*(?:대신|가\s+아니라)")
 
 
+# 이름 옆에 hex를 직접 적었으면 그 hex가 이긴다 — "금색 #FFD700"은 표의 금색이 아니라 그 값이다.
+# \b는 못 쓴다 — "#ffd700으로"의 한글은 단어 문자라 경계가 생기지 않는다.
+_ADJACENT_HEX = r"#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9a-fA-F])"
+_EXPLICIT_HEX_AFTER = re.compile(rf"^[\s\-은는이가의로]*(?:색상?|컬러)?[\s\-]*({_ADJACENT_HEX})")
+_EXPLICIT_HEX_BEFORE = re.compile(rf"({_ADJACENT_HEX})[\s\-]*$")
+
+
+def _explicit_hex(prompt: str, match: re.Match[str]) -> str | None:
+    """색 이름에 바로 붙은 명시 hex — 없으면 None."""
+    after = _EXPLICIT_HEX_AFTER.match(prompt[match.end() : match.end() + 16])
+    if after:
+        return normalize_hex(after.group(1))
+    before = _EXPLICIT_HEX_BEFORE.search(prompt[max(0, match.start() - 12) : match.start()])
+    return normalize_hex(before.group(1)) if before else None
+
+
 def _named_color_is_excluded(prompt: str, match: re.Match[str]) -> bool:
     before = prompt[max(0, match.start() - 64) : match.start()]
     after = prompt[match.end() : match.end() + 64]
@@ -94,18 +111,17 @@ def _named_color_is_excluded(prompt: str, match: re.Match[str]) -> bool:
 
 
 def requested_named_colors(prompt: str) -> list[tuple[str, str, list[re.Match[str]]]]:
-    requested = [
-        (
-            name,
-            target_hex,
-            [
-                match
-                for match in pattern.finditer(prompt)
-                if not _named_color_is_excluded(prompt, match)
-            ],
+    requested = []
+    for pattern, name, target_hex in _NAMED_COLOR_TARGETS:
+        matches = [
+            match
+            for match in pattern.finditer(prompt)
+            if not _named_color_is_excluded(prompt, match)
+        ]
+        explicit = next(
+            (found for match in matches if (found := _explicit_hex(prompt, match))), None
         )
-        for pattern, name, target_hex in _NAMED_COLOR_TARGETS
-    ]
+        requested.append((name, explicit or target_hex, matches))
     return sorted(
         (item for item in requested if item[2]),
         key=lambda item: item[2][0].start(),

@@ -267,6 +267,13 @@ def facts(observation: Observation, corpus: Corpus, *, ink: bool = False) -> dic
     if len(stripes) == 1:
         stripe = stripes[0]
         if stripe.opacity == 1:
+            # 색만 지정한 문장은 밴드 개수를 정하지 않는다 — 쓰인 색 집합만 본다.
+            out["stripe.colors_used"] = sorted(
+                {
+                    normalize_hex(palette.resolve_color(band.color, design.colorway_id))
+                    for band in stripe.params.bands
+                }
+            )
             out["stripe.colors"] = [
                 normalize_hex(palette.resolve_color(band.color, design.colorway_id))
                 for band in stripe.params.bands
@@ -493,6 +500,7 @@ def validate_corpus(corpus: Corpus, *, ink: bool = False) -> None:
         "tile_mm",
         "stripe.count",
         "stripe.colors",
+        "stripe.colors_used",
         "stripe.angle",
         "stripe.geometry",
         "motif.ids",
