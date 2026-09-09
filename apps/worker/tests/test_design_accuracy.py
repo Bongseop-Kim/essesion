@@ -179,3 +179,41 @@ def test_reject_malformed_evaluation_inputs():
     data.cases[0].checks[0].fact = "background.colour_typo"
     with pytest.raises(ValueError, match="unknown fact"):
         scoring.validate_corpus(data)
+
+
+def _scattered(seed_salts: tuple[str | None, str | None]):
+    """Both motif slots scattered with one identical spec — the shape the global patch produces."""
+    raw = copy.deepcopy(corpus().fixtures["base"])
+    for layer, salt in zip(raw["layers"][2:], seed_salts, strict=True):
+        scatter = {"mode": "poisson", "min_dist_mm": 8, "count": 12}
+        if salt is not None:
+            scatter["seed_salt"] = salt
+        layer["placement"] = {"type": "scatter", "scatter": scatter}
+    return scoring.facts(scoring.Observation(case_id="sample", intent=raw), corpus())
+
+
+def test_stacked_slots_are_scored_as_overlapping_shapes():
+    stacked = _scattered((None, None))
+    separated = _scattered(("circle", "star"))
+
+    # Same stream: every star sits exactly on a circle (clones add a few more pairs).
+    assert stacked["motif.overlaps"] >= stacked["motif.eval-circle.count"]
+    assert stacked["motif.eval-circle.self_overlaps"] == 0
+    assert separated["motif.overlaps"] < stacked["motif.overlaps"]
+
+
+def test_lane_conditions_score_the_whole_shape_not_only_the_center():
+    """`between_stripes`는 중심만이 아니라 도형 전체가 빈 공간에 들어가야 참이다."""
+    fitting = scoring.facts(
+        scoring.Observation(case_id="sample", intent=candidate(18)), corpus()
+    )
+    assert fitting["motif.eval-circle.lane"] == "b0.gap"
+    assert fitting["motif.eval-circle.lane_contains_shape"] is True
+
+    raw = candidate(18)
+    raw["layers"][2]["params"]["size_mm"] = 14.0  # 줄 사이를 넘칠 만큼 키운다
+    spilling = scoring.facts(scoring.Observation(case_id="sample", intent=raw), corpus())
+    assert spilling["motif.eval-circle.lane"] == "b0.gap"
+    assert spilling["motif.eval-circle.lane_contains_shape"] is False
+    # 경계 반대편 이웃까지 포함해 겹침을 센다 — 클론이 원본과 겹치면 잡힌다.
+    assert spilling["motif.eval-circle.self_overlaps"] > 0

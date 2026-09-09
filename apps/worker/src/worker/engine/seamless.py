@@ -11,7 +11,7 @@ _EPS = 1e-9
 _OFFSETS = (-1, 0, 1)  # 고정 순회 순서 → 결정론적 클론 순서
 
 
-def _rendered_aabb(
+def rendered_aabb(
     motif: MotifDef, inst: Instance, size_mm: float
 ) -> tuple[float, float, float, float]:
     """scale → rotate(anchor 기준) → translate 후의 AABB — compose transform과 동일 순서."""
@@ -39,7 +39,7 @@ def clone_instances(
     out: list[Instance] = []
     for inst in instances:
         out.append(inst)
-        min_x, min_y, max_x, max_y = _rendered_aabb(motif, inst, size_mm)
+        min_x, min_y, max_x, max_y = rendered_aabb(motif, inst, size_mm)
         crosses = min_x < -_EPS or min_y < -_EPS or max_x > tile_mm + _EPS or max_y > tile_mm + _EPS
         if not crosses:
             continue

@@ -25,7 +25,7 @@
 
 Placement: `type ∈ {lattice, point_set, path_following, scatter}` + type별 spec 정확히 하나(경합 spec 거부, path_following은 셋 다 없어야):
 - LatticeSpec: cell_w_mm/cell_h_mm(gt0), drop_fraction?(0<x<1), drop_axis ∈ {row, column}(기본 column), offset_x_mm/offset_y_mm(기본 0 — 격자 전체의 위상 이동, 두 모티프 슬롯을 엇갈리게 놓는 축)
-- ScatterSpec: mode ∈ {poisson, sateen}, min_dist_mm?(gt0), count?(1..10000), sateen_n?(2..1024), sateen_step?(1..1024)
+- ScatterSpec: mode ∈ {poisson, sateen}, min_dist_mm?(gt0), count?(1..10000), sateen_n?(2..1024), sateen_step?(1..1024), seed_salt?(1..64자)
 - PointSetSpec: points 1..10000
 - path_following: host_layer+lane 또는 standalone path(PathSpec: kind ∈ {straight, wave}, angle?, wavelength?(gt0), amplitude?(ge0)) + spacing_mm(gt0), phase_mm=0, rotation ∈ {follow_path, fixed}?
 - 모든 placement의 `fixed_rotation_deg?`는 구성 patch가 사용하는 결정론적 각도다. 생략 시 기존과 동일하게 0°이며 canonical layout JSON에서도 빠져 기존 layout id·SVG 바이트를 보존한다. path-following에서 `rotation=follow_path`면 tangent가 우선한다.
@@ -58,6 +58,8 @@ Placement: `type ∈ {lattice, point_set, path_following, scatter}` + type별 sp
 
 - **lattice** (RNG 없음): `nx=round(tile/cw), ny=round(tile/ch)`; `nx*ny > 50_000`이면 오류. drop_axis=column → b1=(cw, ch·drop), b2=(0, ch); row → b1=(cw, 0), b2=(cw·drop, ch). `x=i·b1x+j·b2x+offset_x, y=i·b1y+j·b2y+offset_y`, 좌표 `% tile`(offset은 위상만 옮기므로 seamless 불변식과 무관), 회전은 `fixed_rotation_deg` 또는 0°. (block=drop 없음, half_drop=column, brick=row)
 - **scatter**: sateen(RNG 없음) — `cell=tile/n`, `Instance(i·cell, ((i·step)%n)·cell)`; poisson(유일한 RNG 소비처) — `rng=random.Random(seed)`, capacity=`max(1, int(tile²/(min_dist²·(√3/2))))`, target=count or capacity, 시도 상한 `target×30`, **x 먼저 y 나중** `rng.random()·tile`, 토러스 거리(`dx=min(|Δ|, tile-|Δ|)`) ≥ min_dist면 채택.
+  - **`count`는 목표치이지 보장값이 아니다.** dart throwing이 시도 상한 안에 target을 못 채우면 그만큼만 돌려준다(측정: tile 48·min_dist 8·count 30 → seed 0..5에서 22~23개). 부족분은 조용히 삼키지 않고 `layer '<id>': scatter placed N of M requested instances (min_dist_mm …)` 경고를 낸다 — 진단·admin `warning_groups`(generation_warning)에만 남고 고객 문구는 없다. 정확한 개수 보장이 필요하면 최소 간격과 개수를 동시에 만족시키는 별도 계약으로 다룬다(현재 미지원).
+  - **`seed_salt`**: 있으면 `random.Random(stable_hash(f"{seed}:{seed_salt}"))`, 없으면 전역 `seed` 그대로. 같은 산개 설정을 받은 두 모티프 레이어가 같은 난수열을 써서 정확히 포개지는 것을 막는 축이다(격자의 `offset_x/y_mm`와 같은 역할). 구성 patch가 산개 배치를 새로 만들 때 **레이어 id**를 넣는다 — motif_id·레이어 순번·내장 `hash()`는 입력에 넣지 않는다(모티프 교체로 좌표가 바뀌면 안 된다). 값이 없는 기존 intent는 예전 좌표를 그대로 재현한다. 난수열 분리는 비겹침 보장이 아니다.
 - **path_following**: centerline은 host stripe lane 또는 standalone path. stripe lane은 밴드 i마다 `b{i}.start|center|end`와 `b{i}.gap`(밴드 i 끝과 다음 밴드 — 마지막 밴드면 다음 period의 첫 밴드 — 시작 사이 중점, 2026-09-07 "줄 사이에" 배치용)이며, 단일 밴드는 bare `start|center|end|gap`도 받는다. 각도 스냅 `snap_angle`(기울기 `Fraction.limit_denominator(16)`), 길이 `L=tile·hypot(p,q)`, `n=max(1,round(L/spacing)), spacing_eff=L/n`, `s=phase%L + k·spacing_eff (s < L-1e-9)`. straight: `x=offset·nx+s·dx`; wave: 법선방향 `amp·sin(2πs/λ)` 추가, tangent는 도함수 반영. rotation=follow_path면 tangent, 아니면 0.
 - **point_set**: `(x%tile, y%tile, fixed_rotation_deg 또는 0)`.
 
@@ -83,7 +85,7 @@ Placement: `type ∈ {lattice, point_set, path_following, scatter}` + type별 sp
 
 ## 5. 결정론 장치
 
-- RNG는 요청 seed로 만든 지역 `random.Random(seed)`뿐이다(`placement.py`의 scatter poisson에서 인라인 생성). 전역 RNG·시간·프로세스 hash 미사용.
+- RNG는 요청 seed로 만든 지역 `random.Random(seed)`뿐이다(`placement.py`의 scatter poisson에서 인라인 생성). 레이어의 `scatter.seed_salt`가 있으면 시드는 `stable_hash(f"{seed}:{salt}")`로 갈라진다(§3). 전역 RNG·시간·프로세스 hash 미사용.
 - `stable_hash(text) = int(sha256(text).hexdigest(), 16)` (전체 digest). 내장 hash() 금지.
 - PYTHONHASHSEED 독립: 모든 순회는 정렬 or 삽입순 dict. 대조 테스트가 hashseed 0/1/12345 서브프로세스 바이트 동일을 검증.
 - effective seed: 요청 seed(override) 없으면 intent.seed. compose 전 경로가 같은 seed를 본다.
@@ -125,7 +127,7 @@ frozen `ReproMeta{intent_version, seed, colorway_id, engine_version("0.1.0"), re
 걸려 두 배가 불가능하면 종전대로 짝수로 올리고 `stagger_density_adjusted` 경고를 고객 문구로
 내린다. `constraints.lattice_placement`의 짝수 올림은 그 경우의 백스톱으로 남는다.
 
-**슬롯 지정 배치(2026-09-07 결정)**: `placement.slot`(1..2)이 있으면 그 모티프 레이어만 바꾸고 나머지 레이어는 그대로 둔다(회전·밀도·배열 모두). 슬롯별 밀도는 두 격자가 달라져 **겹침을 허용한다** — 겹치지 않게 유지하는 것은 사용자의 선택이다. `arrangement`에 `on_stripes`(가장 넓은 밴드의 `b{i}.center`)·`between_stripes`(가장 넓은 빈 공간의 `b{i}.gap`)를 더해 줄무늬를 host로 하는 path_following으로 바꾼다 — 간격은 `tile/count_per_axis`, 회전은 fixed. 줄무늬가 없는 디자인에서는 `ConstraintInvalid`다. 줄무늬는 건드리지 않는다.
+**슬롯 지정 배치(2026-09-07 결정)**: `placement.slot`(1..2)이 있으면 그 모티프 레이어만 바꾸고 나머지 레이어는 그대로 둔다(회전·밀도·배열 모두). 슬롯별 밀도는 두 격자가 달라져 **겹침을 허용한다** — 겹치지 않게 유지하는 것은 사용자의 선택이다. 슬롯을 지정하지 않은 전역 배치 patch는 두 슬롯을 같은 설정으로 바꾸므로, 격자는 반 칸 위상(`offset_x/y_mm`)으로, 산개는 레이어 id `seed_salt`(§3)로 좌표를 가른다 — 둘 다 정확한 포개짐만 막고 비겹침은 보장하지 않는다. `arrangement`에 `on_stripes`(가장 넓은 밴드의 `b{i}.center`)·`between_stripes`(가장 넓은 빈 공간의 `b{i}.gap`)를 더해 줄무늬를 host로 하는 path_following으로 바꾼다 — 간격은 `tile/count_per_axis`, 회전은 fixed. 줄무늬가 없는 디자인에서는 `ConstraintInvalid`다. 줄무늬는 건드리지 않는다.
 
 `seamless_generation_logs.intent`에는 `{design, resolved_plan}`(+구성 patch 런은 `patch`,
 모티프 슬롯 교체 런은 `motif_slot`)이 기록된다 — 전부 단수 키다.

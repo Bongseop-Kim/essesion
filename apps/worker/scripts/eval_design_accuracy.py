@@ -15,8 +15,9 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from worker.engine.compose import compose_design
 from worker.engine.constraints import normalize_hex
 from worker.engine.determinism import ENGINE_VERSION
-from worker.engine.placement import place
-from worker.engine.primitives import Stripe, build_primitive
+from worker.engine.placement import Instance, place
+from worker.engine.primitives import Stripe, band_gaps, build_primitive
+from worker.engine.seamless import clone_instances, rendered_aabb
 from worker.engine.validate import build_palette
 from worker.motifs.registry import MotifDef
 
@@ -97,6 +98,74 @@ def catalog(corpus: Corpus) -> dict[str, MotifDef]:
     return {key: MotifDef(id=key, symbol=value) for key, value in corpus.motifs.items()}
 
 
+Box = tuple[float, float, float, float]
+
+
+def _overlaps(a: Box, b: Box) -> bool:
+    """Rotated-AABB overlap. An overestimate for thin or curved shapes, never an underestimate:
+    a positive count is a candidate pair, a zero is a real non-overlap proof."""
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+def _pair_overlaps(boxes: list[Box], others: list[Box] | None = None) -> int:
+    # ponytail: O(n^2) over one tile's instances (max_placement_instances bounded); an offline
+    # scorer, not a render path. Grid-bucket it if a corpus ever needs thousands of instances.
+    if others is None:
+        return sum(
+            _overlaps(a, b) for index, a in enumerate(boxes) for b in boxes[index + 1 :]
+        )
+    return sum(_overlaps(a, b) for a in boxes for b in others)
+
+
+def _lane_band(stripe: Stripe, lane: str) -> tuple[float, float] | None:
+    """(low, high) normal-direction span the lane points at: the band for `center`, the empty
+    space for `gap`. Edge lanes (`start`/`end`) name a line, not an area, so they score nothing."""
+    bands = stripe.params.bands
+    name = lane.rsplit(".", 1)[-1]
+    index = 0
+    if lane.startswith("b") and "." in lane:
+        try:
+            index = int(lane[1 : lane.index(".")])
+        except ValueError:
+            return None
+    if index >= len(bands):
+        return None
+    band = bands[index]
+    if name == "center":
+        return (band.offset_mm, band.offset_mm + band.width_mm)
+    if name == "gap":
+        gaps = band_gaps(
+            [(item.offset_mm, item.width_mm) for item in bands], stripe.params.period_mm
+        )
+        low, high = gaps[index]
+        return (low, high) if high > low else None
+    return None
+
+
+def _shape_inside_lane(
+    stripe: Stripe, lane: str, motif: MotifDef, instances: list[Instance], size_mm: float
+) -> bool | None:
+    """Whether every whole rotated shape fits inside its lane's band, not just its center."""
+    span = _lane_band(stripe, lane)
+    if span is None:
+        return None
+    low, high = span
+    period = stripe.params.period_mm
+    angle = math.radians(stripe.snapped.angle_deg)
+    nx, ny = -math.sin(angle), math.cos(angle)
+    for inst in instances:
+        min_x, min_y, max_x, max_y = rendered_aabb(motif, inst, size_mm)
+        projections = [
+            x * nx + y * ny for x in (min_x, max_x) for y in (min_y, max_y)
+        ]
+        near, far = min(projections), max(projections)
+        # Bands repeat every period; slide the span to the copy that starts just below `near`.
+        shift = math.floor((near - low) / period) * period
+        if not (near >= low + shift - 1e-9 and far <= high + shift + 1e-9):
+            return False
+    return True
+
+
 def facts(observation: Observation, corpus: Corpus) -> dict[str, Any]:
     if observation.rejection is not None:
         return {"rejection": observation.rejection}
@@ -143,6 +212,7 @@ def facts(observation: Observation, corpus: Corpus) -> dict[str, Any]:
         key=lambda layer: (layer.z_order, layer.id),
     )
     out["motif.ids"] = sorted(layer.params.motif_id for layer in motifs)
+    boxes_by_layer: dict[str, list[Box]] = {}
     for draw_order, layer in enumerate(motifs):
         key = f"motif.{layer.params.motif_id}"
         if out["motif.ids"].count(layer.params.motif_id) != 1:
@@ -180,10 +250,31 @@ def facts(observation: Observation, corpus: Corpus) -> dict[str, Any]:
             out[f"{key}.drop"] = placement.lattice.drop_fraction or 0
         if placement.scatter is not None and placement.scatter.count is not None:
             out[f"{key}.count_fulfilled"] = len(positions) == placement.scatter.count
+        # Whole-shape geometry: boundary clones included, so a neighbour across the tile edge
+        # counts the same as one inside it.
+        motif = MotifDef(id=layer.params.motif_id, symbol=corpus.motifs[layer.params.motif_id])
+        cloned = clone_instances(
+            positions, motif=motif, size_mm=layer.params.size_mm, tile_mm=tile
+        )
+        boxes = [rendered_aabb(motif, inst, layer.params.size_mm) for inst in cloned]
+        boxes_by_layer[key] = boxes
+        out[f"{key}.self_overlaps"] = _pair_overlaps(boxes)
         if placement.host_layer is not None and placement.lane is not None:
             out[f"{key}.lane"] = placement.lane
             # Lane labels alone are not enough: ensure the host is a real stripe.
             out[f"{key}.stripe_host"] = any(stripe.id == placement.host_layer for stripe in stripes)
+            if isinstance(host, Stripe):
+                inside = _shape_inside_lane(
+                    host, placement.lane, motif, cloned, layer.params.size_mm
+                )
+                if inside is not None:
+                    out[f"{key}.lane_contains_shape"] = inside
+    keys = sorted(boxes_by_layer)
+    out["motif.overlaps"] = sum(
+        _pair_overlaps(boxes_by_layer[left], boxes_by_layer[right])
+        for index, left in enumerate(keys)
+        for right in keys[index + 1 :]
+    ) + sum(out[f"{key}.self_overlaps"] for key in keys)
     return out
 
 
@@ -307,6 +398,7 @@ def validate_corpus(corpus: Corpus) -> None:
         "stripe.angle",
         "stripe.geometry",
         "motif.ids",
+        "motif.overlaps",
     }
     for motif_id in corpus.motifs:
         available.update(
@@ -326,6 +418,8 @@ def validate_corpus(corpus: Corpus) -> None:
                 "count_fulfilled",
                 "lane",
                 "stripe_host",
+                "self_overlaps",
+                "lane_contains_shape",
             )
         )
     for case in corpus.cases:

@@ -628,8 +628,14 @@ def _apply_placement(
                 # 밀도만 바꾸는 patch는 기존 host/lane·위상을 유지하고 간격만 조정한다.
                 arrangement = None
         if arrangement == "scatter":
+            # 레이어 id로 난수열을 가른다 — 전역 patch가 두 슬롯에 같은 산개 설정을 주어도
+            # 좌표가 포개지지 않는다. motif_id는 넣지 않는다(모티프 교체로 좌표가 바뀌면 안 됨).
+            layer_id = layer.get("id")
             placement = scatter_placement(
-                tile=tile, axis=count, count=max(4, round(count * count * 0.5))
+                tile=tile,
+                axis=count,
+                count=max(4, round(count * count * 0.5)),
+                seed_salt=layer_id if isinstance(layer_id, str) else None,
             )
         elif arrangement in ("on_stripes", "between_stripes"):
             host_id, lane = _stripe_lane(raw, arrangement)

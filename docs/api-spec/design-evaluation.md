@@ -54,8 +54,13 @@
 | `density` | 실제 인스턴스 수 / tile_mm². 타일 확장으로 개수만 증가한 것을 밀도 증가로 오판하지 않음 |
 | `appearance` | 크기·실제 위치/회전·opacity·모티프끼리의 그리기 순서. 무관한 레이어 번호 재정렬은 허용 |
 | `normalized_positions`, `relative_size` | 좌표·크기를 tile_mm으로 나눔. 전역 배율 변경의 비율 보존 검사 |
-| `lane`, `stripe_host` | 실제 존재하는 stripe host와 정규화된 lane 연결. **중심선 배치만 검증**하며 전체 도형의 줄 침범·비겹침을 보증하지 않음 |
+| `lane`, `stripe_host` | 실제 존재하는 stripe host와 정규화된 lane 연결. 중심선 연결만 검증 |
+| `lane_contains_shape` | 회전 반영 AABB 전체가 lane이 가리키는 띠 안에 들어가는지. `b{i}.center`는 밴드, `b{i}.gap`은 빈 공간이 기준이며 경계 clone도 함께 본다. 중심만 사이에 있는 것과 도형 전체가 들어간 것을 가르는 조건이다. 시작/끝 lane은 면적이 없어 이 사실을 내지 않음 |
+| `self_overlaps`, `motif.overlaps` | 경계 clone까지 포함한 인스턴스 쌍 중 회전 반영 AABB가 겹치는 수(레이어 내부 / 전체). **AABB는 과대추정**이라 0은 비겹침 증명이지만 양수는 후보 쌍일 뿐이다 — 가는 도형·곡선은 실제로 안 겹칠 수 있다. 명세가 격자에서 15%까지의 겹침을 허용하므로 이 값은 진단이며, 겹침 0을 요구하는 조건은 사례가 명시할 때만 쓴다 |
 | `rejection` | 저장된 거절 이유와 기대 이유 일치. 과금 환불·턴 삭제는 별도 API 테스트의 책임 |
+
+알파 마스크 대조(AABB가 겹친 후보에만 적용)는 아직 없다 — 마스크 해상도·임계값·안전 여백을
+먼저 정해야 하므로 남은 플랜으로 둔다. 그때까지 겹침 판정은 AABB 수준의 진단이다.
 
 `compose_design`이 반환한 정규화 intent를 사용한다. 따라서 validator repair 이후를 검사한다.
 관측 입력은 worker가 제약 적용까지 마친 **최종 resolved intent**여야 한다. 저작 Plan이나 적용 전 patch를 그대로 입력하지 않는다.

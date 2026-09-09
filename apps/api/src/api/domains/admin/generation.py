@@ -119,6 +119,8 @@ _INTENT_ALLOWED_KEYS = frozenset(
         "count",
         "sateen_n",
         "sateen_step",
+        # 산개 난수열 분리 키 — 없으면 admin이 읽은 intent로 같은 배치를 재현할 수 없다
+        "seed_salt",
         "point_set",
         "points",
     }

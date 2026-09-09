@@ -9,6 +9,7 @@ import random
 from dataclasses import dataclass
 
 from worker.config import get_settings
+from worker.engine.determinism import stable_hash
 from worker.engine.host import Centerline, resolve_lane
 from worker.engine.intent import MotifLayer, PathSpec, Placement, ScatterSpec
 from worker.engine.primitives import Stripe
@@ -195,7 +196,8 @@ def place_scatter(placement: Placement, tile_mm: float, seed: int) -> list[Insta
     if spec.min_dist_mm is None:
         raise ValueError("poisson scatter placement requires `min_dist_mm`")
     min_dist = spec.min_dist_mm
-    rng = random.Random(seed)
+    # seed_salt가 있으면 레이어별 독립 난수열 — 없으면 전역 seed 그대로(기존 intent 호환).
+    rng = random.Random(seed if spec.seed_salt is None else stable_hash(f"{seed}:{spec.seed_salt}"))
     cap = get_settings().max_placement_instances
     target = scatter_target_count(spec, tile_mm, cap)
     if target > cap:
