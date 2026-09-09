@@ -37,6 +37,8 @@ from worker.engine.patch import (
 )
 from worker.engine.validate import IntentInvalid, validate_intent
 from worker.motifs.registry import iter_motif_ids
+from worker.motifs.resolver import prompt_catalog_candidates
+from worker.motifs.store import get_motifs
 
 CORPUS = Path(__file__).with_name("design_accuracy_cases.json")
 # 편집 프롬프트는 "원만", "별만"으로 대상을 부른다. 프로덕션은 이 subject를 DB motif meta에서
@@ -85,6 +87,16 @@ async def _initial(
     client: LLMClient, case: dict, *, session, embedding, use_examples: bool
 ) -> dict[str, Any]:
     motif_ids = list(case.get("input_motif_ids") or [])
+    # 라우트와 같다 — 정확 모티프를 주지 않은 요청만 카탈로그 검색을 탄다.
+    candidates: list[dict[str, object]] = []
+    if not motif_ids:
+        candidates = await prompt_catalog_candidates(
+            session,
+            case["prompt"],
+            embedding_client=embedding,
+            tau=get_settings().motif_similarity_tau,
+            top_k=5,
+        )
     examples: list[dict[str, object]] = []
     status = "disabled"
     example_ids: list[object] = []
@@ -104,15 +116,37 @@ async def _initial(
         case["prompt"],
         validate=_make_validator(motif_ids),
         motif_ids=motif_ids,
+        catalog_candidates=candidates,
         examples=examples,
         diagnostics=diagnostics,
     )
+    # 카탈로그에서 고른 모티프는 DB에만 있다 — 오프라인 채점기가 합성·판정할 수 있게
+    # symbol과 subject를 관측치에 함께 싣는다.
+    used = sorted(iter_motif_ids(authored.intent) - set(motif_ids))
+    catalog_defs = await get_motifs(session, used) if used else {}
+    subjects = {
+        str(item["motif_id"]): item.get("subject")
+        for item in authored.motif_resolutions
+        if item.get("outcome") == "prompt_catalog" and item.get("motif_id")
+    }
+    observation: dict[str, Any] = {"case_id": case["id"], "intent": authored.intent}
+    if catalog_defs:
+        observation["motifs"] = {key: value.symbol for key, value in catalog_defs.items()}
+        observation["motif_subjects"] = {
+            key: value for key, value in subjects.items() if value is not None
+        }
+        observation["approximate_match"] = any(
+            item.get("outcome") == "prompt_catalog" and item.get("match_type") == "embedding"
+            for item in authored.motif_resolutions
+        )
     return {
-        "observation": {"case_id": case["id"], "intent": authored.intent},
+        "observation": observation,
         "meta": {
             "retrieval_status": status,
             "example_ids": example_ids,
             "attempts": diagnostics.get("authoring_attempts"),
+            "catalog_candidates": len(candidates),
+            "catalog_subjects": sorted(subjects.values(), key=str),
         },
     }
 
@@ -184,6 +218,7 @@ async def _run(args: argparse.Namespace, repeat_index: int | None = None) -> Non
         for case in cases:
             started = time.perf_counter()
             error = None
+            detail: list[str] = []
             result: dict[str, Any] = {}
             try:
                 if case["mode"] == "initial":
@@ -206,6 +241,8 @@ async def _run(args: argparse.Namespace, repeat_index: int | None = None) -> Non
                     result = await _edit(client, case, baseline, history)
             except (IntentInvalid, ConstraintInvalid) as exc:
                 error = type(exc).__name__
+                # 우리 스키마가 낸 검증 메시지 — provider 응답이 아니다. 진단용으로 파일에만 남긴다.
+                detail = list(getattr(exc, "errors", []) or [])[:3]
             except AdapterClientError:
                 error = "provider_error"
             except Exception as exc:  # noqa: BLE001 - a failed case stays in the denominator
@@ -232,6 +269,7 @@ async def _run(args: argparse.Namespace, repeat_index: int | None = None) -> Non
                     "mode": case["mode"],
                     "split": case["split"],
                     "error": error,
+                    "error_detail": detail,
                     "latency_ms": elapsed,
                     **(result.get("meta") or {}),
                 }

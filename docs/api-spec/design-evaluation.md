@@ -30,15 +30,21 @@ v3에서 30건이 모두 통과해 변별력이 사라졌으므로 v4에서 7건
 | accuracy-031~035 | 5 | 첫 생성 변별용(v4): 지명색과 역할의 결합, 명시 hex 준수, 추상 요청 속 명시 조건 |
 | accuracy-036~037 | 2 | 수정 변별용(v4): 한 문장이 두 대상을 반대로 움직이기, 한 슬롯만 줄 위로 |
 | accuracy-040~045 | 6 | 대화 체인 2개(v6): 첫 생성 → 그 결과를 이어서 2턴 더. baseline이 fixture가 아니라 **직전 턴의 실제 산출물**이다 |
+| accuracy-050~052 | 3 | 카탈로그 검색(v7): fixture symbol 없이 문장만으로 그림을 고르게 하고 **subject**로 판정 |
 
 `regression` 24건과 `held_out` 13건은 **앞으로 학습/예시에 쓰지 않을 집합 구분**이다.
 프로덕션 few-shot에 이 파일을 시드하지 않는다. 2026-09-09에 활성 예시 25건과의 어휘 겹침을 검사했고
 최대 0.17, held-out 중 0.5 이상은 0건이었다 — 누출 검사는 코퍼스를 늘릴 때마다 다시 한다.
 
 모티프는 파일에 고정된 노란 원(`eval-circle`)·하늘색 별(`eval-star`) symbol을 명시적 catalog로 전달한다.
-실제 SVG 합성까지 수행하지만 PNG·VLM·DB·외부 provider는 사용하지 않는다.
-첫 생성에서는 `input_motif_ids` 순서로 해당 symbol을 제공한 결과만 이 기준으로 평가한다.
-카탈로그 검색·고양이 등 자연어 대상 식별 정확도는 이 작은 fixture 평가의 범위 밖이다.
+실제 SVG 합성까지 수행하지만 PNG·VLM·외부 provider는 채점 단계에서 사용하지 않는다.
+
+`input_motif_ids`가 빈 사례는 **라우트와 같이 카탈로그 검색을 탄다**(`prompt_catalog_candidates`,
+tau는 `motif_similarity_tau`, top-5). 그때 고른 그림은 DB에만 있으므로 수집 단계가 관측치에
+`motifs`(id→symbol)·`motif_subjects`(id→subject)·`approximate_match`를 함께 실어 오고,
+채점기는 그것으로 합성·판정한다 — 채점기는 여전히 DB를 보지 않는다.
+판정 대상은 불안정한 motif id가 아니라 **subject**이며, 카탈로그에 같은 대상의 표기가 둘 이상
+있으면(`꿀벌`/`bee`) 어느 쪽도 정답이므로 **표기가 하나뿐인 주제로 사례를 고른다**.
 
 편집 baseline은 기본적으로 fixture에 고정되어 있다. `rotated` → `red_rotated` 맥락 사례는 앞서 적용된 회전 보존을 검증한다.
 **`before`에 fixture 대신 앞선 사례 id를 적으면 대화 체인**이 된다(040~045): 그 턴의 baseline은 직전 턴이 실제로 만든
@@ -66,6 +72,8 @@ intent이고, `conversation_history`도 실제 문장·note로 채워진다. 1�
 | `stripe.count/angle/geometry` | 유효한 stripe 레이어 수·각도·밴드 폭/간격. geometry에는 색을 포함하지 않음 |
 | `stripe.colors_used` | 밴드에 쓰인 해석색의 정렬된 집합. **밴드 개수·순서를 보지 않는다** — "줄무늬는 흰색"처럼 색만 지정한 문장에 쓴다. 구조까지 지정한 문장은 순서 있는 `stripe.colors`를 쓴다 |
 | `motif.ids` | opacity가 0보다 큰 레이어의 fixture ID 목록. 같은 motif ID가 여러 레이어에 있으면 이 평가에서는 모호한 입력으로 실패 |
+| `motif.subjects` | 카탈로그에서 고른 그림의 subject(정렬). 관측치에 `motif_subjects`가 있을 때만 나온다 — fixture 사례에는 없다 |
+| `motif.approximate_match` | 근사 매칭(`motif grounded only approximately`) 발생 여부. 관측치가 실어온 값이며, 검색이 정확 일치를 못 찾았음을 뜻한다 |
 | `size_mm`, `placement`, `drop` | 최종 intent의 크기·배치 종류·엇갈림 비율 |
 | `positions`, `centers`, `rotation` | 실제 `place()` 결과. positions는 회전을 포함하고 centers는 좌표만 비교 |
 | `count`, `count_fulfilled` | 경계 clone을 제외한 실제 인스턴스 수. 요청 count 대신 반환 개수를 검사 |

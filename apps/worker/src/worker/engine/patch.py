@@ -636,7 +636,10 @@ def _apply_placement(
             placement = scatter_placement(
                 tile=tile,
                 axis=count,
-                count=max(4, round(count * count * 0.5)),
+                # 축당 개수²의 절반 — 육각 충전 상한의 40~43%라 dart throwing이 실제로 채운다.
+                # 하한이 4였을 때 축 2(min_dist=tile/2)만 상한의 87%를 요구해 늘 2개만 놓였다
+                # (2026-09-09 브라우저 실측 "아주 성기게"). 하한을 2로 낮춰 요청과 결과를 맞춘다.
+                count=max(2, round(count * count * 0.5)),
                 seed_salt=layer_id if isinstance(layer_id, str) else None,
             )
         elif arrangement in ("on_stripes", "between_stripes"):

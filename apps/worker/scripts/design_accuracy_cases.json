@@ -1,5 +1,5 @@
 {
-  "revision": "design-accuracy-v6",
+  "revision": "design-accuracy-v8",
   "review_status": "reviewed",
   "motifs": {
     "eval-circle": "<symbol id=\"motif-eval-circle\" overflow=\"visible\"><circle cx=\"0\" cy=\"0\" r=\"0.5\" fill=\"#FFCC00\"/></symbol>",
@@ -1859,6 +1859,63 @@
         {
           "fact": "background.color",
           "op": "unchanged"
+        }
+      ]
+    },
+    {
+      "id": "accuracy-050",
+      "split": "held_out",
+      "mode": "initial",
+      "prompt": "고양이 무늬를 격자로 반복한 넥타이를 만들어 주세요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "motif.subjects",
+          "value": [
+            "cat"
+          ]
+        },
+        {
+          "fact": "motif.approximate_match",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "accuracy-051",
+      "split": "held_out",
+      "mode": "initial",
+      "prompt": "동백꽃을 흩뿌린 넥타이를 만들어 주세요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "motif.subjects",
+          "value": [
+            "동백꽃"
+          ]
+        },
+        {
+          "fact": "motif.approximate_match",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "accuracy-052",
+      "split": "regression",
+      "mode": "initial",
+      "prompt": "말 무늬 하나를 격자로 반복하고 바탕은 네이비 #000080으로 해주세요.",
+      "input_motif_ids": [],
+      "checks": [
+        {
+          "fact": "motif.subjects",
+          "value": [
+            "horse"
+          ]
+        },
+        {
+          "fact": "background.color",
+          "value": "#000080"
         }
       ]
     }

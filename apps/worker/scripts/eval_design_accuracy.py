@@ -102,6 +102,10 @@ class Observation(StrictModel):
     rejection: str | None = None
     colorway_id: str | None = None
     seed: int | None = None
+    # 카탈로그에서 고른 모티프는 코퍼스 fixture에 없다 — 수집 단계가 symbol과 subject를 실어온다.
+    motifs: dict[str, str] | None = None
+    motif_subjects: dict[str, str] | None = None
+    approximate_match: bool | None = None
 
     @model_validator(mode="after")
     def exactly_one_result(self) -> Observation:
@@ -110,8 +114,11 @@ class Observation(StrictModel):
         return self
 
 
-def catalog(corpus: Corpus) -> dict[str, MotifDef]:
-    return {key: MotifDef(id=key, symbol=value) for key, value in corpus.motifs.items()}
+def catalog(corpus: Corpus, observation: Observation | None = None) -> dict[str, MotifDef]:
+    symbols = dict(corpus.motifs)
+    if observation is not None and observation.motifs:
+        symbols.update(observation.motifs)
+    return {key: MotifDef(id=key, symbol=value) for key, value in symbols.items()}
 
 
 Box = tuple[float, float, float, float]
@@ -252,9 +259,10 @@ def facts(observation: Observation, corpus: Corpus, *, ink: bool = False) -> dic
         observation.intent,
         seed=observation.seed,
         colorway=observation.colorway_id,
-        motifs=catalog(corpus),
+        motifs=catalog(corpus, observation),
     )
     intent = design.intent
+    symbols = catalog(corpus, observation)
     palette = build_palette(intent)
     tile = intent.canvas.tile_mm
     hosts = {
@@ -296,6 +304,15 @@ def facts(observation: Observation, corpus: Corpus, *, ink: bool = False) -> dic
         key=lambda layer: (layer.z_order, layer.id),
     )
     out["motif.ids"] = sorted(layer.params.motif_id for layer in motifs)
+    if observation.motif_subjects is not None:
+        # 카탈로그 검색 결과 — 어떤 그림을 골랐는지는 id가 아니라 subject로 판정한다.
+        out["motif.subjects"] = sorted(
+            observation.motif_subjects[layer.params.motif_id]
+            for layer in motifs
+            if layer.params.motif_id in observation.motif_subjects
+        )
+    if observation.approximate_match is not None:
+        out["motif.approximate_match"] = observation.approximate_match
     boxes_by_layer: dict[str, list[Box]] = {}
     ink_by_layer: dict[str, list[tuple[Box, Any]]] = {}
     for draw_order, layer in enumerate(motifs):
@@ -337,7 +354,7 @@ def facts(observation: Observation, corpus: Corpus, *, ink: bool = False) -> dic
             out[f"{key}.count_fulfilled"] = len(positions) == placement.scatter.count
         # Whole-shape geometry: boundary clones included, so a neighbour across the tile edge
         # counts the same as one inside it.
-        motif = MotifDef(id=layer.params.motif_id, symbol=corpus.motifs[layer.params.motif_id])
+        motif = symbols[layer.params.motif_id]
         cloned = clone_instances(
             positions, motif=motif, size_mm=layer.params.size_mm, tile_mm=tile
         )
@@ -517,6 +534,8 @@ def validate_corpus(corpus: Corpus, *, ink: bool = False) -> None:
         "stripe.angle",
         "stripe.geometry",
         "motif.ids",
+        "motif.subjects",
+        "motif.approximate_match",
         "motif.overlaps",
         "motif.ink_overlaps",
     }

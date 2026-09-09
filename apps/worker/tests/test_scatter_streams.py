@@ -130,3 +130,24 @@ def test_intent_without_seed_salt_keeps_the_legacy_stream():
     assert _centers(legacy, 1) != _centers(salted, 1)
     again = _scatter_intent(count=8, min_dist_mm=12.0)
     assert compose_design(legacy).svg == compose_design(again).svg
+
+
+def test_sparsest_scatter_preset_asks_for_what_it_can_place():
+    """"아주 성기게"(축당 2개)가 못 채울 개수를 요구하면 안 된다 — 2026-09-09 브라우저 실측 회귀."""
+    patched = apply_generation_constraints(
+        apply_patch(
+            _lattice_intent(),
+            DesignPatchV1.model_validate(
+                {
+                    "note": "아주 성기게",
+                    "placement": {"arrangement": "scatter", "count_per_axis": 2},
+                }
+            ),
+        )
+    )
+
+    scatter = patched["layers"][1]["placement"]["scatter"]
+    assert (scatter["min_dist_mm"], scatter["count"]) == (24.0, 2)
+    design = compose_design(patched)
+    assert [w for w in design.warnings if "scatter placed" in w] == []
+    assert len(_centers(patched, 1)) == 2

@@ -47,6 +47,9 @@ _NAMED_COLOR_TARGETS = (
     (re.compile(r"(버건디|burgundy)", re.IGNORECASE), "burgundy", "#800020"),
     (re.compile(r"(아이보리|ivory)", re.IGNORECASE), "ivory", "#FFFFF0"),
     (re.compile(r"(금색|골드|gold)", re.IGNORECASE), "gold", "#D4AF37"),
+    # 표에 없는 색은 접지되지 않아 모델 재량이다 — "흰 바탕"이 10회 중 1회 다른 색으로 나왔다
+    # (2026-09-09 실측). 넥타이에서 가장 흔한 바탕색이라 표에 넣는다.
+    (re.compile(r"(흰색|흰|하양|화이트|white)", re.IGNORECASE), "white", "#FFFFFF"),
 )
 
 

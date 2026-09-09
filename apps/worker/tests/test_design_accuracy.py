@@ -148,17 +148,34 @@ def _chain_candidate(index):
     return apply_patch(_chain_candidate(41) if index == 42 else _chain_candidate(42), denser)
 
 
+def _observation(index, case, data):
+    if case.mode == "reject":
+        return scoring.Observation(case_id=case.id, rejection=case.checks[0].value)
+    if index < 44:
+        return scoring.Observation(case_id=case.id, intent=candidate(index))
+    # 카탈로그 검색 사례 — 그림은 DB에 있으므로 수집 단계가 symbol·subject를 실어온다.
+    subject = {44: "cat", 45: "동백꽃", 46: "horse"}[index]
+    motif_id = f"catalog-{index}"
+    raw = copy.deepcopy(data.fixtures["base"])
+    raw["layers"] = [raw["layers"][0], raw["layers"][2]]
+    raw["layers"][1]["params"]["motif_id"] = motif_id
+    if index == 46:
+        raw = _recolor(raw, "ground", "#000080")
+    return scoring.Observation(
+        case_id=case.id,
+        intent=raw,
+        motifs={motif_id: data.motifs["eval-circle"]},
+        motif_subjects={motif_id: subject},
+        approximate_match=False,
+    )
+
+
 def test_all_criteria_have_satisfying_candidates_and_cli_can_validate():
     data = corpus()
-    assert len(data.cases) == len({c.prompt for c in data.cases}) == 43
-    observations = [
-        scoring.Observation(case_id=c.id, rejection=c.checks[0].value)
-        if c.mode == "reject"
-        else scoring.Observation(case_id=c.id, intent=candidate(i))
-        for i, c in enumerate(data.cases, 1)
-    ]
+    assert len(data.cases) == len({c.prompt for c in data.cases}) == 46
+    observations = [_observation(i, c, data) for i, c in enumerate(data.cases, 1)]
     report = scoring.evaluate(data, observations)
-    assert report["passed"] == 43, report["cases"]
+    assert report["passed"] == 46, report["cases"]
     assert report["by_mode"]["edit"] == {"passed": 24, "total": 24}
     result = subprocess.run(
         [sys.executable, str(SCRIPT), "--check-corpus"],
