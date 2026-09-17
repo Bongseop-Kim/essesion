@@ -100,7 +100,13 @@ export function PhoneVerifyModal({
       // 가능합니다"는 이미 보낸 코드가 살아 있다는 뜻이라, 일반 실패 문구로 덮으면
       // 사용자가 재전송만 반복하다 일일 한도까지 태운다.
       const { code: errorCode, detail } = errorBody(error);
-      if (errorCode === "rate_limited") setCooldown(60);
+      if (errorCode === "rate_limited") {
+        // 서버가 60초 제한을 걸었다는 건 방금 보낸 코드가 살아 있다는 뜻이다(60초 < 만료
+        // 5분). 보관 기록이 없는 환경에서 여기로 들어오므로, 안내와 "재전송" 라벨은
+        // 스낵바가 사라진 뒤에도 남겨둔다.
+        setSent(true);
+        setCooldown(60);
+      }
       snackbar(detail ?? "인증번호를 발송하지 못했습니다.");
     }
   };
@@ -126,6 +132,9 @@ export function PhoneVerifyModal({
       if (errorCode !== null && errorCode !== "verification_mismatch") {
         clearPendingVerification();
         setSent(false);
+        // 죽은 코드가 입력칸에 남아 있으면 "인증 완료"가 계속 활성이라 같은 실패를
+        // 반복하게 된다. cooldown은 서버의 재전송 창(발송 시각 기준)이라 건드리지 않는다.
+        setCode("");
       }
       snackbar(detail ?? "인증번호가 올바르지 않거나 만료되었습니다.");
     }

@@ -142,6 +142,8 @@ it("재전송이 막히면 서버가 준 이유를 그대로 보여준다", asyn
   );
   // 재전송 대기가 걸려 발송 버튼은 막히고, 열려 있는 인증번호 칸만 남는다
   expect(screen.getByRole("button", { name: "60초" })).toBeTruthy();
+  // 스낵바가 사라져도 "이미 보냈다"는 사실이 화면에 남아야 한다
+  expect(screen.getByText("이미 인증번호를 보냈습니다")).toBeTruthy();
 });
 
 it("만료된 인증번호로 실패하면 보관 기록을 버린다", async () => {
@@ -166,4 +168,6 @@ it("만료된 인증번호로 실패하면 보관 기록을 버린다", async ()
 
   await waitFor(() => expect(localStorage.getItem(PENDING_KEY)).toBeNull());
   expect(screen.queryByText("이미 인증번호를 보냈습니다")).toBeNull();
+  // 죽은 코드는 지워 같은 실패를 반복하지 않게 한다
+  expect(screen.getByLabelText("인증번호")).toHaveProperty("value", "");
 });
