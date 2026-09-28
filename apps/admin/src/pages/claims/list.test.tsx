@@ -69,18 +69,18 @@ describe("ClaimsPage", () => {
 
     const filterButton = screen.getByRole("button", { name: "필터" });
     await user.click(filterButton);
-    await user.click(screen.getByRole("radio", { name: "처리중" }));
+    await user.click(screen.getByRole("radio", { name: "처리 중" }));
     await user.click(screen.getByRole("radio", { name: "반품" }));
     await user.click(screen.getByRole("button", { name: "취소" }));
 
     expect(screen.getByLabelText("현재 URL").textContent).toBe("");
 
     await user.click(filterButton);
-    expect(screen.getByRole("radio", { name: "처리중" })).toHaveProperty(
+    expect(screen.getByRole("radio", { name: "처리 중" })).toHaveProperty(
       "checked",
       false,
     );
-    await user.click(screen.getByRole("radio", { name: "처리중" }));
+    await user.click(screen.getByRole("radio", { name: "처리 중" }));
     await user.click(screen.getByRole("radio", { name: "반품" }));
     await user.click(screen.getByRole("button", { name: "필터 적용" }));
 

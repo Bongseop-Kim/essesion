@@ -173,7 +173,7 @@ describe("GenerationJobsPage", () => {
     await user.type(input, "invalid-id");
     await user.click(screen.getByRole("button", { name: "검색" }));
 
-    expect(screen.getByText("작업 ID는 UUID 형식이어야 합니다.")).toBeTruthy();
+    expect(screen.getByText("작업 ID 전체를 붙여 넣어 주세요.")).toBeTruthy();
     expect(api.jobOptions).not.toHaveBeenCalledWith({
       query: expect.objectContaining({ job_id: "invalid-id" }),
     });
@@ -308,7 +308,7 @@ describe("GenerationJobsPage", () => {
     );
   });
 
-  it("마지막 성공 갱신을 표시하고 자동 갱신을 일시정지·재개한다", async () => {
+  it("마지막 갱신을 표시하고 자동 갱신을 일시정지·재개한다", async () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByRole("table", { name: "생성 작업 목록" });

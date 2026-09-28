@@ -69,10 +69,10 @@ export const ADMIN_NAVIGATION_GROUPS: readonly AdminNavigationGroup[] = [
       },
       {
         key: "few-shot-examples",
-        label: "선별된 few-shot",
+        label: "few-shot 시범",
         href: "/few-shot-examples",
       },
-      { key: "motifs", label: "Motif SVG", href: "/motifs" },
+      { key: "motifs", label: "모티프 SVG", href: "/motifs" },
       {
         key: "design-examples",
         label: "디자인 예시",

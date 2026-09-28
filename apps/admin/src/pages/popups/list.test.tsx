@@ -120,7 +120,7 @@ describe("PopupNewPage", () => {
     await user.click(screen.getByRole("button", { name: "비활성으로 등록" }));
 
     expect(
-      within(screen.getByRole("alert")).getByText(/순서여야 합니다/),
+      within(screen.getByRole("alert")).getByText(/순서로 입력해 주세요/),
     ).toBeTruthy();
     expect(api.create).not.toHaveBeenCalled();
 

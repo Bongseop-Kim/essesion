@@ -243,7 +243,7 @@ export function SeamlessLogsPage() {
             validate={(value) =>
               SAFE_IDENTIFIER_PATTERN.test(value)
                 ? undefined
-                : "식별자 형식이 올바르지 않습니다."
+                : "ID 전체를 정확히 입력해 주세요."
             }
             onSubmit={(value) => {
               setIdentifier(value);
@@ -282,7 +282,7 @@ export function SeamlessLogsPage() {
           Number(status !== undefined) +
           Number(parsed.from !== undefined || parsed.to !== undefined)
         }
-        secondaryTitle="Seamless 상세 필터"
+        secondaryTitle="Seamless 로그 필터"
         secondaryDescription="상태와 조회 기간을 한 번에 적용합니다."
         onResetSecondaryFilters={() => {
           setDraftStatus(status);
@@ -346,7 +346,7 @@ export function SeamlessLogsPage() {
     <VStack gap="x6" alignItems="stretch">
       <RouteHeading
         title="Seamless 로그"
-        description="생성 1건 = 디자인 1개입니다. 상태·지연·정제된 오류를 조회합니다."
+        description="생성 1건 = 디자인 1개입니다. 상태·소요 시간·오류 요약을 조회합니다."
       />
 
       <AdminCard title="Seamless 통계" description="현재 필터 기준 집계입니다.">
@@ -401,6 +401,7 @@ export function SeamlessLogsPage() {
         }
         onRetry={() => void listQuery.refetch()}
         emptyTitle="조건에 맞는 Seamless 로그가 없습니다"
+        emptyDescription="검색어나 필터를 바꿔 보세요."
         page={Math.min(parsed.page, totalPages)}
         totalPages={totalPages}
         onPageChange={(page) => replaceQuery({ page })}

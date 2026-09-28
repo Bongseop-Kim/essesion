@@ -136,7 +136,7 @@ describe("SeamlessLogDetailPage", () => {
       intent,
     });
 
-    expect(await screen.findByText("생성 Intent")).toBeTruthy();
+    expect(await screen.findByText("디자인 의도")).toBeTruthy();
     const trigger = screen.getByRole("button", { name: "Intent JSON" });
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
 
@@ -221,9 +221,7 @@ describe("SeamlessLogDetailPage", () => {
     expect(screen.getByText("생성 진단")).toBeTruthy();
     expect(screen.getByText("gpt-5.6-luna")).toBeTruthy();
     expect(screen.queryByText("GPT Image 호출")).toBeNull();
-    expect(
-      screen.getByText(/생성 실패가 아니라 인쇄 전 색상 확인/),
-    ).toBeTruthy();
+    expect(screen.getByText(/인쇄 전에 색상을 확인해 주세요/)).toBeTruthy();
     expect(screen.queryByRole("region", { name: "기술 정보" })).toBeNull();
     expect(screen.queryByText("motif_layer_dropped")).toBeNull();
     expect(screen.queryByText("cmyk_gamut")).toBeNull();
@@ -329,8 +327,10 @@ describe("SeamlessLogDetailPage", () => {
     expect(
       within(outcome as HTMLElement).getByText("이력에서 다시 활성화"),
     ).toBeTruthy();
-    expect(within(outcome as HTMLElement).getAllByText("있음")).toHaveLength(2);
-    expect(within(outcome as HTMLElement).getByText("완료")).toBeTruthy();
+    expect(within(outcome as HTMLElement).getAllByText("있음")).toHaveLength(3);
+    expect(
+      within(outcome as HTMLElement).getByText("원단 최종화"),
+    ).toBeTruthy();
     expect(
       screen.getByRole("link", { name: "김고객" }).getAttribute("href"),
     ).toBe("/customers/55555555-5555-4555-8555-555555555555");

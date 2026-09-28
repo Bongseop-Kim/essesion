@@ -20,7 +20,9 @@ export function AdminHeader() {
 
   const handleLogout = () => {
     void logout().catch(() => {
-      snackbar("서버 로그아웃 확인에 실패해 현재 화면의 세션만 정리했습니다.");
+      snackbar(
+        "이 브라우저에서 로그아웃했습니다. 서버 로그아웃은 확인하지 못했습니다.",
+      );
     });
   };
 

@@ -38,7 +38,7 @@ export function FewShotExampleNewPage() {
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading
           title="새 시범 작성"
-          description="intent와 Plan v3를 작성하고 실제 타일을 확인한 뒤 비활성 시범으로 저장합니다."
+          description="intent와 Plan v3를 작성하고 타일 미리보기를 확인한 뒤 비활성으로 저장합니다."
         />
         <ActionButton
           variant="ghost"
@@ -50,7 +50,7 @@ export function FewShotExampleNewPage() {
 
       {canEdit ? (
         <AuthoringExampleForm
-          submitLabel="비활성 시범 저장"
+          submitLabel="비활성으로 저장"
           submitting={mutation.isPending}
           submitError={mutation.isError ? mutation.error : undefined}
           onSubmit={(value) =>
@@ -66,7 +66,7 @@ export function FewShotExampleNewPage() {
       ) : (
         <ContentPlaceholder
           title="시범 작성 권한이 없습니다"
-          description="관리자 역할만 새 few-shot 시범을 작성할 수 있습니다."
+          description="관리자만 새 few-shot 시범을 작성할 수 있습니다."
           action={
             <ActionButton onClick={() => navigate("/few-shot-examples")}>
               목록으로 돌아가기

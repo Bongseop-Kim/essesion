@@ -179,7 +179,7 @@ describe("OrderDetailPage", () => {
     expect(
       await screen.findByRole("heading", { name: "주문 ORDER-001", level: 1 }),
     ).toBeTruthy();
-    expect(screen.getByText(/홍길동.*₩50,000.*마지막 변경/)).toBeTruthy();
+    expect(screen.getByText(/홍길동.*₩50,000.*마지막 수정/)).toBeTruthy();
     const tablist = screen.getByRole("tablist", { name: "주문 상세 메뉴" });
     expect(within(tablist).getAllByRole("tab")).toHaveLength(4);
     expect(
@@ -416,7 +416,7 @@ describe("OrderDetailPage", () => {
       ).disabled,
     ).toBe(true);
     expect((memo as HTMLTextAreaElement).value).toBe("출고 검수 완료");
-    await user.click(screen.getByRole("button", { name: "배송 시작 적용" }));
+    await user.click(screen.getByRole("button", { name: "배송 시작 실행" }));
 
     await waitFor(() => expect(api.updateStatus).toHaveBeenCalledTimes(1));
     expect(
@@ -450,7 +450,7 @@ describe("OrderDetailPage", () => {
       screen.getByLabelText("변경 사유 (필수)"),
       "출고 검수 완료",
     );
-    await user.click(screen.getByRole("button", { name: "배송 시작 적용" }));
+    await user.click(screen.getByRole("button", { name: "배송 시작 실행" }));
 
     await waitFor(() => {
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ["order"] });
@@ -474,11 +474,9 @@ describe("OrderDetailPage", () => {
     await user.type(memo, " 완료");
 
     const dialog = await screen.findByRole("alertdialog", {
-      name: "작성 중인 주문 작업을 버릴까요?",
+      name: "저장하지 않고 나갈까요?",
     });
-    await user.click(
-      within(dialog).getByRole("button", { name: "주문 작업 버리기" }),
-    );
+    await user.click(within(dialog).getByRole("button", { name: "나가기" }));
 
     expect(blocker.proceed).toHaveBeenCalledTimes(1);
     expect(screen.queryByLabelText("변경 사유 (필수)")).toBeNull();

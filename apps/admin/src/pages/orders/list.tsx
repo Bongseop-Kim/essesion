@@ -177,10 +177,7 @@ export function OrdersPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <RouteHeading
-        title="주문 관리"
-        description="주문번호와 운영 상태를 기준으로 주문을 조회합니다."
-      />
+      <RouteHeading title="주문 관리" />
       <PaginatedAdminTableCard
         title="주문 목록"
         label="주문 목록"

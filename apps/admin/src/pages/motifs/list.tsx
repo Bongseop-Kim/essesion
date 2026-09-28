@@ -70,7 +70,7 @@ const columns: readonly AdminTableColumn<MotifSummaryOut>[] = [
   },
   {
     key: "subject",
-    header: "Motif",
+    header: "모티프",
     render: (motif) => (
       <VStack gap="x0_5">
         <Link to={`/motifs/${motif.id}`}>
@@ -152,13 +152,13 @@ export function MotifsPage() {
   return (
     <VStack gap="x6" alignItems="stretch">
       <RouteHeading
-        title="Motif SVG"
-        description="AI 생성 Motif의 공개 카탈로그 반영 여부를 검토하고 안전한 SVG와 메타데이터를 확인합니다."
+        title="모티프 SVG"
+        description="AI가 생성한 모티프를 공개 카탈로그에 올릴지 검토합니다."
       />
 
       <PaginatedAdminTableCard
-        title="Motif 목록"
-        label="Motif 목록"
+        title="모티프 목록"
+        label="모티프 목록"
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
@@ -174,17 +174,18 @@ export function MotifsPage() {
         limit={parsed.limit}
         refreshing={query.isFetching}
         onRefresh={() => void query.refetch()}
-        emptyTitle="조건에 맞는 Motif가 없습니다"
+        emptyTitle="조건에 맞는 모티프가 없습니다"
+        emptyDescription="검색어나 필터를 바꿔 보세요."
         page={Math.min(parsed.page, totalPages)}
         totalPages={totalPages}
         onPageChange={(page) => replaceQuery({ page })}
-        paginationLabel="Motif 목록 페이지"
+        paginationLabel="모티프 목록 페이지"
         toolbar={
           <VStack gap="x3" alignItems="stretch">
             <CompactFilterToolbar
               primaryControls={
                 <SubmittedMemorySearch
-                  label="Motif ID·이름·소스 검색"
+                  label="모티프 ID·이름·소스 검색"
                   placeholder="2자 이상 입력"
                   maxLength={100}
                   resetKey={searchResetKey}
@@ -213,7 +214,7 @@ export function MotifsPage() {
                     presentation="inline"
                     value={draftScope ?? "all"}
                     options={[
-                      { value: "all", label: "전체" },
+                      { value: "all", label: "모두" },
                       { value: "whole", label: "전체 모티프" },
                       { value: "partial", label: "부분 모티프" },
                     ]}
@@ -237,8 +238,8 @@ export function MotifsPage() {
                 Number(parsed.from !== undefined) +
                 Number(parsed.to !== undefined)
               }
-              secondaryTitle="Motif 필터"
-              secondaryDescription="검토 상태와 Motif 범위, 생성일을 한 번에 적용합니다."
+              secondaryTitle="모티프 필터"
+              secondaryDescription="검토 상태와 모티프 범위, 생성일을 한 번에 적용합니다."
               onResetSecondaryFilters={() => {
                 setDraftStatus(status);
                 setDraftScope(scope);

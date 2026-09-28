@@ -117,7 +117,7 @@ describe("AuthoringExampleDetailPage", () => {
     api.listMotifs.mockResolvedValue({ items: [], total: 0 });
   });
 
-  it("저장된 Plan JSON을 읽기 전용으로 보여주고 같은 Plan으로 프리뷰를 그린다", async () => {
+  it("저장된 Plan JSON을 읽기 전용으로 보여주고 같은 Plan으로 미리보기를 그린다", async () => {
     renderPage();
 
     const json = (await screen.findByLabelText(
@@ -126,7 +126,7 @@ describe("AuthoringExampleDetailPage", () => {
     expect(json.readOnly).toBe(true);
     expect(JSON.parse(json.value)).toEqual(PLAN);
     expect(
-      await screen.findByRole("img", { name: /저작 시범 프리뷰/ }),
+      await screen.findByRole("img", { name: /시범 미리보기/ }),
     ).toBeTruthy();
     expect(api.preview.mock.calls.at(0)?.[0].body).toMatchObject({
       plan: PLAN,
@@ -134,7 +134,7 @@ describe("AuthoringExampleDetailPage", () => {
     });
   });
 
-  it("상세에서는 프리뷰 모티프를 바꿀 수 없고 수정 화면에서만 고른다", async () => {
+  it("상세에서는 미리보기 모티프를 바꿀 수 없고 수정 화면에서만 고른다", async () => {
     const user = userEvent.setup();
     api.get.mockResolvedValue({
       ...example,
@@ -143,7 +143,7 @@ describe("AuthoringExampleDetailPage", () => {
     });
     renderPage();
 
-    await screen.findByRole("img", { name: /저작 시범 프리뷰/ });
+    await screen.findByRole("img", { name: /시범 미리보기/ });
     expect(screen.queryByRole("button", { name: "모티프 선택" })).toBeNull();
     expect(api.preview.mock.calls.at(0)?.[0].body).toMatchObject({
       plan: INPUT_MOTIF_PLAN,
@@ -165,7 +165,7 @@ describe("AuthoringExampleDetailPage", () => {
     await user.clear(screen.getByLabelText(/Plan \(DesignPlanV3\)/));
     await user.paste(JSON.stringify(nextPlan));
 
-    const save = screen.getByRole("button", { name: "시범 변경 저장" });
+    const save = screen.getByRole("button", { name: "시범 저장" });
     await waitFor(() =>
       expect((save as HTMLButtonElement).disabled).toBe(false),
     );
@@ -189,7 +189,7 @@ describe("AuthoringExampleDetailPage", () => {
     expect(await screen.findByRole("button", { name: "수정" })).toBeTruthy();
   });
 
-  it("manager 역할에는 수정 버튼을 노출하지 않는다", async () => {
+  it("매니저에게는 수정 버튼을 노출하지 않는다", async () => {
     auth.role = "manager";
     renderPage();
 

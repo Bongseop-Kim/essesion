@@ -10,7 +10,10 @@ import {
 import { type FormEvent, useState } from "react";
 import { Navigate, useLocation } from "react-router";
 
-import { useAdminSession } from "../shared/session/admin-session";
+import {
+  AdminCredentialsError,
+  useAdminSession,
+} from "../shared/session/admin-session";
 import { RouteHeading } from "../shared/ui/route-heading";
 
 type LoginLocationState = {
@@ -44,8 +47,12 @@ export function LoginPage() {
     setErrorMessage(undefined);
     try {
       await login({ email, password });
-    } catch {
-      setErrorMessage("관리자 계정 정보를 확인해 주세요.");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof AdminCredentialsError
+          ? "관리자 계정 정보를 확인해 주세요."
+          : "로그인하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+      );
     }
   };
 

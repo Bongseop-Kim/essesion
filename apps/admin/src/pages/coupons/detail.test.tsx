@@ -143,7 +143,7 @@ describe("CouponDetailPage", () => {
     const discount = await screen.findByLabelText(/할인율/);
     await user.clear(discount);
     await user.type(discount, "15");
-    await user.click(screen.getByRole("button", { name: "쿠폰 변경 저장" }));
+    await user.click(screen.getByRole("button", { name: "저장" }));
 
     await waitFor(() =>
       expect(api.updateCoupon).toHaveBeenCalledWith(
@@ -198,9 +198,7 @@ describe("CouponDetailPage", () => {
     await user.click(screen.getByRole("button", { name: "대상 미리보기" }));
     expect(await screen.findByText("customer@example.com")).toBeTruthy();
     await user.type(screen.getByLabelText(/발급 사유/), "여름 행사 대상 발급");
-    await user.click(
-      screen.getByRole("button", { name: "쿠폰 1명 발급 검토" }),
-    );
+    await user.click(screen.getByRole("button", { name: "1명에게 발급 검토" }));
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByText(/이미 발급된 고객 제외/)).toBeTruthy();
     expect(within(dialog).getByText(/2027.*8.*31/)).toBeTruthy();
@@ -231,9 +229,7 @@ describe("CouponDetailPage", () => {
       screen.queryByText(/00000000-0000-4000-8000-000000000001/),
     ).toBeNull();
 
-    await user.click(
-      screen.getByRole("button", { name: "쿠폰 1명 발급 검토" }),
-    );
+    await user.click(screen.getByRole("button", { name: "1명에게 발급 검토" }));
     await user.click(
       within(await screen.findByRole("alertdialog")).getByRole("button", {
         name: "1명에게 쿠폰 발급",
@@ -246,9 +242,7 @@ describe("CouponDetailPage", () => {
 
     await user.type(screen.getByLabelText(/발급 사유/), " 추가");
     expect(screen.queryByText("일시적인 발급 실패")).toBeNull();
-    await user.click(
-      screen.getByRole("button", { name: "쿠폰 1명 발급 검토" }),
-    );
+    await user.click(screen.getByRole("button", { name: "1명에게 발급 검토" }));
     await user.click(
       within(await screen.findByRole("alertdialog")).getByRole("button", {
         name: "1명에게 쿠폰 발급",

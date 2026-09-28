@@ -65,7 +65,7 @@ const columns: readonly AdminTableColumn<PaymentIncidentSummaryOut>[] = [
   },
   {
     key: "related",
-    header: "관련 리소스",
+    header: "관련 주문·클레임",
     render: (incident) => (
       <VStack gap="x0_5">
         {incident.order_id !== null ? (
@@ -154,10 +154,7 @@ export function IncidentsPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <RouteHeading
-        title="결제 이상"
-        description="결제·취소의 불확실한 상태를 조회하고 안전하게 대사합니다."
-      />
+      <RouteHeading title="결제 이상" />
 
       <PaginatedAdminTableCard
         title="결제 이상 목록"

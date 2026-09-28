@@ -65,7 +65,7 @@ describe("FewShotExampleNewPage", () => {
     api.create.mockResolvedValue({ id: "example-1" });
   });
 
-  it("프리뷰한 intent와 Plan을 비활성 시범으로 저장하고 상세로 이동한다", async () => {
+  it("미리보기한 intent와 Plan을 비활성 시범으로 저장하고 상세로 이동한다", async () => {
     const user = userEvent.setup();
     renderPage();
 
@@ -73,8 +73,8 @@ describe("FewShotExampleNewPage", () => {
       screen.getByLabelText(/예시 사용자 요청문/),
       "차분한 격자무늬 넥타이 시범",
     );
-    await screen.findByRole("img", { name: /저작 시범 프리뷰/ });
-    const save = screen.getByRole("button", { name: "비활성 시범 저장" });
+    await screen.findByRole("img", { name: /시범 미리보기/ });
+    const save = screen.getByRole("button", { name: "비활성으로 저장" });
     await waitFor(() =>
       expect((save as HTMLButtonElement).disabled).toBe(false),
     );
@@ -95,7 +95,7 @@ describe("FewShotExampleNewPage", () => {
     expect(await screen.findByText("시범 상세")).toBeTruthy();
   });
 
-  it("manager 역할에는 작성 폼을 노출하지 않는다", () => {
+  it("매니저에게는 작성 폼을 노출하지 않는다", () => {
     auth.role = "manager";
     renderPage();
 

@@ -9,13 +9,16 @@ import {
 } from "../lib/admin-api-client";
 import type { AdminCredentials, AdminSession } from "./admin-session";
 
+/** 계정 정보나 관리자 역할 문제로 로그인이 거절됐을 때 — 네트워크·서버 오류와 구분한다. */
+export class AdminCredentialsError extends Error {}
+
 function asAdminSession(value: {
   id: string;
   name: string;
   role: string;
 }): AdminSession {
   if (value.role !== "admin" && value.role !== "manager") {
-    throw new Error("관리자 역할이 없는 계정입니다.");
+    throw new AdminCredentialsError("관리자 권한이 없는 계정입니다.");
   }
   return {
     userId: value.id,
@@ -48,7 +51,11 @@ export async function loginAdminSession(credentials: AdminCredentials) {
   const result = await adminLogin({ body: credentials });
   const token = result.data?.access_token;
   if (token === undefined) {
-    throw result.error ?? new Error("관리자 로그인에 실패했습니다.");
+    const status = result.response?.status;
+    if (status === 401 || status === 403) {
+      throw new AdminCredentialsError("관리자 계정 정보를 확인해 주세요.");
+    }
+    throw result.error ?? new Error("로그인하지 못했습니다.");
   }
   setAdminAccessToken(token);
   try {

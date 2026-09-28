@@ -65,7 +65,7 @@ describe("AuthoringExampleForm", () => {
     });
   });
 
-  it("붙여 넣은 Plan JSON을 그대로 프리뷰·저장에 보내고, 바뀌면 새 프리뷰까지 저장을 잠근다", async () => {
+  it("붙여 넣은 Plan JSON을 그대로 미리보기·저장에 보내고, 바뀌면 새 미리보기까지 저장을 잠근다", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
     renderAdminPage(
@@ -79,7 +79,7 @@ describe("AuthoringExampleForm", () => {
 
     const save = screen.getByRole("button", { name: "시범 저장" });
     expect(
-      await screen.findByRole("img", { name: /저작 시범 프리뷰/ }),
+      await screen.findByRole("img", { name: /시범 미리보기/ }),
     ).toBeTruthy();
     await waitFor(() =>
       expect((save as HTMLButtonElement).disabled).toBe(false),
@@ -110,7 +110,7 @@ describe("AuthoringExampleForm", () => {
     });
   });
 
-  it("JSON이 깨지면 사유를 보여주고 프리뷰도 저장도 막는다", async () => {
+  it("JSON이 깨지면 사유를 보여주고 미리보기도 저장도 막는다", async () => {
     renderAdminPage(
       <AuthoringExampleForm
         initialRetrievalText={VALID_INTENT}
@@ -119,7 +119,7 @@ describe("AuthoringExampleForm", () => {
         onSubmit={vi.fn()}
       />,
     );
-    await screen.findByRole("img", { name: /저작 시범 프리뷰/ });
+    await screen.findByRole("img", { name: /시범 미리보기/ });
     const calls = api.preview.mock.calls.length;
 
     fireEvent.change(planInput(), { target: { value: '{"colors": [' } });
@@ -133,7 +133,7 @@ describe("AuthoringExampleForm", () => {
     expect(api.preview.mock.calls.length).toBe(calls);
   });
 
-  it("고른 모티프 ID를 Plan과 함께 프리뷰에 보낸다", async () => {
+  it("고른 모티프 ID를 Plan과 함께 미리보기에 보낸다", async () => {
     const user = userEvent.setup();
     renderAdminPage(
       <AuthoringExampleForm
@@ -144,7 +144,7 @@ describe("AuthoringExampleForm", () => {
         onSubmit={vi.fn()}
       />,
     );
-    await screen.findByRole("img", { name: /저작 시범 프리뷰/ });
+    await screen.findByRole("img", { name: /시범 미리보기/ });
 
     await user.click(screen.getByRole("button", { name: /모티프 \(0\/2\)/ }));
     await user.click(

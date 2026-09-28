@@ -44,8 +44,8 @@ describe("AdminSidebar", () => {
       "Seamless 로그",
       "생성 작업",
       "few-shot 후보",
-      "선별된 few-shot",
-      "Motif SVG",
+      "few-shot 시범",
+      "모티프 SVG",
       "디자인 예시",
     ]);
     expect(

@@ -15,7 +15,7 @@ export const JOB_STATUSES = [
 export const JOB_STATUS_LABELS: Readonly<
   Record<(typeof JOB_STATUSES)[number], string>
 > = {
-  queued: "대기",
+  queued: "대기 중",
   processing: "처리 중",
   succeeded: "성공",
   failed: "실패",

@@ -44,7 +44,7 @@ export function DesignExampleNewPage() {
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading
           title="디자인 예시 등록"
-          description="Seamless 로그의 run을 store 첫 진입 갤러리 예시로 등록합니다."
+          description="Seamless 로그의 생성 실행을 스토어 첫 화면 갤러리 예시로 등록합니다."
         />
         <ActionButton
           variant="ghost"
@@ -77,7 +77,7 @@ export function DesignExampleNewPage() {
           <HStack gap="x3" align="flex-start" wrap>
             <Box flex={1} minWidth={280}>
               <TextField
-                label="run ID"
+                label="생성 실행 ID"
                 placeholder="00000000-0000-0000-0000-000000000000"
                 value={runId}
                 onChange={(event) => setRunId(event.target.value)}
@@ -87,7 +87,7 @@ export function DesignExampleNewPage() {
             <Box flex={1} minWidth={200}>
               <TextField
                 label="갤러리 이름"
-                placeholder="미드나잇 웨이브"
+                placeholder="예: 미드나잇 웨이브"
                 maxLength={100}
                 value={name}
                 onChange={(event) => setName(event.target.value)}
@@ -98,7 +98,7 @@ export function DesignExampleNewPage() {
               <TextField
                 label="카드 설명"
                 description="카드 라벨 둘째 줄. 비우면 이름만 나옵니다."
-                placeholder="네이비 · 대각 스트라이프"
+                placeholder="예: 네이비 · 대각 스트라이프"
                 maxLength={60}
                 value={caption}
                 onChange={(event) => setCaption(event.target.value)}
@@ -114,7 +114,7 @@ export function DesignExampleNewPage() {
           </HStack>
           <Box>
             <ActionButton type="submit" loading={create.isPending}>
-              비게시로 등록
+              미게시로 등록
             </ActionButton>
           </Box>
         </VStack>

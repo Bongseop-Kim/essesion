@@ -28,6 +28,11 @@ const QUOTE_STATUSES = [
   "확정",
   "종료",
 ] as const;
+/** 원시 상태값의 표시 라벨 — 상세 화면의 진행 단계와 같은 표기. */
+const QUOTE_STATUS_LABELS: Record<string, string> = {
+  견적발송: "견적 발송",
+  협의중: "협의 중",
+};
 const QUOTE_SORTS = [
   "created_at",
   "updated_at",
@@ -129,7 +134,7 @@ export function QuotesPage() {
     <VStack gap="x6" alignItems="stretch">
       <RouteHeading
         title="견적 관리"
-        description="거래 시점의 배송지와 견적 조건, 처리 이력을 함께 확인합니다."
+        description="견적 요청에 금액과 조건을 제안하고 상태를 관리합니다."
       />
       <PaginatedAdminTableCard
         title="견적 목록"
@@ -181,7 +186,10 @@ export function QuotesPage() {
                     value={draftStatus}
                     options={QUOTE_STATUSES.map((value) => ({
                       value,
-                      label: value === "all" ? "전체" : value,
+                      label:
+                        value === "all"
+                          ? "전체"
+                          : (QUOTE_STATUS_LABELS[value] ?? value),
                     }))}
                     onValueChange={(value) =>
                       setDraftStatus(value as QuoteStatus)
@@ -229,7 +237,7 @@ export function QuotesPage() {
                 },
                 status !== "all" && {
                   key: "status",
-                  label: `상태: ${status}`,
+                  label: `상태: ${QUOTE_STATUS_LABELS[status] ?? status}`,
                   onRemove: () => replaceQuery({ status: undefined, page: 1 }),
                 },
                 parsed.from !== undefined && {

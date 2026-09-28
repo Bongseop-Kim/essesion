@@ -1,7 +1,7 @@
 export const GENERATION_MODE_LABELS: Readonly<Record<string, string>> = {
   prompt: "프롬프트 생성",
   patch: "구성 수정",
-  variation: "같은 intent 재렌더",
+  variation: "같은 의도로 다시 그리기",
   motif_slot: "모티프 교체",
 };
 
@@ -15,7 +15,7 @@ export const PATCH_AXIS_LABELS: Readonly<Record<string, string>> = {
 };
 
 const INPUT_TYPE_LABELS: Readonly<Record<string, string>> = {
-  intent: "구조화된 디자인 의도",
+  intent: "디자인 의도",
   prompt: "텍스트 프롬프트",
 };
 
@@ -25,19 +25,19 @@ export function inputTypeLabel(inputType: string) {
 
 export const FAILURE_STAGE_LABELS: Readonly<Record<string, string>> = {
   constraints: "사용자 설정",
-  authoring: "계획 저작",
-  intent: "Intent 검증",
+  authoring: "Plan 작성",
+  intent: "의도 검증",
   motif_resolution: "모티프 해석",
   design: "디자인 합성",
 };
 
 /** 워커가 기록하는 실패 코드 (worker/api/routes.py의 GENERATION_ERROR_MESSAGES + patch 거절) */
 export const FAILURE_CODE_LABELS: Readonly<Record<string, string>> = {
-  authoring_invalid: "계획 저작 실패",
+  authoring_invalid: "Plan 작성 실패",
   constraint_conflict: "설정 충돌",
   design_invalid: "디자인 합성 실패",
-  intent_invalid: "Intent 검증 실패",
+  intent_invalid: "의도 검증 실패",
   scope_rejected: "구성 수정 범위 밖 요청",
-  semantic_mismatch: "요청 주제와 계획 불일치",
+  semantic_mismatch: "요청 주제와 Plan 불일치",
   provider_request_failed: "외부 연동 실패",
 };

@@ -70,11 +70,11 @@ const SETTING_PRESENTATION: Record<string, SettingPresentation> = {
     max: 1_000,
     min: 1,
     impact:
-      "이후의 새 실사화 요청부터 즉시 적용됩니다. store 실사화 다이얼로그에도 이 값이 그대로 표기됩니다.",
+      "이후의 새 실사화 요청부터 즉시 적용됩니다. 스토어 실사화 창에도 이 값이 그대로 표기됩니다.",
     editWarning: {
       title: "손익이 걸린 단가입니다",
       description:
-        "실사화는 이미지 생성 원가가 붙는 경로라, 내리면 요청 1건이 적자가 될 수 있습니다. store 실사화 다이얼로그에 그대로 표기되며, 진행 중인 요청의 차감액은 바뀌지 않습니다.",
+        "실사화는 이미지 생성 원가가 붙는 경로라, 내리면 요청 1건이 적자가 될 수 있습니다. 스토어 실사화 창에 그대로 표기되며, 진행 중인 요청의 차감액은 바뀌지 않습니다.",
     },
   },
   design_token_cost_openai_render_standard: {
@@ -88,17 +88,17 @@ const SETTING_PRESENTATION: Record<string, SettingPresentation> = {
     max: 1_000,
     min: 1,
     impact:
-      "이후의 새 생성 요청부터 즉시 적용됩니다. store 잔액 안내 문구도 이 값을 그대로 보여줍니다.",
+      "이후의 새 생성 요청부터 즉시 적용됩니다. 스토어 잔액 안내 문구도 이 값을 그대로 보여줍니다.",
     editWarning: {
       title: "고객에게 보이는 가격입니다",
       description:
-        "store 토큰 잔액 상세에 그대로 표기되며, 진행 중인 요청의 차감액은 바뀌지 않습니다.",
+        "스토어 토큰 잔액 상세에 그대로 표기되며, 진행 중인 요청의 차감액은 바뀌지 않습니다.",
     },
   },
   design_edit_cost: {
     title: "디자인 구성 수정 단가",
     description:
-      "이미 만든 디자인을 문장으로 고칠 때 1회 차감하는 토큰입니다. 범위 밖 요청은 차감하지 않습니다.",
+      "이미 만든 디자인을 문장으로 고칠 때 1회 차감하는 토큰입니다. 수정할 수 없는 요청은 차감하지 않습니다.",
     scope: "이후의 새 구성 수정 요청",
     defaultValue: "12개",
     inputLabel: "토큰 수량",
@@ -106,11 +106,11 @@ const SETTING_PRESENTATION: Record<string, SettingPresentation> = {
     max: 1_000,
     min: 1,
     impact:
-      "이후의 새 구성 수정 요청부터 즉시 적용됩니다. store 잔액 안내 문구도 이 값을 그대로 보여줍니다.",
+      "이후의 새 구성 수정 요청부터 즉시 적용됩니다. 스토어 잔액 안내 문구도 이 값을 그대로 보여줍니다.",
     editWarning: {
       title: "고객에게 보이는 가격입니다",
       description:
-        "store 토큰 잔액 상세에 그대로 표기되며, 진행 중인 요청의 차감액은 바뀌지 않습니다.",
+        "스토어 토큰 잔액 상세에 그대로 표기되며, 진행 중인 요청의 차감액은 바뀌지 않습니다.",
     },
   },
   design_motif_generate_cost: {
@@ -124,11 +124,11 @@ const SETTING_PRESENTATION: Record<string, SettingPresentation> = {
     max: 1_000,
     min: 1,
     impact:
-      "이후의 새 모티프 생성 요청부터 즉시 적용됩니다. store 잔액 안내와 생성 버튼에도 이 값이 그대로 표기됩니다.",
+      "이후의 새 모티프 생성 요청부터 즉시 적용됩니다. 스토어 잔액 안내와 생성 버튼에도 이 값이 그대로 표기됩니다.",
     editWarning: {
       title: "손익이 걸린 단가입니다",
       description:
-        "이미지 생성 원가가 붙는 경로라, 내리면 요청 1건이 적자가 될 수 있습니다. store 토큰 잔액 상세와 모티프 생성 버튼에 그대로 표기되며, 진행 중인 요청의 차감액은 바뀌지 않습니다.",
+        "이미지 생성 원가가 붙는 경로라, 내리면 요청 1건이 적자가 될 수 있습니다. 스토어 토큰 잔액 상세와 모티프 생성 버튼에 그대로 표기되며, 진행 중인 요청의 차감액은 바뀌지 않습니다.",
     },
   },
   design_token_initial_grant: {
@@ -141,7 +141,7 @@ const SETTING_PRESENTATION: Record<string, SettingPresentation> = {
     max: 100_000,
     impact: "변경 후 생성되는 신규 계정에만 적용되며 기존 잔액은 유지됩니다.",
     editWarning: {
-      title: "신규 계정의 토큰 비용 정책에 영향을 줍니다",
+      title: "신규 계정에만 적용됩니다",
       description: "기존 계정의 토큰 잔액은 변경되지 않습니다.",
     },
   },
@@ -153,11 +153,11 @@ function settingPresentation(item: AdminSettingOut): SettingPresentation {
   return (
     SETTING_PRESENTATION[item.key] ?? {
       title: "관리자 설정",
-      description: "서버에서 허용한 운영 설정입니다.",
-      scope: "관련 신규 작업",
-      defaultValue: "확인되지 않음",
+      description: "운영 설정입니다.",
+      scope: "새 작업",
+      defaultValue: "-",
       inputLabel: item.value_type === "courier" ? "설정 값" : "설정 수량",
-      impact: "이후의 관련 신규 작업부터 적용됩니다.",
+      impact: "저장 후 새 작업부터 적용됩니다.",
     }
   );
 }
@@ -232,10 +232,7 @@ export function SettingsPage() {
   if (query.isLoading) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading
-          title="설정"
-          description="허용된 관리자 설정을 불러오고 있습니다."
-        />
+        <RouteHeading title="설정" />
         <ContentPlaceholder title="설정을 불러오고 있습니다" />
       </VStack>
     );
@@ -243,13 +240,10 @@ export function SettingsPage() {
   if (query.isError || query.data === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading
-          title="설정"
-          description="허용된 관리자 설정 값을 확인합니다."
-        />
+        <RouteHeading title="설정" />
         <ContentPlaceholder
           title="설정을 불러오지 못했습니다"
-          description="필수 설정 행이 누락된 경우 배포 마이그레이션을 확인해 주세요."
+          description="잠시 후 다시 시도하고, 계속되면 개발팀에 알려 주세요."
           action={
             <ActionButton onClick={() => void query.refetch()}>
               다시 시도
@@ -385,7 +379,7 @@ export function SettingsPage() {
                     title="설정을 저장하지 못했습니다"
                     description={getErrorMessage(
                       mutation.error,
-                      "stale 변경일 수 있습니다. 입력은 유지되므로 최신 값을 재조회해 비교해 주세요.",
+                      "다른 관리자가 먼저 수정했을 수 있습니다. 입력한 내용은 그대로 있으니 최신 내용과 비교해 주세요.",
                     )}
                   />
                 )}
@@ -413,12 +407,11 @@ export function SettingsPage() {
     <VStack gap="x6" alignItems="stretch">
       <RouteHeading
         title="설정"
-        description="현재 값을 확인한 뒤 필요한 설정 한 개만 편집합니다."
+        description="설정은 한 번에 하나씩 수정할 수 있습니다."
       />
       {!canEdit && (
         <Text textStyle="bodySm" color="fg.neutral-muted">
-          조회 전용 권한입니다. 전역 설정 변경은 admin 역할만 실행할 수
-          있습니다.
+          조회 권한만 있습니다. 설정 수정은 관리자 권한이 필요합니다.
         </Text>
       )}
 
@@ -428,8 +421,8 @@ export function SettingsPage() {
         <EditModeShell
           status={
             changed.length === 0
-              ? "변경한 설정이 없습니다."
-              : "설정 1개를 변경했습니다."
+              ? "변경 없음"
+              : `변경 ${changed.length}건 (저장 전)`
           }
           actions={
             <>
@@ -438,7 +431,7 @@ export function SettingsPage() {
                 disabled={mutation.isPending}
                 onClick={cancelEditing}
               >
-                편집 취소
+                수정 취소
               </ActionButton>
               <ActionButton
                 disabled={
@@ -459,7 +452,7 @@ export function SettingsPage() {
       <ChangeReviewDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title="설정 변경을 적용할까요?"
+        title="설정을 저장할까요?"
         items={changed.map((item) => ({
           label: settingPresentation(item).title,
           before: formatSettingValue(item),
@@ -469,23 +462,23 @@ export function SettingsPage() {
         impact={
           changed[0]
             ? settingPresentation(changed[0]).impact
-            : "이후의 관련 신규 작업부터 적용됩니다."
+            : "저장 후 새 작업부터 적용됩니다."
         }
-        confirmLabel="설정 변경 적용"
+        confirmLabel="저장"
         loading={mutation.isPending}
         onConfirm={save}
       />
       <AlertDialog
         open={blocker.state === "blocked"}
-        title="저장하지 않은 변경을 버릴까요?"
-        description="입력한 설정과 사유가 사라집니다."
+        title="저장하지 않고 나갈까요?"
+        description="입력한 설정과 사유는 저장되지 않습니다."
         primaryActionProps={{
-          children: "변경 버리기",
+          children: "나가기",
           variant: "criticalSolid",
           onClick: () => blocker.proceed?.(),
         }}
         secondaryActionProps={{
-          children: "계속 편집",
+          children: "계속 작성",
           onClick: () => blocker.reset?.(),
         }}
       />

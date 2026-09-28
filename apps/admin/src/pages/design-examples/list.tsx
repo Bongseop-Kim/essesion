@@ -36,7 +36,7 @@ import {
 const PUBLISHED_LABELS = {
   all: "전체",
   published: "게시",
-  unpublished: "비게시",
+  unpublished: "미게시",
 } as const;
 
 type PublishedFilter = keyof typeof PUBLISHED_LABELS;
@@ -102,7 +102,7 @@ export function DesignExamplesPage() {
     ...updateAdminDesignExampleMutation(),
     onSuccess: refresh,
     onError: (error) =>
-      snackbar(getErrorMessage(error, "예시를 바꾸지 못했습니다.")),
+      snackbar(getErrorMessage(error, "순서·게시 상태를 저장하지 못했습니다.")),
   });
   const remove = useMutation({
     ...deleteAdminDesignExampleMutation(),
@@ -145,7 +145,7 @@ export function DesignExamplesPage() {
     },
     {
       key: "run_id",
-      header: "run",
+      header: "생성 실행 ID",
       visibility: "medium",
       render: (row) => row.run_id,
     },
@@ -204,7 +204,7 @@ export function DesignExamplesPage() {
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading
           title="디자인 예시"
-          description="store 디자인 첫 진입 갤러리에 노출할 디자인을 큐레이션합니다. 고객이 고르면 토큰 없이 그 디자인에서 세션이 시작됩니다."
+          description="스토어 디자인 첫 화면 갤러리에 보일 디자인을 고릅니다. 고객이 고르면 토큰 차감 없이 이 디자인으로 시작합니다."
         />
         <ActionButton onClick={() => navigate("/design-examples/new")}>
           예시 등록
@@ -213,7 +213,7 @@ export function DesignExamplesPage() {
 
       <AdminCard
         title="등록된 예시"
-        description="게시 스위치를 켠 예시만 store 갤러리에 순서대로 노출됩니다."
+        description="게시 스위치를 켠 예시만 스토어 갤러리에 순서대로 노출됩니다."
         action={
           <ActionButton
             variant="neutralWeak"
@@ -229,7 +229,7 @@ export function DesignExamplesPage() {
           <CompactFilterToolbar
             primaryControls={
               <SubmittedMemorySearch
-                label="이름·설명·run ID 검색"
+                label="이름·설명·생성 실행 ID 검색"
                 placeholder="2자 이상 입력"
                 maxLength={100}
                 resetKey={searchResetKey}
@@ -301,7 +301,7 @@ export function DesignExamplesPage() {
           if (!open && !remove.isPending) setDeleteTarget(null);
         }}
         title="예시를 삭제할까요?"
-        description="갤러리에서 즉시 사라집니다. 같은 run ID로 다시 등록할 수 있습니다."
+        description="갤러리에서 즉시 사라집니다. 같은 생성 실행 ID로 다시 등록할 수 있습니다."
         primaryActionProps={{
           children: "삭제",
           variant: "criticalSolid",

@@ -57,19 +57,19 @@ describe("DesignExamplesPage", () => {
     api.remove.mockResolvedValue(undefined);
   });
 
-  it("run ID로 예시를 등록한다", async () => {
+  it("생성 실행 ID로 예시를 등록한다", async () => {
     const user = userEvent.setup();
     renderAdminPage(<DesignExampleNewPage />);
 
     // 필수 표시(*)가 라벨 텍스트에 붙는다.
-    await user.type(screen.getByLabelText(/^run ID/), RUN_ID);
+    await user.type(screen.getByLabelText(/^생성 실행 ID/), RUN_ID);
     await user.type(screen.getByLabelText(/갤러리 이름/), "미드나잇 웨이브");
     await user.type(
       screen.getByLabelText("카드 설명"),
       "네이비 · 대각 스트라이프",
     );
     await user.type(screen.getByLabelText("노출 순서"), "3");
-    await user.click(screen.getByRole("button", { name: "비게시로 등록" }));
+    await user.click(screen.getByRole("button", { name: "미게시로 등록" }));
 
     await waitFor(() =>
       expect(api.create.mock.calls[0]?.[0]).toEqual({
@@ -94,7 +94,7 @@ describe("DesignExamplesPage", () => {
     );
     await screen.findByRole("switch", { name: "미드나잇 웨이브 게시" });
 
-    expect(screen.queryByLabelText(/^run ID/)).toBeNull();
+    expect(screen.queryByLabelText(/^생성 실행 ID/)).toBeNull();
     await user.click(screen.getByRole("button", { name: "예시 등록" }));
 
     expect(
@@ -103,7 +103,7 @@ describe("DesignExamplesPage", () => {
         level: 1,
       }),
     ).toBeTruthy();
-    expect(screen.getByLabelText(/^run ID/)).toBeTruthy();
+    expect(screen.getByLabelText(/^생성 실행 ID/)).toBeTruthy();
   });
 
   it("게시 스위치는 즉시, 순서는 포커스를 잃을 때만 저장한다", async () => {
@@ -159,7 +159,10 @@ describe("DesignExamplesPage", () => {
     renderAdminPage(<DesignExamplesPage />);
     await screen.findByRole("switch", { name: "정규 격자 게시" });
 
-    await user.type(screen.getByLabelText("이름·설명·run ID 검색"), "정규");
+    await user.type(
+      screen.getByLabelText("이름·설명·생성 실행 ID 검색"),
+      "정규",
+    );
     await user.click(screen.getByRole("button", { name: "검색" }));
 
     expect(
@@ -169,7 +172,7 @@ describe("DesignExamplesPage", () => {
 
     await user.click(screen.getByRole("button", { name: "검색 초기화" }));
     await user.click(screen.getByRole("button", { name: "필터" }));
-    await user.click(screen.getByRole("radio", { name: "비게시" }));
+    await user.click(screen.getByRole("radio", { name: "미게시" }));
     await user.click(screen.getByRole("button", { name: "필터 적용" }));
 
     expect(

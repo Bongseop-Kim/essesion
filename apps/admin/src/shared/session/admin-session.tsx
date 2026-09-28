@@ -16,6 +16,8 @@ import {
   subscribeAdminSession,
 } from "./api-admin-session";
 
+export { AdminCredentialsError } from "./api-admin-session";
+
 export type AdminRole = "admin" | "manager";
 
 export type AdminSession = {

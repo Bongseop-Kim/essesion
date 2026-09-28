@@ -280,7 +280,7 @@ function OrderReferenceImage({
       metadata={
         <>
           {image.content_type ?? "이미지"} ·{" "}
-          {formatFileSize(image.size_bytes, "크기 미상")} ·{" "}
+          {formatFileSize(image.size_bytes, "크기 정보 없음")} ·{" "}
           {formatDateTime(image.created_at)}
         </>
       }
@@ -317,7 +317,7 @@ function RepairReceiptPhoto({
       metadata={
         <>
           {image.content_type ?? "이미지"} ·{" "}
-          {formatFileSize(image.size_bytes, "크기 미상")} ·{" "}
+          {formatFileSize(image.size_bytes, "크기 정보 없음")} ·{" "}
           {formatDateTime(image.created_at)}
         </>
       }
@@ -463,10 +463,7 @@ export function OrderDetailPage() {
   if (query.isLoading) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading
-          title="주문 상세"
-          description="거래 시점 정보와 주문 처리 이력을 확인합니다."
-        />
+        <RouteHeading title="주문 상세" />
         <ContentPlaceholder title="주문 상세를 불러오고 있습니다" />
       </VStack>
     );
@@ -474,13 +471,10 @@ export function OrderDetailPage() {
   if (query.isError || data === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading
-          title="주문 상세"
-          description="거래 시점 정보와 주문 처리 이력을 확인합니다."
-        />
+        <RouteHeading title="주문 상세" />
         <ContentPlaceholder
           title="주문을 불러오지 못했습니다"
-          description="주문 ID를 확인하거나 다시 시도해 주세요."
+          description="주소를 확인하거나 다시 시도해 주세요."
           action={
             <ActionButton onClick={() => void query.refetch()}>
               다시 시도
@@ -598,7 +592,7 @@ export function OrderDetailPage() {
             <Callout
               tone="informative"
               title="현재 작업을 먼저 완료해 주세요"
-              description="입력 중인 내용이 가려지지 않도록 저장하거나 취소할 때까지 다른 탭을 잠갔습니다."
+              description="저장하거나 취소하면 다른 탭으로 이동할 수 있습니다."
             />
             {selectedAction.kind === "update_tracking" ? (
               <>
@@ -655,7 +649,7 @@ export function OrderDetailPage() {
                   ? "송장 정보 저장"
                   : selectedAction.destructive
                     ? `${selectedAction.label} 검토`
-                    : `${selectedAction.label} 적용`}
+                    : `${selectedAction.label} 실행`}
               </ActionButton>
               <ActionButton
                 type="button"
@@ -677,7 +671,7 @@ export function OrderDetailPage() {
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading
           title={`주문 ${data.order_number}`}
-          description={`${data.customer.name} · ${formatMoney(data.order_amount)} · 주문 ${formatDateTime(data.created_at)} · 마지막 변경 ${formatDateTime(data.updated_at)}`}
+          description={`${data.customer.name} · ${formatMoney(data.order_amount)} · 주문 ${formatDateTime(data.created_at)} · 마지막 수정 ${formatDateTime(data.updated_at)}`}
         />
         <HStack gap="x2" wrap>
           <StatusBadge status={data.status} />
@@ -781,7 +775,7 @@ export function OrderDetailPage() {
 
                 <AdminCard
                   title="주문 품목"
-                  description="상품·옵션·쿠폰은 주문 생성 시점 스냅샷을 우선합니다."
+                  description="상품·옵션·쿠폰은 주문 당시 정보로 표시합니다."
                 >
                   <VStack gap="x4" alignItems="stretch">
                     {orderItems.map((item) => (
@@ -1028,7 +1022,7 @@ export function OrderDetailPage() {
                         {log.previous_status &&
                           formatStatus(log.previous_status)}{" "}
                         → {formatStatus(log.new_status)}
-                        {log.is_rollback ? " (롤백)" : ""}
+                        {log.is_rollback ? " (되돌림)" : ""}
                       </Text>
                       <Text textStyle="bodySm" color="fg.neutral-muted">
                         {log.memo ?? "메모 없음"}
@@ -1059,7 +1053,11 @@ export function OrderDetailPage() {
       <AlertDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title={`${selectedAction?.label ?? "위험 작업"}을 실행할까요?`}
+        title={
+          selectedAction
+            ? `"${selectedAction.label}" 작업을 실행할까요?`
+            : "이 작업을 실행할까요?"
+        }
         description={`주문 ${data.order_number} · 상태 ${formatStatus(data.status)} → ${selectedAction?.target_status ? formatStatus(selectedAction.target_status) : "변경 없음"} · 변경 사유: ${memo.trim() || "없음"}`}
         primaryActionProps={{
           children: selectedAction?.label ?? "주문 작업 실행",
@@ -1071,10 +1069,10 @@ export function OrderDetailPage() {
       />
       <AlertDialog
         open={blocker.state === "blocked"}
-        title="작성 중인 주문 작업을 버릴까요?"
-        description="저장하지 않은 변경 사유 또는 송장 정보가 사라집니다."
+        title="저장하지 않고 나갈까요?"
+        description="입력한 변경 사유·송장 정보는 저장되지 않습니다."
         primaryActionProps={{
-          children: "주문 작업 버리기",
+          children: "나가기",
           variant: "criticalSolid",
           onClick: () => {
             cancelAction();

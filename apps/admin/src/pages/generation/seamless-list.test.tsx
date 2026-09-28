@@ -126,7 +126,7 @@ describe("SeamlessLogsPage", () => {
 
     expect(screen.queryByRole("radiogroup", { name: "상태" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "필터" }));
-    const dialog = screen.getByRole("dialog", { name: "Seamless 상세 필터" });
+    const dialog = screen.getByRole("dialog", { name: "Seamless 로그 필터" });
     expect(within(dialog).queryByLabelText("식별자 검색")).toBeNull();
     await user.click(within(dialog).getByRole("radio", { name: "부분 성공" }));
     await user.click(within(dialog).getByRole("button", { name: "필터 적용" }));
@@ -165,7 +165,7 @@ describe("SeamlessLogsPage", () => {
     await user.type(input, "request/id");
     await user.click(screen.getByRole("button", { name: "검색" }));
 
-    expect(screen.getByText("식별자 형식이 올바르지 않습니다.")).toBeTruthy();
+    expect(screen.getByText("ID 전체를 정확히 입력해 주세요.")).toBeTruthy();
     expect(api.seamlessOptions).not.toHaveBeenCalledWith({
       query: expect.objectContaining({ identifier: "request/id" }),
     });
@@ -198,7 +198,7 @@ describe("SeamlessLogsPage", () => {
     );
   });
 
-  it("마지막 성공 갱신을 표시하고 자동 갱신을 일시정지·재개한다", async () => {
+  it("마지막 갱신을 표시하고 자동 갱신을 일시정지·재개한다", async () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByRole("table", { name: "Seamless 로그 목록" });

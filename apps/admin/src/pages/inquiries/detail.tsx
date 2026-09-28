@@ -106,7 +106,7 @@ export function InquiryDetailPage() {
   if (query.isError || query.data === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading title="문의 상세" description="고객 문의를 확인합니다." />
+        <RouteHeading title="문의 상세" />
         <ContentPlaceholder
           title="문의를 불러오지 못했습니다"
           action={
@@ -155,7 +155,7 @@ export function InquiryDetailPage() {
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading
           title={data.title}
-          description={`${data.category} 문의의 고객·상품 문맥을 확인합니다.`}
+          description={`${data.category} 문의`}
         />
         <HStack gap="x2">
           {data.is_secret ? <Badge>비밀글</Badge> : null}
@@ -172,7 +172,7 @@ export function InquiryDetailPage() {
                   {data.customer.name}
                 </Link>
               ) : (
-                "탈퇴/비회원 고객"
+                "탈퇴·비회원 고객"
               ),
             },
             { label: "이메일", value: formatIdentifier(data.customer?.email) },
@@ -239,7 +239,7 @@ export function InquiryDetailPage() {
               value={answer}
               errorMessage={
                 answer !== "" && answer.trim().length === 0
-                  ? "공백만 입력할 수 없습니다."
+                  ? "답변 내용을 입력해 주세요."
                   : undefined
               }
               onChange={(event) => setAnswer(event.currentTarget.value)}
@@ -251,7 +251,7 @@ export function InquiryDetailPage() {
                 title="답변을 저장하지 못했습니다"
                 description={getErrorMessage(
                   mutation.error,
-                  "다른 관리자가 먼저 답변했을 수 있습니다. 작성한 답변은 유지되므로 최신 내용을 비교해 주세요.",
+                  "다른 관리자가 먼저 수정했을 수 있습니다. 입력한 내용은 그대로 있으니 최신 내용과 비교해 주세요.",
                 )}
               />
             )}
@@ -268,7 +268,7 @@ export function InquiryDetailPage() {
                 disabled={mutation.isPending}
                 onClick={cancelEditing}
               >
-                편집 취소
+                수정 취소
               </ActionButton>
             </HStack>
           </VStack>
@@ -303,10 +303,9 @@ export function InquiryDetailPage() {
               tone="informative"
               title={
                 data.customer === null
-                  ? "탈퇴/비회원 고객에게 표시되는 답변입니다"
+                  ? "탈퇴·비회원 고객에게 표시되는 답변입니다"
                   : `${data.customer.name} 고객에게 표시되는 답변입니다`
               }
-              description="편집을 시작한 문의 수정 시각을 기준으로 동시 변경 여부를 확인합니다."
             />
             {mutation.isError && (
               <Callout
@@ -315,7 +314,7 @@ export function InquiryDetailPage() {
                 title="답변을 저장하지 못했습니다"
                 description={getErrorMessage(
                   mutation.error,
-                  "다른 관리자가 먼저 답변했을 수 있습니다. 작성한 답변은 유지되므로 최신 내용을 비교해 주세요.",
+                  "다른 관리자가 먼저 수정했을 수 있습니다. 입력한 내용은 그대로 있으니 최신 내용과 비교해 주세요.",
                 )}
               />
             )}
@@ -336,10 +335,10 @@ export function InquiryDetailPage() {
       )}
       <AlertDialog
         open={blocker.state === "blocked"}
-        title="작성 중인 답변을 버릴까요?"
-        description="저장하지 않은 답변이 사라집니다."
+        title="저장하지 않고 나갈까요?"
+        description="입력한 답변은 저장되지 않습니다."
         primaryActionProps={{
-          children: "답변 버리기",
+          children: "나가기",
           variant: "criticalSolid",
           onClick: () => blocker.proceed?.(),
         }}

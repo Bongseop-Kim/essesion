@@ -45,6 +45,7 @@ import {
   formatFileSize,
   formatIdentifier,
   formatMoney,
+  formatOrderType,
   formatRepairReceiptReason,
   getErrorMessage,
 } from "../../shared/lib/format";
@@ -52,7 +53,7 @@ import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { DetailList } from "../../shared/ui/detail-list";
 import { RouteHeading } from "../../shared/ui/route-heading";
-import { StatusBadge } from "../../shared/ui/status-badge";
+import { formatStatus, StatusBadge } from "../../shared/ui/status-badge";
 import { TechnicalDetails } from "../../shared/ui/technical-details";
 
 const CLAIM_TABS = ["overview", "shipping", "operations", "activity"] as const;
@@ -93,6 +94,14 @@ function claimReasonLabel(reason: string) {
   return labels[reason] ?? "기타 사유";
 }
 
+function itemTypeLabel(type: string) {
+  const labels: Record<string, string> = {
+    product: "상품",
+    reform: "수선",
+  };
+  return labels[type] ?? type;
+}
+
 function repairReceiptTypeLabel(type: string) {
   const labels: Record<string, string> = {
     tracking: "송장 등록",
@@ -130,7 +139,7 @@ function RepairReceiptPhoto({
       <VStack gap="x3" alignItems="stretch">
         <ImageFrame
           src={readUrl}
-          alt={`수선 배송 접수 사진 ${index + 1}`}
+          alt={`수선 발송 접수 사진 ${index + 1}`}
           ratio={4 / 3}
           fit="contain"
           stroke
@@ -155,14 +164,14 @@ function RepairReceiptPhoto({
             })
           }
         >
-          {readUrl === undefined ? "이미지 보기" : "URL 재발급"}
+          {readUrl === undefined ? "이미지 보기" : "다시 불러오기"}
         </ActionButton>
         {mutation.isError && (
           <Callout
             role="alert"
             tone="critical"
-            title="사진 URL을 발급하지 못했습니다"
-            description="사진이 만료되었거나 이 수선 배송 접수와 연결되어 있지 않습니다."
+            title="사진을 불러오지 못했습니다"
+            description="만료되었거나 이 접수의 사진이 아닙니다."
           />
         )}
       </VStack>
@@ -183,7 +192,7 @@ function RepairReceiptPhotos({ receiptId }: { receiptId: string }) {
       <Grid
         columns={{ base: 1, md: 3 }}
         gap="x3"
-        aria-label="수선 배송 사진을 불러오는 중"
+        aria-label="수선 발송 사진을 불러오는 중"
         aria-busy="true"
       >
         {[0, 1, 2].map((item) => (
@@ -197,7 +206,7 @@ function RepairReceiptPhotos({ receiptId }: { receiptId: string }) {
     return (
       <ContentPlaceholder
         title="사진 목록을 불러오지 못했습니다"
-        description="수선 배송 접수 관계를 다시 확인해 주세요."
+        description="잠시 뒤 다시 시도해 주세요."
         action={
           <ActionButton
             variant="neutralWeak"
@@ -214,7 +223,7 @@ function RepairReceiptPhotos({ receiptId }: { receiptId: string }) {
     return (
       <ContentPlaceholder
         title="등록된 사진이 없습니다"
-        description="이 수선 배송 접수에 연결된 사진이 없습니다."
+        description="이 수선 발송 접수에 연결된 사진이 없습니다."
       />
     );
   }
@@ -236,10 +245,7 @@ function RepairReceiptPhotos({ receiptId }: { receiptId: string }) {
 function ClaimDetailLoading() {
   return (
     <VStack gap="x6" alignItems="stretch" aria-busy="true">
-      <RouteHeading
-        title="클레임 상세"
-        description="클레임의 배송·알림·처리 이력을 확인합니다."
-      />
+      <RouteHeading title="클레임 상세" />
       <AdminCard title="클레임 정보">
         <VStack gap="x3" alignItems="stretch">
           <Skeleton width="60%" height={24} />
@@ -355,13 +361,10 @@ export function ClaimDetailPage() {
   if (query.isError || data === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading
-          title="클레임 상세"
-          description="클레임의 배송·알림·처리 이력을 확인합니다."
-        />
+        <RouteHeading title="클레임 상세" />
         <ContentPlaceholder
           title="클레임을 불러오지 못했습니다"
-          description="클레임 ID를 확인하거나 다시 시도해 주세요."
+          description="주소를 확인하거나 다시 시도해 주세요."
           action={
             <ActionButton onClick={() => void query.refetch()}>
               다시 시도
@@ -618,10 +621,7 @@ export function ClaimDetailPage() {
   return (
     <VStack gap="x6" alignItems="stretch">
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title={`클레임 ${data.claim_number}`}
-          description="서버가 허용한 운영 액션과 배송·알림 상태를 확인합니다."
-        />
+        <RouteHeading title={`클레임 ${data.claim_number}`} />
         <StatusBadge status={data.status} />
       </HStack>
 
@@ -692,13 +692,22 @@ export function ClaimDetailPage() {
                         : null,
                     ),
                   },
-                  { label: "주문 상태", value: data.order.status },
-                  { label: "주문 유형", value: data.order.order_type },
+                  {
+                    label: "주문 상태",
+                    value: formatStatus(data.order.status),
+                  },
+                  {
+                    label: "주문 유형",
+                    value: formatOrderType(data.order.order_type),
+                  },
                   {
                     label: "주문 금액",
                     value: formatMoney(data.order.order_amount),
                   },
-                  { label: "항목 유형", value: data.item.item_type },
+                  {
+                    label: "항목 유형",
+                    value: itemTypeLabel(data.item.item_type),
+                  },
                   { label: "항목 수량", value: `${data.item.quantity}개` },
                   { label: "단가", value: formatMoney(data.item.unit_price) },
                 ]}
@@ -811,7 +820,7 @@ export function ClaimDetailPage() {
                   {(data.shipping.repair_receipts ?? []).length > 0 && (
                     <VStack gap="x2" alignItems="stretch">
                       <Text as="h3" textStyle="label">
-                        수선 배송 접수
+                        수선 발송 접수
                       </Text>
                       {(data.shipping.repair_receipts ?? []).map((receipt) => (
                         <Box
@@ -910,7 +919,7 @@ export function ClaimDetailPage() {
                             })
                           }
                         >
-                          다시 발송
+                          재발송
                         </ActionButton>
                       )}
                     </HStack>
@@ -919,7 +928,7 @@ export function ClaimDetailPage() {
                     <Callout
                       role="alert"
                       tone="critical"
-                      title="알림 재발송을 요청하지 못했습니다"
+                      title="알림을 재발송하지 못했습니다"
                       description={getErrorMessage(
                         notificationMutation.error,
                         "잠시 뒤 다시 시도해 주세요.",
@@ -1018,10 +1027,10 @@ export function ClaimDetailPage() {
         onOpenChange={(open) => {
           if (!open) setPendingTrackingAction(undefined);
         }}
-        title="작성 중인 송장 정보를 버릴까요?"
-        description="다른 송장 작업을 선택하면 입력한 택배사·송장번호·변경 사유가 사라집니다."
+        title="다른 작업으로 바꿀까요?"
+        description="입력한 택배사·송장번호·변경 사유는 저장되지 않습니다."
         primaryActionProps={{
-          children: "버리고 작업 전환",
+          children: "바꾸기",
           variant: "criticalSolid",
           onClick: () => {
             if (pendingTrackingAction === undefined) return;
@@ -1037,8 +1046,12 @@ export function ClaimDetailPage() {
       <AlertDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title={`${selectedAction?.label ?? "위험 작업"}을 실행할까요?`}
-        description={`클레임 ${data.claim_number} · ${selectedAction?.target_status ? `상태 ${data.status} → ${selectedAction.target_status}` : "환불 승인 결과 반영"} · 처리 사유: ${memo.trim() || "없음"}`}
+        title={
+          selectedAction
+            ? `"${selectedAction.label}" 작업을 실행할까요?`
+            : "이 작업을 실행할까요?"
+        }
+        description={`클레임 ${data.claim_number} · ${selectedAction?.target_status ? `상태 ${formatStatus(data.status)} → ${formatStatus(selectedAction.target_status)}` : "환불 승인 결과 반영"} · 처리 사유: ${memo.trim() || "없음"}`}
         primaryActionProps={{
           children: selectedAction?.label ?? "작업 실행",
           variant: "criticalSolid",
@@ -1050,10 +1063,10 @@ export function ClaimDetailPage() {
       />
       <AlertDialog
         open={blocker.state === "blocked"}
-        title="작성 중인 클레임 작업을 버릴까요?"
-        description="저장하지 않은 처리 사유 또는 송장 정보가 사라집니다."
+        title="저장하지 않고 나갈까요?"
+        description="입력한 처리 사유·송장 정보는 저장되지 않습니다."
         primaryActionProps={{
-          children: "클레임 작업 버리기",
+          children: "나가기",
           variant: "criticalSolid",
           onClick: () => {
             cancelPrimaryAction();

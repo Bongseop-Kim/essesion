@@ -39,6 +39,7 @@ import {
   formatDateTime,
   formatIdentifier,
   formatMoney,
+  formatOrderType,
   getErrorMessage,
 } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
@@ -58,6 +59,12 @@ const PAGE_SIZE = 5;
 const CUSTOMER_TABS = ["overview", "orders", "coupons", "tokens"] as const;
 type CustomerTab = (typeof CUSTOMER_TABS)[number];
 
+const TOKEN_CLASS_LABELS: Record<string, string> = {
+  paid: "유료",
+  bonus: "보너스",
+  free: "무료",
+};
+
 const orderColumns: readonly AdminTableColumn<AdminCustomerOrderOut>[] = [
   {
     key: "number",
@@ -66,7 +73,11 @@ const orderColumns: readonly AdminTableColumn<AdminCustomerOrderOut>[] = [
       <Link to={`/orders/${order.id}`}>{order.order_number}</Link>
     ),
   },
-  { key: "type", header: "유형", render: (order) => order.order_type },
+  {
+    key: "type",
+    header: "유형",
+    render: (order) => formatOrderType(order.order_type),
+  },
   {
     key: "amount",
     header: "주문 금액",
@@ -122,7 +133,12 @@ const tokenColumns: readonly AdminTableColumn<AdminCustomerTokenOut>[] = [
     render: (token) =>
       `${token.amount > 0 ? "+" : ""}${token.amount.toLocaleString("ko-KR")}개`,
   },
-  { key: "class", header: "구분", render: (token) => token.token_class },
+  {
+    key: "class",
+    header: "구분",
+    render: (token) =>
+      TOKEN_CLASS_LABELS[token.token_class] ?? token.token_class,
+  },
   {
     key: "description",
     header: "사유",
@@ -368,10 +384,7 @@ export function CustomerDetailPage() {
   if (detail.isLoading) {
     return (
       <VStack gap="x6" alignItems="stretch" aria-busy="true">
-        <RouteHeading
-          title="고객 상세"
-          description="고객 정보를 불러오고 있습니다."
-        />
+        <RouteHeading title="고객 상세" />
         <ContentPlaceholder title="고객 정보를 불러오고 있습니다" />
       </VStack>
     );
@@ -380,13 +393,10 @@ export function CustomerDetailPage() {
   if (detail.isError || detail.data === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading
-          title="고객 상세"
-          description="고객과 운영 이력을 확인합니다."
-        />
+        <RouteHeading title="고객 상세" />
         <ContentPlaceholder
           title="고객 정보를 불러오지 못했습니다"
-          description="고객 ID를 확인하거나 다시 시도해 주세요."
+          description="주소를 확인하거나 다시 시도해 주세요."
           action={
             <ActionButton onClick={() => void detail.refetch()}>
               다시 시도
@@ -417,10 +427,7 @@ export function CustomerDetailPage() {
   return (
     <VStack gap="x6" alignItems="stretch">
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title={customer.name}
-          description="고객 프로필과 주문·쿠폰·토큰 이력을 각각 조회합니다."
-        />
+        <RouteHeading title={customer.name} />
         <ActionButton
           variant="ghost"
           loading={
@@ -508,7 +515,6 @@ export function CustomerDetailPage() {
 
             <AdminCard
               title="토큰 운영"
-              description="지급·회수는 현재 잔액과 변경 후 잔액을 검토한 뒤 적용합니다."
               action={
                 canAdjustTokens ? (
                   <ActionButton
@@ -523,7 +529,7 @@ export function CustomerDetailPage() {
             >
               {!canAdjustTokens ? (
                 <Text textStyle="bodySm" color="fg.neutral-muted">
-                  조회 전용 권한입니다. 토큰 지급·회수는 admin 역할만 실행할 수
+                  조회 전용 권한입니다. 토큰 지급·회수는 관리자만 할 수
                   있습니다.
                 </Text>
               ) : (
@@ -644,10 +650,10 @@ export function CustomerDetailPage() {
           title={`${customer.name} 고객 토큰 조정`}
           description={
             adjustmentStep === "edit"
-              ? "조정 수량과 사유를 입력하고 변경 후 잔액을 확인합니다."
+              ? "조정 수량과 처리 사유를 입력해 주세요."
               : adjustmentStep === "review"
-                ? "대상과 잔액 변화를 검토한 뒤 적용합니다."
-                : "입력한 조정 내용을 버릴지 확인합니다."
+                ? "대상과 잔액 변화를 확인해 주세요."
+                : undefined
           }
           showCloseButton
           closeOnEscape={!mutation.isPending}
@@ -694,13 +700,13 @@ export function CustomerDetailPage() {
                     variant="ghost"
                     onClick={continueAdjustmentEditing}
                   >
-                    계속 편집
+                    계속 작성
                   </ActionButton>
                   <ActionButton
                     variant="criticalSolid"
                     onClick={discardAdjustment}
                   >
-                    변경 버리기
+                    저장하지 않고 닫기
                   </ActionButton>
                 </>
               )}
@@ -735,7 +741,8 @@ export function CustomerDetailPage() {
                 <NumberField
                   allowNegative
                   label="조정 수량"
-                  placeholder="지급은 양수, 회수는 음수"
+                  description="지급은 양수, 회수는 음수로 입력합니다."
+                  placeholder="예: 10 또는 -5"
                   value={amount}
                   disabled={mutation.isPending}
                   errorMessage={
@@ -809,7 +816,7 @@ export function CustomerDetailPage() {
               <Callout
                 tone={amountValue > 0 ? "informative" : "warning"}
                 title={adjustmentRule}
-                description="적용 후 토큰 원장과 관리자 감사 기록에 남습니다."
+                description="실행 후 토큰 원장과 관리자 감사 기록에 남습니다."
               />
               {mutation.isError && (
                 <Callout
@@ -826,8 +833,8 @@ export function CustomerDetailPage() {
           ) : (
             <Callout
               tone="warning"
-              title="저장하지 않은 토큰 조정을 버릴까요?"
-              description="입력한 조정 수량과 처리 사유가 사라집니다."
+              title="저장하지 않고 닫을까요?"
+              description="입력한 조정 수량과 처리 사유는 저장되지 않습니다."
             />
           )}
         </Modal>

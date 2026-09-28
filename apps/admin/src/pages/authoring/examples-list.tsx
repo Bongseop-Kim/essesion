@@ -67,7 +67,7 @@ function ExamplePreviewCell({
               ? undefined
               : `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
           }
-          alt="타일 프리뷰"
+          alt="타일 미리보기"
         />
       )}
     </Box>
@@ -98,7 +98,7 @@ export function FewShotExamplesPage() {
     placeholderData: keepPreviousData,
   });
 
-  // 행당 프리뷰 요청(페이지 크기 100 → 101 동시 요청)을 배치 1회로 — plan 수정은
+  // 행당 미리보기 요청(페이지 크기 100 → 101 동시 요청)을 배치 1회로 — plan 수정은
   // updated_at을 바꾸므로 키에 넣어 편집 후 캐시를 무효화한다.
   const items = query.data?.items;
   const previewQuery = useQuery({
@@ -126,7 +126,7 @@ export function FewShotExamplesPage() {
   const columns: readonly AdminTableColumn<AuthoringExampleSummaryOut>[] = [
     {
       key: "preview",
-      header: "프리뷰",
+      header: "미리보기",
       render: (row) => (
         <ExamplePreviewCell
           svg={previews.get(row.id)}
@@ -202,7 +202,7 @@ export function FewShotExamplesPage() {
     <VStack gap="x6" alignItems="stretch">
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading
-          title="선별된 few-shot"
+          title="few-shot 시범"
           description="생성 프롬프트의 few-shot 검색에 주입되는 intent 시범을 저작하고 활성 상태를 관리합니다."
         />
         {canEdit && (
@@ -213,8 +213,8 @@ export function FewShotExamplesPage() {
       </HStack>
 
       <PaginatedAdminTableCard
-        title="선별된 few-shot 시범"
-        label="few-shot 시범 셋"
+        title="시범 목록"
+        label="few-shot 시범"
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
@@ -232,10 +232,11 @@ export function FewShotExamplesPage() {
         onRefresh={() => void query.refetch()}
         onRetry={() => void query.refetch()}
         emptyTitle="조건에 맞는 few-shot 시범이 없습니다"
+        emptyDescription="검색어나 필터를 바꿔 보세요."
         page={Math.min(parsed.page, totalPages)}
         totalPages={totalPages}
         onPageChange={(page) => replaceQuery({ page })}
-        paginationLabel="few-shot 시범 셋 페이지"
+        paginationLabel="few-shot 시범 페이지"
         toolbar={
           <VStack gap="x3" alignItems="stretch">
             <CompactFilterToolbar

@@ -137,7 +137,7 @@ export function RefreshStatus({
             {paused ? "자동 갱신 일시정지됨" : "자동 갱신 켜짐"}
           </Badge>
           <Text role="status" aria-live="polite" textStyle="bodySm">
-            마지막 성공 갱신:{" "}
+            마지막 갱신:{" "}
             {lastUpdatedAt === 0
               ? "아직 없음"
               : formatDateTime(new Date(lastUpdatedAt))}

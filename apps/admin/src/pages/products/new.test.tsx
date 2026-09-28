@@ -48,7 +48,7 @@ describe("ProductNewPage", () => {
     api.create.mockRejectedValueOnce(new Error("일시적인 상품 저장 실패"));
     renderPage();
 
-    await user.click(screen.getByLabelText(/상품 이름/));
+    await user.click(screen.getByLabelText(/상품명/));
     await user.paste("새 실크 타이");
     await user.click(screen.getByLabelText(/상품 설명/));
     await user.paste("새 상품 설명");
@@ -80,7 +80,7 @@ describe("ProductNewPage", () => {
       ),
     );
     expect(await screen.findByText("일시적인 상품 저장 실패")).toBeTruthy();
-    expect((screen.getByLabelText(/상품 이름/) as HTMLInputElement).value).toBe(
+    expect((screen.getByLabelText(/상품명/) as HTMLInputElement).value).toBe(
       "새 실크 타이",
     );
   });
@@ -92,7 +92,7 @@ describe("ProductNewPage", () => {
     await user.click(screen.getByRole("button", { name: "상품 등록" }));
 
     await waitFor(() =>
-      expect(document.activeElement).toBe(screen.getByLabelText(/상품 이름/)),
+      expect(document.activeElement).toBe(screen.getByLabelText(/상품명/)),
     );
     expect(screen.getByText("입력한 상품 정보를 확인해 주세요")).toBeTruthy();
   });

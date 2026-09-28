@@ -28,7 +28,7 @@ const PREVIEW_SIZE = "min(100%, calc(100dvh - 27rem))";
 const svgToDataUri = (svg: string) =>
   `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 
-/** 프리뷰가 현재 Plan과 일치하는지 — 저장 버튼의 잠금 조건 */
+/** 미리보기가 현재 Plan과 일치하는지 — 저장 버튼의 잠금 조건 */
 export type PlanPreviewState = { current: boolean; pending: boolean };
 
 /** Plan JSON을 서버 compile-preview로 그리는 카드. 저작 폼과 상세 화면이 같은 렌더를 쓴다. */
@@ -78,7 +78,7 @@ export function PlanPreviewCard({
 
   return (
     <AdminCard
-      title="프리뷰"
+      title="미리보기"
       description="바꾸면 바로 다시 그립니다. 외부 모델 호출 없이 Plan과 카탈로그 모티프만으로 렌더합니다."
       action={
         <SegmentedControl
@@ -95,13 +95,13 @@ export function PlanPreviewCard({
         {plan === undefined ? (
           <ContentPlaceholder
             title="Plan JSON이 아직 유효하지 않습니다"
-            description="JSON 문법을 고치면 바로 프리뷰를 다시 그립니다."
+            description="JSON 문법을 고치면 바로 미리보기를 다시 그립니다."
           />
         ) : preview.isError ? (
           <Callout
             role="alert"
             tone="critical"
-            title="프리뷰를 만들지 못했습니다"
+            title="미리보기를 만들지 못했습니다"
             description={getErrorMessage(
               preview.error,
               "Plan 값의 범위와 모티프 사용을 확인해 주세요.",
@@ -121,13 +121,13 @@ export function PlanPreviewCard({
                 <SafeSvgPreview
                   svg={preview.data.svg}
                   status="safe"
-                  alt="저작 시범 프리뷰"
+                  alt="시범 미리보기"
                 />
               ) : (
                 <TieCanvas
                   imageSrc={svgToDataUri(preview.data.svg)}
                   mode="tie"
-                  alt="저작 시범 프리뷰"
+                  alt="시범 미리보기"
                 />
               )}
             </Box>
@@ -136,7 +136,7 @@ export function PlanPreviewCard({
                 tone="warning"
                 /* 경고 원문은 모티프 제외·스트라이프 주기 스냅 등 여러 종류라
                    제목은 중립으로 두고 사유는 원문으로 보여준다 */
-                title="프리뷰를 그리며 일부 값을 보정했습니다"
+                title="미리보기를 그리며 일부 값을 보정했습니다"
                 description={preview.data.warnings.join(" · ")}
               />
             )}

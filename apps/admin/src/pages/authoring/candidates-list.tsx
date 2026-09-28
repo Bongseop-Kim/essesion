@@ -25,8 +25,8 @@ const CANDIDATE_STATUS_LABELS = {
   hold: "보류",
   approved: "승인",
   rejected: "거절",
-  duplicate: "자동 중복",
-  invalid: "자동 제외",
+  duplicate: "중복 제외",
+  invalid: "검증 제외",
   all: "전체",
 } as const;
 const CANDIDATE_STATUSES = Object.keys(
@@ -114,7 +114,7 @@ export function FewShotCandidatesPage() {
     <VStack gap="x6" alignItems="stretch">
       <RouteHeading
         title="few-shot 후보"
-        description="생성 결과 중 few-shot 시범으로 선별할 후보를 검토합니다. 선택 후 성공적으로 실사화된 Plan v3 결과만 등록됩니다."
+        description="생성 결과 중 few-shot 시범으로 선별할 후보를 검토합니다. Plan v3로 생성에 성공한 결과만 후보가 됩니다."
       />
 
       <PaginatedAdminTableCard
@@ -137,6 +137,7 @@ export function FewShotCandidatesPage() {
         onRefresh={() => void query.refetch()}
         onRetry={() => void query.refetch()}
         emptyTitle="조건에 맞는 few-shot 후보가 없습니다"
+        emptyDescription="검색어나 필터를 바꿔 보세요."
         page={Math.min(parsed.page, totalPages)}
         totalPages={totalPages}
         onPageChange={(page) => replaceQuery({ page })}

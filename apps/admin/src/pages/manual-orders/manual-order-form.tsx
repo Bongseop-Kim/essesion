@@ -906,7 +906,7 @@ export function ManualOrderForm({
                           min={1}
                           label="[자동] 키"
                           suffix="cm"
-                          description="키 입력 시 권장 길이가 자동 채워집니다 · 수정 가능"
+                          description="키를 입력하면 권장 길이가 자동으로 채워집니다. 직접 수정할 수 있습니다."
                           value={item.wearerHeightCm}
                           errorMessage={itemErrors.wearerHeightCm}
                           disabled={pending}
@@ -1238,7 +1238,7 @@ export function ManualOrderForm({
               title="수기 주문을 저장하지 못했습니다"
               description={getErrorMessage(
                 error,
-                "다른 관리자의 수정 또는 입력 내용을 확인해 주세요. 입력 내용은 보존됩니다.",
+                "다른 관리자가 먼저 수정했을 수 있습니다. 입력한 내용은 그대로 있으니 최신 내용과 비교해 주세요.",
               )}
             />
             {errorAction}
@@ -1257,22 +1257,22 @@ export function ManualOrderForm({
               setAttempted(false);
             }}
           >
-            변경 취소
+            입력 취소
           </ActionButton>
         </HStack>
       </VStack>
 
       <AlertDialog
         open={blocker.state === "blocked"}
-        title="저장하지 않은 주문 변경을 버릴까요?"
-        description="입력한 작업지시서 내용이 사라집니다."
+        title="저장하지 않고 나갈까요?"
+        description="입력한 작업지시서 내용은 저장되지 않습니다."
         primaryActionProps={{
-          children: "변경 버리기",
+          children: "나가기",
           variant: "criticalSolid",
           onClick: () => blocker.proceed?.(),
         }}
         secondaryActionProps={{
-          children: "계속 편집",
+          children: "계속 작성",
           onClick: () => blocker.reset?.(),
         }}
       />

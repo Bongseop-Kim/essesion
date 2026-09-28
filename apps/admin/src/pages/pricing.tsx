@@ -68,7 +68,7 @@ const PRICING_LABELS: Record<string, string> = {
   FABRIC_YARN_DYED_POLY: "선염 원단 (폴리)",
   FABRIC_YARN_DYED_SILK: "선염 원단 (실크)",
   // 샘플비는 주문제작 금액에도 그대로 들어간다 (봉제는 항상, 원단은 원단 지참이 아닐 때).
-  SAMPLE_SEWING_COST: "봉제 샘플 (주문제작 항상 포함)",
+  SAMPLE_SEWING_COST: "봉제 샘플 (주문제작 포함)",
   SAMPLE_FABRIC_PRINTING_COST: "원단 샘플 (날염, 주문제작 포함)",
   SAMPLE_FABRIC_YARN_DYED_COST: "원단 샘플 (선염, 주문제작 포함)",
   sample_discount_sewing: "봉제 샘플 할인",
@@ -178,10 +178,7 @@ export function PricingPage() {
   if (query.isLoading) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading
-          title="가격 관리"
-          description="서비스별 가격을 불러오고 있습니다."
-        />
+        <RouteHeading title="가격 관리" />
         <ContentPlaceholder title="가격 설정을 불러오고 있습니다" />
       </VStack>
     );
@@ -189,10 +186,7 @@ export function PricingPage() {
   if (query.isError || query.data === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading
-          title="가격 관리"
-          description="서비스별 현재 가격과 변경 시각을 확인합니다."
-        />
+        <RouteHeading title="가격 관리" />
         <ContentPlaceholder
           title="가격 설정을 불러오지 못했습니다"
           action={
@@ -315,25 +309,22 @@ export function PricingPage() {
   return (
     <VStack gap="x6" alignItems="stretch">
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title="가격 관리"
-          description="현재 가격을 확인한 뒤 명시적으로 편집을 시작합니다."
-        />
+        <RouteHeading title="가격 관리" />
         {canEdit && !editing && (
           <ActionButton onClick={startEditing}>가격 수정</ActionButton>
         )}
       </HStack>
       {!canEdit && (
         <Text textStyle="bodySm" color="fg.neutral-muted">
-          조회 전용 권한입니다. 가격 변경은 admin 역할만 실행할 수 있습니다.
+          조회 권한만 있습니다. 가격 수정은 관리자 권한이 필요합니다.
         </Text>
       )}
       {editing ? (
         <EditModeShell
           status={
             changed.length === 0
-              ? "변경한 가격이 없습니다."
-              : `${changed.length}개 가격을 변경했습니다.`
+              ? "변경 없음"
+              : `변경 ${changed.length}건 (저장 전)`
           }
           actions={
             <>
@@ -342,7 +333,7 @@ export function PricingPage() {
                 disabled={mutation.isPending}
                 onClick={cancelEditing}
               >
-                편집 취소
+                수정 취소
               </ActionButton>
               <ActionButton
                 disabled={
@@ -393,7 +384,7 @@ export function PricingPage() {
                 <Callout
                   role="alert"
                   tone="critical"
-                  title="가격은 0 이상의 정수여야 합니다"
+                  title="가격은 0 이상 10억 이하의 정수로 입력해 주세요"
                 />
               )}
               {mutation.isError && (
@@ -403,7 +394,7 @@ export function PricingPage() {
                   title="가격을 저장하지 못했습니다"
                   description={getErrorMessage(
                     mutation.error,
-                    "다른 관리자가 먼저 변경했을 수 있습니다. 입력은 보존되며 재조회 후 비교할 수 있습니다.",
+                    "다른 관리자가 먼저 수정했을 수 있습니다. 입력한 내용은 그대로 있으니 최신 내용과 비교해 주세요.",
                   )}
                 />
               )}
@@ -417,7 +408,7 @@ export function PricingPage() {
       <ChangeReviewDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title={`${changed.length}개 가격을 즉시 적용할까요?`}
+        title={`가격 ${changed.length}건을 저장할까요?`}
         items={changed.map((item) => ({
           label: pricingLabel(item.key),
           before: formatPricingAmount(item),
@@ -425,21 +416,21 @@ export function PricingPage() {
         }))}
         reason={reason.trim()}
         impact="신규 주문 계산부터 적용되며 기존 주문·견적의 저장 금액은 유지됩니다."
-        confirmLabel={`가격 ${changed.length}건 적용`}
+        confirmLabel={`${changed.length}건 저장`}
         loading={mutation.isPending}
         onConfirm={save}
       />
       <AlertDialog
         open={blocker.state === "blocked"}
-        title="저장하지 않은 변경을 버릴까요?"
-        description="입력한 가격과 사유가 사라집니다."
+        title="저장하지 않고 나갈까요?"
+        description="입력한 가격과 사유는 저장되지 않습니다."
         primaryActionProps={{
-          children: "변경 버리기",
+          children: "나가기",
           variant: "criticalSolid",
           onClick: () => blocker.proceed?.(),
         }}
         secondaryActionProps={{
-          children: "계속 편집",
+          children: "계속 작성",
           onClick: () => blocker.reset?.(),
         }}
       />

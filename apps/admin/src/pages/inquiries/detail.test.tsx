@@ -82,7 +82,7 @@ describe("InquiryDetailPage", () => {
     }) as HTMLTextAreaElement;
     await user.clear(field);
     await user.type(field, "내일 출고합니다.");
-    await user.click(screen.getByRole("button", { name: "편집 취소" }));
+    await user.click(screen.getByRole("button", { name: "수정 취소" }));
 
     expect(screen.queryByRole("textbox", { name: /^답변/ })).toBeNull();
     expect(screen.getByText("오늘 출고했습니다.")).toBeTruthy();

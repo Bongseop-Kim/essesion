@@ -33,7 +33,7 @@ import { useAdminSession } from "../../shared/session/admin-session";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { DetailList } from "../../shared/ui/detail-list";
 import { RouteHeading } from "../../shared/ui/route-heading";
-import { StatusBadge } from "../../shared/ui/status-badge";
+import { formatStatus, StatusBadge } from "../../shared/ui/status-badge";
 import { TechnicalDetails } from "../../shared/ui/technical-details";
 import { SafeSvgPreview } from "../generation/safe-svg-preview";
 
@@ -64,7 +64,7 @@ function CandidateActions({
     ...decideAuthoringCandidateMutation(),
     onSuccess: async (value) => {
       snackbar(
-        `few-shot 후보를 ${DECISION_LABELS[decision ?? "hold"]} 처리했습니다.`,
+        `few-shot 후보를 ${DECISION_LABELS[decision ?? "hold"]}했습니다.`,
       );
       onUpdated(value);
       setDecision(undefined);
@@ -85,7 +85,7 @@ function CandidateActions({
     return (
       <AdminCard title="검토 결정">
         <Text textStyle="bodySm" color="fg.neutral-muted">
-          manager 역할은 검토 이력을 조회할 수 있지만 결정은 변경할 수 없습니다.
+          매니저는 검토 이력을 조회만 할 수 있습니다.
         </Text>
       </AdminCard>
     );
@@ -94,7 +94,7 @@ function CandidateActions({
     return (
       <AdminCard title="검토 결정">
         <Text textStyle="bodySm" color="fg.neutral-muted">
-          이 후보는 최종 처리되어 더 이상 상태를 변경할 수 없습니다.
+          검토를 마친 후보라 상태를 더 바꿀 수 없습니다.
         </Text>
       </AdminCard>
     );
@@ -122,7 +122,7 @@ function CandidateActions({
   return (
     <AdminCard
       title="검토 결정"
-      description="승인하면 임베딩과 중복을 다시 검증한 뒤 선별된 few-shot으로 즉시 반영합니다."
+      description="승인하면 중복을 다시 검사한 뒤 바로 few-shot 시범으로 등록합니다."
     >
       <VStack gap="x4" alignItems="stretch">
         <HStack gap="x2" wrap>
@@ -176,7 +176,7 @@ function CandidateActions({
                 loading={mutation.isPending}
                 onClick={() => setConfirmOpen(true)}
               >
-                {DECISION_LABELS[decision]} 검토
+                {DECISION_LABELS[decision]}하기
               </ActionButton>
               <ActionButton
                 variant="ghost"
@@ -192,7 +192,7 @@ function CandidateActions({
           <Callout
             role="alert"
             tone="critical"
-            title="검토 결정을 적용하지 못했습니다"
+            title="검토 결정을 저장하지 못했습니다"
             description={getErrorMessage(
               mutation.error,
               "후보 상태와 중복 검사 결과를 새로고침한 뒤 다시 시도해 주세요.",
@@ -319,14 +319,14 @@ export function AuthoringCandidateDetailPage() {
       <AdminCard title="선별·중복 정보">
         <DetailList
           items={[
-            { label: "상태", value: candidate.status },
-            { label: "family", value: candidate.family },
-            { label: "motif 수", value: `${candidate.motif_count}개` },
+            { label: "상태", value: formatStatus(candidate.status) },
+            { label: "구조", value: candidate.family },
+            { label: "모티프 수", value: `${candidate.motif_count}개` },
             { label: "Plan 계약", value: `v${candidate.contract_version}` },
-            { label: "compiler", value: candidate.compiler_revision },
-            { label: "prompt", value: candidate.prompt_revision },
+            { label: "컴파일러 버전", value: candidate.compiler_revision },
+            { label: "프롬프트 버전", value: candidate.prompt_revision },
             {
-              label: "embedding",
+              label: "임베딩 모델",
               value: formatIdentifier(candidate.embedding_model),
             },
             {

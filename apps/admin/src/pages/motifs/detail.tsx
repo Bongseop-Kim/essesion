@@ -38,11 +38,29 @@ import { useAdminSession } from "../../shared/session/admin-session";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { DetailList } from "../../shared/ui/detail-list";
 import { RouteHeading } from "../../shared/ui/route-heading";
-import { StatusBadge } from "../../shared/ui/status-badge";
+import { formatStatus, StatusBadge } from "../../shared/ui/status-badge";
 import { SafeSvgPreview } from "../generation/safe-svg-preview";
 
 type ReviewStatus = "approved" | "rejected";
 type MotifStyle = "" | "flat" | "outline";
+
+const SCOPE_LABELS: Record<string, string> = {
+  whole: "전체 모티프",
+  partial: "부분 모티프",
+};
+
+const STYLE_LABELS: Record<string, string> = {
+  flat: "플랫",
+  outline: "아웃라인",
+};
+
+function formatMotifScope(value: string | null | undefined) {
+  return value ? (SCOPE_LABELS[value] ?? value) : "-";
+}
+
+function formatMotifStyle(value: string | null | undefined) {
+  return value ? (STYLE_LABELS[value] ?? value) : "미지정";
+}
 
 const REVIEW_LABELS: Record<ReviewStatus, string> = {
   approved: "승인",
@@ -69,7 +87,7 @@ function MotifMetadataForm({
   const mutation = useMutation({
     ...updateAdminMotifMutation(),
     onSuccess: async (value) => {
-      snackbar("Motif 메타데이터를 저장했습니다.");
+      snackbar("모티프 메타데이터를 저장했습니다.");
       setSubject(value.subject ?? "");
       setDescription(value.description ?? "");
       setTags(value.tags.join(", "));
@@ -87,7 +105,7 @@ function MotifMetadataForm({
     return (
       <AdminCard title="검색 메타데이터">
         <Text textStyle="bodySm" color="fg.neutral-muted">
-          manager 역할은 메타데이터를 조회할 수 있지만 변경할 수 없습니다.
+          매니저는 메타데이터를 조회만 할 수 있습니다.
         </Text>
       </AdminCard>
     );
@@ -112,7 +130,7 @@ function MotifMetadataForm({
   return (
     <AdminCard
       title="검색 메타데이터"
-      description="카탈로그 검색과 grounding에 쓰는 주제·설명·태그·스타일입니다."
+      description="카탈로그 검색과 디자인 생성 시 모티프 매칭에 쓰입니다."
     >
       <VStack as="form" gap="x4" alignItems="stretch" onSubmit={submit}>
         <TextField
@@ -138,7 +156,7 @@ function MotifMetadataForm({
         <VStack gap="x2" alignItems="stretch">
           <Text textStyle="labelSm">스타일</Text>
           <RadioGroup
-            aria-label="Motif 스타일"
+            aria-label="모티프 스타일"
             orientation="horizontal"
             value={style}
             onValueChange={(value) => setStyle(value as MotifStyle)}
@@ -207,10 +225,10 @@ function MotifDetailLoading() {
   return (
     <VStack gap="x6" alignItems="stretch" aria-busy="true">
       <RouteHeading
-        title="Motif 상세"
-        description="Motif 메타데이터와 미리보기를 불러오고 있습니다."
+        title="모티프 상세"
+        description="모티프 메타데이터와 미리보기를 불러오고 있습니다."
       />
-      <AdminCard title="Motif 상세">
+      <AdminCard title="모티프 상세">
         <Grid columns={{ base: 1, md: 2 }} gap="x4">
           <Skeleton width="100%" height={320} />
           <VStack gap="x3" alignItems="stretch">
@@ -241,7 +259,7 @@ function MotifReviewActions({
     ...reviewAdminMotifMutation(),
     onSuccess: async (value) => {
       const label = value.status === "approved" ? "승인" : "거절";
-      snackbar(`Motif를 ${label} 처리했습니다.`);
+      snackbar(`모티프를 ${label}했습니다.`);
       onUpdated(value);
       setNextStatus(undefined);
       await queryClient.invalidateQueries({
@@ -254,7 +272,7 @@ function MotifReviewActions({
     return (
       <AdminCard title="카탈로그 검토">
         <Text textStyle="bodySm" color="fg.neutral-muted">
-          manager 역할은 검토 상태를 조회할 수 있지만 변경할 수 없습니다.
+          매니저는 검토 상태를 조회만 할 수 있습니다.
         </Text>
       </AdminCard>
     );
@@ -281,7 +299,7 @@ function MotifReviewActions({
   return (
     <AdminCard
       title="카탈로그 검토"
-      description="승인한 Motif만 다른 사용자의 검색·grounding에 반영됩니다."
+      description="승인한 모티프만 다른 사용자의 검색과 디자인 생성에 쓰입니다."
     >
       <VStack gap="x3" alignItems="stretch">
         <HStack gap="x2" wrap>
@@ -303,7 +321,7 @@ function MotifReviewActions({
           <Callout
             role="alert"
             tone="critical"
-            title="Motif 검토 상태를 변경하지 못했습니다"
+            title="모티프 검토 상태를 저장하지 못했습니다"
             description={getErrorMessage(
               mutation.error,
               "현재 상태를 새로고침한 뒤 다시 시도해 주세요.",
@@ -314,11 +332,11 @@ function MotifReviewActions({
       <AlertDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title={`이 Motif를 ${nextStatus ? REVIEW_LABELS[nextStatus] : "처리"}할까요?`}
+        title={`이 모티프를 ${nextStatus ? REVIEW_LABELS[nextStatus] : "처리"}할까요?`}
         description={
           nextStatus === "approved"
             ? "승인 직후 공개 카탈로그 검색과 재사용 풀에 반영됩니다."
-            : "거절하면 공개 카탈로그에서 제외되며 기존 세션의 직접 참조는 유지됩니다."
+            : "거절하면 공개 카탈로그에서 빠집니다. 이미 이 모티프를 쓰고 있는 디자인에는 그대로 남습니다."
         }
         primaryActionProps={{
           children: nextStatus ? REVIEW_LABELS[nextStatus] : "확인",
@@ -351,12 +369,12 @@ export function MotifDetailPage() {
     return (
       <VStack gap="x6" alignItems="stretch">
         <RouteHeading
-          title="Motif 상세"
-          description="Motif 메타데이터와 서버 안전성 검사를 통과한 SVG를 확인합니다."
+          title="모티프 상세"
+          description="모티프 메타데이터와 안전성 검사를 통과한 SVG입니다."
         />
         <ContentPlaceholder
-          title="Motif 상세를 불러오지 못했습니다"
-          description="Motif ID를 확인하거나 다시 시도해 주세요."
+          title="모티프 상세를 불러오지 못했습니다"
+          description="모티프 ID를 확인하거나 다시 시도해 주세요."
           action={
             <ActionButton onClick={() => void query.refetch()}>
               다시 시도
@@ -380,7 +398,7 @@ export function MotifDetailPage() {
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading
           title={motif.subject ?? motif.id}
-          description={`Motif ID: ${motif.id} · SVG 상태: ${motif.svg_status}`}
+          description={`모티프 ID: ${motif.id} · SVG 상태: ${formatStatus(motif.svg_status)}`}
         />
         <HStack gap="x2">
           <StatusBadge status={motif.status} />
@@ -395,21 +413,21 @@ export function MotifDetailPage() {
         <MotifReviewActions motif={motif} onUpdated={updateCachedMotif} />
       </Grid>
 
-      <AdminCard title="Motif 상세">
+      <AdminCard title="모티프 상세">
         <Grid columns={{ base: 1, md: 2 }} gap="x5">
           <SafeSvgPreview
             svg={preview}
             status={motif.svg_status}
-            alt={`${motif.subject ?? motif.id} Motif 안전 미리보기`}
+            alt={`${motif.subject ?? motif.id} 모티프 안전 미리보기`}
           />
           <VStack gap="x4" alignItems="stretch">
             <DetailList
               items={[
                 { label: "주제", value: formatIdentifier(motif.subject) },
-                { label: "범위", value: formatIdentifier(motif.scope) },
-                { label: "스타일", value: formatIdentifier(motif.style) },
+                { label: "범위", value: formatMotifScope(motif.scope) },
+                { label: "스타일", value: formatMotifStyle(motif.style) },
                 { label: "소스", value: motif.source },
-                { label: "검토 상태", value: motif.status },
+                { label: "검토 상태", value: formatStatus(motif.status) },
                 {
                   label: "검토 시각",
                   value:
@@ -423,7 +441,7 @@ export function MotifDetailPage() {
                   label: "최초 요청자",
                   value: motif.ingested_user_id ? (
                     <Link to={`/customers/${motif.ingested_user_id}`}>
-                      고객 관리로 이동
+                      고객 정보 보기
                     </Link>
                   ) : (
                     "확인 불가"

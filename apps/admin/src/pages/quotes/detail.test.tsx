@@ -147,10 +147,10 @@ describe("QuoteDetailPage", () => {
     await user.type(screen.getByLabelText("견적 조건"), "배송비 포함");
     await user.click(screen.getByRole("button", { name: "변경 내용 확인" }));
     await user.click(
-      screen.getByRole("button", { name: "견적발송 상태로 변경" }),
+      screen.getByRole("button", { name: "견적 발송 상태로 변경" }),
     );
 
-    expect(await screen.findByText("견적을 변경하지 못했습니다")).toBeTruthy();
+    expect(await screen.findByText("견적을 저장하지 못했습니다")).toBeTruthy();
     expect((screen.getByLabelText("견적 금액") as HTMLInputElement).value).toBe(
       "120,000",
     );
@@ -190,7 +190,7 @@ describe("QuoteDetailPage", () => {
 
     await user.click(screen.getByRole("button", { name: "변경 내용 확인" }));
     await user.click(
-      screen.getByRole("button", { name: "견적발송 상태로 변경" }),
+      screen.getByRole("button", { name: "견적 발송 상태로 변경" }),
     );
 
     await waitFor(() =>

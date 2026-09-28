@@ -126,10 +126,7 @@ function PopupForm({
         onSubmit(draft);
       }}
     >
-      <AdminCard
-        title="템플릿"
-        description="화면 모양은 템플릿이 정합니다. 관리자는 빈칸만 채우면 됩니다."
-      >
+      <AdminCard title="템플릿" description="화면 모양은 템플릿이 정합니다.">
         <RadioGroup
           aria-label="템플릿"
           orientation="horizontal"
@@ -398,7 +395,7 @@ function PopupForm({
       {Object.keys(errors).length > 0 && (
         <VStack gap="x1" alignItems="stretch" role="alert">
           <Text textStyle="labelSm" color="fg.critical">
-            입력한 팝업 내용을 확인해 주세요.
+            입력한 팝업 내용을 확인해 주세요
           </Text>
           {Object.entries(errors).map(([key, message]) => (
             <Text key={key} textStyle="caption" color="fg.critical">
@@ -425,7 +422,7 @@ export function PopupNewPage() {
   const create = useMutation({
     ...createAdminPopupMutation(),
     onSuccess: async () => {
-      snackbar("팝업을 등록했습니다. 활성 스위치를 켜면 store에 노출됩니다.");
+      snackbar("팝업을 등록했습니다. 활성 스위치를 켜면 스토어에 노출됩니다.");
       await queryClient.invalidateQueries({
         queryKey: listAdminPopupsQueryKey(),
       });
@@ -440,7 +437,7 @@ export function PopupNewPage() {
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading
           title="팝업 등록"
-          description="등록 직후는 비활성입니다. 목록에서 활성 스위치를 켜야 store에 보입니다."
+          description="등록 직후는 비활성입니다. 목록에서 활성 스위치를 켜야 스토어에 보입니다."
         />
         <ActionButton variant="ghost" onClick={() => navigate("/popups")}>
           목록으로
@@ -468,14 +465,14 @@ export function PopupEditPage() {
   const update = useMutation({
     ...updateAdminPopupMutation(),
     onSuccess: async () => {
-      snackbar("팝업을 수정했습니다.");
+      snackbar("팝업을 저장했습니다.");
       await queryClient.invalidateQueries({
         queryKey: listAdminPopupsQueryKey(),
       });
       navigate("/popups", { replace: true });
     },
     onError: (error) =>
-      snackbar(getErrorMessage(error, "팝업을 수정하지 못했습니다.")),
+      snackbar(getErrorMessage(error, "팝업을 저장하지 못했습니다.")),
   });
 
   return (

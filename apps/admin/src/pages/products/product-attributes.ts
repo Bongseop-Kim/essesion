@@ -1,6 +1,6 @@
 export const PRODUCT_CATEGORIES = [
   { value: "3fold", label: "쓰리폴드" },
-  { value: "sfolderato", label: "스폴데라토" },
+  { value: "sfolderato", label: "스포데라토" },
   { value: "knit", label: "니트" },
   { value: "bowtie", label: "보타이" },
 ] as const;

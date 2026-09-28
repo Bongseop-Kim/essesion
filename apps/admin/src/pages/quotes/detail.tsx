@@ -62,6 +62,10 @@ const QUOTE_STAGES = [
   { value: "종료", label: "종료" },
 ] as const;
 
+function quoteStageLabel(status: string) {
+  return QUOTE_STAGES.find((stage) => stage.value === status)?.label ?? status;
+}
+
 const OPTION_LABELS: Record<string, string> = {
   fabric: "원단",
   width: "규격",
@@ -76,7 +80,7 @@ const OPTION_LABELS: Record<string, string> = {
   triangle_stitch: "삼각 봉제",
   side_stitch: "옆선 봉제",
   bar_tack: "바택",
-  fold7: "7단 접기",
+  fold7: "7폴드",
   dimple: "딤플",
   turn_knot: "돌려묶기",
   spoderato: "스포데라토",
@@ -153,7 +157,7 @@ function QuoteImage({
         </>
       }
       error={mutation.isError}
-      errorDescription="만료되었거나 이 견적에 속하지 않은 이미지입니다."
+      errorDescription="이미지를 불러오지 못했습니다. 새로고침해 주세요."
       onRequest={() =>
         mutation.mutate({
           path: { quote_id: quoteId, image_id: image.id },
@@ -194,7 +198,7 @@ export function QuoteDetailPage() {
   const mutation = useMutation({
     ...updateAdminQuoteStatusMutation(),
     onSuccess: async () => {
-      snackbar("견적을 변경했습니다.");
+      snackbar("견적을 저장했습니다.");
       setSelectedAction(undefined);
       setBaseRevision("");
       setTransitionMemo("");
@@ -223,7 +227,7 @@ export function QuoteDetailPage() {
   if (query.isError || query.data === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading title="견적 상세" description="견적 요청을 확인합니다." />
+        <RouteHeading title="견적 상세" />
         <ContentPlaceholder
           title="견적을 불러오지 못했습니다"
           action={
@@ -277,7 +281,7 @@ export function QuoteDetailPage() {
       numericAmount === null &&
       data.quoted_amount === null
     ) {
-      setValidationError("견적발송 전 견적 금액을 입력해 주세요.");
+      setValidationError("견적을 발송하려면 견적 금액을 입력해 주세요.");
       return;
     }
     setConfirmOpen(true);
@@ -294,14 +298,15 @@ export function QuoteDetailPage() {
   return (
     <VStack gap="x6" alignItems="stretch">
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title={`견적 ${data.quote_number}`}
-          description="저장된 배송지 snapshot과 상태 변경 근거를 확인합니다."
-        />
+        <RouteHeading title={`견적 ${data.quote_number}`} />
         <StatusBadge status={data.status} />
       </HStack>
       <AdminCard title="진행 단계">
-        <HStack gap="x2" wrap aria-label={`현재 단계 ${data.status}`}>
+        <HStack
+          gap="x2"
+          wrap
+          aria-label={`현재 단계 ${quoteStageLabel(data.status)}`}
+        >
           {QUOTE_STAGES.map((stage, index) => (
             <HStack key={stage.value} gap="x2">
               <Text
@@ -323,10 +328,7 @@ export function QuoteDetailPage() {
           ))}
         </HStack>
       </AdminCard>
-      <AdminCard
-        title="견적 작업"
-        description="견적 내용과 다음 상태를 첫 화면에서 확인하고 변경합니다."
-      >
+      <AdminCard title="견적 작업">
         <VStack gap="x4" alignItems="stretch">
           <HStack gap="x2" wrap>
             {primaryAction && (
@@ -389,7 +391,7 @@ export function QuoteDetailPage() {
               </Text>
               <Callout
                 tone="informative"
-                title={`저장하면 ${selectedAction.target_status} 상태로 변경됩니다`}
+                title={`저장하면 ${quoteStageLabel(selectedAction.target_status)} 상태로 변경됩니다`}
                 description="고객에게 보일 금액과 조건을 먼저 확인해 주세요."
               />
               <NumberField
@@ -424,10 +426,10 @@ export function QuoteDetailPage() {
                 <Callout
                   role="alert"
                   tone="critical"
-                  title="견적을 변경하지 못했습니다"
+                  title="견적을 저장하지 못했습니다"
                   description={getErrorMessage(
                     mutation.error,
-                    "다른 관리자가 먼저 변경했을 수 있습니다. 입력은 유지되므로 최신 내용을 새 창에서 비교해 주세요.",
+                    "다른 관리자가 먼저 수정했을 수 있습니다. 입력한 내용은 그대로 있으니 최신 내용과 비교해 주세요.",
                   )}
                 />
               )}
@@ -551,13 +553,10 @@ export function QuoteDetailPage() {
 
         <TabContent value="proposal">
           <VStack gap="x5" pt="x5" alignItems="stretch">
-            <AdminCard
-              title="고객에게 보일 견적"
-              description="저장 전에 고객 화면에 표시될 핵심 내용을 확인합니다."
-            >
+            <AdminCard title="고객에게 보일 견적">
               <DetailList
                 items={[
-                  { label: "상태", value: data.status },
+                  { label: "상태", value: quoteStageLabel(data.status) },
                   {
                     label: "견적 금액",
                     value: formatMoney(data.quoted_amount, "미책정"),
@@ -576,10 +575,7 @@ export function QuoteDetailPage() {
 
         <TabContent value="images">
           <VStack pt="x5" alignItems="stretch">
-            <AdminCard
-              title="참고 이미지"
-              description="관계 검증 후 발급되는 짧은 수명의 읽기 URL만 사용합니다."
-            >
+            <AdminCard title="참고 이미지">
               {(data.images ?? []).length === 0 ? (
                 <Text color="fg.neutral-muted">
                   등록된 참고 이미지가 없습니다.
@@ -627,12 +623,12 @@ export function QuoteDetailPage() {
       <AlertDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title={`${selectedAction?.target_status ?? "선택 상태"}(으)로 변경할까요?`}
-        description={`상태 ${data.status} → ${selectedAction?.target_status ?? "선택 상태"} · 견적 금액 ${formatMoney(data.quoted_amount, "미책정")} → ${amount === "" ? "미입력" : formatMoney(Number(amount))} · 견적 조건 ${conditions.trim() || "없음"} · 변경 근거 ${transitionMemo.trim() || "없음"}`}
+        title={`${selectedAction ? quoteStageLabel(selectedAction.target_status) : "선택한"} 상태로 변경할까요?`}
+        description={`상태 ${quoteStageLabel(data.status)} → ${selectedAction ? quoteStageLabel(selectedAction.target_status) : "선택 상태"} · 견적 금액 ${formatMoney(data.quoted_amount, "미책정")} → ${amount === "" ? "미입력" : formatMoney(Number(amount))} · 견적 조건 ${conditions.trim() || "없음"} · 변경 근거 ${transitionMemo.trim() || "없음"}`}
         primaryActionProps={{
           children: selectedAction
-            ? `${selectedAction.target_status} 상태로 변경`
-            : "견적 변경",
+            ? `${quoteStageLabel(selectedAction.target_status)} 상태로 변경`
+            : "상태 변경",
           variant: selectedAction?.destructive ? "criticalSolid" : "brandSolid",
           loading: mutation.isPending,
           onClick: runAction,
@@ -644,15 +640,15 @@ export function QuoteDetailPage() {
       />
       <AlertDialog
         open={blocker.state === "blocked"}
-        title="작성 중인 견적 변경을 버릴까요?"
-        description="입력한 금액·조건·메모가 사라집니다."
+        title="저장하지 않고 나갈까요?"
+        description="입력한 금액·조건·메모는 저장되지 않습니다."
         primaryActionProps={{
-          children: "변경 버리기",
+          children: "나가기",
           variant: "criticalSolid",
           onClick: () => blocker.proceed?.(),
         }}
         secondaryActionProps={{
-          children: "계속 편집",
+          children: "계속 작성",
           onClick: () => blocker.reset?.(),
         }}
       />

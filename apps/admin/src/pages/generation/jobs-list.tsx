@@ -65,7 +65,7 @@ function JobStatistics({
       loading={loading}
       items={[
         { label: "전체", value: `${data?.total ?? 0}건` },
-        { label: "대기", value: `${data?.queued ?? 0}건` },
+        { label: "대기 중", value: `${data?.queued ?? 0}건` },
         { label: "처리 중", value: `${data?.processing ?? 0}건` },
         { label: "성공", value: `${data?.succeeded ?? 0}건` },
         { label: "실패", value: `${data?.failed ?? 0}건` },
@@ -171,7 +171,7 @@ export function GenerationJobsPage() {
       return true;
     }
     if (!UUID_PATTERN.test(value)) {
-      setUserError("사용자 ID는 UUID 형식이어야 합니다.");
+      setUserError("사용자 ID 전체를 붙여 넣어 주세요.");
       return false;
     }
     setUserError(undefined);
@@ -251,7 +251,7 @@ export function GenerationJobsPage() {
             validate={(value) =>
               UUID_PATTERN.test(value)
                 ? undefined
-                : "작업 ID는 UUID 형식이어야 합니다."
+                : "작업 ID 전체를 붙여 넣어 주세요."
             }
             onSubmit={(value) => {
               setJobId(value);
@@ -407,7 +407,7 @@ export function GenerationJobsPage() {
     <VStack gap="x6" alignItems="stretch">
       <RouteHeading
         title="생성 작업"
-        description="원단 최종화·파일 내보내기 작업의 상태·지연·정제된 오류를 조회합니다."
+        description="원단 최종화·파일 내보내기 작업의 상태·소요 시간·오류 요약을 조회합니다."
       />
 
       <AdminCard title="작업 통계" description="현재 필터 기준 집계입니다.">
@@ -462,6 +462,7 @@ export function GenerationJobsPage() {
         }
         onRetry={() => void listQuery.refetch()}
         emptyTitle="조건에 맞는 생성 작업이 없습니다"
+        emptyDescription="검색어나 필터를 바꿔 보세요."
         page={Math.min(parsed.page, totalPages)}
         totalPages={totalPages}
         onPageChange={(page) => replaceQuery({ page })}

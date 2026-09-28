@@ -39,7 +39,7 @@ describe("CouponNewPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.type(screen.getByLabelText(/관리용 쿠폰 이름/), " 신규 쿠폰 ");
+    await user.type(screen.getByLabelText(/^쿠폰 이름/), " 신규 쿠폰 ");
     await user.type(screen.getByLabelText("고객 표시 이름"), "신규 할인");
     await user.click(screen.getByRole("radio", { name: "정액 할인" }));
     await user.type(screen.getByLabelText(/할인 금액/), "3000");
@@ -73,7 +73,7 @@ describe("CouponNewPage", () => {
     api.create.mockRejectedValueOnce(new Error("이름 충돌"));
     renderPage();
 
-    const name = screen.getByLabelText(/관리용 쿠폰 이름/);
+    const name = screen.getByLabelText(/^쿠폰 이름/);
     await user.type(name, "중복 쿠폰");
     await user.type(screen.getByLabelText(/할인율/), "10");
     await pickDate(user, /만료일 \(KST\)/, "2027-12-31");
@@ -90,9 +90,7 @@ describe("CouponNewPage", () => {
     await user.click(screen.getByRole("button", { name: "쿠폰 등록" }));
 
     await waitFor(() =>
-      expect(document.activeElement).toBe(
-        screen.getByLabelText(/관리용 쿠폰 이름/),
-      ),
+      expect(document.activeElement).toBe(screen.getByLabelText(/^쿠폰 이름/)),
     );
     expect(screen.getByText("입력한 쿠폰 조건을 확인해 주세요")).toBeTruthy();
   });

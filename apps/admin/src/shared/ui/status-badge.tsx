@@ -49,7 +49,7 @@ const statusLabels: Readonly<Record<string, string>> = {
   sent: "발송 완료",
   failed: "실패",
   skipped: "발송 생략",
-  queued: "대기",
+  queued: "대기 중",
   processing: "처리 중",
   succeeded: "성공",
   success: "성공",
@@ -72,12 +72,18 @@ const statusLabels: Readonly<Record<string, string>> = {
   DONE: "완료",
   CANCELED: "취소",
   견적발송: "견적 발송",
+  대기중: "대기 중",
+  결제중: "결제 중",
+  진행중: "진행 중",
+  제작중: "제작 중",
+  수선중: "수선 중",
+  처리중: "처리 중",
   협의중: "협의 중",
   // 수선품은 고객→우리(입고), 완성품은 우리→고객(출고) — "발송/배송"만으로는 방향이 안 보인다.
   발송대기: "입고 대기",
   발송중: "입고 중",
   발송확인중: "입고 확인 필요",
-  배송중: "출고 배송중",
+  배송중: "출고 배송 중",
 };
 
 export function formatStatus(status: string) {

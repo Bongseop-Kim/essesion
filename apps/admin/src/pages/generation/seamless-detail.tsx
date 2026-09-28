@@ -58,14 +58,14 @@ function warningPresentation(warning: SeamlessWarningOut) {
     const motifs = items.length > 0 ? items.join(", ") : "일부 모티프";
     return {
       title: `모티프 레이어 ${count}개를 제외했습니다`,
-      description: `${motifs} 모티프를 카탈로그에서 사용할 수 없어 해당 레이어만 제거했습니다.`,
+      description: `${motifs} 모티프를 카탈로그에서 쓸 수 없어 그 레이어만 제외했습니다.`,
     };
   }
   if (code === "cmyk_gamut") {
     const colors = items.length > 0 ? ` (${items.join(", ")})` : "";
     return {
       title: `CMYK 색역 확인이 필요한 색상 ${count}개`,
-      description: `화면용 RGB 색상${colors}이 인쇄 시 달라질 가능성이 있습니다. 생성 실패가 아니라 인쇄 전 색상 확인이 필요한 안내입니다.`,
+      description: `화면용 RGB 색상${colors}은 인쇄하면 달라질 수 있습니다. 인쇄 전에 색상을 확인해 주세요.`,
     };
   }
   if (code === "spacing_snap") {
@@ -84,7 +84,7 @@ function warningPresentation(warning: SeamlessWarningOut) {
   }
   return {
     title: `분류되지 않은 생성 경고 ${count}건`,
-    description: "기술 정보의 request ID로 worker 로그를 확인해 주세요.",
+    description: "기술 정보의 요청 ID로 워커 로그를 확인해 주세요.",
   };
 }
 
@@ -139,7 +139,7 @@ function SeamlessDetailLoading() {
     <VStack gap="x6" alignItems="stretch" aria-busy="true">
       <RouteHeading
         title="Seamless 로그 상세"
-        description="생성 결과와 성능 정보를 안전하게 확인합니다."
+        description="생성 결과·성능·진단 정보입니다."
       />
       <AdminCard title="로그 정보">
         <VStack gap="x3" alignItems="stretch">
@@ -169,7 +169,7 @@ export function SeamlessLogDetailPage() {
       <VStack gap="x6" alignItems="stretch">
         <RouteHeading
           title="Seamless 로그 상세"
-          description="생성 결과와 성능 정보를 안전하게 확인합니다."
+          description="생성 결과·성능·진단 정보입니다."
         />
         <ContentPlaceholder
           title="Seamless 로그를 불러오지 못했습니다"
@@ -193,7 +193,7 @@ export function SeamlessLogDetailPage() {
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading
           title="Seamless 로그 상세"
-          description="서버가 다시 검사한 SVG만 격리된 이미지로 표시합니다."
+          description="생성 결과·성능·진단 정보입니다."
         />
         <HStack gap="x2" wrap>
           <StatusBadge status={log.status} />
@@ -258,7 +258,7 @@ export function SeamlessLogDetailPage() {
               label: "요청자",
               value: log.outcome.user_id ? (
                 <Link to={`/customers/${log.outcome.user_id}`}>
-                  {log.outcome.user_name ?? "고객 관리로 이동"}
+                  {log.outcome.user_name ?? "고객 정보 보기"}
                 </Link>
               ) : (
                 "확인 불가"
@@ -289,7 +289,7 @@ export function SeamlessLogDetailPage() {
 
       {log.intent !== null && (
         <AdminCard
-          title="생성 Intent"
+          title="디자인 의도"
           description="프롬프트 해석 후 검증·제약 적용·모티프 해석까지 끝난 엔진 입력입니다."
         >
           <TechnicalDetails title="Intent JSON" json={log.intent} />
@@ -412,8 +412,8 @@ export function SeamlessLogDetailPage() {
                 value: log.outcome.regenerated ? "있음" : "없음",
               },
               {
-                label: "Finalize 완료",
-                value: log.outcome.finalized ? "완료" : "없음",
+                label: "원단 최종화",
+                value: log.outcome.finalized ? "있음" : "없음",
               },
             ]}
           />

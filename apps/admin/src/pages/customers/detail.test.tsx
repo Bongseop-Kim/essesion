@@ -357,17 +357,15 @@ describe("CustomerDetailPage", () => {
     await user.type(within(dialog).getByLabelText(/처리 사유/), "테스트 지급");
     await user.click(within(dialog).getByRole("button", { name: "취소" }));
 
-    expect(
-      within(dialog).getByText("저장하지 않은 토큰 조정을 버릴까요?"),
-    ).toBeTruthy();
-    await user.click(within(dialog).getByRole("button", { name: "계속 편집" }));
+    expect(within(dialog).getByText("저장하지 않고 닫을까요?")).toBeTruthy();
+    await user.click(within(dialog).getByRole("button", { name: "계속 작성" }));
     expect(
       (within(dialog).getByLabelText("조정 수량") as HTMLInputElement).value,
     ).toBe("5");
 
     await user.click(within(dialog).getByRole("button", { name: "취소" }));
     await user.click(
-      within(dialog).getByRole("button", { name: "변경 버리기" }),
+      within(dialog).getByRole("button", { name: "저장하지 않고 닫기" }),
     );
     expect(
       screen.queryByRole("dialog", { name: "홍길동 고객 토큰 조정" }),
@@ -391,11 +389,9 @@ describe("CustomerDetailPage", () => {
       "/customers/customer-1",
     );
     expect(screen.getByTestId("location-search").textContent).toBe("");
-    expect(
-      within(dialog).getByText("저장하지 않은 토큰 조정을 버릴까요?"),
-    ).toBeTruthy();
+    expect(within(dialog).getByText("저장하지 않고 닫을까요?")).toBeTruthy();
 
-    await user.click(within(dialog).getByRole("button", { name: "계속 편집" }));
+    await user.click(within(dialog).getByRole("button", { name: "계속 작성" }));
     expect(
       (within(dialog).getByLabelText("조정 수량") as HTMLInputElement).value,
     ).toBe("5");
@@ -407,7 +403,7 @@ describe("CustomerDetailPage", () => {
       screen.getByRole("button", { name: "주문 목록으로 이동" }),
     );
     await user.click(
-      within(dialog).getByRole("button", { name: "변경 버리기" }),
+      within(dialog).getByRole("button", { name: "저장하지 않고 닫기" }),
     );
 
     expect(

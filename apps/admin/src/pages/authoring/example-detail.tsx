@@ -63,7 +63,7 @@ function ActivationAction({
       snackbar(
         value.active
           ? "few-shot 시범을 활성화했습니다."
-          : "few-shot 시범을 즉시 제외했습니다.",
+          : "few-shot 시범을 비활성화했습니다.",
       );
       onUpdated(value);
       await queryClient.invalidateQueries({
@@ -86,8 +86,7 @@ function ActivationAction({
     return (
       <AdminCard title="few-shot 주입 상태">
         <Text textStyle="bodySm" color="fg.neutral-muted">
-          manager 역할은 상태와 이력을 조회할 수 있지만 활성 상태는 변경할 수
-          없습니다.
+          매니저는 상태와 이력을 조회만 할 수 있습니다. 없습니다.
         </Text>
       </AdminCard>
     );
@@ -99,17 +98,10 @@ function ActivationAction({
       description={
         example.active
           ? "비활성화하면 다음 검색부터 즉시 제외됩니다."
-          : `${activationLabel}할 때 현재 계약·임베딩과 중복을 다시 확인합니다.`
+          : `${activationLabel}하면 Plan 형식과 기존 시범과의 중복을 다시 검사합니다.`
       }
     >
       <VStack gap="x4" alignItems="stretch">
-        {example.active && (
-          <Callout
-            tone="warning"
-            title="비활성화는 즉시 적용됩니다"
-            description="새 생성 요청의 few-shot 검색에서 이 시범이 바로 제외됩니다."
-          />
-        )}
         <HStack gap="x2">
           <ActionButton
             variant={example.active ? "criticalSolid" : "brandSolid"}
@@ -134,7 +126,7 @@ function ActivationAction({
           <Callout
             role="alert"
             tone="critical"
-            title="활성 상태를 변경하지 못했습니다"
+            title="활성 상태를 저장하지 못했습니다"
             description={getErrorMessage(
               mutation.error,
               "최신 상태와 중복 검사 결과를 확인한 뒤 다시 시도해 주세요.",
@@ -185,7 +177,7 @@ function ActivationAction({
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         title="이 시범을 영구 삭제할까요?"
-        description="영구 삭제되며 되돌릴 수 없습니다."
+        description="삭제하면 되돌릴 수 없습니다."
         primaryActionProps={{
           children: "영구 삭제",
           variant: "criticalSolid",
@@ -201,7 +193,7 @@ function ActivationAction({
   );
 }
 
-/** 저장된 Plan JSON과 프리뷰를 나란히 보여주고, admin은 같은 자리에서 편집한다. */
+/** 저장된 Plan JSON과 미리보기를 나란히 보여주고, admin은 같은 자리에서 편집한다. */
 function PlanSection({
   example,
   canEdit,
@@ -217,7 +209,7 @@ function PlanSection({
   const mutation = useMutation({
     ...updateAuthoringExampleMutation(),
     onSuccess: async (value) => {
-      snackbar("few-shot 시범과 임베딩을 갱신했습니다.");
+      snackbar("few-shot 시범을 저장했습니다.");
       onUpdated(value);
       setEditing(false);
       await queryClient.invalidateQueries({
@@ -271,7 +263,7 @@ function PlanSection({
       initialRetrievalText={example.retrieval_text}
       initialPlan={example.plan}
       initialMotifIds={example.motif_ids}
-      submitLabel="시범 변경 저장"
+      submitLabel="시범 저장"
       submitting={mutation.isPending}
       submitError={mutation.isError ? mutation.error : undefined}
       onSubmit={(value: AuthoringExampleFormValue) => {
@@ -310,7 +302,7 @@ export function AuthoringExampleDetailPage() {
       <VStack gap="x6" alignItems="stretch" aria-busy="true">
         <RouteHeading
           title="few-shot 시범 상세"
-          description="few-shot 시범의 계약과 활성 상태를 불러오고 있습니다."
+          description="few-shot 시범의 Plan과 활성 상태를 불러오고 있습니다."
         />
         <ContentPlaceholder title="few-shot 시범을 불러오고 있습니다" />
       </VStack>
@@ -399,10 +391,10 @@ export function AuthoringExampleDetailPage() {
                     ? "관리자 승격"
                     : "초기 시범",
             },
-            { label: "family", value: example.family },
-            { label: "motif 수", value: `${example.motif_count}개` },
+            { label: "구조", value: example.family },
+            { label: "모티프 수", value: `${example.motif_count}개` },
             { label: "Plan 계약", value: `v${example.contract_version}` },
-            { label: "embedding", value: example.embedding_model },
+            { label: "임베딩 모델", value: example.embedding_model },
             {
               label: "검증 시각",
               value: example.approved_at

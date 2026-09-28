@@ -113,7 +113,7 @@ describe("MotifsPage", () => {
     renderPage("/motifs?type=whole&page=2&limit=50");
 
     expect(
-      await screen.findByRole("table", { name: "Motif 목록" }),
+      await screen.findByRole("table", { name: "모티프 목록" }),
     ).toBeTruthy();
     expect(api.listOptions).toHaveBeenCalledWith({
       query: {
@@ -128,7 +128,7 @@ describe("MotifsPage", () => {
     });
   });
 
-  it("목록의 Motif 이름이 상세 페이지로 링크된다", async () => {
+  it("목록의 모티프 이름이 상세 페이지로 링크된다", async () => {
     renderPage();
 
     const link = await screen.findByRole("link", { name: "동백꽃" });
@@ -146,10 +146,10 @@ describe("MotifsPage", () => {
   it("검색과 생성일 필터를 적용하고 칩·전체 초기화로 해제한다", async () => {
     const user = userEvent.setup();
     renderPage();
-    await screen.findByRole("table", { name: "Motif 목록" });
+    await screen.findByRole("table", { name: "모티프 목록" });
 
     await user.type(
-      screen.getByLabelText("Motif ID·이름·소스 검색"),
+      screen.getByLabelText("모티프 ID·이름·소스 검색"),
       "motif-1",
     );
     await user.click(screen.getByRole("button", { name: "검색" }));
@@ -200,7 +200,7 @@ describe("MotifsPage", () => {
       }),
     );
     expect(
-      (screen.getByLabelText("Motif ID·이름·소스 검색") as HTMLInputElement)
+      (screen.getByLabelText("모티프 ID·이름·소스 검색") as HTMLInputElement)
         .value,
     ).toBe("");
   });
@@ -208,7 +208,7 @@ describe("MotifsPage", () => {
   it("범위 필터 초안은 취소하면 버리고 적용할 때 조회한다", async () => {
     const user = userEvent.setup();
     renderPage("/motifs?type=whole");
-    await screen.findByRole("table", { name: "Motif 목록" });
+    await screen.findByRole("table", { name: "모티프 목록" });
 
     const requestCount = api.list.mock.calls.length;
     await user.click(screen.getByRole("button", { name: "필터 1" }));
@@ -238,7 +238,7 @@ describe("MotifsPage", () => {
   it("전체 상태를 기본 조회하고 상태 필터를 적용한다", async () => {
     const user = userEvent.setup();
     renderPage();
-    await screen.findByRole("table", { name: "Motif 목록" });
+    await screen.findByRole("table", { name: "모티프 목록" });
 
     await user.click(screen.getByRole("button", { name: "필터" }));
     await user.click(screen.getByRole("radio", { name: "승인" }));
@@ -280,7 +280,7 @@ describe("MotifDetailPage", () => {
 
     expect(
       await screen.findByRole("img", {
-        name: "동백꽃 Motif 안전 미리보기",
+        name: "동백꽃 모티프 안전 미리보기",
       }),
     ).toBeTruthy();
     expect(api.detailOptions).toHaveBeenCalledWith({

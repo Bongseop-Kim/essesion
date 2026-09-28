@@ -15,7 +15,7 @@ import { CompactFilterToolbar } from "../../shared/ui/compact-filter-toolbar";
 import { DateRangeFilters } from "../../shared/ui/date-range-filters";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
-import { StatusBadge } from "../../shared/ui/status-badge";
+import { formatStatus, StatusBadge } from "../../shared/ui/status-badge";
 import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
@@ -155,10 +155,7 @@ export function ClaimsPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <RouteHeading
-        title="클레임 관리"
-        description="취소·반품·교환·토큰 환불 요청과 처리 상태를 조회합니다."
-      />
+      <RouteHeading title="클레임 관리" />
 
       <PaginatedAdminTableCard
         title="클레임 목록"
@@ -210,7 +207,7 @@ export function ClaimsPage() {
                     value={draftStatus}
                     options={CLAIM_STATUSES.map((value) => ({
                       value,
-                      label: value === "all" ? "전체" : value,
+                      label: value === "all" ? "전체" : formatStatus(value),
                     }))}
                     onValueChange={(value) =>
                       setDraftStatus(value as ClaimStatus)
@@ -273,7 +270,7 @@ export function ClaimsPage() {
                 },
                 status !== "all" && {
                   key: "status",
-                  label: `상태: ${status}`,
+                  label: `상태: ${formatStatus(status)}`,
                   onRemove: () => replaceQuery({ status: undefined, page: 1 }),
                 },
                 parsed.from !== undefined && {

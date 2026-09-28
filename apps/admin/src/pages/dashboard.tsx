@@ -59,14 +59,14 @@ type OrderType = (typeof ORDER_TYPES)[number]["value"];
 const CAPABILITY_LABELS = {
   toss: "Toss 결제",
   solapi: "Solapi 알림",
-  worker: "이미지 생성 Worker",
-  batch_auth: "배치 OIDC 인증",
+  worker: "이미지 생성 서버",
+  batch_auth: "배치 작업 인증",
   oauth_google: "Google OAuth",
   oauth_kakao: "Kakao OAuth",
   oauth_naver: "Naver OAuth",
   oauth_apple: "Apple OAuth",
-  auth_secrets: "인증 시크릿",
-  edge_proxy: "API 엣지 프록시",
+  auth_secrets: "인증 키",
+  edge_proxy: "API 프록시",
 } as const;
 
 function kstDate(daysAgo = 0) {
@@ -199,22 +199,26 @@ const INFORMATIVE_COLOR = "var(--color-bg-informative-solid)";
  */
 const AMOUNT_SERIES = (
   [
-    { key: "sale_amount", label: "구매", color: "var(--color-bg-chart-1)" },
+    {
+      key: "sale_amount",
+      label: "일반 주문",
+      color: "var(--color-bg-chart-1)",
+    },
     {
       key: "custom_amount",
-      label: "주문제작",
+      label: "주문 제작",
       color: "var(--color-bg-chart-2)",
     },
     {
       key: "manual_custom_amount",
-      label: "주문제작 수기",
+      label: "주문 제작(수기)",
       color: "var(--color-bg-chart-3)",
     },
     { key: "sample_amount", label: "샘플", color: "var(--color-bg-chart-4)" },
     { key: "repair_amount", label: "수선", color: "var(--color-bg-chart-5)" },
     {
       key: "manual_repair_amount",
-      label: "수선 수기",
+      label: "수선(수기)",
       color: "var(--color-bg-chart-6)",
     },
     { key: "token_amount", label: "토큰", color: "var(--color-bg-chart-7)" },
@@ -379,10 +383,7 @@ export function DashboardPage() {
   return (
     <VStack gap="x6" alignItems="stretch">
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title="대시보드"
-          description="주요 운영 지표와 처리 대기 업무를 확인합니다."
-        />
+        <RouteHeading title="대시보드" />
         <ActionButton
           variant="neutralOutline"
           loading={
@@ -432,7 +433,7 @@ export function DashboardPage() {
             <Callout
               tone="critical"
               title="외부 연동 상태를 확인하지 못했습니다"
-              description="금전·이미지·알림 관련 변경 전에 서버 준비 상태를 확인해 주세요."
+              description="결제·이미지·알림 작업 전에 다시 확인해 주세요."
               onClick={() => void capabilities.refetch()}
             />
           )}
@@ -440,7 +441,7 @@ export function DashboardPage() {
             <Callout
               tone="critical"
               title="필수 연동을 사용할 수 없습니다"
-              description={`${unavailableCapabilities.map(([label]) => label).join(", ")} 관련 작업은 실패 상태로 남습니다.`}
+              description={`${unavailableCapabilities.map(([label]) => label).join(", ")} 관련 작업이 실패합니다.`}
             />
           )}
           {fallbackCapabilities.length > 0 && (
@@ -513,7 +514,7 @@ export function DashboardPage() {
 
       <Text textStyle="caption" color="fg.neutral-muted" aria-live="polite">
         조회 기간 {startDate} ~ {endDate} · 기준 시각{" "}
-        {formatDateTime(data?.as_of)} · 모든 날짜 경계는 Asia/Seoul 기준
+        {formatDateTime(data?.as_of)} · 날짜는 한국 시간(KST) 기준
       </Text>
 
       {timeseries.isError ? (
@@ -569,7 +570,7 @@ export function DashboardPage() {
               series={[
                 {
                   key: "generation_not_failed",
-                  label: "비실패",
+                  label: "실패 외",
                   color: POSITIVE_COLOR,
                   kind: "bar",
                   stackId: "generation",
@@ -627,7 +628,7 @@ export function DashboardPage() {
 
       <AdminCard
         title="인기 상품 TOP 5"
-        description="조회 기간 내 판매 수량 기준 (커스텀·수선 항목 제외)"
+        description="조회 기간 내 판매 수량 기준 (주문 제작·수선 제외)"
         action={<Link to="/products">전체 보기</Link>}
       >
         <AdminTable

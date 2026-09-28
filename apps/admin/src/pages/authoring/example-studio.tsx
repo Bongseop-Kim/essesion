@@ -40,13 +40,12 @@ function parsePlan(
   try {
     const value: unknown = JSON.parse(text);
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
-      return { error: "Plan은 JSON 객체여야 합니다." };
+      return { error: "Plan은 { }로 감싼 JSON 객체로 입력해 주세요." };
     }
     return { plan: value as Record<string, unknown> };
-  } catch (error) {
+  } catch {
     return {
-      error:
-        error instanceof Error ? error.message : "JSON을 해석할 수 없습니다.",
+      error: "JSON 문법 오류가 있습니다. 쉼표·따옴표·괄호를 확인해 주세요.",
     };
   }
 }
@@ -106,12 +105,12 @@ export function AuthoringExampleForm({
         <VStack gap="x5" alignItems="stretch">
           <AdminCard
             title="검색 대상"
-            description="이 시범이 어떤 요청에 딸려 나갈지 정하는 부분입니다."
+            description="어떤 요청에 이 시범을 붙일지 정합니다."
           >
             <VStack gap="x4" alignItems="stretch">
               <TextAreaField
                 label="예시 사용자 요청문"
-                description="사용자가 이렇게 요청했을 때 이 Plan을 시범으로 붙입니다. 이 문장이 임베딩되어 벡터 검색 대상이 됩니다."
+                description="사용자가 이렇게 요청했을 때 이 Plan을 시범으로 붙입니다."
                 required
                 rows={3}
                 maxLength={500}
@@ -140,11 +139,11 @@ export function AuthoringExampleForm({
 
           <AdminCard
             title="Plan JSON"
-            description="DesignPlanV3 원문을 그대로 붙여 넣습니다. 범위·enum 검증은 프리뷰 응답(서버)이 합니다."
+            description="DesignPlanV3 JSON을 붙여 넣으세요. 값 검사는 미리보기에서 서버가 합니다."
           >
             <TextAreaField
               label="Plan (DesignPlanV3)"
-              description="고른 모티프는 motifs의 input_index 1..N으로 순서대로 참조해야 합니다. 모티프를 고르지 않으면 catalog source도 쓸 수 있습니다."
+              description="모티프를 고르지 않으면 catalog source를 쓸 수 있습니다."
               required
               rows={24}
               spellCheck={false}
@@ -185,7 +184,7 @@ export function AuthoringExampleForm({
                       disabled={submitting}
                       onClick={onCancel}
                     >
-                      편집 취소
+                      수정 취소
                     </ActionButton>
                   )}
                   <Text
@@ -195,13 +194,13 @@ export function AuthoringExampleForm({
                   >
                     {plan !== undefined && pending ? (
                       <>
-                        <ProgressCircle size={16} /> 프리뷰를 다시 그리는
+                        <ProgressCircle size={16} /> 미리보기를 다시 그리는
                         중입니다.
                       </>
                     ) : !retrievalValid ? (
                       "예시 사용자 요청문을 입력하면 저장할 수 있습니다."
                     ) : (
-                      "현재 프리뷰 그대로 저장합니다."
+                      "현재 미리보기 그대로 저장합니다."
                     )}
                   </Text>
                 </VStack>

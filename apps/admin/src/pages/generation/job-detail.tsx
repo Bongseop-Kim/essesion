@@ -107,7 +107,7 @@ function JobDetailLoading() {
     <VStack gap="x6" alignItems="stretch" aria-busy="true">
       <RouteHeading
         title="생성 작업 상세"
-        description="작업 단계와 시도·실패·결과 객체 상태를 확인합니다."
+        description="작업 단계와 시도·실패·결과 파일 상태입니다."
       />
       <AdminCard title="작업 정보">
         <VStack gap="x3" alignItems="stretch">
@@ -144,7 +144,7 @@ export function GenerationJobDetailPage() {
       <VStack gap="x6" alignItems="stretch">
         <RouteHeading
           title="생성 작업 상세"
-          description="작업 단계와 시도·실패·결과 객체 상태를 확인합니다."
+          description="작업 단계와 시도·실패·결과 파일 상태입니다."
         />
         <ContentPlaceholder
           title="생성 작업을 불러오지 못했습니다"
@@ -166,7 +166,7 @@ export function GenerationJobDetailPage() {
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading
           title="생성 작업 상세"
-          description="민감 입력과 객체 키를 제외한 운영 projection만 표시합니다."
+          description="작업 단계와 시도·실패·결과 파일 상태입니다."
         />
         <StatusBadge status={job.status} />
       </HStack>
@@ -186,8 +186,8 @@ export function GenerationJobDetailPage() {
             { label: "단계", value: jobKindLabel(job.kind) },
             { label: "시도 횟수", value: `${job.attempts}회` },
             {
-              label: "결과 객체",
-              value: job.result_available ? "기록됨" : "없음",
+              label: "결과 파일",
+              value: job.result_available ? "있음" : "없음",
             },
             { label: "생성 시각", value: formatDateTime(job.created_at) },
             { label: "수정 시각", value: formatDateTime(job.updated_at) },
@@ -199,26 +199,20 @@ export function GenerationJobDetailPage() {
         />
       </AdminCard>
 
-      <AdminCard
-        title="입력 요약"
-        description="작업에 적용된 생성 조건을 운영자가 확인하기 쉬운 형태로 표시합니다."
-      >
+      <AdminCard title="입력 요약" description="작업에 적용된 생성 조건입니다.">
         <DetailList items={parameterSummaryItems(job.parameter_summary)} />
       </AdminCard>
 
-      <AdminCard
-        title="결과"
-        description="공개 content-hash 결과만 표시합니다."
-      >
+      <AdminCard title="결과" description="공개된 결과 파일만 표시합니다.">
         {!job.result_available ? (
           <ContentPlaceholder
-            title="결과 객체 없음"
+            title="결과 파일 없음"
             description="작업이 완료되지 않았거나 결과가 기록되지 않았습니다."
           />
         ) : job.result_url === null ? (
           <ContentPlaceholder
             title="결과 미리보기 불가"
-            description="결과 기록은 있지만 공개 가능한 content-hash URL이 없습니다."
+            description="결과는 있지만 미리볼 수 있는 공개 파일이 없습니다."
           />
         ) : (
           <VStack gap="x3" alignItems="stretch">

@@ -39,7 +39,7 @@ class HolidayFields(StrictModel):
     @model_validator(mode="after")
     def _ordered(self) -> "HolidayFields":
         if not (self.cutoff_on <= self.closed_from <= self.closed_to < self.resume_on):
-            raise ValueError("날짜 순서는 마감일 ≤ 휴무 시작 ≤ 휴무 종료 < 재개일이어야 합니다")
+            raise ValueError("마감일, 휴무 시작일, 휴무 종료일, 재개일 순서로 입력해 주세요.")
         return self
 
 

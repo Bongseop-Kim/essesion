@@ -201,7 +201,7 @@ function ManualOrderImage({
         </>
       }
       error={mutation.isError}
-      errorDescription="만료되었거나 이 주문에 속하지 않은 이미지입니다."
+      errorDescription="이미지를 불러오지 못했습니다. 새로고침해 주세요."
       onRequest={() =>
         mutation.mutate({
           path: { manual_order_id: manualOrderId, image_id: image.id },
@@ -289,13 +289,10 @@ function ManualOrderDetail({ kind }: { kind: ManualOrderKind }) {
   if (query.isError || order === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading
-          title={`${noun} 상세`}
-          description="작업지시서 내용을 확인합니다."
-        />
+        <RouteHeading title={`${noun} 상세`} />
         <ContentPlaceholder
           title={`${noun}을 불러오지 못했습니다`}
-          description="주문 ID를 확인하거나 다시 시도해 주세요."
+          description="잠시 후 다시 시도해 주세요."
           action={
             <ActionButton onClick={() => void query.refetch()}>
               다시 시도
