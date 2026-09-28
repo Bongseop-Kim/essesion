@@ -32,6 +32,7 @@ import { Link, useParams, useSearchParams } from "react-router";
 
 import {
   formatDateTime,
+  formatDeliveryRequest,
   formatIdentifier,
   formatMoney,
   getErrorMessage,
@@ -509,10 +510,10 @@ export function QuoteDetailPage() {
                     },
                     {
                       label: "배송 메모",
-                      value:
-                        address.delivery_memo ??
-                        address.delivery_request ??
-                        "-",
+                      value: formatDeliveryRequest(
+                        address.delivery_request,
+                        address.delivery_memo,
+                      ),
                     },
                   ]}
                 />

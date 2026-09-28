@@ -82,7 +82,7 @@ const columns: readonly AdminTableColumn<AdminOrderSummaryOut>[] = [
   },
   {
     key: "customer",
-    header: "고객",
+    header: "주문자",
     render: (order) => (
       <VStack gap="x0_5">
         <Text textStyle="bodySm">{order.customer.name}</Text>
@@ -91,6 +91,21 @@ const columns: readonly AdminTableColumn<AdminOrderSummaryOut>[] = [
         </Text>
       </VStack>
     ),
+  },
+  {
+    key: "recipient",
+    header: "받는 분",
+    render: (order) =>
+      order.recipient_name ? (
+        <VStack gap="x0_5">
+          <Text textStyle="bodySm">{order.recipient_name}</Text>
+          <Text textStyle="caption" color="fg.neutral-muted">
+            {order.recipient_phone}
+          </Text>
+        </VStack>
+      ) : (
+        "-"
+      ),
   },
   {
     key: "order_type",

@@ -42,6 +42,7 @@ import { Link, useParams, useSearchParams } from "react-router";
 
 import {
   formatDateTime,
+  formatDeliveryRequest,
   formatFileSize,
   formatIdentifier,
   formatMoney,
@@ -428,6 +429,13 @@ export function ClaimDetailPage() {
           {
             label: "수령인",
             value: `${shippingAddress.recipient_name} · ${formatPhoneNumber(shippingAddress.recipient_phone)}`,
+          },
+          {
+            label: "배송 메모",
+            value: formatDeliveryRequest(
+              shippingAddress.delivery_request,
+              shippingAddress.delivery_memo,
+            ),
           },
         ]
       : []),

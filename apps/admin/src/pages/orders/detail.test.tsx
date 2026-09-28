@@ -596,7 +596,7 @@ describe("OrderDetailPage", () => {
         postal_code: "04524",
         address: "서울시 중구",
         address_detail: "202호",
-        delivery_request: "경비실에 맡겨 주세요.",
+        delivery_request: "DELIVERY_REQUEST_2",
         delivery_memo: "오후 배송 희망",
       },
       repair_receipts: [
@@ -701,9 +701,10 @@ describe("OrderDetailPage", () => {
       expect.anything(),
     );
 
-    // 배송 탭에는 물류 정보만 남는다.
-    await user.click(screen.getByRole("tab", { name: "배송" }));
-    expect(screen.getByText("경비실에 맡겨 주세요.")).toBeTruthy();
-    expect(screen.getByText("오후 배송 희망")).toBeTruthy();
+    // 배송 메모는 작업지시서 캡처에 들어가도록 개요에 둔다.
+    await user.click(screen.getByRole("tab", { name: "개요" }));
+    expect(
+      screen.getByText("경비실에 맡겨 주세요. · 오후 배송 희망"),
+    ).toBeTruthy();
   });
 });

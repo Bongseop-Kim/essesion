@@ -2122,6 +2122,28 @@
             ],
             "title": "Payment Group Id"
           },
+          "recipient_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipient Name"
+          },
+          "recipient_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipient Phone"
+          },
           "related_orders": {
             "items": {
               "$ref": "#/components/schemas/AdminRelatedOrderOut"
@@ -2404,6 +2426,28 @@
               }
             ],
             "title": "Payment Group Id"
+          },
+          "recipient_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipient Name"
+          },
+          "recipient_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipient Phone"
           },
           "status": {
             "title": "Status",

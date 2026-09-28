@@ -75,6 +75,9 @@ class AdminOrderSummaryOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     customer: AdminOrderCustomerOut
+    # 배송지 스냅샷의 받는 분 — 주문자(customer)와 다를 수 있다. 배송지 없는 주문(토큰 등)은 None.
+    recipient_name: str | None = None
+    recipient_phone: str | None = None
     admin_actions: list[AdminAction] = Field(default_factory=list)
     claim_summary: ClaimBadgeOut | None = None
 

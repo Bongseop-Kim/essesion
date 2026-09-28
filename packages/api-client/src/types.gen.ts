@@ -1173,6 +1173,14 @@ export type AdminOrderDetailOut = {
      */
     payment_group_id: string | null;
     /**
+     * Recipient Name
+     */
+    recipient_name?: string | null;
+    /**
+     * Recipient Phone
+     */
+    recipient_phone?: string | null;
+    /**
      * Related Orders
      */
     related_orders?: Array<AdminRelatedOrderOut>;
@@ -1309,6 +1317,14 @@ export type AdminOrderSummaryOut = {
      * Payment Group Id
      */
     payment_group_id: string | null;
+    /**
+     * Recipient Name
+     */
+    recipient_name?: string | null;
+    /**
+     * Recipient Phone
+     */
+    recipient_phone?: string | null;
     /**
      * Status
      */

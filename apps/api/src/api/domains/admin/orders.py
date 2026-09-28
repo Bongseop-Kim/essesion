@@ -277,6 +277,8 @@ def _summary(
         created_at=order.created_at,
         updated_at=order.updated_at,
         customer=AdminOrderCustomerOut.model_validate(customer),
+        recipient_name=(order.shipping_address_snapshot or {}).get("recipient_name"),
+        recipient_phone=(order.shipping_address_snapshot or {}).get("recipient_phone"),
         claim_summary=ClaimBadgeOut.model_validate(claim) if claim is not None else None,
         admin_actions=_admin_actions(
             order,

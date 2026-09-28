@@ -47,6 +47,7 @@ import { downloadWorksheetPng } from "../../shared/lib/capture";
 import {
   formatAmountBreakdown,
   formatDateTime,
+  formatDeliveryRequest,
   formatFileSize,
   formatMoney,
   formatRepairReceiptReason,
@@ -750,6 +751,13 @@ export function OrderDetailPage() {
                           : "-",
                       },
                       {
+                        label: "배송 메모",
+                        value: formatDeliveryRequest(
+                          data.shipping_address?.delivery_request,
+                          data.shipping_address?.delivery_memo,
+                        ),
+                      },
+                      {
                         label: "회원",
                         value: (
                           <Link to={`/customers/${data.customer.id}`}>
@@ -909,7 +917,7 @@ export function OrderDetailPage() {
               <AdminCard title="배송 정보">
                 <DetailList
                   items={[
-                    // 수취인 이름·연락처·주소는 개요 카드에 있다 — 여기서 반복하지 않는다.
+                    // 수취인 이름·연락처·주소·배송 메모는 개요 카드에 있다 — 여기서 반복하지 않는다.
                     {
                       label: "고객 송장",
                       value:
@@ -927,22 +935,6 @@ export function OrderDetailPage() {
                           .filter(Boolean)
                           .join(" · ") || "-",
                     },
-                    ...(data.shipping_address?.delivery_request
-                      ? [
-                          {
-                            label: "배송 요청",
-                            value: data.shipping_address.delivery_request,
-                          },
-                        ]
-                      : []),
-                    ...(data.shipping_address?.delivery_memo
-                      ? [
-                          {
-                            label: "배송 메모",
-                            value: data.shipping_address.delivery_memo,
-                          },
-                        ]
-                      : []),
                   ]}
                 />
               </AdminCard>

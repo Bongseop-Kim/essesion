@@ -82,6 +82,27 @@ export function formatRepairReceiptReason(value: string | null | undefined) {
   return REPAIR_RECEIPT_REASONS[value] ?? "사유 없음";
 }
 
+// ponytail: store의 DELIVERY_REQUEST_OPTIONS(features/shipping/model/delivery-request.ts)와
+// 같은 라벨이다. 앱 간 import가 막혀 있어 복사해 둔다 — 옵션이 바뀌면 함께 고칠 것.
+const DELIVERY_REQUESTS: Record<string, string> = {
+  DELIVERY_REQUEST_1: "문 앞에 놔주세요.",
+  DELIVERY_REQUEST_2: "경비실에 맡겨 주세요.",
+  DELIVERY_REQUEST_3: "택배함에 넣어 주세요.",
+  DELIVERY_REQUEST_4: "배송 전에 연락 주세요.",
+};
+
+// 배송 요청(선택지)과 메모(직접입력)를 한 줄로. 직접입력(DELIVERY_REQUEST_5)은 메모가 본문이다.
+export function formatDeliveryRequest(
+  request: string | null | undefined,
+  memo: string | null | undefined,
+) {
+  const label =
+    request && request !== "DELIVERY_REQUEST_5"
+      ? (DELIVERY_REQUESTS[request] ?? request)
+      : null;
+  return [label, memo].filter(Boolean).join(" · ") || "-";
+}
+
 export function formatFileSize(value: number | null, unknownLabel = "-") {
   if (value === null) return unknownLabel;
   if (value < 1_024) return `${value.toLocaleString("ko-KR")}B`;
