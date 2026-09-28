@@ -19,7 +19,11 @@ import { CompactFilterToolbar } from "../../shared/ui/compact-filter-toolbar";
 import { DateRangeFilters } from "../../shared/ui/date-range-filters";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
-import { ClaimStatusBadge, StatusBadge } from "../../shared/ui/status-badge";
+import {
+  ClaimStatusBadge,
+  formatStatus,
+  StatusBadge,
+} from "../../shared/ui/status-badge";
 import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
@@ -227,7 +231,7 @@ export function OrdersPage() {
                     value={draftStatus}
                     options={ORDER_STATUSES.map((value) => ({
                       value,
-                      label: value === "all" ? "전체" : value,
+                      label: value === "all" ? "전체" : formatStatus(value),
                     }))}
                     onValueChange={(value) =>
                       setDraftStatus(value as OrderStatus)
@@ -290,7 +294,7 @@ export function OrdersPage() {
                 },
                 status !== "all" && {
                   key: "status",
-                  label: `상태: ${status}`,
+                  label: `상태: ${formatStatus(status)}`,
                   onRemove: () => replaceQuery({ status: undefined, page: 1 }),
                 },
                 parsed.from !== undefined && {

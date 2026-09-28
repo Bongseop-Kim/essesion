@@ -59,7 +59,11 @@ import { type DetailItem, DetailList } from "../../shared/ui/detail-list";
 import { OptionPair } from "../../shared/ui/option-pair";
 import { PrivateAssetPreview } from "../../shared/ui/private-asset-preview";
 import { RouteHeading } from "../../shared/ui/route-heading";
-import { ClaimStatusBadge, StatusBadge } from "../../shared/ui/status-badge";
+import {
+  ClaimStatusBadge,
+  formatStatus,
+  StatusBadge,
+} from "../../shared/ui/status-badge";
 import { TechnicalDetails } from "../../shared/ui/technical-details";
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -1021,7 +1025,9 @@ export function OrderDetailPage() {
                       className="border-l-2 border-stroke-neutral-weak pl-x4"
                     >
                       <Text textStyle="labelSm">
-                        {log.previous_status} → {log.new_status}
+                        {log.previous_status &&
+                          formatStatus(log.previous_status)}{" "}
+                        → {formatStatus(log.new_status)}
                         {log.is_rollback ? " (롤백)" : ""}
                       </Text>
                       <Text textStyle="bodySm" color="fg.neutral-muted">
@@ -1054,7 +1060,7 @@ export function OrderDetailPage() {
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title={`${selectedAction?.label ?? "위험 작업"}을 실행할까요?`}
-        description={`주문 ${data.order_number} · 상태 ${data.status} → ${selectedAction?.target_status ?? "변경 없음"} · 변경 사유: ${memo.trim() || "없음"}`}
+        description={`주문 ${data.order_number} · 상태 ${formatStatus(data.status)} → ${selectedAction?.target_status ? formatStatus(selectedAction.target_status) : "변경 없음"} · 변경 사유: ${memo.trim() || "없음"}`}
         primaryActionProps={{
           children: selectedAction?.label ?? "주문 작업 실행",
           variant: "criticalSolid",
