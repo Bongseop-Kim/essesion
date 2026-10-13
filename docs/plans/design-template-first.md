@@ -1,100 +1,79 @@
-# 디자인을 "템플릿 → 색 → 로고 → 확인 → 실사화"로 전면 개편
+# 디자인 "템플릿 → 색 → 로고 → 생성 → 결과" 흐름 마무리 — 템플릿 컬럼과 실 색 표
 
-store `/design`을 **템플릿 선택 → 템플릿별 색 선택 → 로고 업로드 → 결과 확인 → 실사화** 한 줄 흐름으로 다시 만든다. 2026-09-28 템플릿 우선 결정과 2026-10-08 흐름 확정을 근거로 한다. 결과는 결정론 엔진이 만든 하나뿐이다. 이미지 생성 모델은 실사화에만 쓴다.
+2026-10-13 기준으로 store 고객 흐름은 **템플릿 선택 → 색 선택 → 로고 올리기 → 생성(실사화) → 결과(주문 / 템플릿·색·로고 다시 고르기)** 다섯 페이지로 돌아가고, 옛 캔버스 삭제와 API 정리(세션 단건 SVG, 로고 한 번에 넣기, 결과 복원)는 끝났다(실행 기록: `docs/reviews/design-template-first-flow-2026-10-13.md`). 이 플랜은 남은 일 — 템플릿 데이터를 정식으로 갖추는 것 — 을 지시한다. 고객 흐름을 다시 쓰지 않는다.
+
+## 지금 상태 (이 문서만 들고 시작하는 사람을 위해)
 
 ```
-템플릿 선택 → 색 선택(템플릿별 프리셋) → 로고 올림(배경 정리 확인) → 결과 확인 → OK → 실사화 → 주문·공유
-                    ↑_____________________________________________________|  (색 다시 고르기)
+/design                         템플릿 목록(공개)           apps/store/src/pages/design/templates.tsx
+/design/templates/:id           템플릿 상세, "이 템플릿으로 시작"  pages/design/template.tsx   → POST /design/sessions/from-example (무료)
+/design/sessions/:id/color      색 프리셋 선택 → 다음        pages/design/color.tsx      → POST /design/sessions/{id}/color (무료)
+/design/sessions/:id/logo       로고 올리기 → 생성           pages/design/logo.tsx       → POST /design/sessions/{id}/logo (무료) → finalize (유료)
+/design/sessions/:id/result     실사 2장 + 주문/다시 고르기   pages/design/result.tsx     → /custom-order (route state designJobs)
 ```
+
+- 공용 조각: `features/design/ui/template-picker.tsx`(목록·필터·행), `template-shots.tsx`(샷 구성·색 칩·임시 포인트 스위치·임시 엠블럼), `model/use-steps.ts`(`useApplyColorway`·`usePlaceLogo`), `model/use-example-start.ts`, `model/use-design-output.ts`(`useFinalizeFlow`), `model/queries.ts`(세션 단건·완성본), `api/attachments.ts`(사진 업로드·SVG 읽기), `api/context-tools.ts`(`previewPhotoMotif`). 현재 디자인 SVG는 세션 단건 `preview_svg`다.
+- 색 프리셋은 새 컬럼 없이 엔진 colorway다. `apps/worker/scripts/seed_design_examples.py`의 `YARN`·`PRESETS`·`_rough_colorways`가 템플릿마다 5개를 intent.colorways에 넣는다(임시 실 색). 시드를 다시 돌리면 현재 엔진으로 템플릿을 다시 그린다.
+- 테스트: `apps/store/src/pages/design/*.test.tsx` 5파일, api `apps/api/tests/test_design.py`의 `test_colorway_*` 2건·`test_logo_*` 1건.
+- 로컬 실행: 루트 `AGENTS.md` 부트스트랩 순서대로. **worker(8001)가 꺼져 있으면 색 적용·로고 넣기가 `upstream_error`로 실패한다** — `lsof -i :8001`로 먼저 확인. 테스트 계정은 `apps/api/scripts/seed.py`의 `customer@local`, `/login` 제목을 5번 누르면 id/pw 폼이 열린다(`pages/auth/login.tsx` `STAFF_REVEAL_CLICKS`). 실사화는 유료라 `OPENAI_API_KEY`(`.env`, 읽지 말 것)와 토큰이 있어야 한다. 토큰은 psql로 넣는다: `insert into design_tokens(id,user_id,amount,type,token_class,description) select gen_random_uuid(), id, 1000, 'grant', 'free', '로컬 검증' from users where email='customer@local'`.
+- 브라우저 확인은 통합 브라우저(CDP)나 headless Chrome으로 한다. Aside는 2026-10-12부터 쓰지 않는다.
 
 ## 왜 필요한가
 
-- **지금 흐름은 고객에게 부품 조립을 시킨다.** 모티프를 따로 고르고, 백지 채팅으로 생성한 뒤 채팅으로 고친다. 무늬를 모티프·배치·색으로 쪼개는 건 엔진의 관점이지 고객의 관점이 아니다(`docs/screenshots/design/pc/` 01~05).
-- **고객 대부분은 자기 로고나 직접 그린 그림을 올린다(추정).** 그러면 카탈로그 피커와 RAG 검색은 쓰임새가 거의 없다. 이 둘은 백지 생성 때문에 필요했던 장치다.
-- **색은 템플릿별로 검증된 조합 중에서 고른다.** 화면 색과 원단 색이 다르므로 임의 색은 의미가 없다. 조합을 템플릿마다 미리 정해 두면, 어느 것을 골라도 결과가 망가지지 않는다.
-- **결과는 하나면 된다.** 시안을 여러 장 비교하게 하면 고민할 거리만 늘어난다. 고객은 결과를 보고 OK하거나 색을 다시 고른다.
-- **기반은 대부분 있다.**
-  - 템플릿 시작: `POST /design/sessions/from-example` (`docs/api-spec/domains.md:121`)
-  - 로고 처리: 배경 분리와 VTracer 벡터화 (`docs/api-spec/domains.md:129`)
-  - 슬롯 교체: 무료 결정론 경로 (`docs/api-spec/domains.md:127`)
-  - 색 적용: `apply_patch` (`apps/worker/src/worker/engine/patch.py:673`)
+- **템플릿 데이터가 임시다.** 포인트 위치는 `?point=top|bottom` 쿼리 스위치(`template-shots.tsx` `usePreviewPoint`), 분류 필터는 이름 키워드(`template-picker.tsx` `FILTERS`), 포인트 로고 미리보기는 하드코딩 방패(`template-shots.tsx` `DEMO_EMBLEM`), 색 프리셋은 시드의 임시 실 색 표다. 사용자 결정(2026-10-12): 실 색은 "일단 대충", 로고는 올린 파일 그대로(엔진 recolor 없음), 템플릿 사진은 사용자가 뒤에 실사로 교체.
+- **전면 재작성은 기각했다** (아래 "기각한 대안"). 결정론 엔진·colorway·로고 벡터화·실사화·토큰 장부가 서비스의 실체이고 `docs/reviews/design-*`·`finalize-*`(2026-07~09)가 그 검증 기록이다. AI 생성·채팅 API는 admin 템플릿 제작 도구로 그대로 쓴다(admin에 `pages/authoring/`·`pages/generation/`이 이미 있다). 옛 캔버스 삭제와 API 정리는 2026-10-13에 끝났다(리뷰 2차).
 
 ## 범위 밖
 
-- **이미지 생성 모델로 로고 합성.** 로고 형태가 바뀌고, 결과를 바로 직조할 수 없다.
-- **고객용 조정 UI.** 시안 여러 장, 슬라이더, 임의 색 피커, 로고 크기 조정, 자유 배치를 두지 않는다. 로고 크기는 템플릿이 정한다.
-- **AI 생성·채팅·RAG 백엔드 삭제.** 고객 진입점만 걷어내고, 백엔드는 항목 5에서 admin 템플릿 제작 도구로 돌린다. 기존 세션 복원은 유지한다.
-- **과금 개편과 실사화 과금.** 별도 플랜에서 다룬다. 실사화는 기존 단가를 그대로 쓴다.
+- **AI 생성·채팅·RAG 백엔드 삭제.** 고객 진입점만 지운다. `POST /design/generate`·`/design/ideas`·`motifs/search`·`motifs/generate`·`steps/activate`·`turns`는 admin 저작 도구와 운영 조사에 남긴다. 고객 화면에서 사라진 과금 경로(모티프 생성·편집)의 단가 정리는 `token-pricing-recalibration.md`에서 다룬다.
+- **포인트 로고(비반복 배치).** 엔진은 타일 반복만 그리므로 넥타이 끝·매듭 한 곳에 로고를 놓는 개념이 intent·실사화·정본 타일에 없다. 지금 로고는 무늬처럼 반복된다. 별도 플랜으로 뺀다 — 이 플랜의 템플릿 컬럼(항목 1)은 그 플랜이 쓸 자리만 비워 둔다.
+- **템플릿별 실사 사진 제작.** 사용자가 준비한다. 이 플랜은 사진이 들어갈 컬럼과 자리만 만든다.
+- **고객용 조정 UI**(시안 여러 장, 슬라이더, 임의 색, 로고 크기·자유 배치)는 이전 판과 같이 두지 않는다.
 
 ## 실행 조건
 
-- **템플릿별 색 프리셋 데이터가 있어야 한다.** 템플릿마다 실제 실 색으로 만든 조합 3~6개를 사람이 정의한다. 조합마다 바탕색, 무늬색, 화면 표시값, 실 색 이름이 들어간다. 지금 엔진에는 실 색 기준 데이터가 없다. 이 데이터가 없으면 항목 2를 시작하지 않는다.
-- **템플릿 수가 목표에 못 미치면 항목 4를 배포하지 않는다.** 목표 수는 사람이 정한다. 제안값은 로고 슬롯과 색 프리셋을 갖춘 템플릿 30개 이상이다.
-- **"고객 대부분이 로고를 올린다"는 전제를 병행 검증한다.** 사람이 운영 DB에서 주문제작 요청의 수량 분포와 참고 이미지 첨부 비율·내용(로고인지, 참고 사진인지)을 확인한다. 로고 비율이 낮게 나오면 항목 4를 배포하기 전에 이 플랜을 다시 논의한다.
-- api 스펙을 바꾸므로 `docs/api-spec/`을 먼저 갱신하고, `pnpm codegen` 생성물을 같은 변경에 넣는다.
-- UI 작업 전에는 `packages/shared/AGENTS.md`를, 계측 작업 전에는 `docs/analytics.md`를 읽는다.
+- 항목 1(템플릿 컬럼)은 바로 실행한다. Alembic 경유만(대원칙). 항목 2(실 색 표)는 **사람이 실 색 표를 주기 전에는 실행하지 않고 기다린다** — 시드의 임시 표를 그대로 둔다.
+- api 스펙을 바꾸는 항목(1)은 `docs/api-spec/domains.md`를 먼저 고치고 `pnpm codegen` 생성물을 같은 변경에 넣는다(CI codegen-drift).
+- UI 작업 전 `packages/shared/AGENTS.md`를 읽는다. 커밋·푸시는 사람이 한다.
 
 ## 절차
 
-1. **템플릿 정비**
-   - `design_examples`에 분류 필드(용도·스타일), 로고 슬롯, 색 프리셋 목록을 Alembic으로 추가한다.
-   - admin 등록 화면(`apps/admin/src/pages/design-examples/new.tsx`)에서 이 값들을 입력받는다.
-   - 로고 슬롯이나 색 프리셋이 없는 템플릿은 이 흐름에서 제외한다.
-2. **색 적용 API (worker + api)**
-   - `POST /design/sessions/{id}/color`를 만든다. body는 `preset_id` 하나다.
-   - 템플릿에 없는 프리셋이 오면 422로 거절한다.
-   - worker는 `apply_patch`로 프리셋의 바탕색·무늬색을 적용한다.
-   - 로고 색은 엔진이 자동으로 정한다. 바탕과 대비되는 실 색으로 맞춘다.
-   - 순서는 `motifs/activate`(`apps/api/src/api/domains/design/router.py:2528`)와 같게 한다: 락 → 소유 → 진행 중 확인 → dispatch.
-   - 무과금이다. 같은 입력에는 같은 SVG를 돌려준다.
-   - `docs/api-spec/domains.md`에 행을 추가한다.
-3. **로고 업로드와 정리 확인**
-   - 업로드 후 정리 결과를 한 화면으로 보여준다. 고객이 할 수 있는 조작은 배경 on/off 하나다.
-   - 템플릿의 로고 크기에서 세부가 뭉개질 것 같으면 경고한다. 기준은 가는 선과 작은 글자다.
-   - 정리가 안 될 때의 출구 두 가지를 같은 화면에 둔다:
-     - "원본 파일(SVG) 올리기"
-     - "주문 시 디자이너가 다듬어 드려요"
-   - 확인을 누르면 기존 슬롯 교체 경로로 템플릿에 넣는다.
-4. **store `/design` 재작성 (PC·모바일)**
-   - 첫 화면은 넥타이 형태 썸네일의 템플릿 그리드다. 지금의 `StarterGallery`(`apps/store/src/pages/design/index.tsx:354`)를 대체한다.
-   - 화면 순서는 템플릿 → 색 칩(프리셋, 실 색 이름 표시) → 로고 올리기·정리 확인 → 결과 확인이다.
-   - 결과 화면에는 넥타이 미리보기, 확대 보기, "색 다시 고르기", "OK"를 둔다.
-   - OK를 누르면 실사화를 실행한다. 그다음 주문, 공유 링크, 저장을 둔다.
-   - "화면 색과 원단 색은 다를 수 있어요" 고지는 결과 화면에 둔다.
-   - 다음 요소는 고객 화면에서 뺀다: `MotifPanel`(`index.tsx:397`), `PromptBar`(`index.tsx:452`), 이력 패널, 모티프 메뉴의 탐색·AI 생성 항목.
-5. **AI 생성 엔진을 admin 템플릿 제작 도구로 전환**
-   - 고객 흐름에 남는 AI는 실사화뿐이다. 템플릿 수가 병목이므로(실패 모드 첫째) 기존 생성·채팅 엔진은 운영자가 템플릿을 만드는 데 쓴다.
-   - admin에서 운영자가 문장으로 무늬를 생성하고, 괜찮은 결과를 바로 템플릿으로 등록한다. 지금의 run id 등록 경로(`apps/admin/src/pages/design-examples/new.tsx`)를 잇는다.
-   - 색 프리셋 후보는 AI가 제안하고, 사람이 확정한다.
-   - 모티프 임베딩, 태그 백필 같은 유료 스크립트는 운영자가 필요할 때만 돌린다.
+효과 ÷ 난이도 순. 각 항목은 독립적으로 실행·검증 가능하다.
+
+1. **템플릿 컬럼 (db · admin · store)**
+   - `design_examples`에 Alembic으로 더한다: `category`(용도·스타일 분류, text), `point`(`none|top|bottom`, 기본 `none`), `logo_slot`(1|2, null 허용), `photo_full_url`·`photo_detail_url`(사용자가 준비할 실사 사진 자리, null 허용). 설계 의도는 `db/README.md`에 한 줄.
+   - admin `pages/design-examples/new.tsx`와 목록 편집(`list.tsx`)에서 입력받는다. `GET /design/examples`·`GET/POST/PATCH /admin/design/examples` 응답·본문에 노출하고 `domains.md` 갱신, `pnpm codegen`.
+   - store: `template-picker.tsx`의 키워드 `FILTERS`를 `category` 값으로, `template-shots.tsx`의 `usePreviewPoint`(`?point=`)를 `example.point`로, `DEMO_EMBLEM`을 "로고 슬롯 모티프의 preview_svg"(세션 단건 `current_motifs[].preview_svg`와 같은 형식)로 바꾼다. api `place_design_logo`(`router.py`)의 슬롯 규칙(레이어 둘이면 2)을 `logo_slot` 우선으로 바꾼다. 사진 URL이 있으면 `TemplateShots`·`TemplateDetailShots`의 해당 자리에 `ImageFrame`으로 사진을 넣고, 없으면 지금의 결정론 샷(`TieCanvas` `focus`·`emblem`)을 그린다.
+   - 근거: 사용자 정의 사진 규칙(2026-10-12) — 공통 전체 샷 + 무늬 확대, 포인트 상단 = 매듭 확대 추가, 하단 = 끝 확대 추가, 올패턴 = 추가 없음. 임시 스위치 셋을 데이터로 바꾸는 항목이다.
+
+2. **실 색 표 교체 (worker 시드 · admin)** — 사람이 실 색 표를 준 뒤에만
+   - `seed_design_examples.py`의 `YARN`·`PRESETS`를 실 색 표(이름·hex)로 바꾸고, 프리셋 생성 규칙(`_rough_colorways`: 바탕 + 스트라이프 밴드 슬롯만 치환, 모티프 고유 색 유지)은 유지한다.
+   - admin에서 템플릿별 colorway를 보고 고칠 수 있게 한다(intent `colorways` 편집 → 같은 run 재등록). 새 컬럼은 두지 않는다 — 프리셋은 엔진 colorway(`docs/api-spec/worker-engine.md` colorways 1..32, `default` 필수, 모든 슬롯 매핑 필수)로 충분하다.
+   - 근거: 색은 템플릿별 검증된 조합에서만 고른다(이전 판 결정). 지금 표는 "대충"이다.
+
+3. **실행 기록**
+   - 항목 1·2가 끝나면 `docs/reviews/design-template-first-flow-2026-10-13.md`에 결과를 덧붙이고 이 문서를 삭제한다(플랜 하네스).
 
 ## 검증
 
-- api `color`:
-  - 소유자는 200, 타인은 거절, 진행 중이면 409인지 확인한다. testcontainers로 확인하고 인가 mock은 쓰지 않는다.
-  - 템플릿에 없는 프리셋은 422인지 확인한다.
-  - psql로 `token_works`에 행이 없는지(무과금) 본다.
-- worker:
-  - 같은 프리셋에서 SVG 바이트가 같은지 확인한다.
-  - 로고 색이 바탕과 같은 색으로 정해지지 않는지 확인한다.
-- `pnpm codegen` 드리프트가 없고, `pnpm architecture:check`가 통과하는지 확인한다.
-- 브라우저(Aside) 390×844와 1440 두 뷰포트에서 확인한다.
-  - 템플릿 → 색 → 로고 → 결과 → OK → 실사화 → 주문 진입까지 채팅 없이 끝나는지
-  - "색 다시 고르기"가 로고를 유지한 채 동작하는지
+- 항목 1: `uv run alembic -c db/alembic.ini upgrade head` / `downgrade -1` 왕복. admin에서 포인트·슬롯·사진 URL 입력 → store 목록에서 포인트 위치별 샷 구성이 바뀐다. `?point=`·`DEMO_EMBLEM`·키워드 `FILTERS` 참조 0건.
+- 전체: 템플릿 → 색 → 로고 → 생성 → 결과 → 주문 진입까지 채팅 없이 끝난다. 실사화는 유료라 토큰을 넣은 계정으로 1회만 돌린다(위 psql).
 
 ## 되돌리는 법 / 상향 신호
 
-- 되돌리기: store 첫 화면을 기존 화면으로 돌린다. 백엔드는 지우지 않았으므로 즉시 복구된다.
-- 신호: 배포 후 2주간 "디자인 진입 → 실사화" 전환율이 배포 전보다 낮으면, 먼저 템플릿 수와 색 프리셋 폭을 의심한다.
+- 항목 1은 컬럼 추가(null 허용·기본값)라 downgrade로 돌아온다. store의 임시 스위치 삭제 커밋은 따로 둔다.
+- 신호: 배포 후 2주간 "디자인 진입 → 실사화" 전환율이 옛 캔버스 시절보다 낮으면 먼저 템플릿 수와 색 프리셋 폭(항목 1·2)을 의심한다. 코드 구조를 의심하지 않는다.
 
 ## 실패 모드
 
-첫째, 템플릿이나 색 조합이 적어서 고를 게 없는 서비스가 되는 것이다. 템플릿과 프리셋의 품질·수가 곧 이 플랜의 품질이다. 둘째, 고객 요청을 받아 크기·색 미세 조정을 하나씩 열다가 어려운 편집기로 되돌아가는 것이다.
+템플릿·프리셋이 적어 고를 게 없는 서비스가 되는 것이 이 플랜의 실패 모드다. 그건 코드가 아니라 데이터(항목 1·2)의 문제다. 임시 스위치(`?point=`·`DEMO_EMBLEM`·키워드 필터)를 컬럼 없이 더 키우지 않는다.
 
 ## 기각한 대안
 
-- **시안 여러 장 + 비슷하게 더/전혀 다르게 (이전 판)**: 비교할 거리만 늘고, 변형 생성 API가 추가로 필요하다. 단일 결과에서 "색 다시 고르기"로 충분하다.
-- **실 색 칩 자유 조합**: 조합에 따라 결과가 망가질 수 있다. 템플릿별 프리셋이 품질을 보장한다. 프리셋으로 부족하다는 요청이 반복되면 다시 논의한다.
-- **이미지 생성 모델로 템플릿과 로고 합성**: 로고가 변형되고 바로 직조할 수 없다. 엔진으로 표현할 수 없는 일러스트풍 템플릿이 필요해지면 다시 논의한다.
-- **카탈로그 피커와 RAG 유지**: 고객 대부분이 자기 로고를 올린다는 전제에서는 쓰임새가 없다. 전제가 틀린 것으로 확인되면 다시 논의한다.
-- **로고를 AI로 다듬기**: 형태가 바뀔 위험이 있다. 로고 정리는 결정론으로만 하고, 안 되면 사람에게 넘긴다.
+- **처음부터 다시 만들기(2026-10-13 제안)**: 고객 흐름 다섯 페이지는 이미 백지에서 만든 것이라 다시 써도 같다. 백엔드는 결정론 엔진·colorway·로고 벡터화·실사화·토큰 장부가 실체이고 admin이 AI 생성을 그대로 쓴다 — 다시 쓰면 7~9월 검증을 다시 한다. 지우고 API 둘을 더하는 쪽이 같은 결과를 훨씬 싸게 냈다(2026-10-13 완료).
+- **옛 캔버스를 "고급 편집"으로 남기기**: 사용자가 2026-10-13에 기각. 두 흐름을 유지하는 비용이 그 가치보다 크다.
+- **로고를 세션이 아니라 템플릿 상세에서 먼저 받기(세션 없이 미리보기)**: 세션 없이는 무료 재렌더를 돌릴 곳이 없고, 색 선택이 먼저라는 흐름 결정(2026-10-13)과 어긋난다.
+- **색 프리셋 전용 컬럼·테이블**: 엔진 colorway가 이미 같은 구조(id·name·slot→hex)다. 데이터가 두 곳에 생긴다.
+- **실사화 뒤 서버가 finalize 턴을 기록하기**: 읽는 곳이 없다. 턴 이력 자체가 옛 캔버스의 장치다.
+- **세션 단건에 `current_svg` 필드 추가**: 목록의 `preview_svg`가 같은 뜻이라 단건에도 그 필드를 채웠다(2026-10-13).
+- **시안 여러 장 / 실 색 자유 조합 / AI 로고 합성·다듬기 / 카탈로그 피커·RAG 유지**: 이전 판에서 기각, 사유 그대로. 고객 대부분이 로고를 올린다는 전제가 틀린 것으로 확인되면 피커 재론.
