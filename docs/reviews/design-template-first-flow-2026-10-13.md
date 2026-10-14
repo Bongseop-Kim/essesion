@@ -73,3 +73,12 @@
 
 - 실 색 표: 시드 `YARN`·`PRESETS` 교체 한 번. 별도 플랜 없음.
 - 포인트 로고(비반복 배치)는 엔진에 없다 — `point`·엠블럼은 미리보기 구성일 뿐이다. 필요해지면 별도 플랜.
+
+## 2026-10-14 (4차) — 템플릿 상세 페이지 제거
+
+사용자 결정: 템플릿을 고르면 상세를 거치지 않고 바로 색 선택으로 간다. 위 1차의 흐름·결정 중 `/design/templates/:id` 상세 단계는 이걸로 대체된다.
+
+- 흐름: `/design`(목록) → `/design/sessions/:id/color` → logo → result.
+- `template-picker.tsx`의 행은 링크가 아니라 버튼, 누르면 `templates.tsx`가 세션을 만들고(무료) 색 선택으로 간다. 세션을 여는 동안 목록 전체를 막는다.
+- 비로그인으로 누르면 로그인 복귀 대상이 `/design` + `state.startTemplate` — 돌아오자마자 그 템플릿으로 이어서 시작한다(state를 먼저 지워 뒤로 가기로 세션이 또 생기지 않게).
+- `pages/design/template.tsx`·테스트·라우트 삭제. 옛 `/design/templates/:id` 주소는 404.

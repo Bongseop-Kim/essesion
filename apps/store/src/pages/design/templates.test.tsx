@@ -1,13 +1,29 @@
 // @vitest-environment jsdom
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useSession } from "@/shared/store/session";
 
+const api = vi.hoisted(() => ({ startFromExample: vi.fn() }));
 let examples: Record<string, unknown>[] = [];
+
+vi.mock("@essesion/api-client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@essesion/api-client")>()),
+  createDesignSessionFromExample: api.startFromExample,
+}));
+vi.mock("@/features/auth/ui/auth-guard-provider", () => ({
+  useAuthGuard: () => ({ requireAuth: () => true }),
+}));
 
 vi.mock("@essesion/api-client/query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@essesion/api-client/query")>()),
@@ -19,14 +35,17 @@ vi.mock("@essesion/api-client/query", async (importOriginal) => ({
 
 import { DesignTemplatesPage } from "./templates";
 
-function renderPage() {
+function renderPage(state?: unknown) {
   const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   render(
-    <MemoryRouter initialEntries={["/design"]}>
+    <MemoryRouter initialEntries={[{ pathname: "/design", state }]}>
       <QueryClientProvider client={queryClient}>
-        <DesignTemplatesPage />
+        <Routes>
+          <Route path="/design" element={<DesignTemplatesPage />} />
+          <Route path="/design/sessions/:id/color" element={<p>색 고르기</p>} />
+        </Routes>
       </QueryClientProvider>
     </MemoryRouter>,
   );
@@ -35,6 +54,7 @@ function renderPage() {
 describe("DesignTemplatesPage", () => {
   beforeEach(() => {
     examples = [];
+    vi.clearAllMocks();
     // 칩 필터의 ScrollFog가 쓴다 — jsdom에는 없다.
     vi.stubGlobal(
       "ResizeObserver",
@@ -71,7 +91,8 @@ describe("DesignTemplatesPage", () => {
     expect(screen.queryByRole("button", { name: "실사화" })).toBeNull();
   });
 
-  it("템플릿 행은 상세 페이지로 가는 링크다", async () => {
+  it("템플릿 행을 누르면 세션을 만들고 바로 색 선택으로 간다", async () => {
+    api.startFromExample.mockResolvedValue({ data: { id: "session-2" } });
     examples = [
       {
         id: "example-1",
@@ -88,10 +109,9 @@ describe("DesignTemplatesPage", () => {
     ];
     renderPage();
 
-    const row = await screen.findByRole("link", {
-      name: "미드나잇 웨이브 템플릿 자세히 보기",
+    const row = await screen.findByRole("button", {
+      name: "미드나잇 웨이브 템플릿으로 시작",
     });
-    expect(row.getAttribute("href")).toBe("/design/templates/example-1");
     expect(within(row).getByText("네이비 · 대각 스트라이프")).toBeTruthy();
     // 올패턴 — 전체 샷 + 무늬 확대만. 포인트 확대(매듭·끝)는 포인트가 있을 때만.
     expect(
@@ -100,6 +120,17 @@ describe("DesignTemplatesPage", () => {
     expect(
       within(row).queryByRole("img", { name: "미드나잇 웨이브, 매듭 확대" }),
     ).toBeNull();
+    // 보기만 하면 서버 호출이 없다.
+    expect(api.startFromExample).not.toHaveBeenCalled();
+
+    fireEvent.click(row);
+    await waitFor(() =>
+      expect(api.startFromExample).toHaveBeenCalledWith({
+        body: { example_id: "example-1" },
+        throwOnError: true,
+      }),
+    );
+    await screen.findByText("색 고르기");
   });
 
   it("분류 칩은 템플릿 데이터의 category이고, 포인트·사진은 그 값대로 그린다", async () => {
@@ -126,8 +157,8 @@ describe("DesignTemplatesPage", () => {
     ];
     renderPage();
 
-    const point = await screen.findByRole("link", {
-      name: "포인트 템플릿 자세히 보기",
+    const point = await screen.findByRole("button", {
+      name: "포인트 템플릿으로 시작",
     });
     // 하단 포인트 — 끝 확대가 더해지고, 전체 샷 자리는 실사 사진이다.
     expect(
@@ -140,9 +171,21 @@ describe("DesignTemplatesPage", () => {
     // 칩은 "전체" + 데이터에 나온 분류만, 고르면 그 분류만 남는다.
     expect(screen.queryByRole("button", { name: "도트" })).toBeNull();
     screen.getByRole("button", { name: "스트라이프" }).click();
-    await screen.findByRole("link", { name: "포인트 템플릿 자세히 보기" });
+    await screen.findByRole("button", { name: "포인트 템플릿으로 시작" });
     expect(
-      screen.queryByRole("link", { name: "올패턴 템플릿 자세히 보기" }),
+      screen.queryByRole("button", { name: "올패턴 템플릿으로 시작" }),
     ).toBeNull();
+  });
+
+  it("비로그인으로 눌렀다 로그인하고 돌아오면 그 템플릿으로 이어서 시작한다", async () => {
+    api.startFromExample.mockResolvedValue({ data: { id: "session-3" } });
+    renderPage({ startTemplate: "example-9" });
+
+    await screen.findByText("색 고르기");
+    expect(api.startFromExample).toHaveBeenCalledTimes(1);
+    expect(api.startFromExample).toHaveBeenCalledWith({
+      body: { example_id: "example-9" },
+      throwOnError: true,
+    });
   });
 });

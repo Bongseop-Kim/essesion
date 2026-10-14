@@ -10,7 +10,6 @@ import {
   VStack,
 } from "@essesion/shared";
 import { useState } from "react";
-import { Link } from "react-router";
 
 import {
   svgTileScale,
@@ -31,13 +30,13 @@ export type TemplatePickerProps = {
   loading: boolean;
   failed: boolean;
   onRetry: () => void;
+  /** 행을 누르면 — 세션을 열고 색 선택으로 간다 */
+  onSelect: (template: DesignExampleOut) => void;
+  /** 세션을 여는 중인 템플릿 id — 그동안 행 전체를 막는다 */
+  startingId?: string;
 };
 
 const SKELETON_COUNT = 2;
-
-export function templatePath(id: string) {
-  return `/design/templates/${id}`;
-}
 
 const ALL = "all";
 
@@ -53,12 +52,14 @@ function categoryFilters(templates: readonly DesignExampleOut[] | undefined) {
   ];
 }
 
-/** 디자인 첫 화면 — 매거진처럼 한 줄에 템플릿 하나. 행을 누르면 상세 페이지로 간다. */
+/** 디자인 첫 화면 — 매거진처럼 한 줄에 템플릿 하나. 행을 누르면 바로 색 선택으로 간다. */
 export function TemplatePicker({
   templates,
   loading,
   failed,
   onRetry,
+  onSelect,
+  startingId,
 }: TemplatePickerProps) {
   const [filter, setFilter] = useState(ALL);
   const visible =
@@ -115,6 +116,9 @@ export function TemplatePicker({
                 key={template.id}
                 template={template}
                 flip={index % 2 === 1}
+                starting={startingId === template.id}
+                disabled={startingId != null}
+                onSelect={() => onSelect(template)}
               />
             ))}
           </VStack>
@@ -126,14 +130,20 @@ export function TemplatePicker({
 
 /**
  * 매거진 행 — PC는 3샷 묶음과 글이 좌우로 나뉘고 줄마다 자리를 바꾼다. 모바일은 사진 위, 글 아래.
- * 행 전체가 하나의 링크라 사진·제목·설명 어디를 눌러도 상세로 간다. 시작은 상세에서 한다.
+ * 행 전체가 하나의 버튼이라 사진·제목·설명 어디를 눌러도 이 템플릿으로 시작한다.
  */
 function TemplateRow({
   template,
   flip,
+  starting,
+  disabled,
+  onSelect,
 }: {
   template: DesignExampleOut;
   flip: boolean;
+  starting: boolean;
+  disabled: boolean;
+  onSelect: () => void;
 }) {
   const bp = useBreakpoint();
   const desktop = bp === "lg" || bp === "xl";
@@ -177,13 +187,16 @@ function TemplateRow({
 
   return (
     <Grid
-      as={Link}
-      to={templatePath(template.id)}
+      as="button"
+      type="button"
+      onClick={onSelect}
+      disabled={disabled}
+      aria-busy={starting || undefined}
       columns={{ base: 1, lg: 2 }}
       gap={{ base: "x4", lg: "x6" }}
       width="full"
-      aria-label={`${template.name} 템플릿 자세히 보기`}
-      className="text-start focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-stroke-focus-ring"
+      aria-label={`${template.name} 템플릿으로 시작`}
+      className="cursor-pointer text-start disabled:cursor-default disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-stroke-focus-ring"
     >
       {desktop && flip ? (
         <>

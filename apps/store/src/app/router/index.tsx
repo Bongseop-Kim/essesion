@@ -64,13 +64,6 @@ export const storeRouteObjects = [
         }),
       },
       {
-        path: "design/templates/:id",
-        lazy: async () => ({
-          Component: (await import("@/pages/design/template"))
-            .DesignTemplatePage,
-        }),
-      },
-      {
         path: "sample-order",
         lazy: async () => ({
           Component: (await import("@/pages/sample-order")).SampleOrderPage,
