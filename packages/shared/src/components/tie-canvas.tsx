@@ -6,7 +6,7 @@ import { Flex } from "./flex";
 
 export type DesignPreviewMode = "repeat" | "tie";
 
-// 소비하는 앱의 public/images에 tie.svg·tie-shadow.png가 있어야 한다(store·admin 모두 보유).
+// 소비하는 앱의 public/images에 tie-mask.png·tie-knot-mask.png·tie-shadow.png가 있어야 한다(store·admin 모두 보유).
 
 export type TieCanvasProps = {
   /** Sanitized SVG encoded as a data URI. */
@@ -35,15 +35,15 @@ export type TieCanvasProps = {
 
 // 포인트 로고 자리 — 아트 박스 기준 중심 y와 폭(아트 박스 폭 대비). 블레이드 폭(약 40%) 안에 든다.
 const TIE_EMBLEM = {
-  knot: { y: 0.145, width: 0.13 },
-  tip: { y: 0.8, width: 0.2 },
+  knot: { y: 0.06, width: 0.13 },
+  tip: { y: 0.865, width: 0.2 },
 } as const;
 
 // 확대 샷 기하 — 아트 박스 폭을 프레임의 2.2배로 키우면 블레이드(마스크 폭의 약 40%)가
 // 프레임을 거의 채운다. y는 아트 박스 높이 기준 초점(매듭 중심·블레이드 중간·아래 끝).
 const TIE_FOCUS = {
   zoom: 2.2,
-  y: { knot: 0.16, blade: 0.66, tip: 0.84 },
+  y: { knot: 0.09, blade: 0.5, tip: 0.93 },
 } as const;
 const TIE_FOCUS_LABEL = {
   knot: "매듭 확대",
@@ -51,13 +51,12 @@ const TIE_FOCUS_LABEL = {
   tip: "아래 끝 확대",
 } as const;
 
-// 넥타이 실루엣(마스크)과 그림자 PNG(원본 397×864)의 기하. 그림자를 프레임 폭에
-// 맞춰 축소해 top -58px, left 0에 얹으면 마스크 실루엣과 정렬된다
-// (아트워크 중심 198/397 ≈ 프레임 중심 158/316).
-const TIE_FRAME = { width: 316, height: 600 };
-const TIE_SHADOW = { width: 397, height: 864, top: -58 };
-// 레이아웃 단위는 마스크가 아니라 그림자까지 포함한 아트워크 박스 — 마스크 기준으로
-// 잡으면 칼라가 위로 삐져나가 잘리고 무게중심도 위로 치우친다.
+// 실루엣·매듭 마스크와 명암 PNG는 모두 794×2097 한 장짜리 아트 박스다 — 셔츠 깃·매듭
+// 주름까지 실사 베이스 사진(worker assets/photo/tie-base.png)에서 추출해 그대로 겹친다.
+// 매듭:몸통 = 1:11.
+const TIE_FRAME = { width: 316, height: (316 * 2097) / 794 };
+const TIE_SHADOW = { width: 794, height: 2097, top: 0 };
+// 레이아웃 단위는 셔츠 깃까지 포함한 아트워크 박스 — 지금은 마스크도 같은 박스라 top 0·높이 100%.
 const TIE_ART_HEIGHT = (TIE_FRAME.width * TIE_SHADOW.height) / TIE_SHADOW.width;
 const TIE_MASK_TOP = -TIE_SHADOW.top / TIE_ART_HEIGHT;
 const TIE_MASK_HEIGHT = TIE_FRAME.height / TIE_ART_HEIGHT;
@@ -76,16 +75,23 @@ export const TIE_GEOMETRY = {
   tileFraction: { tie: 0.16, repeat: 0.28 },
 } as const;
 
-const tieMaskStyle: CSSProperties = {
-  maskImage: "url(/images/tie.svg)",
-  maskSize: "contain",
-  maskPosition: "center",
-  maskRepeat: "no-repeat",
-  WebkitMaskImage: "url(/images/tie.svg)",
-  WebkitMaskSize: "contain",
-  WebkitMaskPosition: "center",
-  WebkitMaskRepeat: "no-repeat",
-};
+function maskStyle(src: string): CSSProperties {
+  return {
+    maskImage: `url(${src})`,
+    maskSize: "contain",
+    maskPosition: "center",
+    maskRepeat: "no-repeat",
+    WebkitMaskImage: `url(${src})`,
+    WebkitMaskSize: "contain",
+    WebkitMaskPosition: "center",
+    WebkitMaskRepeat: "no-repeat",
+  };
+}
+
+const tieMaskStyle = maskStyle("/images/tie-mask.png");
+// 매듭은 천이 감겨 무늬 방향이 몸통과 반대다 — 매듭 마스크 안에 좌우 반전 무늬를 얹는다.
+// 사진에서 딴 매듭은 좌우 비대칭이라 마스크는 두고 안쪽 무늬만 뒤집는다.
+const tieKnotStyle = maskStyle("/images/tie-knot-mask.png");
 
 const tieShadowStyle: CSSProperties = {
   inset: 0,
@@ -182,6 +188,24 @@ export function TieCanvas({
           aria-label={`${alt}, ${focus ? TIE_FOCUS_LABEL[focus] : "넥타이 적용 모습"}`}
           className="transition-all duration-100 ease-standard"
           style={backgroundStyle}
+        />
+      </Box>
+      <Box
+        position="absolute"
+        left={0}
+        right={0}
+        aria-hidden
+        style={{
+          top: `${TIE_MASK_TOP * 100}%`,
+          height: `${TIE_MASK_HEIGHT * 100}%`,
+          ...tieKnotStyle,
+        }}
+      >
+        <Box
+          position="absolute"
+          inset={0}
+          className="transition-all duration-100 ease-standard"
+          style={{ ...backgroundStyle, transform: "scaleX(-1)" }}
         />
       </Box>
       {emblem ? (

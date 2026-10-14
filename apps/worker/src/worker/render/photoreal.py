@@ -24,13 +24,12 @@ from functools import lru_cache
 from importlib.resources import files
 from typing import Any
 
-from PIL import Image
+from PIL import Image, ImageOps
 
 from worker.adapters import AdapterClientError
 from worker.config import Settings
 from worker.engine.validate import validate_intent
 from worker.motifs.registry import MotifCatalog
-from worker.render import raster
 from worker.render.fabric import FabricError, render_fabric
 from worker.render.weave import weave_image
 
@@ -41,10 +40,10 @@ FABRIC_EDIT_SIZE = "1024x1024"
 # TieCanvas 기하 (packages/shared/src/components/tie-canvas.tsx와 동일 — 캔버스
 # 미리보기와 참고 렌더의 패턴 스케일 감각을 일치시킨다).
 _TIE_FRAME_W = 316
-_TIE_SHADOW_W, _TIE_SHADOW_H = 397, 864
-_TIE_ART_H = _TIE_FRAME_W * _TIE_SHADOW_H / _TIE_SHADOW_W  # ≈ 687.72
-_MASK_TOP_FRAC = 0.084347
-_MASK_HEIGHT_FRAC = 0.87244
+_TIE_SHADOW_W, _TIE_SHADOW_H = 794, 2097
+_TIE_ART_H = _TIE_FRAME_W * _TIE_SHADOW_H / _TIE_SHADOW_W  # ≈ 834.6
+_MASK_TOP_FRAC = 0.0  # 마스크·명암 PNG가 같은 아트 박스
+_MASK_HEIGHT_FRAC = 1.0
 _TILE_FRACTION_TIE = 0.16
 _TILE_SCALE_BASE_MM = 48.0
 
@@ -114,19 +113,12 @@ def _encode_png(image: Image.Image) -> bytes:
     return buf.getvalue()
 
 
-@lru_cache(maxsize=1)
-def _tie_silhouette(height: int) -> Image.Image:
-    """tie.svg 실루엣을 목표 높이로 래스터 — 알파 채널이 곧 마스크."""
-    svg = (files("worker.render.assets.photo") / "tie.svg").read_text()
-    # rasterize_svg는 mm 단위 폭을 받는다 — 300dpi 기준으로 목표 픽셀 폭을 mm로 환산.
-    aspect = 270.3 / 1283  # tie.svg viewBox
-    width_px = max(1, round(height * aspect))
-    width_mm = width_px * 25.4 / 300
-    png, _ = raster.rasterize_svg(svg, fmt="png", width_mm=width_mm, dpi=300, stamp_dpi=False)
-    sil = Image.open(io.BytesIO(png)).convert("RGBA")
-    if sil.size != (width_px, height):
-        sil = sil.resize((width_px, height), Image.Resampling.LANCZOS)
-    return sil
+@lru_cache(maxsize=2)
+def _tie_silhouette(height: int, name: str = "tie-mask.png") -> Image.Image:
+    """넥타이(또는 매듭만 tie-knot-mask.png) 실루엣을 목표 높이로 — 알파 채널이 곧 마스크."""
+    sil = Image.open(io.BytesIO(_photo_bytes(name))).convert("RGBA")
+    width = max(1, round(height * _TIE_SHADOW_W / _TIE_SHADOW_H))
+    return sil.resize((width, height), Image.Resampling.LANCZOS)
 
 
 @lru_cache(maxsize=1)
@@ -169,6 +161,9 @@ def tie_mockup_png(tile: Image.Image, *, tile_mm: float) -> bytes:
     tile_px = round(art_w * _TILE_FRACTION_TIE * (tile_mm / _TILE_SCALE_BASE_MM))
     pattern = _repeat_pattern(tile, (sil_w, sil_h), tile_px)
     canvas.paste(pattern, (sil_x, mask_y), silhouette.getchannel("A"))
+    # 매듭은 무늬 방향이 반대 — TieCanvas와 같이 좌우 반전 무늬를 매듭 마스크로 덮는다.
+    knot = _tie_silhouette(mask_h, "tie-knot-mask.png")
+    canvas.paste(ImageOps.mirror(pattern), (sil_x, mask_y), knot.getchannel("A"))
 
     shadow = _tie_shadow((art_w, art_h))
     art_region = canvas.crop((art_x, art_y, art_x + art_w, art_y + art_h)).convert("RGBA")
