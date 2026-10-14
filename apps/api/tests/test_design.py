@@ -24,6 +24,7 @@ from api.domains.tokens import ledger
 from api.errors import UpstreamError, WorkerRequestError
 from api.integrations.gcs import GcsObjectMetadata, public_asset_url
 from db.models.design import (
+    DesignExample,
     DesignSession,
     DesignSessionTurn,
     DesignTurnAttachment,
@@ -300,7 +301,7 @@ async def test_session_lifecycle_and_turns(client, db_session, settings):
     assert [t["seq"] for t in turns] == [1, 2]
 
 
-async def test_session_list_returns_last_prompt(client, db_session, settings):
+async def test_session_reports_last_prompt_and_pointer_svg(client, db_session, settings):
     user = await make_user(db_session)
     headers = auth_headers(user, settings)
 
@@ -361,6 +362,12 @@ async def test_session_list_returns_last_prompt(client, db_session, settings):
     assert by_id[sid]["preview_svg"] == "<svg id='pointer'/>"
     assert by_id[without_prompt["id"]]["last_prompt"] is None
     assert by_id[without_prompt["id"]]["preview_svg"] is None
+
+    # 단건도 같은 출처(편집 포인터의 런) — 새 흐름의 색·로고 화면이 이 값을 그린다.
+    single = (await client.get(f"/design/sessions/{sid}", headers=headers)).json()
+    assert single["preview_svg"] == "<svg id='pointer'/>"
+    empty = (await client.get(f"/design/sessions/{without_prompt['id']}", headers=headers)).json()
+    assert empty["preview_svg"] is None
 
 
 async def test_session_reports_current_motifs_including_catalog(client, db_session, settings):
@@ -2943,6 +2950,178 @@ async def test_motif_activate_rejects_unknown_motif_and_empty_session(
     )
     assert unknown.status_code == 404
     assert unknown.json()["code"] == "invalid_motif"
+    assert app.state.worker.generate_payloads == []
+
+
+async def test_colorway_rerenders_for_free_and_appends_a_step(client, app, db_session, settings):
+    """색 프리셋은 intent의 colorway만 바꾼 결정론 재렌더 — 토큰을 쓰지 않고 새 스텝만 남는다."""
+    worker = FakeWorker(sessionmaker=app.state.sessionmaker)
+    app.state.worker = worker
+    user = await make_user(db_session)
+    await _fund(db_session, user, amount=30)
+    headers = auth_headers(user, settings)
+    design_session = DesignSession(user_id=user.id)
+    design_session.current_intent = {
+        "canvas": {"tile_mm": 24},
+        "palette": {"slots": [{"id": "ground", "hex": "#000000"}]},
+        "colorways": [
+            {"id": "default", "mapping": {"ground": "#000000"}},
+            {"id": "preset_1", "name": "네이비 · 골드", "mapping": {"ground": "#1B2A49"}},
+        ],
+        "layers": [],
+    }
+    design_session.seed = 7
+    design_session.colorway = "default"
+    db_session.add(design_session)
+    await db_session.commit()
+    sid = str(design_session.id)
+    before = await ledger.get_balance(db_session, user.id)
+
+    res = await client.post(
+        f"/design/sessions/{sid}/color", json={"colorway_id": "preset_1"}, headers=headers
+    )
+
+    assert res.status_code == 200, res.text
+    payload = worker.generate_payloads[-1]
+    assert payload["intent"] == design_session.current_intent
+    assert (payload["seed"], payload["colorway"]) == (7, "preset_1")
+    assert "prompt" not in payload and "motif_slot" not in payload
+    assert await ledger.get_balance(db_session, user.id) == before
+
+    turns = (await client.get(f"/design/sessions/{sid}/turns", headers=headers)).json()
+    assert [turn["payload"]["type"] for turn in turns] == ["colorway", "generate", "activate"]
+    assert turns[0]["payload"] == {
+        "type": "colorway",
+        "run_id": res.json()["run_id"],
+        "colorway_id": "preset_1",
+    }
+    assert turns[1]["payload"]["summary"] == "네이비 · 골드 색으로 바꿨습니다"
+
+
+async def test_logo_saves_motif_once_and_activates_server_chosen_slot(
+    client, app, db_session, settings
+):
+    """로고 한 번에 넣기 — 내 모티프 저장(멱등) + 슬롯 교체 재렌더. 무과금, 슬롯은 서버가 정한다."""
+    worker = FakeWorker(sessionmaker=app.state.sessionmaker)
+    app.state.worker = worker
+    user = await make_user(db_session)
+    other = await make_user(db_session)
+    await _fund(db_session, user, amount=30)
+    headers = auth_headers(user, settings)
+    design_session = DesignSession(user_id=user.id)
+    design_session.current_intent = {
+        "canvas": {"tile_mm": 24},
+        "palette": {"slots": []},
+        "colorways": [],
+        "layers": [
+            {"id": "m0", "type": "motif", "z_order": 0, "params": {"motif_id": "seed-dots"}},
+            {"id": "m1", "type": "motif", "z_order": 1, "params": {"motif_id": "seed-bee"}},
+        ],
+    }
+    design_session.seed = 7
+    db_session.add(design_session)
+    await db_session.commit()
+    sid = str(design_session.id)
+    body = {"name": "acme", "svg": "<svg id='logo'/>"}
+    before = await ledger.get_balance(db_session, user.id)
+
+    denied = await client.post(
+        f"/design/sessions/{sid}/logo", json=body, headers=auth_headers(other, settings)
+    )
+    assert denied.status_code == 403
+    assert worker.motif_import_payloads == []
+
+    first = await client.post(f"/design/sessions/{sid}/logo", json=body, headers=headers)
+    second = await client.post(f"/design/sessions/{sid}/logo", json=body, headers=headers)
+    assert first.status_code == second.status_code == 200, first.text
+    # 두 모티프 템플릿 — 큰 무늬인 2번 슬롯에 넣는다(서버 규칙).
+    for payload in worker.generate_payloads[-2:]:
+        assert payload["motif_slot"] == {"slot": 2, "motif_id": "upload-a1b2c3d4e5f6"}
+        assert payload["seed"] == 7
+    links = list(await db_session.scalars(select(UserMotif).where(UserMotif.user_id == user.id)))
+    assert len(links) == 1 and links[0].name == "acme"
+    assert await ledger.get_balance(db_session, user.id) == before
+    assert await _work_rows(db_session) == []
+
+    # 진행 중이면 저장도 하지 않고 409.
+    persisted = await db_session.get(DesignSession, design_session.id)
+    assert persisted is not None
+    await db_session.refresh(persisted)
+    persisted.active_generation_id = uuid.uuid4()
+    persisted.active_generation_started_at = datetime.now(UTC)
+    await db_session.commit()
+    imports_before = len(worker.motif_import_payloads)
+    busy = await client.post(f"/design/sessions/{sid}/logo", json=body, headers=headers)
+    assert busy.status_code == 409
+    assert busy.json()["code"] == "generation_in_progress"
+    assert len(worker.motif_import_payloads) == imports_before
+
+    # 모티프 레이어가 하나면 1번 슬롯.
+    single = DesignSession(user_id=user.id)
+    single.current_intent = {
+        "canvas": {"tile_mm": 24},
+        "palette": {"slots": []},
+        "colorways": [],
+        "layers": [
+            {"id": "m0", "type": "motif", "z_order": 0, "params": {"motif_id": "seed-dots"}}
+        ],
+    }
+    db_session.add(single)
+    await db_session.commit()
+    res = await client.post(f"/design/sessions/{single.id}/logo", json=body, headers=headers)
+    assert res.status_code == 200, res.text
+    assert worker.generate_payloads[-1]["motif_slot"]["slot"] == 1
+
+    # 템플릿에서 시작한 세션은 템플릿의 logo_slot이 레이어 수 규칙보다 우선한다.
+    log = SeamlessGenerationLog(
+        input_type="intent",
+        registry_version="0.1.0",
+        engine_version="0.1.0",
+        intent={},
+        design={"svg": "<svg/>"},
+        status="success",
+    )
+    db_session.add(log)
+    await db_session.flush()
+    example = DesignExample(run_id=log.id, name="템플릿", logo_slot=1, published=True)
+    db_session.add(example)
+    await db_session.flush()
+    templated = DesignSession(user_id=user.id, example_id=example.id)
+    templated.current_intent = design_session.current_intent
+    db_session.add(templated)
+    await db_session.commit()
+    res = await client.post(f"/design/sessions/{templated.id}/logo", json=body, headers=headers)
+    assert res.status_code == 200, res.text
+    assert worker.generate_payloads[-1]["motif_slot"]["slot"] == 1
+
+
+async def test_colorway_rejects_unknown_preset_and_empty_session(client, app, db_session, settings):
+    app.state.worker = FakeWorker()
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    empty = (await client.post("/design/sessions", headers=headers)).json()["id"]
+
+    not_started = await client.post(
+        f"/design/sessions/{empty}/color", json={"colorway_id": "preset_1"}, headers=headers
+    )
+    assert not_started.status_code == 409
+    assert not_started.json()["code"] == "design_not_started"
+
+    design_session = DesignSession(user_id=user.id)
+    design_session.current_intent = {
+        "canvas": {"tile_mm": 24},
+        "layers": [],
+        "colorways": [{"id": "default", "mapping": {}}],
+    }
+    db_session.add(design_session)
+    await db_session.commit()
+    unknown = await client.post(
+        f"/design/sessions/{design_session.id}/color",
+        json={"colorway_id": "preset_9"},
+        headers=headers,
+    )
+    assert unknown.status_code == 422
+    assert unknown.json()["code"] == "invalid_colorway"
     assert app.state.worker.generate_payloads == []
 
 

@@ -18,6 +18,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Literal
 
 from db.models.design import (
+    DesignExample,
     DesignSession,
     DesignSessionTurn,
     DesignTurnAttachment,
@@ -37,8 +38,8 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+from sqlalchemy import Select, delete, func, or_, select
 from sqlalchemy import cast as sql_cast
-from sqlalchemy import delete, func, or_, select
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from svg_safety import SanitizeError, sanitize_svg
@@ -118,11 +119,13 @@ class DesignSessionOut(ORMModel):
     context_version: int
     active_generation_id: uuid.UUID | None
     active_generation_started_at: datetime | None
+    # 시작한 템플릿(예시) — store가 포인트 위치·로고 슬롯을 템플릿 목록에서 찾는 키.
+    example_id: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime
     # 목록 전용 — 마지막 generate_request 턴의 프롬프트 (세션 구분용 요약)
     last_prompt: str | None = None
-    # 목록 전용 — 편집 포인터(마지막 activate 턴)의 디자인 SVG. 목록 썸네일이 쓴다.
+    # 편집 포인터(마지막 activate 턴)의 디자인 SVG — 목록 썸네일과 단건의 현재 디자인.
     preview_svg: str | None = None
     # 단건 GET·스텝 이동 전용 — current_intent의 모티프 슬롯(최대 2). 목록은 빈 배열.
     current_motifs: list[CurrentMotifOut] = Field(default_factory=list)
@@ -440,6 +443,14 @@ class DesignStepActivateTurnPayload(StrictModel):
     colorway_id: str = Field(min_length=1, max_length=100)
 
 
+class DesignColorwayTurnPayload(StrictModel):
+    """색 프리셋 선택 요청 턴 — 문장이 없으므로 구성 수정의 대화 문맥에는 들어가지 않는다."""
+
+    type: Literal["colorway"] = "colorway"
+    run_id: uuid.UUID
+    colorway_id: str = Field(min_length=1, max_length=100)
+
+
 class DesignMotifActivateTurnPayload(StrictModel):
     """모티프 슬롯 교체 요청 턴 — 문장이 없으므로 구성 수정의 대화 문맥에는 들어가지 않는다."""
 
@@ -564,13 +575,34 @@ def _user_motif_out(link: UserMotif, motif: Motif) -> UserMotifOut:
     )
 
 
+def _pointer_svg_query(session_id: Any) -> Select[tuple[str | None]]:
+    """편집 포인터(마지막 activate 턴)의 런이 남긴 디자인 SVG — 목록·단건이 같은 출처를 쓴다."""
+    return (
+        select(SeamlessGenerationLog.design["svg"].astext)
+        .select_from(DesignSessionTurn)
+        .join(
+            SeamlessGenerationLog,
+            SeamlessGenerationLog.id
+            == sql_cast(DesignSessionTurn.payload["run_id"].astext, PgUUID),
+        )
+        .where(
+            DesignSessionTurn.session_id == session_id,
+            DesignSessionTurn.payload["type"].astext == "activate",
+        )
+        .order_by(DesignSessionTurn.seq.desc())
+        .limit(1)
+    )
+
+
 async def _design_session_out(
     session: SessionDep,
     design_session: DesignSession,
 ) -> DesignSessionOut:
-    """세션 응답 + 현재 디자인의 모티프 슬롯(카탈로그 포함, 최대 2)."""
+    """세션 응답 + 현재 디자인 SVG + 모티프 슬롯(카탈로그 포함, 최대 2)."""
 
-    out = DesignSessionOut.model_validate(design_session)
+    out = DesignSessionOut.model_validate(design_session).model_copy(
+        update={"preview_svg": await session.scalar(_pointer_svg_query(design_session.id))}
+    )
     motif_ids = _intent_motif_ids(design_session.current_intent)[:MAX_DESIGN_MOTIFS]
     if not motif_ids:
         return out
@@ -798,25 +830,9 @@ async def list_design_sessions(session: SessionDep, user: CurrentUser) -> list[D
         .limit(1)
         .scalar_subquery()
     )
-    # 편집 포인터(마지막 activate 턴)의 런 — 목록 썸네일이 쓸 SVG를 여기서 끌어온다.
     # ponytail: 세션마다 SVG 원문을 그대로 싣는다. 세션이 수십 개로 늘면 목록 페이징이나
     # 별도 썸네일 컬럼으로 바꿀 것.
-    preview_svg = (
-        select(SeamlessGenerationLog.design["svg"].astext)
-        .select_from(DesignSessionTurn)
-        .join(
-            SeamlessGenerationLog,
-            SeamlessGenerationLog.id
-            == sql_cast(DesignSessionTurn.payload["run_id"].astext, PgUUID),
-        )
-        .where(
-            DesignSessionTurn.session_id == DesignSession.id,
-            DesignSessionTurn.payload["type"].astext == "activate",
-        )
-        .order_by(DesignSessionTurn.seq.desc())
-        .limit(1)
-        .scalar_subquery()
-    )
+    preview_svg = _pointer_svg_query(DesignSession.id).scalar_subquery()
     rows = await session.execute(
         select(DesignSession, last_prompt, preview_svg)
         .where(DesignSession.user_id == user.id)
@@ -2296,6 +2312,10 @@ class MotifActivateRequest(StrictModel):
     motif_id: str = Field(min_length=1, max_length=100)
 
 
+class ColorwayRequest(StrictModel):
+    colorway_id: str = Field(min_length=1, max_length=100)
+
+
 class WorkerMotifCandidateOut(BaseModel):
     motif_id: str
 
@@ -2599,6 +2619,117 @@ async def activate_motif(
     )
 
 
+@router.post("/design/sessions/{session_id}/color", response_model=DesignGenerateOut)
+async def apply_colorway(
+    session_id: uuid.UUID,
+    body: ColorwayRequest,
+    request: Request,
+    session: SessionDep,
+    user: CurrentUser,
+) -> DesignGenerateOut:
+    """색 프리셋 적용 — intent의 colorway만 바꾼 결정론 재렌더라 모델 호출도 과금도 없다.
+
+    프리셋은 템플릿 intent의 `colorways`에 미리 들어 있다(시드·admin). 없는 id는 422.
+    """
+    await advisory_xact_lock(session, USER_LOCK.format(user_id=user.id))
+    design_session = await session.scalar(
+        select(DesignSession).where(DesignSession.id == session_id).with_for_update()
+    )
+    ensure_owner(design_session, user)
+    assert design_session is not None
+    intent = design_session.current_intent
+    if intent is None:
+        raise ConflictError("먼저 디자인을 만들어 주세요", code="design_not_started")
+    colorway = next(
+        (
+            cw
+            for cw in intent.get("colorways", [])
+            if isinstance(cw, dict) and cw.get("id") == body.colorway_id
+        ),
+        None,
+    )
+    if colorway is None:
+        raise DomainError("이 템플릿에 없는 색입니다", code="invalid_colorway", status=422)
+    now = datetime.now(UTC)
+    await _recover_stale_active_generation(session, design_session, user.id, now)
+    if design_session.active_generation_id is not None:
+        await session.rollback()
+        raise ConflictError("디자인 생성이 진행 중입니다", code="generation_in_progress")
+
+    run_id = uuid.uuid4()
+    payload: dict[str, Any] = {
+        "run_id": str(run_id),
+        "intent": intent,
+        "colorway": body.colorway_id,
+    }
+    if design_session.seed is not None:
+        payload["seed"] = design_session.seed
+    design_session.active_generation_id = run_id
+    design_session.active_generation_started_at = now
+    design_session.context_version += 1
+    await _append_turn(
+        session,
+        design_session.id,
+        "user",
+        DesignColorwayTurnPayload(run_id=run_id, colorway_id=body.colorway_id),
+    )
+    await session.commit()
+    name = colorway.get("name")
+    return await _shielded(
+        _dispatch_motif_activation(
+            payload=payload,
+            request=request,
+            session=session,
+            user_id=user.id,
+            design_session_id=design_session.id,
+            run_id=run_id,
+            summary=f"{name} 색으로 바꿨습니다" if name else "색을 바꿨습니다",
+        )
+    )
+
+
+@router.post("/design/sessions/{session_id}/logo", response_model=DesignGenerateOut)
+async def place_design_logo(
+    session_id: uuid.UUID,
+    body: UserMotifImportRequest,
+    request: Request,
+    session: SessionDep,
+    user: CurrentUser,
+) -> DesignGenerateOut:
+    """로고 한 번에 넣기 — 내 모티프 저장(멱등) + 로고 슬롯 교체 재렌더. 무과금.
+
+    슬롯은 서버가 정한다: 템플릿의 `logo_slot`이 있으면 그것, 없으면 모티프 레이어가 둘일 때
+    2(큰 무늬), 아니면 1.
+    """
+    design_session = await session.get(DesignSession, session_id)
+    ensure_owner(design_session, user)
+    assert design_session is not None
+    if design_session.current_intent is None:
+        raise ConflictError("먼저 디자인을 만들어 주세요", code="design_not_started")
+    if design_session.active_generation_id is not None:
+        raise ConflictError("디자인 생성이 진행 중입니다", code="generation_in_progress")
+    example = (
+        await session.get(DesignExample, design_session.example_id)
+        if design_session.example_id is not None
+        else None
+    )
+    slot: Literal[1, 2] = (
+        example.logo_slot  # type: ignore[assignment]  # CHECK 제약이 1|2를 보장한다
+        if example is not None and example.logo_slot is not None
+        else 2
+        if len(_intent_motif_ids(design_session.current_intent)) >= 2
+        else 1
+    )
+    saved = await import_user_motif(body, request, session, user)
+    return await activate_motif(
+        session_id,
+        MotifActivateRequest(slot=slot, motif_id=saved.motif_id),
+        request,
+        session,
+        user,
+    )
+
+
 async def _dispatch_motif_activation(
     *,
     payload: dict[str, Any],
@@ -2609,7 +2740,8 @@ async def _dispatch_motif_activation(
     run_id: uuid.UUID,
     summary: str,
 ) -> DesignGenerateOut:
-    """토큰을 쓰지 않으므로 환불도 없다(charge_cost=0) — 실패 처리는 생성과 같은 기계."""
+    """무과금 결정론 재렌더(모티프 교체·색 프리셋) 공용 — 환불도 없다(charge_cost=0).
+    실패 처리는 생성과 같은 기계."""
     try:
         response = await request.app.state.worker.generate(payload)
         try:

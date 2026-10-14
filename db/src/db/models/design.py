@@ -33,6 +33,11 @@ class DesignSession(TimestampMixin, Base):
     context_version: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
     active_generation_id: Mapped[uuid.UUID | None]
     active_generation_started_at: Mapped[datetime | None]
+    # 어느 템플릿(예시)에서 시작했는지 — store가 포인트 위치·로고 슬롯을 템플릿에서 읽는다.
+    # use_alter: 세션→예시→run→세션 FK 순환을 메타데이터 정렬에서 끊는다(DDL은 ALTER로 뒤에 붙음).
+    example_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("design_examples.id", ondelete="SET NULL", use_alter=True)
+    )
 
     __table_args__ = (
         CheckConstraint("status IN ('active', 'finalized')", name="status"),
@@ -114,8 +119,18 @@ class DesignExample(TimestampMixin, Base):
     caption: Mapped[str | None]
     ordinal: Mapped[int] = mapped_column(server_default=text("0"))
     published: Mapped[bool] = mapped_column(server_default=text("false"))
+    # 템플릿 데이터 — 정본은 시드 코드(apps/worker/scripts/seed_design_examples.py), 여기는 전달용.
+    category: Mapped[str | None]  # 목록 필터 칩 라벨 그대로
+    point: Mapped[str] = mapped_column(server_default="none")  # 포인트 로고 자리: none|top|bottom
+    logo_slot: Mapped[int | None]  # 로고가 들어갈 모티프 슬롯(1|2), 없으면 서버 규칙
+    photo_full_url: Mapped[str | None]  # 사용자가 준비할 실사 사진(전체 샷), 없으면 결정론 샷
+    photo_detail_url: Mapped[str | None]  # 실사 사진(무늬 확대)
 
-    __table_args__ = (Index("ix_design_examples_published_ordinal", "published", "ordinal"),)
+    __table_args__ = (
+        Index("ix_design_examples_published_ordinal", "published", "ordinal"),
+        CheckConstraint("point IN ('none', 'top', 'bottom')", name="point"),
+        CheckConstraint("logo_slot IN (1, 2)", name="logo_slot"),
+    )
 
 
 class GenerationJob(TimestampMixin, Base):

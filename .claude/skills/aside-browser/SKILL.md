@@ -1,1 +1,0 @@
-../../../.agents/skills/aside-browser/SKILL.md

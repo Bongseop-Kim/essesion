@@ -5,19 +5,13 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { FinalizeDialogValue } from "@/features/design/ui/finalize-dialog";
-
 const api = vi.hoisted(() => ({
   createFinalizeJob: vi.fn(),
-  appendDesignTurn: vi.fn(),
-  exportDesign: vi.fn(),
 }));
 const ui = vi.hoisted(() => ({ snackbar: vi.fn() }));
 
 vi.mock("@essesion/api-client", () => ({
-  appendDesignTurn: api.appendDesignTurn,
   createFinalizeJob: api.createFinalizeJob,
-  exportDesign: api.exportDesign,
 }));
 
 vi.mock("@essesion/api-client/query", () => ({
@@ -27,16 +21,12 @@ vi.mock("@essesion/api-client/query", () => ({
   ],
   getTokenBalanceQueryKey: () => ["token-balance"],
   listDesignSessionsQueryKey: () => ["design-sessions"],
-  listDesignTurnsQueryKey: ({ path }: { path: { session_id: string } }) => [
-    "design-turns",
-    path.session_id,
-  ],
   listGenerationJobsQueryKey: () => ["generation-jobs"],
 }));
 
 vi.mock("@essesion/shared", () => ({ snackbar: ui.snackbar }));
 
-import { useFinalizeFlow } from "./use-design-output";
+import { type FinalizeDialogValue, useFinalizeFlow } from "./use-design-output";
 
 const REQUEST: FinalizeDialogValue = {
   productionMethod: "print",
@@ -75,7 +65,6 @@ describe("useFinalizeFlow", () => {
 
   it("실사화 성공 뒤 잔액을 다시 조회한다", async () => {
     api.createFinalizeJob.mockResolvedValue({ data: { id: "job-1" } });
-    api.appendDesignTurn.mockResolvedValue({ data: {} });
     const { queryClient, invalidated, result } = setup();
 
     result.current.submit(REQUEST);

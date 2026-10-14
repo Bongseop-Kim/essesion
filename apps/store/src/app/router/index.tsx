@@ -59,7 +59,15 @@ export const storeRouteObjects = [
       {
         path: "design",
         lazy: async () => ({
-          Component: (await import("@/pages/design")).DesignPage,
+          Component: (await import("@/pages/design/templates"))
+            .DesignTemplatesPage,
+        }),
+      },
+      {
+        path: "design/templates/:id",
+        lazy: async () => ({
+          Component: (await import("@/pages/design/template"))
+            .DesignTemplatePage,
         }),
       },
       {
@@ -108,6 +116,25 @@ export const storeRouteObjects = [
       {
         element: <ProtectedRoute />,
         children: [
+          {
+            path: "design/sessions/:id/color",
+            lazy: async () => ({
+              Component: (await import("@/pages/design/color")).DesignColorPage,
+            }),
+          },
+          {
+            path: "design/sessions/:id/logo",
+            lazy: async () => ({
+              Component: (await import("@/pages/design/logo")).DesignLogoPage,
+            }),
+          },
+          {
+            path: "design/sessions/:id/result",
+            lazy: async () => ({
+              Component: (await import("@/pages/design/result"))
+                .DesignResultPage,
+            }),
+          },
           {
             path: "order/order-form",
             lazy: async () => ({

@@ -104,7 +104,7 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
   - 인기 상품 TOP-N은 `order_items.product_id` 기준이라 커스텀·수선과 함께 수기 주문도 제외된다
     (수기 주문 품목은 JSONB이고 product_id가 없다).
 - 상품 옵션 전체 교체(admin): DELETE 후 재삽입, **옵션 ≥1개면 products.stock=NULL 강제**(옵션 재고 관리로 전환).
-- 디자인 예시 큐레이션: `GET·POST /admin/design/examples`, `PATCH·DELETE /admin/design/examples/{id}`. 등록은 run 하나당 1개(unique)이고, intent가 `source='user_upload'` 모티프를 쓰면 409(`private_motif_example`). 등록 직후는 비게시 — `published`를 켜야 store 갤러리에 노출된다.
+- 디자인 예시 큐레이션: `GET·POST /admin/design/examples`, `PATCH·DELETE /admin/design/examples/{id}`. 등록은 run 하나당 1개(unique)이고, intent가 `source='user_upload'` 모티프를 쓰면 409(`private_motif_example`). 등록 직후는 비게시 — `published`를 켜야 store 갤러리에 노출된다. 템플릿 데이터(`category`·`point`·`logo_slot`·`photo_full_url`·`photo_detail_url`)는 시드 코드(`apps/worker/scripts/seed_design_examples.py`)가 정본이라 admin 본문으로 받지 않는다 — 응답에는 노출된다.
 - **팝업 공지**(store 첫 진입 기간 한정 안내): `GET·POST /admin/popups`, `PATCH·DELETE /admin/popups/{id}`, 배너 이미지 `POST /admin/popups/images/upload-url` → `POST /admin/popups/images/{upload_id}/complete` → 저장 시 연결, `DELETE /admin/popups/images/{upload_id}`(스테이징 만료). 공개 조회 `GET /popups/active`는 `enabled`이고 **KST 오늘**이 `starts_on ≤ 오늘 ≤ ends_on`인 행 중 `starts_on desc, created_at desc` 첫 1건을 주고, 없으면 200 + `null`. 공개 응답은 렌더에 필요한 것만(id·template·title·title_emphasis·body·fields·link_url) — 기간·활성 여부는 admin 응답(`active_now` 계산값 포함)에만 있다.
   - 템플릿은 `fields.template`으로 판별하는 3종: `holiday`(cutoff_on·cutoff_time `HH:MM`·closed_from·closed_to·resume_on·footnote — `cutoff_on ≤ closed_from ≤ closed_to < resume_on` 아니면 422; store가 이 날짜로 달력·범례를 그린다) · `operation`(rows[{label ≤20자, value ≤80자}] 1–4행·footnote) · `event`(image_upload_id — 본인이 완료 등록한 `popup_upload` 행만, 아니면 422 `invalid_popup_image`/`popup_image_not_completed`; `link_url` 필수 422 `popup_link_required`).
   - 공통 검증: `ends_on < starts_on` 422 `invalid_popup_period`(PATCH는 병합 뒤 검증), `link_url`은 `/`로 시작하는 내부 경로 또는 `https://`만, `body`는 평문에 `**굵게**` 마크만 허용(store가 해석). PATCH에서 생략은 "안 바꿈", null은 "지움", `fields`는 통째로 교체.
@@ -116,15 +116,17 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 
 | 엔드포인트 | 역할 | 과금 |
 |---|---|---|
-| `POST /design/sessions` · `GET /design/sessions` · `GET·DELETE /design/sessions/{id}` | 세션 CRUD. 단건 GET은 `current_motifs`, 목록은 `last_prompt`·`preview_svg`(마지막 activate 런의 디자인 SVG) 포함 | — |
-| `GET /design/examples` | 첫 진입 갤러리(게시된 큐레이션 예시, **공개 조회**) | 무료 |
-| `POST /design/sessions/from-example` | 예시 run을 새 세션의 시작점으로 복원(`{example_id}`) — 렌더·워커 호출 없음 | 무료 |
+| `POST /design/sessions` · `GET /design/sessions` · `GET·DELETE /design/sessions/{id}` | 세션 CRUD. 목록·단건 모두 `preview_svg`(편집 포인터 = 마지막 activate 런의 디자인 SVG, 없으면 null). 단건은 `current_motifs`, 목록은 `last_prompt`도 포함 | — |
+| `GET /design/examples` | 첫 진입 갤러리(게시된 큐레이션 예시, **공개 조회**). 템플릿 데이터 `category`(필터 칩 라벨)·`point`(`none\|top\|bottom`, 포인트 로고 자리)·`logo_slot`(1\|2 또는 null)·`photo_full_url`·`photo_detail_url`(실사 사진, 없으면 store가 결정론 샷)·`logo_preview_svg`(로고 슬롯 모티프 미리보기, 세션 `current_motifs[].preview_svg`와 같은 형식, 없으면 null) | 무료 |
+| `POST /design/sessions/from-example` | 예시 run을 새 세션의 시작점으로 복원(`{example_id}`) — 렌더·워커 호출 없음. 세션에 `example_id`가 남고 세션 응답에 노출된다(예시 삭제 시 null) | 무료 |
 | `GET·POST /design/sessions/{id}/turns` | 이력 조회·사용자 메모 턴 | — |
 | `POST /design/generate` | 입력창 문장. 커밋된 디자인이 없으면 **첫 생성**(전체 저작), 있으면 **구성 수정**(patch). 처리하지 못한 모티프 요청은 `motif_intent` sidecar로 피커에 안내하며, 순수 모티프 요청은 무과금 `200 {rejected:"motif",reason?,motif_intent?}` — `reason ∈ {motif_change,motif_recolor,motif_position,target_missing}`은 안내 문구 선택용, 없으면 기본(`motif_change`) 취급 | `design_token_cost_openai_render_standard` / `design_edit_cost` |
 | `POST /design/sessions/{id}/steps/activate` | 이력 썸네일 클릭 = 편집 포인터 이동(`{run_id}`). 이후 스텝은 그대로 남는다 | — |
 | `POST /design/sessions/{id}/motifs/search` | 문장으로 카탈로그 모티프 찾기 | 무료 |
 | `POST /design/sessions/{id}/motifs/generate` | 문장으로 모티프 새로 만들기(GPT Image) | `design_motif_generate_cost` 토큰 |
 | `POST /design/sessions/{id}/motifs/activate` | 슬롯(≤2)의 모티프 교체 → 결정적 재렌더 | 무료 |
+| `POST /design/sessions/{id}/logo` | 로고 한 번에 넣기(`{name, svg}`) = `POST /design/motifs`(내 모티프 저장, content-hash로 멱등) + `motifs/activate`. 슬롯은 서버가 정한다 — 세션의 템플릿(`example_id`)에 `logo_slot`이 있으면 그 값, 없으면 intent의 모티프 레이어가 둘이면 2, 아니면 1. 응답·순서·실패 처리는 motifs/activate와 같다 | 무료 |
+| `POST /design/sessions/{id}/color` | 색 프리셋 적용(`{colorway_id}`) → 같은 intent를 그 colorway로 결정적 재렌더. 프리셋은 템플릿 intent의 `colorways`에 미리 들어 있고, 없는 id는 422(`invalid_colorway`). 순서·실패 처리는 motifs/activate와 같다 | 무료 |
 | `POST /design/motifs` · `GET /design/motifs` · `DELETE /design/motifs/{id}` | 내 모티프 라이브러리(계정당 100개) | 무료 |
 | `POST /design/motifs/text-preview` · `/design/motifs/photo-preview` | 글자·사진 → SVG 변환 | 무료 |
 | `POST /design/ideas` | 편집 초안 문장 3~4개 (별도 rate limit) | 무료 |

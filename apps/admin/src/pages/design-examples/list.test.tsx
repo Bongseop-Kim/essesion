@@ -37,6 +37,12 @@ const example: AdminDesignExampleOut = {
   ordinal: 2,
   published: false,
   preview_svg: "<svg/>",
+  category: null,
+  point: "none",
+  logo_slot: null,
+  photo_full_url: null,
+  photo_detail_url: null,
+  logo_preview_svg: null,
 };
 
 const publishedExample: AdminDesignExampleOut = {

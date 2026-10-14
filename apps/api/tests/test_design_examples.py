@@ -61,9 +61,15 @@ async def _make_example(
     caption="네이비 · 대각 스트라이프",
     ordinal=0,
     published=True,
+    **template,
 ):
     example = DesignExample(
-        run_id=run_id, name=name, caption=caption, ordinal=ordinal, published=published
+        run_id=run_id,
+        name=name,
+        caption=caption,
+        ordinal=ordinal,
+        published=published,
+        **template,
     )
     db_session.add(example)
     await db_session.commit()
@@ -105,7 +111,43 @@ async def test_public_gallery_lists_published_examples_only(client, db_session):
         "name": "미드나잇 웨이브",
         "caption": "네이비 · 대각 스트라이프",
         "preview_svg": _SVG,
+        "category": None,
+        "point": "none",
+        "logo_slot": None,
+        "photo_full_url": None,
+        "photo_detail_url": None,
+        "logo_preview_svg": None,
     }
+
+
+async def test_public_gallery_exposes_template_data_and_logo_slot_preview(client, db_session):
+    """템플릿 데이터(시드가 쓴 값)와 로고 슬롯 모티프 미리보기 — 슬롯이 비면 null."""
+    await _seed_motif(db_session, "seed-bee", "seed")
+    with_logo = await _make_example(
+        db_session,
+        await _make_run(db_session, motif_id="seed-bee"),
+        name="포인트",
+        ordinal=0,
+        category="격자",
+        point="bottom",
+        logo_slot=1,
+        photo_full_url="/templates/a/full.jpg",
+    )
+    empty_slot = await _make_example(
+        db_session, await _make_run(db_session), name="올패턴", ordinal=1, logo_slot=2
+    )
+
+    listed = (await client.get("/design/examples")).json()
+
+    assert [item["id"] for item in listed] == [str(with_logo.id), str(empty_slot.id)]
+    first, second = listed
+    assert (first["category"], first["point"], first["logo_slot"]) == ("격자", "bottom", 1)
+    assert (first["photo_full_url"], first["photo_detail_url"]) == ("/templates/a/full.jpg", None)
+    assert (
+        first["logo_preview_svg"].startswith("<svg ")
+        and "motif-seed-bee" in first["logo_preview_svg"]
+    )
+    assert second["logo_preview_svg"] is None
 
 
 async def test_start_from_example_restores_design_without_charging(client, db_session, settings):
@@ -126,6 +168,10 @@ async def test_start_from_example_restores_design_without_charging(client, db_se
     assert body["current_intent"] == _intent()
     assert body["current_plan"] == {"colors": ["#10243A"], "layers": []}
     assert (body["seed"], body["colorway"], body["registry_version"]) == (7, "default", "0.1.0")
+    # 색·로고 페이지가 포인트 위치·로고 슬롯을 템플릿에서 읽는 키.
+    assert body["example_id"] == str(example.id)
+    fetched = await client.get(f"/design/sessions/{body['id']}", headers=headers)
+    assert fetched.json()["example_id"] == str(example.id)
 
     # 캔버스·이력·되돌리기가 프론트 변경 없이 동작하려면 턴 2개가 그대로 있어야 한다.
     turns = (await client.get(f"/design/sessions/{body['id']}/turns", headers=headers)).json()

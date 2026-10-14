@@ -46,6 +46,29 @@ RUN_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "https://essesion.local/design-ex
 # 골든 픽스처와 같은 앵커. 산포·경로 배치의 난수를 고정한다.
 SEED = 20240
 
+# ponytail: 임시 실 색 표 — 정식 실 색 데이터(플랜 "실행 조건")가 오면 이 표를 그 값으로
+# 바꾼다. (이름, hex). 프리셋은 바탕 하나 + 무늬 색 순서대로.
+YARN = {
+    "네이비": "#1B2A49",
+    "블랙": "#141414",
+    "버건디": "#6B1F2A",
+    "포레스트": "#1F3D2B",
+    "차콜": "#3A3A3C",
+    "골드": "#C9A24B",
+    "실버": "#B8BCC2",
+    "아이보리": "#EFE9DC",
+    "베이지": "#CBB79A",
+    "스카이": "#7FA8D6",
+}
+# (바탕, 무늬 색들) — 무늬 색은 스트라이프 밴드 순서대로 돌려 쓴다.
+PRESETS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("네이비", ("골드", "아이보리")),
+    ("블랙", ("실버", "골드")),
+    ("버건디", ("아이보리", "골드")),
+    ("포레스트", ("베이지", "골드")),
+    ("차콜", ("스카이", "실버")),
+)
+
 
 @dataclass(frozen=True)
 class CuratedExample:
@@ -56,6 +79,13 @@ class CuratedExample:
     caption: str
     # 플랜의 input motif 슬롯에 순서대로 꽂을 카탈로그 subject.
     motif_subjects: tuple[str, ...] = field(default=())
+    # 템플릿 데이터 — 여기가 정본이고 design_examples 컬럼은 store 전달용(DB로 관리하지 않는다).
+    category: str = "그림"  # 목록 필터 칩 라벨 그대로
+    point: str = "none"  # 포인트 로고 자리: none(올패턴)|top(매듭)|bottom(끝)
+    logo_slot: int | None = None  # 로고가 들어갈 모티프 슬롯(1|2), None이면 서버 규칙
+    # 사용자가 준비할 실사 사진 — store public/ 경로. None이면 결정론 샷을 그린다.
+    photo_full_url: str | None = None
+    photo_detail_url: str | None = None
 
 
 # 패밀리별로 하나씩 — 첫 진입 화면에서 "무엇을 만들 수 있는지"를 한 눈에 보여주는 6종.
@@ -64,30 +94,39 @@ CURATED: tuple[CuratedExample, ...] = (
         example_id="gallery_04_stripe_diagonal_wide_band",
         name="와이드 사선 스트라이프",
         caption="굵은 대각 밴드 하나로 잡는 기본형",
+        category="스트라이프",
+        point="top",
     ),
     CuratedExample(
         example_id="gallery_06_motif_lattice_block",
         name="정규 격자",
         caption="어긋남 없이 규칙적으로 반복되는 격자",
         motif_subjects=("bee",),
+        category="격자",
+        logo_slot=1,
     ),
     CuratedExample(
         example_id="gallery_09_motif_scatter_poisson",
         name="흩뿌린 꽃",
         caption="여백을 살린 포아송 산포",
         motif_subjects=("flower",),
+        logo_slot=1,
     ),
     CuratedExample(
         example_id="gallery_12_motif_path_diagonal_wave",
         name="물결을 타는 잎",
         caption="대각 물결 경로를 따라 흐르는 모티프",
         motif_subjects=("leaf",),
+        logo_slot=1,
     ),
     CuratedExample(
         example_id="gallery_17_stripe_motif_guard_bands",
         name="가드 밴드 앵커",
         caption="가드 밴드 두 줄이 감싼 중심 레인 위의 엠블럼",
         motif_subjects=("anchor",),
+        category="스트라이프",
+        point="bottom",
+        logo_slot=1,
     ),
     CuratedExample(
         example_id="gallery_21_motif_lattice_bee_circle",
@@ -95,6 +134,8 @@ CURATED: tuple[CuratedExample, ...] = (
         caption="작은 점 격자 위에 얹은 큰 모티프",
         # 순서 = 플랜의 input 슬롯 순서: 1번이 작은 점 격자, 2번이 큰 격자 모티프.
         motif_subjects=("circle", "bee"),
+        category="도트",
+        logo_slot=2,
     ),
 )
 
@@ -119,6 +160,42 @@ async def _catalog_motif_id(session: AsyncSession, subject: str) -> str:
     return motif_id
 
 
+def _referenced_slots(intent: dict[str, Any]) -> list[str]:
+    """레이어가 실제로 쓰는 색 슬롯 — 바탕이 먼저, 그다음 스트라이프 밴드 순서.
+
+    모티프 레이어는 슬롯을 참조하지 않는다(모티프 고유 색 유지). 참조 안 된 슬롯은
+    프리셋에서 원래 hex를 그대로 둔다.
+    """
+    ordered: list[str] = []
+    for layer in intent.get("layers", []):
+        params = layer.get("params", {})
+        if layer.get("type") == "background":
+            ordered.append(params["color"])
+        elif layer.get("type") == "stripe":
+            ordered.extend(band["color"] for band in params.get("bands", []))
+    return list(dict.fromkeys(ordered))
+
+
+def _rough_colorways(intent: dict[str, Any]) -> list[dict[str, Any]]:
+    """기본 colorway 뒤에 임시 실 색 프리셋을 붙인다 — 색 선택 화면의 선택지."""
+    slots = {slot["id"]: slot["hex"] for slot in intent["palette"]["slots"]}
+    referenced = _referenced_slots(intent)
+    ground = referenced[0] if referenced else None
+    accents = referenced[1:]
+    colorways = [cw for cw in intent.get("colorways", []) if cw.get("id") == "default"]
+    for index, (bg, pattern) in enumerate(PRESETS):
+        mapping = dict(slots)
+        if ground is not None:
+            mapping[ground] = YARN[bg]
+        for i, slot in enumerate(accents):
+            mapping[slot] = YARN[pattern[i % len(pattern)]]
+        names = [bg, *pattern[: max(1, len(accents))]] if accents else [bg]
+        colorways.append(
+            {"id": f"preset_{index + 1}", "name": " · ".join(names), "mapping": mapping}
+        )
+    return colorways
+
+
 def _compose_run(
     plan: DesignPlanV3,
     *,
@@ -129,6 +206,7 @@ def _compose_run(
     authored = compile_design_plan_v3(plan, motif_ids=motif_ids, seed=SEED)
     warnings: list[str] = []
     intent = apply_generation_constraints(authored.intent, warnings=warnings)
+    intent["colorways"] = _rough_colorways(intent)
     resolved_plan = snapshot_resolved_plan(plan, intent)
     design = compose_design(
         intent,
@@ -195,6 +273,11 @@ async def _upsert(
         "caption": curated.caption,
         "ordinal": ordinal,
         "published": True,
+        "category": curated.category,
+        "point": curated.point,
+        "logo_slot": curated.logo_slot,
+        "photo_full_url": curated.photo_full_url,
+        "photo_detail_url": curated.photo_detail_url,
     }
     await session.execute(
         insert(DesignExample)

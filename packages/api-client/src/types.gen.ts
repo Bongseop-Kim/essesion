@@ -811,9 +811,21 @@ export type AdminDesignExampleOut = {
      */
     caption: string | null;
     /**
+     * Category
+     */
+    category: string | null;
+    /**
      * Id
      */
     id: string;
+    /**
+     * Logo Preview Svg
+     */
+    logo_preview_svg: string | null;
+    /**
+     * Logo Slot
+     */
+    logo_slot: 1 | 2 | null;
     /**
      * Name
      */
@@ -822,6 +834,18 @@ export type AdminDesignExampleOut = {
      * Ordinal
      */
     ordinal: number;
+    /**
+     * Photo Detail Url
+     */
+    photo_detail_url: string | null;
+    /**
+     * Photo Full Url
+     */
+    photo_full_url: string | null;
+    /**
+     * Point
+     */
+    point: 'none' | 'top' | 'bottom';
     /**
      * Preview Svg
      */
@@ -3184,6 +3208,16 @@ export type ClaimTrackingUpdateRequest = {
 };
 
 /**
+ * ColorwayRequest
+ */
+export type ColorwayRequest = {
+    /**
+     * Colorway Id
+     */
+    colorway_id: string;
+};
+
+/**
  * ConfirmedOrder
  */
 export type ConfirmedOrder = {
@@ -3882,13 +3916,37 @@ export type DesignExampleOut = {
      */
     caption: string | null;
     /**
+     * Category
+     */
+    category: string | null;
+    /**
      * Id
      */
     id: string;
     /**
+     * Logo Preview Svg
+     */
+    logo_preview_svg: string | null;
+    /**
+     * Logo Slot
+     */
+    logo_slot: 1 | 2 | null;
+    /**
      * Name
      */
     name: string;
+    /**
+     * Photo Detail Url
+     */
+    photo_detail_url: string | null;
+    /**
+     * Photo Full Url
+     */
+    photo_full_url: string | null;
+    /**
+     * Point
+     */
+    point: 'none' | 'top' | 'bottom';
     /**
      * Preview Svg
      */
@@ -4185,6 +4243,10 @@ export type DesignSessionOut = {
     current_plan: {
         [key: string]: unknown;
     } | null;
+    /**
+     * Example Id
+     */
+    example_id?: string | null;
     /**
      * Id
      */
@@ -13093,6 +13155,36 @@ export type GetDesignSessionResponses = {
 
 export type GetDesignSessionResponse = GetDesignSessionResponses[keyof GetDesignSessionResponses];
 
+export type ApplyColorwayData = {
+    body: ColorwayRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/design/sessions/{session_id}/color';
+};
+
+export type ApplyColorwayErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ApplyColorwayError = ApplyColorwayErrors[keyof ApplyColorwayErrors];
+
+export type ApplyColorwayResponses = {
+    /**
+     * Successful Response
+     */
+    200: DesignGenerateOut;
+};
+
+export type ApplyColorwayResponse = ApplyColorwayResponses[keyof ApplyColorwayResponses];
+
 export type CreateFinalizeJobData = {
     body: FinalizeRequest;
     path: {
@@ -13122,6 +13214,36 @@ export type CreateFinalizeJobResponses = {
 };
 
 export type CreateFinalizeJobResponse = CreateFinalizeJobResponses[keyof CreateFinalizeJobResponses];
+
+export type PlaceDesignLogoData = {
+    body: UserMotifImportRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/design/sessions/{session_id}/logo';
+};
+
+export type PlaceDesignLogoErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PlaceDesignLogoError = PlaceDesignLogoErrors[keyof PlaceDesignLogoErrors];
+
+export type PlaceDesignLogoResponses = {
+    /**
+     * Successful Response
+     */
+    200: DesignGenerateOut;
+};
+
+export type PlaceDesignLogoResponse = PlaceDesignLogoResponses[keyof PlaceDesignLogoResponses];
 
 export type ActivateMotifData = {
     body: MotifActivateRequest;

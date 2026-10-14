@@ -1,7 +1,5 @@
 import {
-  appendDesignTurn,
   createFinalizeJob,
-  exportDesign,
   type FinalizeRequest,
   type GenerationJobOut,
 } from "@essesion/api-client";
@@ -12,63 +10,22 @@ import {
 } from "@essesion/api-client/query";
 import { snackbar } from "@essesion/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 
-import type { ExportDialogValue } from "@/features/design/ui/export-dialog";
-import type { FinalizeDialogValue } from "@/features/design/ui/finalize-dialog";
+import { designErrorMessage } from "./errors";
+import { designSessionQueryKey } from "./queries";
 
-import { designErrorMessage, parseDesignError } from "./errors";
-import { designSessionQueryKey, designTurnsQueryKey } from "./queries";
-import { svgTileWidthMm } from "./svg-preview";
-import { renderTiePng } from "./tie-image";
-
-/** 타일은 실측 크기 그대로라 픽셀 수가 작다 — 워커 상한(max_dpi)까지 올린다. */
-const TILE_DPI = 600;
-/** 워커 rasterize의 면적 상한 — 큰 타일(192mm)은 600dpi가 이 값을 넘어 DPI를 낮춘다. */
-const MAX_RASTER_PIXELS = 20_000_000;
-
-/** 내려받기 — 이미 만든 SVG의 형식 변환이라 토큰이 들지 않는다. */
-export function useDesignExport(options: {
-  sessionId: string | null;
-  svg: string | null;
-  onDone: () => void;
-}) {
-  const [exporting, setExporting] = useState(false);
-
-  const submit = async (value: ExportDialogValue) => {
-    if (!options.svg || exporting) return;
-    setExporting(true);
-    try {
-      // 넥타이는 화면 미리보기와 같은 그림이라 브라우저에서 합성한다.
-      const file =
-        value.mode === "tie"
-          ? await renderTiePng(options.svg)
-          : await exportTilePng(options.svg, options.sessionId);
-      download(
-        file,
-        `essesion-design-${value.mode === "tie" ? "tie" : "tile"}.png`,
-      );
-      options.onDone();
-      snackbar("디자인 파일을 만들었습니다.");
-    } catch (error) {
-      snackbar(parseDesignError(error).message);
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  return {
-    exporting,
-    submit: (value: ExportDialogValue) => void submit(value),
-  };
-}
+export type FinalizeDialogValue = {
+  productionMethod: NonNullable<FinalizeRequest["production_method"]>;
+  weave: NonNullable<FinalizeRequest["weave"]>;
+  dpi: 300;
+};
 
 export type CreateFinalizeJobInput = {
   sessionId: string;
   request: FinalizeRequest & { production_method: string; weave: string };
 };
 
-/** 실사화 생성 — 동기 요청-응답. 성공 시 finalize 턴을 이력에 남기고 목록 캐시를 갱신한다. */
+/** 실사화 생성 — 동기 요청-응답. 성공 시 세션·완성본 목록 캐시를 갱신한다. */
 function useCreateFinalizeJob() {
   const queryClient = useQueryClient();
 
@@ -80,24 +37,6 @@ function useCreateFinalizeJob() {
         throwOnError: true,
       });
 
-      try {
-        await appendDesignTurn({
-          path: { session_id: input.sessionId },
-          body: {
-            role: "user",
-            payload: {
-              type: "finalize",
-              job_id: job.id,
-              production_method: input.request.production_method,
-              weave: input.request.weave,
-            },
-          },
-          throwOnError: true,
-        });
-      } catch {
-        // 이력 기록 실패는 완성본 자체에 영향이 없다 — 조용히 넘어간다.
-      }
-
       return job;
     },
     onSuccess: (_job, input) =>
@@ -107,9 +46,6 @@ function useCreateFinalizeJob() {
         }),
         queryClient.invalidateQueries({
           queryKey: designSessionQueryKey(input.sessionId),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: designTurnsQueryKey(input.sessionId),
         }),
         queryClient.invalidateQueries({
           queryKey: listGenerationJobsQueryKey(),
@@ -151,41 +87,4 @@ export function useFinalizeFlow(options: {
     loading: mutation.isPending,
     submit: (value: FinalizeDialogValue) => void submit(value),
   };
-}
-
-/** 타일은 이어붙일 수 있는 원본 — 디자인의 실측 크기(합성기가 쓰는 `width="48mm"`)로 래스터한다. */
-async function exportTilePng(svg: string, sessionId: string | null) {
-  const widthMm = svgTileWidthMm(svg) ?? 100;
-  // 정사각 타일 픽셀 수(widthMm/25.4·dpi)²가 워커 면적 상한을 넘지 않는 최대 DPI.
-  const dpi = Math.min(
-    TILE_DPI,
-    Math.floor((25.4 * Math.sqrt(MAX_RASTER_PIXELS)) / widthMm),
-  );
-  const response = await exportDesign({
-    body: {
-      session_id: sessionId,
-      svg,
-      format: "png",
-      dpi,
-      width_mm: widthMm,
-    },
-    parseAs: "blob",
-    throwOnError: true,
-  });
-  if (!(response.data instanceof Blob)) {
-    throw new Error("내려받기 응답이 파일 형식이 아닙니다.");
-  }
-  return response.data;
-}
-
-function download(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  // 다운로드 시작은 비동기 — 즉시 revoke하면 파일이 비는 브라우저가 있다.
-  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }

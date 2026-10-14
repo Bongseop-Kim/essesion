@@ -2,10 +2,8 @@ import type { DesignSessionOut, GenerationJobOut } from "@essesion/api-client";
 import {
   getDesignSessionOptions,
   getDesignSessionQueryKey,
-  listDesignSessionsOptions,
-  listDesignTurnsOptions,
-  listDesignTurnsQueryKey,
   listGenerationJobsInfiniteOptions,
+  listGenerationJobsOptions,
 } from "@essesion/api-client/query";
 
 export const FINALIZED_JOBS_PAGE_SIZE = 20;
@@ -39,13 +37,6 @@ export function activeGenerationWait(
   return elapsed >= ACTIVE_GENERATION_SLOW_AFTER_MS ? "slow" : "fast";
 }
 
-export function designSessionsQueryOptions(authenticated: boolean) {
-  return {
-    ...listDesignSessionsOptions(),
-    enabled: authenticated,
-  };
-}
-
 export const designSessionQueryKey = (sessionId: string) =>
   getDesignSessionQueryKey({ path: { session_id: sessionId } });
 
@@ -74,18 +65,23 @@ export function designSessionQueryOptions({
   };
 }
 
-export const designTurnsQueryKey = (sessionId: string) =>
-  listDesignTurnsQueryKey({ path: { session_id: sessionId } });
-
-export function designTurnsQueryOptions({
+/** 이 세션의 최신 완성본 한 건 — 결과 화면 새로고침 복원용. */
+export function latestFinalizedJobQueryOptions({
   sessionId,
   authenticated,
 }: {
   authenticated: boolean;
-  sessionId: string | null;
+  sessionId: string;
 }) {
   return {
-    ...listDesignTurnsOptions({ path: { session_id: sessionId ?? "" } }),
+    ...listGenerationJobsOptions({
+      query: {
+        kind: "finalize",
+        status: "succeeded",
+        session_id: sessionId,
+        limit: 1,
+      },
+    }),
     enabled: authenticated && !!sessionId,
   };
 }

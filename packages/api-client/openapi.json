@@ -1392,10 +1392,47 @@
             ],
             "title": "Caption"
           },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "logo_preview_svg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Preview Svg"
+          },
+          "logo_slot": {
+            "anyOf": [
+              {
+                "enum": [
+                  1,
+                  2
+                ],
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Slot"
           },
           "name": {
             "title": "Name",
@@ -1404,6 +1441,37 @@
           "ordinal": {
             "title": "Ordinal",
             "type": "integer"
+          },
+          "photo_detail_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Detail Url"
+          },
+          "photo_full_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Full Url"
+          },
+          "point": {
+            "enum": [
+              "none",
+              "top",
+              "bottom"
+            ],
+            "title": "Point",
+            "type": "string"
           },
           "preview_svg": {
             "title": "Preview Svg",
@@ -1424,6 +1492,12 @@
           "name",
           "caption",
           "preview_svg",
+          "category",
+          "point",
+          "logo_slot",
+          "photo_full_url",
+          "photo_detail_url",
+          "logo_preview_svg",
           "run_id",
           "ordinal",
           "published"
@@ -5962,6 +6036,22 @@
         "title": "ClaimTrackingUpdateRequest",
         "type": "object"
       },
+      "ColorwayRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "colorway_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Colorway Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "colorway_id"
+        ],
+        "title": "ColorwayRequest",
+        "type": "object"
+      },
       "ConfirmedOrder": {
         "properties": {
           "coupon_issued": {
@@ -7181,13 +7271,81 @@
             ],
             "title": "Caption"
           },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
             "type": "string"
           },
+          "logo_preview_svg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Preview Svg"
+          },
+          "logo_slot": {
+            "anyOf": [
+              {
+                "enum": [
+                  1,
+                  2
+                ],
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Slot"
+          },
           "name": {
             "title": "Name",
+            "type": "string"
+          },
+          "photo_detail_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Detail Url"
+          },
+          "photo_full_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Full Url"
+          },
+          "point": {
+            "enum": [
+              "none",
+              "top",
+              "bottom"
+            ],
+            "title": "Point",
             "type": "string"
           },
           "preview_svg": {
@@ -7199,7 +7357,13 @@
           "id",
           "name",
           "caption",
-          "preview_svg"
+          "preview_svg",
+          "category",
+          "point",
+          "logo_slot",
+          "photo_full_url",
+          "photo_detail_url",
+          "logo_preview_svg"
         ],
         "title": "DesignExampleOut",
         "type": "object"
@@ -7727,6 +7891,18 @@
               }
             ],
             "title": "Current Plan"
+          },
+          "example_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Example Id"
           },
           "id": {
             "format": "uuid",
@@ -24558,6 +24734,65 @@
         ]
       }
     },
+    "/design/sessions/{session_id}/color": {
+      "post": {
+        "description": "색 프리셋 적용 — intent의 colorway만 바꾼 결정론 재렌더라 모델 호출도 과금도 없다.\n\n프리셋은 템플릿 intent의 `colorways`에 미리 들어 있다(시드·admin). 없는 id는 422.",
+        "operationId": "apply_colorway",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ColorwayRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignGenerateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Apply Colorway",
+        "tags": [
+          "design"
+        ]
+      }
+    },
     "/design/sessions/{session_id}/finalize": {
       "post": {
         "operationId": "create_finalize_job",
@@ -24611,6 +24846,65 @@
           }
         ],
         "summary": "Create Finalize Job",
+        "tags": [
+          "design"
+        ]
+      }
+    },
+    "/design/sessions/{session_id}/logo": {
+      "post": {
+        "description": "로고 한 번에 넣기 — 내 모티프 저장(멱등) + 로고 슬롯 교체 재렌더. 무과금.\n\n슬롯은 서버가 정한다: 템플릿의 `logo_slot`이 있으면 그것, 없으면 모티프 레이어가 둘일 때\n2(큰 무늬), 아니면 1.",
+        "operationId": "place_design_logo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserMotifImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignGenerateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Place Design Logo",
         "tags": [
           "design"
         ]

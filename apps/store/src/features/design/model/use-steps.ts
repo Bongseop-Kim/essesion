@@ -1,52 +1,46 @@
-import { activateDesignStep, activateMotif } from "@essesion/api-client";
-import { getTokenBalanceQueryKey } from "@essesion/api-client/query";
+import { applyColorway, placeDesignLogo } from "@essesion/api-client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { designSessionQueryKey, designTurnsQueryKey } from "./queries";
+import { designSessionQueryKey } from "./queries";
 
-/** 되돌리기 — 이력 썸네일 클릭이 편집 포인터를 그 스텝으로 옮긴다. 과금 없음. */
-export function useActivateDesignStep() {
+/** 로고 넣기 — 서버가 내 모티프 저장과 슬롯 교체를 한 번에 한다. 재렌더뿐이라 토큰이 들지 않는다. */
+export function usePlaceLogo() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: { sessionId: string; runId: string }) => {
-      const { data } = await activateDesignStep({
+    mutationFn: async (input: {
+      sessionId: string;
+      name: string;
+      svg: string;
+    }) => {
+      const { data } = await placeDesignLogo({
         path: { session_id: input.sessionId },
-        body: { run_id: input.runId },
+        body: { name: input.name.trim().slice(0, 100), svg: input.svg },
         throwOnError: true,
       });
-      queryClient.setQueryData(designSessionQueryKey(input.sessionId), data);
       await queryClient.invalidateQueries({
-        queryKey: designTurnsQueryKey(input.sessionId),
+        queryKey: designSessionQueryKey(input.sessionId),
       });
       return data;
     },
   });
 }
 
-/** 모티프 슬롯 교체 — 모델 호출 없이 재렌더만 하므로 토큰이 들지 않는다. */
-export function useActivateMotifSlot() {
+/** 색 프리셋 적용 — intent의 colorway만 바꾼 재렌더라 토큰이 들지 않는다. */
+export function useApplyColorway() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: {
-      sessionId: string;
-      slot: 1 | 2;
-      motifId: string;
-    }) => {
-      const { data } = await activateMotif({
+    mutationFn: async (input: { sessionId: string; colorwayId: string }) => {
+      const { data } = await applyColorway({
         path: { session_id: input.sessionId },
-        body: { slot: input.slot, motif_id: input.motifId },
+        body: { colorway_id: input.colorwayId },
         throwOnError: true,
       });
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: designSessionQueryKey(input.sessionId),
         }),
-        queryClient.invalidateQueries({
-          queryKey: designTurnsQueryKey(input.sessionId),
-        }),
-        queryClient.invalidateQueries({ queryKey: getTokenBalanceQueryKey() }),
       ]);
       return data;
     },
