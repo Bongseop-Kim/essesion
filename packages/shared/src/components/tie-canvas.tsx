@@ -7,6 +7,7 @@ import { Flex } from "./flex";
 export type DesignPreviewMode = "repeat" | "tie";
 
 // 소비하는 앱의 public/images에 tie-mask.png·tie-knot-mask.png·tie-shadow.webp가 있어야 한다(store·admin 모두 보유).
+// `silhouette="flat"`은 tie-flat-mask.png·tie-flat-shadow.webp도 필요하다(store만 보유).
 
 export type TieCanvasProps = {
   /** Sanitized SVG encoded as a data URI. */
@@ -30,39 +31,52 @@ export type TieCanvasProps = {
    * 마크업이고 viewBox는 -0.5..0.5 정규 좌표(모티프 계약)다. 확대 샷에서도 같은 자리에 따라간다.
    */
   emblem?: { svg: string; at: "knot" | "tip" };
+  /**
+   * `photo`(기본) = 셔츠 깃·매듭까지 있는 실사 컷. `flat` = 매듭 없이 몸통 위를 수평으로 자른
+   * 정면 컷(템플릿 목록) — 매듭이 없어 `knot` 자리는 몸통 윗부분이다.
+   */
+  silhouette?: "photo" | "flat";
   className?: string;
 };
 
-// 포인트 로고 자리 — 아트 박스 기준 중심 y와 폭(아트 박스 폭 대비). 블레이드 폭(약 40%) 안에 든다.
-const TIE_EMBLEM = {
-  knot: { y: 0.06, width: 0.13 },
-  tip: { y: 0.865, width: 0.2 },
-} as const;
-
-// 확대 샷 기하 — 아트 박스 폭을 프레임의 2.2배로 키우면 블레이드(마스크 폭의 약 40%)가
-// 프레임을 거의 채운다. y는 아트 박스 높이 기준 초점(매듭 중심·블레이드 중간·아래 끝).
-const TIE_FOCUS = {
-  zoom: 2.2,
-  y: { knot: 0.09, blade: 0.5, tip: 0.93 },
-} as const;
 const TIE_FOCUS_LABEL = {
   knot: "매듭 확대",
   blade: "무늬 확대",
   tip: "아래 끝 확대",
 } as const;
 
-// 실루엣·매듭 마스크와 명암 PNG는 모두 794×2097 한 장짜리 아트 박스다 — 셔츠 깃·매듭
-// 주름까지 실사 베이스 사진(worker assets/photo/tie-base.png)에서 추출해 그대로 겹친다.
-// 매듭:몸통 = 1:11.
-const TIE_FRAME = { width: 316, height: (316 * 2097) / 794 };
-const TIE_SHADOW = { width: 794, height: 2097, top: 0 };
-// 레이아웃 단위는 셔츠 깃까지 포함한 아트워크 박스 — 지금은 마스크도 같은 박스라 top 0·높이 100%.
-const TIE_ART_HEIGHT = (TIE_FRAME.width * TIE_SHADOW.height) / TIE_SHADOW.width;
-const TIE_MASK_TOP = -TIE_SHADOW.top / TIE_ART_HEIGHT;
-const TIE_MASK_HEIGHT = TIE_FRAME.height / TIE_ART_HEIGHT;
+// 실루엣별 기하 — 마스크·명암 이미지는 같은 크기의 한 장짜리 아트 박스이고, 값은 모두 그 비율이다.
+// - emblem: 포인트 로고 중심 y와 폭(아트 박스 폭 대비). 블레이드 폭 안에 든다.
+// - focus: 확대 샷 — 아트 박스 폭을 프레임의 zoom배로 키우고, y(아트 박스 높이 기준)를 프레임 중앙에.
+// - tile: 아트 박스 폭 대비 타일 한 장의 폭 — 블레이드 폭 대비 타일 크기가 두 실루엣에서 같게.
+const SILHOUETTES = {
+  // 실사 베이스 사진(worker assets/photo/tie-base.png)에서 추출 — extract_tie_assets.py. 794×2097,
+  // 블레이드 최대 폭 = 아트 폭의 0.393, 매듭:몸통 = 1:11.
+  photo: {
+    mask: "/images/tie-mask.png",
+    knotMask: "/images/tie-knot-mask.png",
+    shadow: "/images/tie-shadow.webp",
+    aspect: 794 / 2097,
+    tile: 0.16,
+    emblem: { knot: { y: 0.06, width: 0.13 }, tip: { y: 0.865, width: 0.2 } },
+    // tip 0.91 — 0.93이면 정사각 칸(상세)에서 끝 엠블럼(0.865) 윗부분이 잘린다.
+    focus: { zoom: 2.2, y: { knot: 0.09, blade: 0.5, tip: 0.91 } },
+  },
+  // 평면 컷 사진(레포 밖 원본)에서 추출 — extract_tie_flat_assets.py. 928×1172,
+  // 블레이드 폭 = 아트 폭의 0.91, 윗변 y 0.03·어깨 0.60·끝 0.97.
+  flat: {
+    mask: "/images/tie-flat-mask.png",
+    knotMask: null,
+    shadow: "/images/tie-flat-shadow.webp",
+    aspect: 928 / 1172,
+    tile: 0.37,
+    emblem: { knot: { y: 0.2, width: 0.3 }, tip: { y: 0.74, width: 0.26 } },
+    focus: { zoom: 1.8, y: { knot: 0.22, blade: 0.45, tip: 0.78 } },
+  },
+} as const;
 
-// 마스크 박스 폭 대비 타일 한 장의 폭.
-const TILE_FRACTION = { tie: 0.16, repeat: 0.28 } as const;
+// repeat 모드: 프레임 폭 대비 타일 한 장의 폭.
+const REPEAT_TILE_FRACTION = 0.28;
 
 function maskStyle(src: string): CSSProperties {
   return {
@@ -77,19 +91,6 @@ function maskStyle(src: string): CSSProperties {
   };
 }
 
-const tieMaskStyle = maskStyle("/images/tie-mask.png");
-// 매듭은 천이 감겨 무늬 방향이 몸통과 반대다 — 매듭 마스크 안에 좌우 반전 무늬를 얹는다.
-// 사진에서 딴 매듭은 좌우 비대칭이라 마스크는 두고 안쪽 무늬만 뒤집는다.
-const tieKnotStyle = maskStyle("/images/tie-knot-mask.png");
-
-const tieShadowStyle: CSSProperties = {
-  inset: 0,
-  backgroundImage: "url(/images/tie-shadow.webp)",
-  backgroundSize: "100% 100%",
-  backgroundRepeat: "no-repeat",
-  pointerEvents: "none",
-};
-
 export function TieCanvas({
   imageSrc,
   mode,
@@ -98,8 +99,10 @@ export function TieCanvas({
   tileScale = 1,
   focus,
   emblem,
+  silhouette = "photo",
   className,
 }: TieCanvasProps) {
+  const geom = SILHOUETTES[silhouette];
   const frameRef = useRef<HTMLDivElement>(null);
   const [frameWidth, setFrameWidth] = useState(0);
 
@@ -119,7 +122,7 @@ export function TieCanvas({
   const backgroundStyle = {
     backgroundImage: `url(${JSON.stringify(imageSrc)})`,
     backgroundRepeat: "repeat",
-    backgroundSize: `${TILE_FRACTION[mode] * tileScale * 100}% auto`,
+    backgroundSize: `${(mode === "tie" ? geom.tile : REPEAT_TILE_FRACTION) * tileScale * 100}% auto`,
     backgroundPosition: "center",
   } as const;
 
@@ -127,7 +130,7 @@ export function TieCanvas({
   // 두 축에 같은 값을 줘 auto가 소수 높이를 만드는 경로까지 막는다.
   const repeatTilePx = Math.max(
     1,
-    Math.round(frameWidth * TILE_FRACTION.repeat * tileScale),
+    Math.round(frameWidth * REPEAT_TILE_FRACTION * tileScale),
   );
   const repeatStyle =
     frameWidth === 0
@@ -142,34 +145,26 @@ export function TieCanvas({
   // 둔다. 초점 이동은 아트 박스 자신의 높이 %(translate)로 해서 프레임 비율(정사각·3:4)과 무관하다.
   const focusStyle: CSSProperties | undefined = focus
     ? {
-        width: `${TIE_FOCUS.zoom * 100}%`,
+        width: `${geom.focus.zoom * 100}%`,
         left: "50%",
         top: "50%",
-        transform: `translate(-50%, -${TIE_FOCUS.y[focus] * 100}%)`,
-        aspectRatio: `${TIE_FRAME.width} / ${TIE_ART_HEIGHT}`,
+        transform: `translate(-50%, -${geom.focus.y[focus] * 100}%)`,
+        aspectRatio: geom.aspect,
       }
     : undefined;
 
   const art = (
     <Box
       position={focus ? "absolute" : "relative"}
-      height={focus ? undefined : "full"}
       style={
         focusStyle ?? {
-          aspectRatio: `${TIE_FRAME.width} / ${TIE_ART_HEIGHT}`,
+          // 프레임(컨테이너) 안에 contain — 세로로 긴 실사 컷은 높이, 평면 컷은 폭이 먼저 닿는다.
+          width: `min(100cqw, 100cqh * ${geom.aspect})`,
+          aspectRatio: geom.aspect,
         }
       }
     >
-      <Box
-        position="absolute"
-        left={0}
-        right={0}
-        style={{
-          top: `${TIE_MASK_TOP * 100}%`,
-          height: `${TIE_MASK_HEIGHT * 100}%`,
-          ...tieMaskStyle,
-        }}
-      >
+      <Box position="absolute" inset={0} style={maskStyle(geom.mask)}>
         <Box
           position="absolute"
           inset={0}
@@ -179,24 +174,23 @@ export function TieCanvas({
           style={backgroundStyle}
         />
       </Box>
-      <Box
-        position="absolute"
-        left={0}
-        right={0}
-        aria-hidden
-        style={{
-          top: `${TIE_MASK_TOP * 100}%`,
-          height: `${TIE_MASK_HEIGHT * 100}%`,
-          ...tieKnotStyle,
-        }}
-      >
+      {/* 매듭은 천이 감겨 무늬 방향이 몸통과 반대다 — 매듭 마스크 안에 좌우 반전 무늬를 얹는다.
+          사진에서 딴 매듭은 좌우 비대칭이라 마스크는 두고 안쪽 무늬만 뒤집는다. */}
+      {geom.knotMask ? (
         <Box
           position="absolute"
           inset={0}
-          className="transition-all duration-100 ease-standard"
-          style={{ ...backgroundStyle, transform: "scaleX(-1)" }}
-        />
-      </Box>
+          aria-hidden
+          style={maskStyle(geom.knotMask)}
+        >
+          <Box
+            position="absolute"
+            inset={0}
+            className="transition-all duration-100 ease-standard"
+            style={{ ...backgroundStyle, transform: "scaleX(-1)" }}
+          />
+        </Box>
+      ) : null}
       {emblem ? (
         <Box
           position="absolute"
@@ -204,8 +198,8 @@ export function TieCanvas({
           color="fg.neutral"
           style={{
             left: "50%",
-            top: `${TIE_EMBLEM[emblem.at].y * 100}%`,
-            width: `${TIE_EMBLEM[emblem.at].width * 100}%`,
+            top: `${geom.emblem[emblem.at].y * 100}%`,
+            width: `${geom.emblem[emblem.at].width * 100}%`,
             aspectRatio: 1,
             transform: "translate(-50%, -50%)",
           }}
@@ -221,7 +215,17 @@ export function TieCanvas({
           </svg>
         </Box>
       ) : null}
-      <Box position="absolute" aria-hidden style={tieShadowStyle} />
+      <Box
+        position="absolute"
+        aria-hidden
+        inset={0}
+        style={{
+          pointerEvents: "none",
+          backgroundImage: `url(${geom.shadow})`,
+          backgroundSize: "100% 100%",
+          backgroundRepeat: "no-repeat",
+        }}
+      />
     </Box>
   );
 
@@ -257,6 +261,7 @@ export function TieCanvas({
           align="center"
           justify="center"
           p="x6"
+          style={{ containerType: "size" }}
         >
           {art}
         </Flex>

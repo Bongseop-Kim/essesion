@@ -160,6 +160,7 @@ function ShotCard({ children }: { children: ReactNode }) {
  * 사진 구성 — 왼쪽은 칸을 꽉 채운 전체 샷, 오른쪽은 평평한 원단(무늬 반복). 넥타이 크롭이 아니라
  * 잘린 그림으로 읽히지 않는다. 포인트가 있으면 오른쪽을 둘로 나눠 상단이면 매듭 확대를 위에,
  * 하단이면 아래 끝 확대를 아래에 둔다(원단은 그 반대편). 컷마다 별도 카드다.
+ * 넥타이는 매듭 없는 평면 컷(`silhouette="flat"`) — 매듭 있는 실사 컷은 상세(`TemplateDetailShots`)가 쓴다.
  * 실사 사진(`layout.photos`)이 있으면 전체 샷·원단 자리에 사진이 들어간다.
  * `cycle`(모바일)이면 나란히 두지 않고 한 칸에서 컷을 번갈아 보여준다(`CyclingShots`).
  */
@@ -177,13 +178,13 @@ export function TemplateShots({
   const full = photos?.full ? (
     <ImageFrame src={photos.full} alt={shot.alt} fill />
   ) : (
-    // TieCanvas의 안쪽 여백을 상쇄해 넥타이가 칸 높이를 꽉 채우게 키운다.
+    // TieCanvas의 안쪽 여백을 상쇄해 넥타이를 칸에 꽉 채운다 — 기준점이 아래라 끝이 순환 점 표시에 닿지 않는다.
     <Box
       position="absolute"
       inset={0}
-      style={{ transform: "scale(1.12)", transformOrigin: "50% 45%" }}
+      style={{ transform: "scale(1.12)", transformOrigin: "50% 60%" }}
     >
-      <TieCanvas {...shot} mode="tie" emblem={emblem} />
+      <TieCanvas {...shot} mode="tie" silhouette="flat" emblem={emblem} />
     </Box>
   );
   const fabric = photos?.detail ? (
@@ -202,6 +203,7 @@ export function TemplateShots({
       <TieCanvas
         {...shot}
         mode="tie"
+        silhouette="flat"
         focus={point === "top" ? "knot" : "tip"}
         emblem={emblem}
       />
