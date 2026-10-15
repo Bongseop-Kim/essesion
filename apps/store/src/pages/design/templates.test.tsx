@@ -105,6 +105,18 @@ describe("DesignTemplatesPage", () => {
         photo_full_url: null,
         photo_detail_url: null,
         logo_preview_svg: null,
+        colorways: [
+          {
+            id: "default",
+            name: null,
+            mapping: { g: "#10243a", a: "#c9a24b" },
+          },
+          {
+            id: "preset_1",
+            name: "네이비 · 골드",
+            mapping: { g: "#1b2a49", a: "#c9a24b" },
+          },
+        ],
       },
     ];
     renderPage();
@@ -113,6 +125,11 @@ describe("DesignTemplatesPage", () => {
       name: "미드나잇 웨이브 템플릿으로 시작",
     });
     expect(within(row).getByText("네이비 · 대각 스트라이프")).toBeTruthy();
+    // 색 칩은 SVG에 쓰인 색이 아니라 색 고르기의 선택지(colorways)다.
+    expect(within(row).getByText("배색 2종")).toBeTruthy();
+    expect(
+      within(row).getByRole("img", { name: "네이비 · 골드" }),
+    ).toBeTruthy();
     // 올패턴 — 전체 샷 + 무늬 확대만. 포인트 확대(매듭·끝)는 포인트가 있을 때만.
     expect(
       within(row).getByRole("img", { name: "미드나잇 웨이브, 무늬 확대" }),
@@ -141,6 +158,7 @@ describe("DesignTemplatesPage", () => {
       photo_full_url: null,
       photo_detail_url: null,
       logo_preview_svg: null,
+      colorways: [],
     };
     examples = [
       { ...base, id: "a", name: "올패턴", category: "격자", point: "none" },

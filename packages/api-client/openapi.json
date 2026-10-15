@@ -1403,6 +1403,13 @@
             ],
             "title": "Category"
           },
+          "colorways": {
+            "items": {
+              "$ref": "#/components/schemas/DesignExampleColorway"
+            },
+            "title": "Colorways",
+            "type": "array"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -1498,6 +1505,7 @@
           "photo_full_url",
           "photo_detail_url",
           "logo_preview_svg",
+          "colorways",
           "run_id",
           "ordinal",
           "published"
@@ -7258,6 +7266,39 @@
         "title": "DashboardTopProductsOut",
         "type": "object"
       },
+      "DesignExampleColorway": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "mapping": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Mapping",
+            "type": "object"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "mapping"
+        ],
+        "title": "DesignExampleColorway",
+        "type": "object"
+      },
       "DesignExampleOut": {
         "properties": {
           "caption": {
@@ -7281,6 +7322,13 @@
               }
             ],
             "title": "Category"
+          },
+          "colorways": {
+            "items": {
+              "$ref": "#/components/schemas/DesignExampleColorway"
+            },
+            "title": "Colorways",
+            "type": "array"
           },
           "id": {
             "format": "uuid",
@@ -7363,7 +7411,8 @@
           "logo_slot",
           "photo_full_url",
           "photo_detail_url",
-          "logo_preview_svg"
+          "logo_preview_svg",
+          "colorways"
         ],
         "title": "DesignExampleOut",
         "type": "object"

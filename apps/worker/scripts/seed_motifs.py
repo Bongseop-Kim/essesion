@@ -75,6 +75,19 @@ _SEEDS: list[tuple[str, str, str]] = [
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
         '<circle cx="12" cy="12" r="12" fill="#c0445a"/></svg>',
     ),
+    # 세 고리 — 은·연두·하늘 고리가 맞물린 작은 엠블럼(핀 스트라이프 템플릿의 기본 모티프).
+    # 안쪽 원을 반대 방향으로 그려 fill-rule과 무관하게 구멍이 난다.
+    (
+        "rings",
+        "three interlocking rings in silver, green and cyan",
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+        '<path fill="#c9c5bd" d="M16 38a20 20 0 1 1 40 0a20 20 0 1 1 -40 0Z'
+        'M24 38a12 12 0 1 0 24 0a12 12 0 1 0 -24 0Z"/>'
+        '<path fill="#8cc63f" d="M44 38a20 20 0 1 1 40 0a20 20 0 1 1 -40 0Z'
+        'M52 38a12 12 0 1 0 24 0a12 12 0 1 0 -24 0Z"/>'
+        '<path fill="#3bbfe0" d="M30 62a20 20 0 1 1 40 0a20 20 0 1 1 -40 0Z'
+        'M38 62a12 12 0 1 0 24 0a12 12 0 1 0 -24 0Z"/></svg>',
+    ),
 ]
 
 

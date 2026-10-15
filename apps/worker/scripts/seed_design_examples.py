@@ -86,6 +86,43 @@ class CuratedExample:
     # 사용자가 준비할 실사 사진 — store public/ 경로. None이면 결정론 샷을 그린다.
     photo_full_url: str | None = None
     photo_detail_url: str | None = None
+    # gallery-v1에 없는 템플릿 전용 플랜 — 있으면 example_id로 찾지 않는다(저작 few-shot 제외).
+    plan: DesignPlanV3 | None = None
+
+
+# 가는 세 줄 사선(핀 스트라이프 트리오)과 줄 사이의 작은 고리 모티프 — 격자 3×3이 사선 주기
+# (타일당 3)와 맞물려 모티프가 항상 줄 사이 한가운데에 놓인다(밴드 묶음은 주기 0.5에 중심).
+PIN_STRIPE_RINGS_PLAN = DesignPlanV3.model_validate(
+    {
+        "colors": ["#2451b5", "#cfcbc3"],
+        "ground_color_index": 0,
+        "motifs": [{"source": "input", "input_index": 1}],
+        "layers": [
+            {
+                "type": "stripe",
+                "direction": "diagonal_down",
+                "period_ratio": 0.23570226,
+                "bands": [
+                    {"offset_ratio": 0.4125, "width_ratio": 0.035, "color_index": 1},
+                    {"offset_ratio": 0.4825, "width_ratio": 0.035, "color_index": 1},
+                    {"offset_ratio": 0.5525, "width_ratio": 0.035, "color_index": 1},
+                ],
+            },
+            {
+                "type": "motif",
+                "motif_index": 0,
+                "size_ratio": 0.06,
+                "placement": {
+                    "type": "lattice",
+                    "columns": 3,
+                    "rows": 3,
+                    "drop": "none",
+                    "fixed_rotation_deg": 0.0,
+                },
+            },
+        ],
+    }
+)
 
 
 # 패밀리별로 하나씩 — 첫 진입 화면에서 "무엇을 만들 수 있는지"를 한 눈에 보여주는 6종.
@@ -137,7 +174,20 @@ CURATED: tuple[CuratedExample, ...] = (
         category="도트",
         logo_slot=2,
     ),
+    CuratedExample(
+        example_id="template_stripe_pin_trio_rings",
+        name="핀 스트라이프와 세 고리",
+        caption="가는 세 줄 사선 사이에 놓인 작은 고리 엠블럼",
+        motif_subjects=("rings",),
+        category="스트라이프",
+        logo_slot=1,
+        plan=PIN_STRIPE_RINGS_PLAN,
+    ),
 )
+
+
+def plan_for(curated: CuratedExample, examples: dict[str, Any]) -> DesignPlanV3:
+    return curated.plan or examples[curated.example_id].plan
 
 
 def _run_id(example_id: str) -> uuid.UUID:
@@ -294,7 +344,11 @@ async def _run() -> list[str]:
     engine = build_engine(settings)
     try:
         examples = {example.example_id: example for example in load_example_set()}
-        missing = [item.example_id for item in CURATED if item.example_id not in examples]
+        missing = [
+            item.example_id
+            for item in CURATED
+            if item.plan is None and item.example_id not in examples
+        ]
         if missing:
             raise SystemExit(f"gallery-v1에 없는 예시입니다: {', '.join(missing)}")
 
@@ -303,7 +357,7 @@ async def _run() -> list[str]:
             registry_version = await registry_version_for(session)
             seeded: list[str] = []
             for ordinal, curated in enumerate(CURATED):
-                plan = examples[curated.example_id].plan
+                plan = plan_for(curated, examples)
                 motif_ids = [
                     await _catalog_motif_id(session, subject) for subject in curated.motif_subjects
                 ]

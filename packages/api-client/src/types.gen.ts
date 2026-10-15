@@ -815,6 +815,10 @@ export type AdminDesignExampleOut = {
      */
     category: string | null;
     /**
+     * Colorways
+     */
+    colorways: Array<DesignExampleColorway>;
+    /**
      * Id
      */
     id: string;
@@ -3908,6 +3912,26 @@ export type DashboardTopProductsOut = {
 };
 
 /**
+ * DesignExampleColorway
+ */
+export type DesignExampleColorway = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Mapping
+     */
+    mapping: {
+        [key: string]: string;
+    };
+    /**
+     * Name
+     */
+    name: string | null;
+};
+
+/**
  * DesignExampleOut
  */
 export type DesignExampleOut = {
@@ -3919,6 +3943,10 @@ export type DesignExampleOut = {
      * Category
      */
     category: string | null;
+    /**
+     * Colorways
+     */
+    colorways: Array<DesignExampleColorway>;
     /**
      * Id
      */

@@ -38,6 +38,12 @@ MAX_PUBLISHED_EXAMPLES = 24
 MAX_CAPTION_LENGTH = 60
 
 
+class DesignExampleColorway(BaseModel):
+    id: str
+    name: str | None
+    mapping: dict[str, str]
+
+
 class DesignExampleOut(BaseModel):
     id: uuid.UUID
     name: str
@@ -53,6 +59,8 @@ class DesignExampleOut(BaseModel):
     # 로고 슬롯 모티프의 미리보기(세션 `current_motifs[].preview_svg`와 같은 형식) — 포인트
     # 로고 자리의 자리표시. 슬롯이 없거나 그 자리에 모티프가 없으면 null.
     logo_preview_svg: str | None
+    # run intent의 colorways 그대로(`default` + 실 색 프리셋) — 색 고르기 화면의 선택지와 같은 목록.
+    colorways: list[DesignExampleColorway]
 
 
 class AdminDesignExampleOut(DesignExampleOut):
@@ -85,6 +93,12 @@ def _preview_svg(design: Any) -> str:
     return svg if isinstance(svg, str) else ""
 
 
+def _colorways(design: Any) -> list[DesignExampleColorway]:
+    intent = design.get("intent") if isinstance(design, dict) else None
+    raw = intent.get("colorways") if isinstance(intent, dict) else None
+    return [DesignExampleColorway.model_validate(item) for item in raw] if raw else []
+
+
 def _logo_slot_motif_id(example: DesignExample, design: Any) -> str | None:
     """로고 슬롯(1|2)에 지금 들어 있는 모티프 id — run 디자인의 intent 레이어 순서다."""
     if example.logo_slot is None or not isinstance(design, dict):
@@ -94,7 +108,10 @@ def _logo_slot_motif_id(example: DesignExample, design: Any) -> str | None:
 
 
 def _example_out(
-    example: DesignExample, preview_svg: str, logo_preview_svg: str | None
+    example: DesignExample,
+    preview_svg: str,
+    logo_preview_svg: str | None,
+    colorways: list[DesignExampleColorway] | None = None,
 ) -> DesignExampleOut:
     return DesignExampleOut(
         id=example.id,
@@ -107,13 +124,14 @@ def _example_out(
         photo_full_url=example.photo_full_url,
         photo_detail_url=example.photo_detail_url,
         logo_preview_svg=logo_preview_svg,
+        colorways=colorways or [],
     )
 
 
 async def _examples_with_preview(
     session: SessionDep, *, published_only: bool
-) -> list[tuple[DesignExample, str, str | None]]:
-    """(예시, 디자인 SVG, 로고 슬롯 모티프 미리보기) — 슬롯 모티프는 한 번에 조회한다."""
+) -> list[tuple[DesignExample, str, str | None, list[DesignExampleColorway]]]:
+    """(예시, 디자인 SVG, 로고 슬롯 모티프 미리보기, colorways) — 슬롯 모티프는 한 번에 조회한다."""
     query = (
         select(DesignExample, SeamlessGenerationLog.design)
         .join(SeamlessGenerationLog, SeamlessGenerationLog.id == DesignExample.run_id)
@@ -136,7 +154,12 @@ async def _examples_with_preview(
         else {}
     )
     return [
-        (example, _preview_svg(design), motifs.get(_logo_slot_motif_id(example, design) or ""))
+        (
+            example,
+            _preview_svg(design),
+            motifs.get(_logo_slot_motif_id(example, design) or ""),
+            _colorways(design),
+        )
         for example, design in rows
     ]
 
@@ -145,8 +168,8 @@ async def _examples_with_preview(
 async def list_design_examples(session: SessionDep) -> list[DesignExampleOut]:
     """첫 진입 갤러리 — 상품과 같은 공개 조회. 그릴 수 없는 예시는 내리지 않는다."""
     return [
-        _example_out(example, preview_svg, logo_preview_svg)
-        for example, preview_svg, logo_preview_svg in await _examples_with_preview(
+        _example_out(example, preview_svg, logo_preview_svg, colorways)
+        for example, preview_svg, logo_preview_svg, colorways in await _examples_with_preview(
             session, published_only=True
         )
         if preview_svg
@@ -234,7 +257,7 @@ async def list_admin_design_examples(
 ) -> list[AdminDesignExampleOut]:
     return [
         _admin_out(example, preview_svg, logo_preview_svg)
-        for example, preview_svg, logo_preview_svg in await _examples_with_preview(
+        for example, preview_svg, logo_preview_svg, _ in await _examples_with_preview(
             session, published_only=False
         )
     ]

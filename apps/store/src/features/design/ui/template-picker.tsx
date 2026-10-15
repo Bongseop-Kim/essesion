@@ -16,7 +16,6 @@ import {
   svgToDataUri,
 } from "@/features/design/model/svg-preview";
 import {
-  svgColors,
   TemplateShots,
   TemplateSwatches,
   templateLayout,
@@ -147,7 +146,6 @@ function TemplateRow({
 }) {
   const bp = useBreakpoint();
   const desktop = bp === "lg" || bp === "xl";
-  const colors = svgColors(template.preview_svg);
 
   const shots = (
     <Box width="full" overflow="hidden" borderRadius="r3" bg="bg.neutral-weak">
@@ -181,7 +179,7 @@ function TemplateRow({
           </Text>
         ) : null}
       </VStack>
-      <TemplateSwatches colors={colors} />
+      <TemplateSwatches colorways={template.colorways} />
     </VStack>
   );
 

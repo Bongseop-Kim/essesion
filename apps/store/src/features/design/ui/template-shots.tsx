@@ -15,7 +15,6 @@ import type { ReactNode } from "react";
  * 포인트(로고 자리)가 상단이면 매듭 확대, 하단이면 아래 끝 확대를 더한다. 올패턴은 추가 없음.
  */
 export type TemplatePoint = DesignExampleOut["point"];
-const MAX_SWATCHES = 6;
 
 /**
  * 샷 구성에 필요한 템플릿 데이터 — 포인트 위치, 포인트 자리의 엠블럼(`<symbol>`), 실사 사진.
@@ -76,37 +75,51 @@ export type TemplateShot = {
   surface: "none";
 };
 
-// ponytail: 색 프리셋 데이터가 생기기 전까지는 SVG에 실제 쓰인 색을 칩으로 보여준다.
-// 프리셋(바탕색·무늬색·실 색 이름)이 들어오면 그 값으로 바꾼다.
-export function svgColors(svg: string): string[] {
-  const seen = new Set<string>();
-  for (const match of svg.matchAll(/#[0-9a-f]{6}\b/gi)) {
-    seen.add(match[0].toLowerCase());
-    if (seen.size >= MAX_SWATCHES) break;
-  }
-  return [...seen];
+type Colorway = DesignExampleOut["colorways"][number];
+
+/** 배색 이름 — 엔진 기본 배색(`default`)은 이름 대신 "기본". 색 고르기 화면과 같은 규칙. */
+export function colorwayName({
+  id,
+  name,
+}: {
+  id: string;
+  name?: string | null;
+}) {
+  return id !== "default" && name ? name : "기본";
 }
 
-/** "색 N종" 라벨 + 색 칩 — 목록 행과 상세가 같은 모양으로 보여준다. */
-export function TemplateSwatches({ colors }: { colors: readonly string[] }) {
-  if (colors.length === 0) return null;
+/** "배색 N종" 라벨 + 바탕·무늬 반반 동그라미 — 색 고르기 화면의 선택지를 같은 모양으로 미리 보여준다. */
+export function TemplateSwatches({
+  colorways,
+}: {
+  colorways: readonly Colorway[];
+}) {
+  if (colorways.length === 0) return null;
   return (
     <VStack alignItems="start" gap="x1_5">
       <Text as="span" textStyle="caption" color="fg.neutral-muted">
-        색 {colors.length}종
+        배색 {colorways.length}종
       </Text>
-      <HStack gap="x1_5" aria-hidden>
-        {colors.map((color) => (
-          <Box
-            key={color}
-            width={20}
-            height={20}
-            borderRadius="full"
-            borderWidth={1}
-            borderColor="stroke.neutral-weak"
-            style={{ backgroundColor: color }}
-          />
-        ))}
+      <HStack gap="x1_5" flexWrap="wrap">
+        {colorways.map((colorway) => {
+          const [bg, accent = bg] = Object.values(colorway.mapping);
+          return (
+            <Box
+              key={colorway.id}
+              as="span"
+              role="img"
+              aria-label={colorwayName(colorway)}
+              width={20}
+              height={20}
+              borderRadius="full"
+              borderWidth={1}
+              borderColor="stroke.neutral-weak"
+              style={{
+                background: `linear-gradient(135deg, ${bg} 50%, ${accent} 50%)`,
+              }}
+            />
+          );
+        })}
       </HStack>
     </VStack>
   );

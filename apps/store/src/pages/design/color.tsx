@@ -22,6 +22,7 @@ import {
 } from "@/features/design/model/svg-preview";
 import { useApplyColorway } from "@/features/design/model/use-steps";
 import {
+  colorwayName,
   sessionLayout,
   TemplateDetailShots,
   TemplatePatternShot,
@@ -56,7 +57,7 @@ function readColorways(intent: DesignSessionOut["current_intent"]): Colorway[] {
       continue;
     out.push({
       id,
-      name: typeof name === "string" && id !== "default" ? name : "기본",
+      name: colorwayName({ id, name: typeof name === "string" ? name : null }),
       mapping: mapping as Record<string, string>,
     });
   }

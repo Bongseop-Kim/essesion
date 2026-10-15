@@ -117,6 +117,7 @@ async def test_public_gallery_lists_published_examples_only(client, db_session):
         "photo_full_url": None,
         "photo_detail_url": None,
         "logo_preview_svg": None,
+        "colorways": [],
     }
 
 

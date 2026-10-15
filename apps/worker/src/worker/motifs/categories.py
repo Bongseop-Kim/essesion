@@ -26,6 +26,7 @@ KO_TAGS: dict[str, list[str]] = {
     "cherry": ["체리", "버찌"],
     "chess": ["체스"],
     "circle": ["원", "동그라미"],
+    "rings": ["고리", "링"],
     "cloud": ["구름"],
     "clover": ["클로버", "토끼풀"],
     "cow": ["소", "젖소"],
@@ -146,7 +147,7 @@ CATEGORIES: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "sport": (("스포츠", "운동"), ("bicycle", "chess", "golf", "tennis")),
     "vehicle": (("탈것", "교통"), ("bicycle", "plane", "sailboat", "ship")),
     "sky": (("하늘", "날씨"), ("cloud", "moon", "snowflake", "star", "sun")),
-    "symbol": (("상징", "문장"), ("anchor", "circle", "crown", "key", "shield")),
+    "symbol": (("상징", "문장"), ("anchor", "circle", "crown", "key", "rings", "shield")),
     "music": (("음악",), ("music",)),
 }
 

@@ -117,7 +117,7 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 | 엔드포인트 | 역할 | 과금 |
 |---|---|---|
 | `POST /design/sessions` · `GET /design/sessions` · `GET·DELETE /design/sessions/{id}` | 세션 CRUD. 목록·단건 모두 `preview_svg`(편집 포인터 = 마지막 activate 런의 디자인 SVG, 없으면 null). 단건은 `current_motifs`, 목록은 `last_prompt`도 포함 | — |
-| `GET /design/examples` | 첫 진입 갤러리(게시된 큐레이션 예시, **공개 조회**). 템플릿 데이터 `category`(필터 칩 라벨)·`point`(`none\|top\|bottom`, 포인트 로고 자리)·`logo_slot`(1\|2 또는 null)·`photo_full_url`·`photo_detail_url`(실사 사진, 없으면 store가 결정론 샷)·`logo_preview_svg`(로고 슬롯 모티프 미리보기, 세션 `current_motifs[].preview_svg`와 같은 형식, 없으면 null) | 무료 |
+| `GET /design/examples` | 첫 진입 갤러리(게시된 큐레이션 예시, **공개 조회**). 템플릿 데이터 `category`(필터 칩 라벨)·`point`(`none\|top\|bottom`, 포인트 로고 자리)·`logo_slot`(1\|2 또는 null)·`photo_full_url`·`photo_detail_url`(실사 사진, 없으면 store가 결정론 샷)·`logo_preview_svg`(로고 슬롯 모티프 미리보기, 세션 `current_motifs[].preview_svg`와 같은 형식, 없으면 null)·`colorways[]`(run intent의 `{id,name,mapping}` 그대로 — 색 고르기의 선택지) | 무료 |
 | `POST /design/sessions/from-example` | 예시 run을 새 세션의 시작점으로 복원(`{example_id}`) — 렌더·워커 호출 없음. 세션에 `example_id`가 남고 세션 응답에 노출된다(예시 삭제 시 null) | 무료 |
 | `GET·POST /design/sessions/{id}/turns` | 이력 조회·사용자 메모 턴 | — |
 | `POST /design/generate` | 입력창 문장. 커밋된 디자인이 없으면 **첫 생성**(전체 저작), 있으면 **구성 수정**(patch). 처리하지 못한 모티프 요청은 `motif_intent` sidecar로 피커에 안내하며, 순수 모티프 요청은 무과금 `200 {rejected:"motif",reason?,motif_intent?}` — `reason ∈ {motif_change,motif_recolor,motif_position,target_missing}`은 안내 문구 선택용, 없으면 기본(`motif_change`) 취급 | `design_token_cost_openai_render_standard` / `design_edit_cost` |

@@ -43,6 +43,7 @@ const example: AdminDesignExampleOut = {
   photo_full_url: null,
   photo_detail_url: null,
   logo_preview_svg: null,
+  colorways: [],
 };
 
 const publishedExample: AdminDesignExampleOut = {
