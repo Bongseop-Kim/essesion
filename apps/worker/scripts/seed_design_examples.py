@@ -13,7 +13,7 @@ domains/design/examples.py `_preview_svg`), 래스터화는 librsvg에 의존해
 가린다. 스토리지 업로드가 없으므로 GCS 에뮬레이터도 필요 없다.
 
 멱등 — run_id를 example_id에서 uuid5로 파생시켜 로그·예시를 upsert한다. 다시 돌리면
-같은 행을 현재 엔진 결과로 덮어쓴다.
+같은 행을 현재 엔진 결과로 덮어쓰고, CURATED에 없는 예시 행은 지운다(run 로그는 남긴다).
 
 실행: docker compose up -d && uv run alembic -c db/alembic.ini upgrade head
       && uv run python apps/worker/scripts/seed_motifs.py
@@ -27,7 +27,7 @@ from typing import Any
 
 from db.models.design import DesignExample
 from db.models.seamless import Motif, SeamlessGenerationLog
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from worker.authoring.compiler import compile_design_plan_v3
@@ -125,55 +125,8 @@ PIN_STRIPE_RINGS_PLAN = DesignPlanV3.model_validate(
 )
 
 
-# 패밀리별로 하나씩 — 첫 진입 화면에서 "무엇을 만들 수 있는지"를 한 눈에 보여주는 6종.
+# 스토어 템플릿 목록 — 여기 없는 예시 행은 시드가 지운다(템플릿은 이 표가 정본).
 CURATED: tuple[CuratedExample, ...] = (
-    CuratedExample(
-        example_id="gallery_04_stripe_diagonal_wide_band",
-        name="와이드 사선 스트라이프",
-        caption="굵은 대각 밴드 하나로 잡는 기본형",
-        category="스트라이프",
-        point="top",
-    ),
-    CuratedExample(
-        example_id="gallery_06_motif_lattice_block",
-        name="정규 격자",
-        caption="어긋남 없이 규칙적으로 반복되는 격자",
-        motif_subjects=("bee",),
-        category="격자",
-        logo_slot=1,
-    ),
-    CuratedExample(
-        example_id="gallery_09_motif_scatter_poisson",
-        name="흩뿌린 꽃",
-        caption="여백을 살린 포아송 산포",
-        motif_subjects=("flower",),
-        logo_slot=1,
-    ),
-    CuratedExample(
-        example_id="gallery_12_motif_path_diagonal_wave",
-        name="물결을 타는 잎",
-        caption="대각 물결 경로를 따라 흐르는 모티프",
-        motif_subjects=("leaf",),
-        logo_slot=1,
-    ),
-    CuratedExample(
-        example_id="gallery_17_stripe_motif_guard_bands",
-        name="가드 밴드 앵커",
-        caption="가드 밴드 두 줄이 감싼 중심 레인 위의 엠블럼",
-        motif_subjects=("anchor",),
-        category="스트라이프",
-        point="bottom",
-        logo_slot=1,
-    ),
-    CuratedExample(
-        example_id="gallery_21_motif_lattice_bee_circle",
-        name="도트와 격자 듀오",
-        caption="작은 점 격자 위에 얹은 큰 모티프",
-        # 순서 = 플랜의 input 슬롯 순서: 1번이 작은 점 격자, 2번이 큰 격자 모티프.
-        motif_subjects=("circle", "bee"),
-        category="도트",
-        logo_slot=2,
-    ),
     CuratedExample(
         example_id="template_stripe_pin_trio_rings",
         name="핀 스트라이프와 세 고리",
@@ -377,6 +330,11 @@ async def _run() -> list[str]:
                     engine_version=settings.engine_version,
                 )
                 seeded.append(f"{curated.name} ({curated.example_id})")
+            await session.execute(
+                delete(DesignExample).where(
+                    DesignExample.run_id.not_in([_run_id(item.example_id) for item in CURATED])
+                )
+            )
             await session.commit()
             return seeded
     finally:

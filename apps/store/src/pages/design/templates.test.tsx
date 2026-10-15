@@ -130,12 +130,18 @@ describe("DesignTemplatesPage", () => {
     expect(
       within(row).getByRole("img", { name: "네이비 · 골드" }),
     ).toBeTruthy();
-    // 올패턴 — 전체 샷 + 무늬 확대만. 포인트 확대(매듭·끝)는 포인트가 있을 때만.
+    // 올패턴 — 전체 샷 + 원단만. 모바일(jsdom 폭)은 한 칸에서 번갈아 보여줘 지금 컷 외에는 숨김이다. 포인트 확대(매듭·끝)는 포인트가 있을 때만.
     expect(
-      within(row).getByRole("img", { name: "미드나잇 웨이브, 무늬 확대" }),
+      within(row).getByRole("img", {
+        name: "미드나잇 웨이브, 원단",
+        hidden: true,
+      }),
     ).toBeTruthy();
     expect(
-      within(row).queryByRole("img", { name: "미드나잇 웨이브, 매듭 확대" }),
+      within(row).queryByRole("img", {
+        name: "미드나잇 웨이브, 매듭 확대",
+        hidden: true,
+      }),
     ).toBeNull();
     // 보기만 하면 서버 호출이 없다.
     expect(api.startFromExample).not.toHaveBeenCalled();
@@ -180,7 +186,10 @@ describe("DesignTemplatesPage", () => {
     });
     // 하단 포인트 — 끝 확대가 더해지고, 전체 샷 자리는 실사 사진이다.
     expect(
-      within(point).getByRole("img", { name: "포인트, 아래 끝 확대" }),
+      within(point).getByRole("img", {
+        name: "포인트, 아래 끝 확대",
+        hidden: true,
+      }),
     ).toBeTruthy();
     expect(
       within(point).getByRole("img", { name: "포인트" }).getAttribute("src"),

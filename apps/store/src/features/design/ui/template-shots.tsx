@@ -1,6 +1,7 @@
 import type { DesignExampleOut, DesignSessionOut } from "@essesion/api-client";
 import {
   Box,
+  Float,
   Grid,
   HStack,
   ImageFrame,
@@ -8,7 +9,7 @@ import {
   TieCanvas,
   VStack,
 } from "@essesion/shared";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 /**
  * 템플릿의 포인트 위치 — 사진 구성을 정한다. 전체 샷과 기본 무늬 확대는 공통이고,
@@ -136,73 +137,185 @@ function Fill({ children }: { children: ReactNode }) {
   );
 }
 
+const FABRIC_ZOOM = 2;
+
+/** 샷 한 장짜리 카드 — 컷마다 따로 둥글린 회색 칸. */
+function ShotCard({ children }: { children: ReactNode }) {
+  return (
+    <Box
+      position="relative"
+      minHeight={0}
+      overflow="hidden"
+      bg="bg.neutral-weak"
+      borderRadius="r3"
+    >
+      <Box position="absolute" inset={0}>
+        {children}
+      </Box>
+    </Box>
+  );
+}
+
 /**
- * 사진 구성 — 왼쪽은 전체 샷(1:2), 오른쪽은 기본 무늬 확대. 포인트가 있으면 오른쪽을
- * 둘로 나눠 상단이면 매듭 확대를 위에, 하단이면 아래 끝 확대를 아래에 둔다(무늬 확대는
- * 그 반대편). 올패턴은 오른쪽이 무늬 확대 한 장이다. 묶음은 정사각이다.
- * 실사 사진(`layout.photos`)이 있으면 전체 샷·무늬 확대 자리에 사진이 들어간다.
+ * 사진 구성 — 왼쪽은 칸을 꽉 채운 전체 샷, 오른쪽은 평평한 원단(무늬 반복). 넥타이 크롭이 아니라
+ * 잘린 그림으로 읽히지 않는다. 포인트가 있으면 오른쪽을 둘로 나눠 상단이면 매듭 확대를 위에,
+ * 하단이면 아래 끝 확대를 아래에 둔다(원단은 그 반대편). 컷마다 별도 카드다.
+ * 실사 사진(`layout.photos`)이 있으면 전체 샷·원단 자리에 사진이 들어간다.
+ * `cycle`(모바일)이면 나란히 두지 않고 한 칸에서 컷을 번갈아 보여준다(`CyclingShots`).
  */
 export function TemplateShots({
   shot,
   layout,
+  cycle = false,
 }: {
   shot: TemplateShot;
   layout: TemplateLayout;
+  cycle?: boolean;
 }) {
   const { point, photos } = layout;
   const emblem = templateEmblem(layout);
-  // 기본 무늬 확대에는 로고를 넣지 않는다 — 블레이드 중간 크롭이라 로고가 잘려 걸린다.
-  const pattern = (
-    <Fill>
-      {photos?.detail ? (
-        <ImageFrame src={photos.detail} alt={`${shot.alt}, 무늬 확대`} fill />
-      ) : (
-        <TieCanvas {...shot} mode="tie" focus="blade" />
-      )}
-    </Fill>
+  const full = photos?.full ? (
+    <ImageFrame src={photos.full} alt={shot.alt} fill />
+  ) : (
+    // TieCanvas의 안쪽 여백을 상쇄해 넥타이가 칸 높이를 꽉 채우게 키운다.
+    <Box
+      position="absolute"
+      inset={0}
+      style={{ transform: "scale(1.12)", transformOrigin: "50% 45%" }}
+    >
+      <TieCanvas {...shot} mode="tie" emblem={emblem} />
+    </Box>
   );
-  const right =
-    point === "none" ? (
-      pattern
-    ) : (
-      <Grid
-        templateColumns="1fr"
-        gap="x0_5"
-        style={{ gridTemplateRows: "1fr 1fr" }}
-      >
-        {point === "top" ? (
-          <>
-            <Box minHeight={0}>
-              <TieCanvas {...shot} mode="tie" focus="knot" emblem={emblem} />
-            </Box>
-            {pattern}
-          </>
-        ) : (
-          <>
-            {pattern}
-            <Box minHeight={0}>
-              <TieCanvas {...shot} mode="tie" focus="tip" emblem={emblem} />
-            </Box>
-          </>
-        )}
-      </Grid>
+  const fabric = photos?.detail ? (
+    <ImageFrame src={photos.detail} alt={`${shot.alt}, 원단`} fill />
+  ) : (
+    // 원단은 무늬를 크게 — 타일을 키워 실 결이 보이게 한다.
+    <TieCanvas
+      {...shot}
+      alt={`${shot.alt}, 원단`}
+      mode="repeat"
+      tileScale={shot.tileScale * FABRIC_ZOOM}
+    />
+  );
+  const pointShot =
+    point === "none" ? null : (
+      <TieCanvas
+        {...shot}
+        mode="tie"
+        focus={point === "top" ? "knot" : "tip"}
+        emblem={emblem}
+      />
     );
+
+  if (cycle) {
+    return (
+      <CyclingShots
+        shots={pointShot ? [full, pointShot, fabric] : [full, fabric]}
+      />
+    );
+  }
+
+  const right = pointShot ? (
+    <Grid
+      templateColumns="1fr"
+      gap="x3"
+      style={{ gridTemplateRows: "1fr 1fr" }}
+    >
+      {point === "top" ? (
+        <>
+          <ShotCard>{pointShot}</ShotCard>
+          <ShotCard>{fabric}</ShotCard>
+        </>
+      ) : (
+        <>
+          <ShotCard>{fabric}</ShotCard>
+          <ShotCard>{pointShot}</ShotCard>
+        </>
+      )}
+    </Grid>
+  ) : (
+    <ShotCard>{fabric}</ShotCard>
+  );
   return (
     <Grid
       templateColumns="1fr 1fr"
-      gap="x0_5"
+      gap="x3"
       width="full"
-      style={{ aspectRatio: 1 }}
+      style={{ aspectRatio: "6 / 5" }}
     >
-      <Fill>
-        {photos?.full ? (
-          <ImageFrame src={photos.full} alt={shot.alt} fill />
-        ) : (
-          <TieCanvas {...shot} mode="tie" emblem={emblem} />
-        )}
-      </Fill>
+      <ShotCard>{full}</ShotCard>
       {right}
     </Grid>
+  );
+}
+
+const CYCLE_MS = 3000;
+
+/**
+ * 한 칸에서 컷을 크로스페이드로 번갈아 보여준다 — 화면 가운데 띠에 들어온 행만 돌아서 목록에서
+ * 동시에 하나만 움직인다. 동작 줄이기 설정이면 첫 컷(전체 샷)에 멈춘다.
+ */
+function CyclingShots({ shots }: { shots: ReactNode[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [index, setIndex] = useState(0);
+  const [inView, setInView] = useState(false);
+  const count = shots.length;
+
+  useEffect(() => {
+    const el = ref.current;
+    // jsdom(테스트)에는 IntersectionObserver가 없다 — 없으면 돌리지 않는다.
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setInView(entry?.isIntersecting ?? false),
+      { rootMargin: "-35% 0px -35% 0px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!inView) return;
+    const id = setInterval(() => setIndex((i) => (i + 1) % count), CYCLE_MS);
+    return () => clearInterval(id);
+  }, [inView, count]);
+
+  return (
+    <Box
+      ref={ref}
+      position="relative"
+      width="full"
+      overflow="hidden"
+      bg="bg.neutral-weak"
+      borderRadius="r3"
+      style={{ aspectRatio: "4 / 5" }}
+    >
+      {shots.map((content, i) => (
+        <Box
+          key={i}
+          position="absolute"
+          inset={0}
+          aria-hidden={i !== index || undefined}
+          className="transition-opacity duration-(--duration-slow) ease-standard"
+          style={{ opacity: i === index ? 1 : 0 }}
+        >
+          {content}
+        </Box>
+      ))}
+      <Float placement="bottom-center" offsetY="x3">
+        <HStack gap="x1_5" aria-hidden>
+          {shots.map((_, i) => (
+            <Box
+              key={i}
+              width={6}
+              height={6}
+              borderRadius="full"
+              bg={i === index ? "bg.neutral-solid" : "bg.neutral-weak-pressed"}
+            />
+          ))}
+        </HStack>
+      </Float>
+    </Box>
   );
 }
 

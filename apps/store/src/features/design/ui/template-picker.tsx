@@ -148,7 +148,7 @@ function TemplateRow({
   const desktop = bp === "lg" || bp === "xl";
 
   const shots = (
-    <Box width="full" overflow="hidden" borderRadius="r3" bg="bg.neutral-weak">
+    <Box width="full">
       <TemplateShots
         shot={{
           imageSrc: svgToDataUri(template.preview_svg),
@@ -157,6 +157,7 @@ function TemplateRow({
           surface: "none",
         }}
         layout={templateLayout(template)}
+        cycle={!desktop}
       />
     </Box>
   );
@@ -212,6 +213,8 @@ function TemplateRow({
 }
 
 function TemplateListSkeleton() {
+  const bp = useBreakpoint();
+  const desktop = bp === "lg" || bp === "xl";
   return (
     <VStack gap={{ base: "x10", lg: "x12" }} alignItems="stretch" aria-busy>
       {Array.from({ length: SKELETON_COUNT }, (_, index) => (
@@ -220,7 +223,10 @@ function TemplateListSkeleton() {
           columns={{ base: 1, lg: 2 }}
           gap={{ base: "x4", lg: "x6" }}
         >
-          <Box width="full" style={{ aspectRatio: 1 }}>
+          <Box
+            width="full"
+            style={{ aspectRatio: desktop ? "6 / 5" : "4 / 5" }}
+          >
             <Skeleton width="full" height="full" radius="r4" />
           </Box>
           <VStack alignItems="stretch" justifyContent="center" gap="x3">
