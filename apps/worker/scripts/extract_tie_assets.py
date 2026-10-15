@@ -204,13 +204,14 @@ ref = float(np.percentile(tie_l[KT:1500][np.asarray(mask, bool)[KT:1500]], 80))
 ratio = tie_l / ref
 # 천 가장자리가 말려 들어가며 살짝 어두워진다(사진 가장자리의 셔츠 반사도 덮는다)
 rim = 1 - np.asarray(mask.filter(ImageFilter.GaussianBlur(5)), np.float32) / 255
-ratio = np.minimum(ratio, 1) - rim * 0.55 + np.maximum(ratio - 1, 0) * (1 - rim * 2).clip(0, 1)
+# 테두리 0.55·상한 0.82는 밝은 넥타이에서 연필 윤곽선·매듭 아래 검은 줄이 된다 — 0.3·0.65.
+ratio = np.minimum(ratio, 1) - rim * 0.3 + np.maximum(ratio - 1, 0) * (1 - rim * 2).clip(0, 1)
 # 끝 삼각형 가장자리는 살짝 어둡게(접힌 천 두께)
 tie_rgba = np.zeros((H, PW, 2), np.float32)  # (회색값, 알파)
 dark = (1 - ratio).clip(0, None)
 light = (ratio - 1).clip(0, None)
 tie_rgba[..., 0] = np.where(ratio < 1, 0, 255)
-tie_rgba[..., 1] = np.where(ratio < 1, (dark * 1.5).clip(0, 0.82), (light * 0.7).clip(0, 0.3))
+tie_rgba[..., 1] = np.where(ratio < 1, (dark * 1.5).clip(0, 0.65), (light * 0.7).clip(0, 0.3))
 m = np.asarray(mask.filter(ImageFilter.GaussianBlur(0.8)), np.float32) / 255
 tie_rgba[..., 1] *= m
 
@@ -265,8 +266,9 @@ a = Image.fromarray((layer[..., 1] * 255).clip(0, 255).astype(np.uint8))
 shadow = Image.merge("LA", (place(g), place(a)))
 shadow.save(f"{out_dir}/tie-shadow.png", optimize=True)
 # 웹(store·admin public/images)은 WebP — PNG는 600KB대라 첫 로딩이 무겁다.
-# 알파를 60까지 낮춰도 합성 결과 차이는 평균 1 미만.
-shadow.convert("RGBA").save(f"{out_dir}/tie-shadow.webp", quality=75, alpha_quality=60, method=6)
+# 알파 품질 60은 평균 차이는 작아도 밝은 넥타이 매듭 명암이 얼룩(포스터라이즈)진다
+# — 80부터 PNG와 같다.
+shadow.convert("RGBA").save(f"{out_dir}/tie-shadow.webp", quality=75, alpha_quality=80, method=6)
 for name, mm in (("tie-mask.png", mask), ("tie-knot-mask.png", knot_mask)):
     am = place(mm)
     Image.merge("LA", (Image.new("L", am.size, 0), am)).save(f"{out_dir}/{name}", optimize=True)
