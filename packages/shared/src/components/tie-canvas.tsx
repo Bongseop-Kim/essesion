@@ -6,7 +6,7 @@ import { Flex } from "./flex";
 
 export type DesignPreviewMode = "repeat" | "tie";
 
-// 소비하는 앱의 public/images에 tie-mask.png·tie-knot-mask.png·tie-shadow.png가 있어야 한다(store·admin 모두 보유).
+// 소비하는 앱의 public/images에 tie-mask.png·tie-knot-mask.png·tie-shadow.webp가 있어야 한다(store·admin 모두 보유).
 
 export type TieCanvasProps = {
   /** Sanitized SVG encoded as a data URI. */
@@ -61,19 +61,8 @@ const TIE_ART_HEIGHT = (TIE_FRAME.width * TIE_SHADOW.height) / TIE_SHADOW.width;
 const TIE_MASK_TOP = -TIE_SHADOW.top / TIE_ART_HEIGHT;
 const TIE_MASK_HEIGHT = TIE_FRAME.height / TIE_ART_HEIGHT;
 
-/**
- * 미리보기 기하 — 화면과 같은 그림을 캔버스로 합성해 내려받을 때 함께 쓴다.
- * 여기서 갈라지면 내려받은 파일이 화면과 달라진다. 비율은 아트 박스 기준.
- */
-export const TIE_GEOMETRY = {
-  /** 아트 박스(그림자 포함) 폭 대비 높이. */
-  artAspect: TIE_ART_HEIGHT / TIE_FRAME.width,
-  /** 실루엣 마스크 박스 — 아트 박스 상단에서의 오프셋·높이 비율(폭은 아트 박스와 같다). */
-  maskTop: TIE_MASK_TOP,
-  maskHeight: TIE_MASK_HEIGHT,
-  /** 마스크 박스 폭 대비 타일 한 장의 폭. */
-  tileFraction: { tie: 0.16, repeat: 0.28 },
-} as const;
+// 마스크 박스 폭 대비 타일 한 장의 폭.
+const TILE_FRACTION = { tie: 0.16, repeat: 0.28 } as const;
 
 function maskStyle(src: string): CSSProperties {
   return {
@@ -95,7 +84,7 @@ const tieKnotStyle = maskStyle("/images/tie-knot-mask.png");
 
 const tieShadowStyle: CSSProperties = {
   inset: 0,
-  backgroundImage: "url(/images/tie-shadow.png)",
+  backgroundImage: "url(/images/tie-shadow.webp)",
   backgroundSize: "100% 100%",
   backgroundRepeat: "no-repeat",
   pointerEvents: "none",
@@ -130,7 +119,7 @@ export function TieCanvas({
   const backgroundStyle = {
     backgroundImage: `url(${JSON.stringify(imageSrc)})`,
     backgroundRepeat: "repeat",
-    backgroundSize: `${TIE_GEOMETRY.tileFraction[mode] * tileScale * 100}% auto`,
+    backgroundSize: `${TILE_FRACTION[mode] * tileScale * 100}% auto`,
     backgroundPosition: "center",
   } as const;
 
@@ -138,7 +127,7 @@ export function TieCanvas({
   // 두 축에 같은 값을 줘 auto가 소수 높이를 만드는 경로까지 막는다.
   const repeatTilePx = Math.max(
     1,
-    Math.round(frameWidth * TIE_GEOMETRY.tileFraction.repeat * tileScale),
+    Math.round(frameWidth * TILE_FRACTION.repeat * tileScale),
   );
   const repeatStyle =
     frameWidth === 0
