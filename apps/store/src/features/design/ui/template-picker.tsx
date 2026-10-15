@@ -6,7 +6,6 @@ import {
   Grid,
   Skeleton,
   Text,
-  useBreakpoint,
   VStack,
 } from "@essesion/shared";
 import { useState } from "react";
@@ -16,8 +15,8 @@ import {
   svgToDataUri,
 } from "@/features/design/model/svg-preview";
 import {
-  TemplateShots,
   TemplateSwatches,
+  TemplateTieShot,
   templateLayout,
 } from "@/features/design/ui/template-shots";
 import { ChipFilterBar } from "@/shared/ui/chip-filter-bar";
@@ -29,13 +28,16 @@ export type TemplatePickerProps = {
   loading: boolean;
   failed: boolean;
   onRetry: () => void;
-  /** 행을 누르면 — 세션을 열고 색 선택으로 간다 */
+  /** 카드를 누르면 — 세션을 열고 색 선택으로 간다 */
   onSelect: (template: DesignExampleOut) => void;
-  /** 세션을 여는 중인 템플릿 id — 그동안 행 전체를 막는다 */
+  /** 세션을 여는 중인 템플릿 id — 그동안 카드 전체를 막는다 */
   startingId?: string;
 };
 
-const SKELETON_COUNT = 2;
+const SKELETON_COUNT = 8;
+
+/** 한 화면에 여러 템플릿 — 모바일 2열, 태블릿 3열, PC 4열. */
+const GRID_COLUMNS = { base: 2, md: 3, lg: 4 } as const;
 
 const ALL = "all";
 
@@ -51,7 +53,7 @@ function categoryFilters(templates: readonly DesignExampleOut[] | undefined) {
   ];
 }
 
-/** 디자인 첫 화면 — 매거진처럼 한 줄에 템플릿 하나. 행을 누르면 바로 색 선택으로 간다. */
+/** 디자인 첫 화면 — 템플릿 카드 그리드. 카드를 누르면 바로 색 선택으로 간다. */
 export function TemplatePicker({
   templates,
   loading,
@@ -109,47 +111,53 @@ export function TemplatePicker({
             description="다른 분류를 골라 보세요."
           />
         ) : (
-          <VStack gap={{ base: "x10", lg: "x12" }} alignItems="stretch">
-            {visible.map((template, index) => (
-              <TemplateRow
+          <Grid
+            columns={GRID_COLUMNS}
+            columnGap={{ base: "x3", lg: "x6" }}
+            rowGap={{ base: "x8", lg: "x10" }}
+          >
+            {visible.map((template) => (
+              <TemplateCard
                 key={template.id}
                 template={template}
-                flip={index % 2 === 1}
                 starting={startingId === template.id}
                 disabled={startingId != null}
                 onSelect={() => onSelect(template)}
               />
             ))}
-          </VStack>
+          </Grid>
         )}
       </VStack>
     </ContentLayout>
   );
 }
 
-/**
- * 매거진 행 — PC는 3샷 묶음과 글이 좌우로 나뉘고 줄마다 자리를 바꾼다. 모바일은 사진 위, 글 아래.
- * 행 전체가 하나의 버튼이라 사진·제목·설명 어디를 눌러도 이 템플릿으로 시작한다.
- */
-function TemplateRow({
+/** 카드 — 평면 넥타이 한 장 아래 이름·설명·배색. 카드 전체가 하나의 버튼이라 어디를 눌러도 이 템플릿으로 시작한다. */
+function TemplateCard({
   template,
-  flip,
   starting,
   disabled,
   onSelect,
 }: {
   template: DesignExampleOut;
-  flip: boolean;
   starting: boolean;
   disabled: boolean;
   onSelect: () => void;
 }) {
-  const bp = useBreakpoint();
-  const desktop = bp === "lg" || bp === "xl";
-
-  const shots = (
-    <Box width="full">
-      <TemplateShots
+  return (
+    <VStack
+      as="button"
+      type="button"
+      onClick={onSelect}
+      disabled={disabled}
+      aria-busy={starting || undefined}
+      aria-label={`${template.name} 템플릿으로 시작`}
+      alignItems="stretch"
+      gap="x3"
+      width="full"
+      className="cursor-pointer text-start disabled:cursor-default disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-stroke-focus-ring"
+    >
+      <TemplateTieShot
         shot={{
           imageSrc: svgToDataUri(template.preview_svg),
           alt: template.name,
@@ -157,25 +165,18 @@ function TemplateRow({
           surface: "none",
         }}
         layout={templateLayout(template)}
-        cycle={!desktop}
       />
-    </Box>
-  );
-
-  const copy = (
-    <VStack
-      alignItems="start"
-      justifyContent="center"
-      gap="x4"
-      px={{ base: 0, lg: "x8" }}
-      height="full"
-    >
-      <VStack alignItems="start" gap="x2">
-        <Text as="span" textStyle={{ base: "title2", lg: "title1" }}>
+      <VStack alignItems="start" gap="x1">
+        <Text as="span" textStyle="label" maxLines={1}>
           {template.name}
         </Text>
         {template.caption ? (
-          <Text as="span" textStyle="body" color="fg.neutral-muted">
+          <Text
+            as="span"
+            textStyle="caption"
+            color="fg.neutral-muted"
+            maxLines={1}
+          >
             {template.caption}
           </Text>
         ) : null}
@@ -183,59 +184,25 @@ function TemplateRow({
       <TemplateSwatches colorways={template.colorways} />
     </VStack>
   );
-
-  return (
-    <Grid
-      as="button"
-      type="button"
-      onClick={onSelect}
-      disabled={disabled}
-      aria-busy={starting || undefined}
-      columns={{ base: 1, lg: 2 }}
-      gap={{ base: "x4", lg: "x6" }}
-      width="full"
-      aria-label={`${template.name} 템플릿으로 시작`}
-      className="cursor-pointer text-start disabled:cursor-default disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-stroke-focus-ring"
-    >
-      {desktop && flip ? (
-        <>
-          {copy}
-          {shots}
-        </>
-      ) : (
-        <>
-          {shots}
-          {copy}
-        </>
-      )}
-    </Grid>
-  );
 }
 
 function TemplateListSkeleton() {
-  const bp = useBreakpoint();
-  const desktop = bp === "lg" || bp === "xl";
   return (
-    <VStack gap={{ base: "x10", lg: "x12" }} alignItems="stretch" aria-busy>
+    <Grid
+      columns={GRID_COLUMNS}
+      columnGap={{ base: "x3", lg: "x6" }}
+      rowGap={{ base: "x8", lg: "x10" }}
+      aria-busy
+    >
       {Array.from({ length: SKELETON_COUNT }, (_, index) => (
-        <Grid
-          key={index}
-          columns={{ base: 1, lg: 2 }}
-          gap={{ base: "x4", lg: "x6" }}
-        >
-          <Box
-            width="full"
-            style={{ aspectRatio: desktop ? "6 / 5" : "4 / 5" }}
-          >
+        <VStack key={index} alignItems="stretch" gap="x3">
+          <Box width="full" style={{ aspectRatio: "4 / 5" }}>
             <Skeleton width="full" height="full" radius="r4" />
           </Box>
-          <VStack alignItems="stretch" justifyContent="center" gap="x3">
-            <Skeleton preset="title" />
-            <Skeleton preset="line" />
-            <Skeleton preset="line" />
-          </VStack>
-        </Grid>
+          <Skeleton preset="line" />
+          <Skeleton preset="line" />
+        </VStack>
       ))}
-    </VStack>
+    </Grid>
   );
 }

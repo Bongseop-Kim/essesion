@@ -91,7 +91,7 @@ describe("DesignTemplatesPage", () => {
     expect(screen.queryByRole("button", { name: "실사화" })).toBeNull();
   });
 
-  it("템플릿 행을 누르면 세션을 만들고 바로 색 선택으로 간다", async () => {
+  it("템플릿 카드를 누르면 세션을 만들고 바로 색 선택으로 간다", async () => {
     api.startFromExample.mockResolvedValue({ data: { id: "session-2" } });
     examples = [
       {
@@ -130,19 +130,10 @@ describe("DesignTemplatesPage", () => {
     expect(
       within(row).getByRole("img", { name: "네이비 · 골드" }),
     ).toBeTruthy();
-    // 올패턴 — 전체 샷 + 원단만. 모바일(jsdom 폭)은 한 칸에서 번갈아 보여줘 지금 컷 외에는 숨김이다. 포인트 확대(매듭·끝)는 포인트가 있을 때만.
+    // 사진은 평면 넥타이 한 장뿐이다.
     expect(
-      within(row).getByRole("img", {
-        name: "미드나잇 웨이브, 원단",
-        hidden: true,
-      }),
-    ).toBeTruthy();
-    expect(
-      within(row).queryByRole("img", {
-        name: "미드나잇 웨이브, 매듭 확대",
-        hidden: true,
-      }),
-    ).toBeNull();
+      within(row).getAllByRole("img", { name: /^미드나잇 웨이브, / }),
+    ).toHaveLength(1);
     // 보기만 하면 서버 호출이 없다.
     expect(api.startFromExample).not.toHaveBeenCalled();
 
@@ -156,7 +147,7 @@ describe("DesignTemplatesPage", () => {
     await screen.findByText("색 고르기");
   });
 
-  it("분류 칩은 템플릿 데이터의 category이고, 포인트·사진은 그 값대로 그린다", async () => {
+  it("분류 칩은 템플릿 데이터의 category이고, 고르면 그 분류만 남는다", async () => {
     const base = {
       caption: null,
       preview_svg: "<svg id='e1'/>",
@@ -184,16 +175,13 @@ describe("DesignTemplatesPage", () => {
     const point = await screen.findByRole("button", {
       name: "포인트 템플릿으로 시작",
     });
-    // 하단 포인트 — 끝 확대가 더해지고, 전체 샷 자리는 실사 사진이다.
+    // 포인트·실사 사진이 있어도 카드 사진은 평면 넥타이 한 장이다.
     expect(
-      within(point).getByRole("img", {
-        name: "포인트, 아래 끝 확대",
-        hidden: true,
-      }),
-    ).toBeTruthy();
+      within(point).getAllByRole("img", { name: /^포인트, / }),
+    ).toHaveLength(1);
     expect(
-      within(point).getByRole("img", { name: "포인트" }).getAttribute("src"),
-    ).toBe("/templates/b/full.jpg");
+      within(point).queryByRole("img", { name: "포인트, 아래 끝 확대" }),
+    ).toBeNull();
 
     // 칩은 "전체" + 데이터에 나온 분류만, 고르면 그 분류만 남는다.
     expect(screen.queryByRole("button", { name: "도트" })).toBeNull();
