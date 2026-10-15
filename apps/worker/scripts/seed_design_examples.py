@@ -46,29 +46,6 @@ RUN_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "https://essesion.local/design-ex
 # 골든 픽스처와 같은 앵커. 산포·경로 배치의 난수를 고정한다.
 SEED = 20240
 
-# ponytail: 임시 실 색 표 — 정식 실 색 데이터(플랜 "실행 조건")가 오면 이 표를 그 값으로
-# 바꾼다. (이름, hex). 프리셋은 바탕 하나 + 무늬 색 순서대로.
-YARN = {
-    "네이비": "#1B2A49",
-    "블랙": "#141414",
-    "버건디": "#6B1F2A",
-    "포레스트": "#1F3D2B",
-    "차콜": "#3A3A3C",
-    "골드": "#C9A24B",
-    "실버": "#B8BCC2",
-    "아이보리": "#EFE9DC",
-    "베이지": "#CBB79A",
-    "스카이": "#7FA8D6",
-}
-# (바탕, 무늬 색들) — 무늬 색은 스트라이프 밴드 순서대로 돌려 쓴다.
-PRESETS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("네이비", ("골드", "아이보리")),
-    ("블랙", ("실버", "골드")),
-    ("버건디", ("아이보리", "골드")),
-    ("포레스트", ("베이지", "골드")),
-    ("차콜", ("스카이", "실버")),
-)
-
 
 @dataclass(frozen=True)
 class CuratedExample:
@@ -86,6 +63,9 @@ class CuratedExample:
     # 사용자가 준비할 실사 사진 — store public/ 경로. None이면 결정론 샷을 그린다.
     photo_full_url: str | None = None
     photo_detail_url: str | None = None
+    # 사용자가 고를 수 있는 부위 이름 — 플랜 `colors` 순서대로(인덱스가 같으면 같은 슬롯).
+    # 이름이 붙은 슬롯만 색 고르기 화면에 나온다. 비우면 색을 바꿀 수 없는 템플릿.
+    color_names: tuple[str, ...] = field(default=())
     # gallery-v1에 없는 템플릿 전용 플랜 — 있으면 example_id로 찾지 않는다(저작 few-shot 제외).
     plan: DesignPlanV3 | None = None
 
@@ -134,6 +114,7 @@ CURATED: tuple[CuratedExample, ...] = (
         motif_subjects=("rings",),
         category="스트라이프",
         logo_slot=1,
+        color_names=("바탕", "가는 세 줄"),
         plan=PIN_STRIPE_RINGS_PLAN,
     ),
 )
@@ -163,40 +144,10 @@ async def _catalog_motif_id(session: AsyncSession, subject: str) -> str:
     return motif_id
 
 
-def _referenced_slots(intent: dict[str, Any]) -> list[str]:
-    """레이어가 실제로 쓰는 색 슬롯 — 바탕이 먼저, 그다음 스트라이프 밴드 순서.
-
-    모티프 레이어는 슬롯을 참조하지 않는다(모티프 고유 색 유지). 참조 안 된 슬롯은
-    프리셋에서 원래 hex를 그대로 둔다.
-    """
-    ordered: list[str] = []
-    for layer in intent.get("layers", []):
-        params = layer.get("params", {})
-        if layer.get("type") == "background":
-            ordered.append(params["color"])
-        elif layer.get("type") == "stripe":
-            ordered.extend(band["color"] for band in params.get("bands", []))
-    return list(dict.fromkeys(ordered))
-
-
-def _rough_colorways(intent: dict[str, Any]) -> list[dict[str, Any]]:
-    """기본 colorway 뒤에 임시 실 색 프리셋을 붙인다 — 색 선택 화면의 선택지."""
-    slots = {slot["id"]: slot["hex"] for slot in intent["palette"]["slots"]}
-    referenced = _referenced_slots(intent)
-    ground = referenced[0] if referenced else None
-    accents = referenced[1:]
-    colorways = [cw for cw in intent.get("colorways", []) if cw.get("id") == "default"]
-    for index, (bg, pattern) in enumerate(PRESETS):
-        mapping = dict(slots)
-        if ground is not None:
-            mapping[ground] = YARN[bg]
-        for i, slot in enumerate(accents):
-            mapping[slot] = YARN[pattern[i % len(pattern)]]
-        names = [bg, *pattern[: max(1, len(accents))]] if accents else [bg]
-        colorways.append(
-            {"id": f"preset_{index + 1}", "name": " · ".join(names), "mapping": mapping}
-        )
-    return colorways
+def _name_color_slots(intent: dict[str, Any], names: tuple[str, ...]) -> None:
+    """플랜 색 순서대로 팔레트 슬롯에 부위 이름을 붙인다 — 색 고르기의 선택 부위."""
+    for slot, name in zip(intent["palette"]["slots"], names, strict=False):
+        slot["name"] = name
 
 
 def _compose_run(
@@ -204,12 +155,13 @@ def _compose_run(
     *,
     motif_ids: list[str],
     catalog: dict[str, MotifDef],
+    color_names: tuple[str, ...],
 ) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
     """플랜 → intent → SVG. 워커 /generate의 intent 경로와 같은 순서를 지킨다."""
     authored = compile_design_plan_v3(plan, motif_ids=motif_ids, seed=SEED)
     warnings: list[str] = []
     intent = apply_generation_constraints(authored.intent, warnings=warnings)
-    intent["colorways"] = _rough_colorways(intent)
+    _name_color_slots(intent, color_names)
     resolved_plan = snapshot_resolved_plan(plan, intent)
     design = compose_design(
         intent,
@@ -318,6 +270,7 @@ async def _run() -> list[str]:
                     plan,
                     motif_ids=motif_ids,
                     catalog=await get_motifs(session, motif_ids),
+                    color_names=curated.color_names,
                 )
                 await _upsert(
                     session,

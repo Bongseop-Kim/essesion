@@ -15,7 +15,6 @@ import {
   svgToDataUri,
 } from "@/features/design/model/svg-preview";
 import {
-  TemplateSwatches,
   TemplateTieShot,
   templateLayout,
 } from "@/features/design/ui/template-shots";
@@ -132,7 +131,7 @@ export function TemplatePicker({
   );
 }
 
-/** 카드 — 평면 넥타이 한 장 아래 이름·설명·배색. 카드 전체가 하나의 버튼이라 어디를 눌러도 이 템플릿으로 시작한다. */
+/** 카드 — 평면 넥타이 한 장 아래 이름·설명. 카드 전체가 하나의 버튼이라 어디를 눌러도 이 템플릿으로 시작한다. */
 function TemplateCard({
   template,
   starting,
@@ -181,7 +180,6 @@ function TemplateCard({
           </Text>
         ) : null}
       </VStack>
-      <TemplateSwatches colorways={template.colorways} />
     </VStack>
   );
 }

@@ -1493,9 +1493,10 @@ export const getDesignSession = <ThrowOnError extends boolean = false>(options: 
 /**
  * Apply Colorway
  *
- * 색 프리셋 적용 — intent의 colorway만 바꾼 결정론 재렌더라 모델 호출도 과금도 없다.
+ * 부위별 색 적용 — 지금 colorway에 고른 색을 덮은 새 colorway로 결정론 재렌더. 무과금.
  *
- * 프리셋은 템플릿 intent의 `colorways`에 미리 들어 있다(시드·admin). 없는 id는 422.
+ * 고를 수 있는 부위는 intent 팔레트에서 `name`이 붙은 슬롯(시드가 정한다). 그 밖의 슬롯은 422.
+ * 새 colorway id는 mapping 해시(같은 색 → 같은 디자인 id). intent에는 `default`와 이것만 남긴다.
  */
 export const applyColorway = <ThrowOnError extends boolean = false>(options: Options<ApplyColorwayData, ThrowOnError>): RequestResult<ApplyColorwayResponses, ApplyColorwayErrors, ThrowOnError> => (options.client ?? client).post<ApplyColorwayResponses, ApplyColorwayErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

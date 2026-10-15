@@ -7,6 +7,7 @@ finalize는 generate와 같은 동기 요청-응답 + 토큰 과금(design_final
 import asyncio
 import base64
 import binascii
+import hashlib
 import json
 import logging
 import re
@@ -2312,8 +2313,15 @@ class MotifActivateRequest(StrictModel):
     motif_id: str = Field(min_length=1, max_length=100)
 
 
+HexColor = Annotated[str, Field(pattern=r"^#[0-9a-fA-F]{6}$")]
+
+
 class ColorwayRequest(StrictModel):
-    colorway_id: str = Field(min_length=1, max_length=100)
+    """부위별 색 — 키는 intent 팔레트에서 이름(`name`)이 붙은 슬롯 id, 값은 `#RRGGBB`."""
+
+    colors: dict[Annotated[str, Field(min_length=1, max_length=100)], HexColor] = Field(
+        min_length=1, max_length=64
+    )
 
 
 class WorkerMotifCandidateOut(BaseModel):
@@ -2627,9 +2635,10 @@ async def apply_colorway(
     session: SessionDep,
     user: CurrentUser,
 ) -> DesignGenerateOut:
-    """색 프리셋 적용 — intent의 colorway만 바꾼 결정론 재렌더라 모델 호출도 과금도 없다.
+    """부위별 색 적용 — 지금 colorway에 고른 색을 덮은 새 colorway로 결정론 재렌더. 무과금.
 
-    프리셋은 템플릿 intent의 `colorways`에 미리 들어 있다(시드·admin). 없는 id는 422.
+    고를 수 있는 부위는 intent 팔레트에서 `name`이 붙은 슬롯(시드가 정한다). 그 밖의 슬롯은 422.
+    새 colorway id는 mapping 해시(같은 색 → 같은 디자인 id). intent에는 `default`와 이것만 남긴다.
     """
     await advisory_xact_lock(session, USER_LOCK.format(user_id=user.id))
     design_session = await session.scalar(
@@ -2640,16 +2649,28 @@ async def apply_colorway(
     intent = design_session.current_intent
     if intent is None:
         raise ConflictError("먼저 디자인을 만들어 주세요", code="design_not_started")
-    colorway = next(
-        (
-            cw
-            for cw in intent.get("colorways", [])
-            if isinstance(cw, dict) and cw.get("id") == body.colorway_id
-        ),
-        None,
-    )
-    if colorway is None:
-        raise DomainError("이 템플릿에 없는 색입니다", code="invalid_colorway", status=422)
+    named = {
+        slot["id"]
+        for slot in intent.get("palette", {}).get("slots", [])
+        if isinstance(slot, dict) and slot.get("name")
+    }
+    colorways = [cw for cw in intent.get("colorways", []) if isinstance(cw, dict)]
+    current_id = design_session.colorway or "default"
+    base = next((cw for cw in colorways if cw.get("id") == current_id), None)
+    if base is None or not body.colors.keys() <= named:
+        raise DomainError(
+            "이 템플릿에서 바꿀 수 없는 색입니다", code="invalid_colorway", status=422
+        )
+    mapping = {**base["mapping"], **{slot: color.upper() for slot, color in body.colors.items()}}
+    digest = hashlib.sha256(json.dumps(mapping, sort_keys=True).encode()).hexdigest()[:12]
+    colorway_id = f"custom_{digest}"
+    intent = {
+        **intent,
+        "colorways": [
+            *(cw for cw in colorways if cw.get("id") == "default"),
+            {"id": colorway_id, "mapping": mapping},
+        ],
+    }
     now = datetime.now(UTC)
     await _recover_stale_active_generation(session, design_session, user.id, now)
     if design_session.active_generation_id is not None:
@@ -2660,7 +2681,7 @@ async def apply_colorway(
     payload: dict[str, Any] = {
         "run_id": str(run_id),
         "intent": intent,
-        "colorway": body.colorway_id,
+        "colorway": colorway_id,
     }
     if design_session.seed is not None:
         payload["seed"] = design_session.seed
@@ -2671,10 +2692,9 @@ async def apply_colorway(
         session,
         design_session.id,
         "user",
-        DesignColorwayTurnPayload(run_id=run_id, colorway_id=body.colorway_id),
+        DesignColorwayTurnPayload(run_id=run_id, colorway_id=colorway_id),
     )
     await session.commit()
-    name = colorway.get("name")
     return await _shielded(
         _dispatch_motif_activation(
             payload=payload,
@@ -2683,7 +2703,7 @@ async def apply_colorway(
             user_id=user.id,
             design_session_id=design_session.id,
             run_id=run_id,
-            summary=f"{name} 색으로 바꿨습니다" if name else "색을 바꿨습니다",
+            summary="색을 바꿨습니다",
         )
     )
 

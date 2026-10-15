@@ -22,7 +22,6 @@ import {
 } from "@/features/design/model/svg-preview";
 import { useApplyColorway } from "@/features/design/model/use-steps";
 import {
-  colorwayName,
   sessionLayout,
   TemplateDetailShots,
   TemplatePatternShot,
@@ -43,36 +42,62 @@ const CRUMBS = [
   { label: "색 고르기" },
 ];
 
-type Colorway = { id: string; name: string; mapping: Record<string, string> };
+// ponytail: 임시 실 색 표 — 정식 실 색 데이터가 오면 이 표를 그 값으로 바꾼다. 서버는 hex 형식만 본다.
+const YARN: readonly { name: string; hex: string }[] = [
+  { name: "네이비", hex: "#1B2A49" }, // harness-ignore: 실 색 데이터(제품 값, UI 토큰 아님)
+  { name: "블랙", hex: "#141414" }, // harness-ignore: 실 색 데이터(제품 값, UI 토큰 아님)
+  { name: "버건디", hex: "#6B1F2A" }, // harness-ignore: 실 색 데이터(제품 값, UI 토큰 아님)
+  { name: "포레스트", hex: "#1F3D2B" }, // harness-ignore: 실 색 데이터(제품 값, UI 토큰 아님)
+  { name: "차콜", hex: "#3A3A3C" }, // harness-ignore: 실 색 데이터(제품 값, UI 토큰 아님)
+  { name: "골드", hex: "#C9A24B" }, // harness-ignore: 실 색 데이터(제품 값, UI 토큰 아님)
+  { name: "실버", hex: "#B8BCC2" }, // harness-ignore: 실 색 데이터(제품 값, UI 토큰 아님)
+  { name: "아이보리", hex: "#EFE9DC" }, // harness-ignore: 실 색 데이터(제품 값, UI 토큰 아님)
+  { name: "베이지", hex: "#CBB79A" }, // harness-ignore: 실 색 데이터(제품 값, UI 토큰 아님)
+  { name: "스카이", hex: "#7FA8D6" }, // harness-ignore: 실 색 데이터(제품 값, UI 토큰 아님)
+];
 
-/** 세션 intent의 colorways — 엔진 명세(worker-engine.md)대로 id·mapping만 믿는다. */
-function readColorways(intent: DesignSessionOut["current_intent"]): Colorway[] {
+type Part = { slot: string; name: string };
+
+/** 고를 수 있는 부위 — 팔레트에서 이름(`name`)이 붙은 슬롯. 템플릿 시드가 정한다. */
+function readParts(intent: DesignSessionOut["current_intent"]): Part[] {
+  const slots = (intent?.palette as { slots?: unknown } | undefined)?.slots;
+  if (!Array.isArray(slots)) return [];
+  return slots.flatMap((slot) => {
+    const { id, name } = (slot ?? {}) as Record<string, unknown>;
+    return typeof id === "string" && typeof name === "string" && name
+      ? [{ slot: id, name }]
+      : [];
+  });
+}
+
+/** 지금 적용된 colorway의 슬롯→색 — 엔진 명세(worker-engine.md)대로 id·mapping만 믿는다. */
+function readMapping(
+  intent: DesignSessionOut["current_intent"],
+  colorwayId: string,
+): Record<string, string> {
   const raw = intent?.colorways;
-  if (!Array.isArray(raw)) return [];
-  const out: Colorway[] = [];
-  for (const item of raw) {
-    if (typeof item !== "object" || item === null) continue;
-    const { id, name, mapping } = item as Record<string, unknown>;
-    if (typeof id !== "string" || typeof mapping !== "object" || !mapping)
-      continue;
-    out.push({
-      id,
-      name: colorwayName({ id, name: typeof name === "string" ? name : null }),
-      mapping: mapping as Record<string, string>,
-    });
-  }
-  return out;
+  if (!Array.isArray(raw)) return {};
+  const found = raw.find(
+    (item) => (item as { id?: unknown } | null)?.id === colorwayId,
+  ) as { mapping?: unknown } | undefined;
+  return typeof found?.mapping === "object" && found.mapping
+    ? (found.mapping as Record<string, string>)
+    : {};
 }
 
 /**
- * 화면 미리보기용 색 치환 — 현재 colorway의 hex를 고른 colorway의 hex로 한 번에 바꾼다.
- * 정본은 서버 재렌더(다음 버튼)가 만든다. 같은 hex를 두 슬롯이 쓰면 둘 다 바뀐다(임시 프리셋 한계).
+ * 화면 미리보기용 색 치환 — 지금 색의 hex를 고른 hex로 한 번에 바꾼다.
+ * 정본은 서버 재렌더(다음 버튼)가 만든다. 같은 hex를 두 슬롯이 쓰면 둘 다 바뀐다(미리보기 한계).
  */
-function recolorSvg(svg: string, from: Colorway, to: Colorway): string {
+function recolorSvg(
+  svg: string,
+  from: Record<string, string>,
+  picked: Record<string, string>,
+): string {
   const table = new Map<string, string>();
-  for (const [slot, hex] of Object.entries(from.mapping)) {
-    const next = to.mapping[slot];
-    if (next && next.toLowerCase() !== hex.toLowerCase())
+  for (const [slot, next] of Object.entries(picked)) {
+    const hex = from[slot];
+    if (hex && hex.toLowerCase() !== next.toLowerCase())
       table.set(hex.toLowerCase(), next);
   }
   if (table.size === 0) return svg;
@@ -82,7 +107,14 @@ function recolorSvg(svg: string, from: Colorway, to: Colorway): string {
   );
 }
 
-/** 색 선택 — 템플릿에 미리 정한 프리셋 중 하나를 고른다. 화면은 즉시, 서버는 다음에서. */
+function yarnName(hex: string | undefined) {
+  return (
+    YARN.find((yarn) => yarn.hex.toLowerCase() === hex?.toLowerCase())?.name ??
+    "기본"
+  );
+}
+
+/** 색 선택 — 템플릿이 정한 부위마다 실 색을 고른다. 화면은 즉시, 서버는 다음에서. */
 export function DesignColorPage() {
   const { id = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -94,30 +126,28 @@ export function DesignColorPage() {
   const examplesQuery = useQuery(designExamplesQueryOptions());
   const bp = useBreakpoint();
   const isDesktop = bp === "lg" || bp === "xl";
-  const [picked, setPicked] = useState<string | null>(null);
+  const [picked, setPicked] = useState<Record<string, string>>({});
 
   const session = sessionQuery.data;
-  const colorways = useMemo(
-    () => readColorways(session?.current_intent ?? null),
-    [session?.current_intent],
+  const intent = session?.current_intent ?? null;
+  const parts = useMemo(() => readParts(intent), [intent]);
+  const current = useMemo(
+    () => readMapping(intent, session?.colorway ?? "default"),
+    [intent, session?.colorway],
   );
-  const currentId = session?.colorway ?? "default";
-  const selectedId = picked ?? currentId;
-  const current = colorways.find((c) => c.id === currentId);
-  const selected = colorways.find((c) => c.id === selectedId);
+  const changed = Object.entries(picked).filter(
+    ([slot, hex]) => current[slot]?.toLowerCase() !== hex.toLowerCase(),
+  );
   const baseSvg = session?.preview_svg ?? null;
-  const svg =
-    baseSvg && current && selected && current.id !== selected.id
-      ? recolorSvg(baseSvg, current, selected)
-      : baseSvg;
+  const svg = baseSvg && recolorSvg(baseSvg, current, picked);
 
   const next = async () => {
     if (!session) return;
     try {
-      if (selectedId !== currentId) {
+      if (changed.length > 0) {
         await apply.mutateAsync({
           sessionId: session.id,
-          colorwayId: selectedId,
+          colors: Object.fromEntries(changed),
         });
       }
       navigate(logoPath(session.id));
@@ -166,7 +196,7 @@ export function DesignColorPage() {
 
   const shot: TemplateShot = {
     imageSrc: svgToDataUri(svg),
-    alt: `${selected?.name ?? "기본"} 색 미리보기`,
+    alt: "고른 색 미리보기",
     tileScale: svgTileScale(svg),
     surface: "none",
   };
@@ -188,15 +218,20 @@ export function DesignColorPage() {
                 색 고르기
               </Text>
               <Text textStyle="body" color="fg.neutral-muted">
-                이 템플릿에 맞춰 둔 실 색 조합이에요. 골라서 바로 비교해 보세요.
+                부위마다 실 색을 골라 보세요. 고르면 바로 미리 보여 드려요.
               </Text>
             </VStack>
-            <ColorwayPicker
-              colorways={colorways}
-              value={selectedId}
-              onChange={setPicked}
-              disabled={apply.isPending}
-            />
+            {parts.map((part) => (
+              <YarnPicker
+                key={part.slot}
+                part={part}
+                value={picked[part.slot] ?? current[part.slot]}
+                onChange={(hex) =>
+                  setPicked((prev) => ({ ...prev, [part.slot]: hex }))
+                }
+                disabled={apply.isPending}
+              />
+            ))}
             {/* 모바일은 칩이 위라 고른 결과가 바로 보이게 작은 무늬 확대를 칩 아래에 둔다. 큰 샷은 본문. */}
             {isDesktop ? null : <TemplatePatternShot shot={shot} />}
           </VStack>
@@ -225,68 +260,61 @@ export function DesignColorPage() {
   );
 }
 
-/** 프리셋 라디오 — 바탕·무늬 두 색을 반반 칠한 동그라미와 실 색 이름. */
-function ColorwayPicker({
-  colorways,
+/** 부위 하나의 실 색 라디오 — "바탕 · 네이비" 제목 아래 실 색 동그라미. */
+function YarnPicker({
+  part,
   value,
   onChange,
   disabled,
 }: {
-  colorways: readonly Colorway[];
-  value: string;
-  onChange: (id: string) => void;
+  part: Part;
+  value: string | undefined;
+  onChange: (hex: string) => void;
   disabled: boolean;
 }) {
   return (
-    <HStack
-      as="div"
-      role="radiogroup"
-      aria-label="실 색 조합"
-      gap="x3"
-      flexWrap="wrap"
-      alignItems="start"
-    >
-      {colorways.map((colorway) => {
-        const colors = Object.values(colorway.mapping);
-        const [bg, accent = bg] = colors;
-        const checked = colorway.id === value;
-        return (
-          <VStack
-            key={colorway.id}
-            as="button"
-            type="button"
-            role="radio"
-            aria-checked={checked}
-            aria-label={colorway.name}
-            disabled={disabled}
-            onClick={() => onChange(colorway.id)}
-            alignItems="center"
-            gap="x1_5"
-            width={64}
-            className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none disabled:opacity-50"
-          >
+    <VStack alignItems="stretch" gap="x2">
+      <Text as="span" textStyle="labelSm">
+        {part.name}
+        <Text as="span" textStyle="labelSm" color="fg.neutral-muted">
+          {` · ${yarnName(value)}`}
+        </Text>
+      </Text>
+      <HStack
+        as="div"
+        role="radiogroup"
+        aria-label={`${part.name} 실 색`}
+        gap="x2"
+        flexWrap="wrap"
+      >
+        {YARN.map((yarn) => {
+          const checked = yarn.hex.toLowerCase() === value?.toLowerCase();
+          return (
             <Box
-              width={44}
-              height={44}
+              key={yarn.hex}
+              as="button"
+              type="button"
+              role="radio"
+              aria-checked={checked}
+              aria-label={yarn.name}
+              disabled={disabled}
+              onClick={() => onChange(yarn.hex)}
+              width={36}
+              height={36}
               borderRadius="full"
               borderWidth={checked ? 2 : 1}
               borderColor={checked ? "stroke.neutral" : "stroke.neutral-weak"}
+              className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none disabled:opacity-50"
               style={{
-                background: `linear-gradient(135deg, ${bg} 50%, ${accent} 50%)`,
+                background: yarn.hex,
+                boxShadow: checked
+                  ? "inset 0 0 0 2px var(--color-bg-layer-default)"
+                  : undefined,
               }}
             />
-            <Text
-              as="span"
-              textStyle="captionSm"
-              color={checked ? "fg.neutral" : "fg.neutral-muted"}
-              maxLines={2}
-              className="text-center"
-            >
-              {colorway.name}
-            </Text>
-          </VStack>
-        );
-      })}
-    </HStack>
+          );
+        })}
+      </HStack>
+    </VStack>
   );
 }

@@ -26,15 +26,18 @@ export function usePlaceLogo() {
   });
 }
 
-/** 색 프리셋 적용 — intent의 colorway만 바꾼 재렌더라 토큰이 들지 않는다. */
+/** 부위별 색 적용 — 슬롯→hex. colorway만 바꾼 재렌더라 토큰이 들지 않는다. */
 export function useApplyColorway() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: { sessionId: string; colorwayId: string }) => {
+    mutationFn: async (input: {
+      sessionId: string;
+      colors: Record<string, string>;
+    }) => {
       const { data } = await applyColorway({
         path: { session_id: input.sessionId },
-        body: { colorway_id: input.colorwayId },
+        body: { colors: input.colors },
         throwOnError: true,
       });
       await Promise.all([

@@ -125,11 +125,6 @@ describe("DesignTemplatesPage", () => {
       name: "미드나잇 웨이브 템플릿으로 시작",
     });
     expect(within(row).getByText("네이비 · 대각 스트라이프")).toBeTruthy();
-    // 색 칩은 SVG에 쓰인 색이 아니라 색 고르기의 선택지(colorways)다.
-    expect(within(row).getByText("배색 2종")).toBeTruthy();
-    expect(
-      within(row).getByRole("img", { name: "네이비 · 골드" }),
-    ).toBeTruthy();
     // 사진은 평면 넥타이 한 장뿐이다.
     expect(
       within(row).getAllByRole("img", { name: /^미드나잇 웨이브, / }),

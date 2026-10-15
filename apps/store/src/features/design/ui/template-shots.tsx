@@ -1,5 +1,5 @@
 import type { DesignExampleOut, DesignSessionOut } from "@essesion/api-client";
-import { Box, Grid, HStack, Text, TieCanvas, VStack } from "@essesion/shared";
+import { Box, Grid, TieCanvas, VStack } from "@essesion/shared";
 import type { ReactNode } from "react";
 
 /**
@@ -60,56 +60,6 @@ export type TemplateShot = {
   tileScale: number;
   surface: "none";
 };
-
-type Colorway = DesignExampleOut["colorways"][number];
-
-/** 배색 이름 — 엔진 기본 배색(`default`)은 이름 대신 "기본". 색 고르기 화면과 같은 규칙. */
-export function colorwayName({
-  id,
-  name,
-}: {
-  id: string;
-  name?: string | null;
-}) {
-  return id !== "default" && name ? name : "기본";
-}
-
-/** "배색 N종" 라벨 + 바탕·무늬 반반 동그라미 — 색 고르기 화면의 선택지를 같은 모양으로 미리 보여준다. */
-export function TemplateSwatches({
-  colorways,
-}: {
-  colorways: readonly Colorway[];
-}) {
-  if (colorways.length === 0) return null;
-  return (
-    <VStack alignItems="start" gap="x1_5">
-      <Text as="span" textStyle="caption" color="fg.neutral-muted">
-        배색 {colorways.length}종
-      </Text>
-      <HStack gap="x1_5" flexWrap="wrap">
-        {colorways.map((colorway) => {
-          const [bg, accent = bg] = Object.values(colorway.mapping);
-          return (
-            <Box
-              key={colorway.id}
-              as="span"
-              role="img"
-              aria-label={colorwayName(colorway)}
-              width={20}
-              height={20}
-              borderRadius="full"
-              borderWidth={1}
-              borderColor="stroke.neutral-weak"
-              style={{
-                background: `linear-gradient(135deg, ${bg} 50%, ${accent} 50%)`,
-              }}
-            />
-          );
-        })}
-      </HStack>
-    </VStack>
-  );
-}
 
 /** 셀을 꽉 채우는 TieCanvas — TieCanvas는 정사각을 강제하므로 절대 배치로 덮는다. */
 function Fill({ children }: { children: ReactNode }) {

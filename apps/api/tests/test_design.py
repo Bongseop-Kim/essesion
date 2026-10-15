@@ -2954,7 +2954,7 @@ async def test_motif_activate_rejects_unknown_motif_and_empty_session(
 
 
 async def test_colorway_rerenders_for_free_and_appends_a_step(client, app, db_session, settings):
-    """색 프리셋은 intent의 colorway만 바꾼 결정론 재렌더 — 토큰을 쓰지 않고 새 스텝만 남는다."""
+    """부위별 색은 지금 colorway에 고른 색을 덮은 새 colorway로 재렌더 — 토큰을 쓰지 않는다."""
     worker = FakeWorker(sessionmaker=app.state.sessionmaker)
     app.state.worker = worker
     user = await make_user(db_session)
@@ -2963,28 +2963,44 @@ async def test_colorway_rerenders_for_free_and_appends_a_step(client, app, db_se
     design_session = DesignSession(user_id=user.id)
     design_session.current_intent = {
         "canvas": {"tile_mm": 24},
-        "palette": {"slots": [{"id": "ground", "hex": "#000000"}]},
+        "palette": {
+            "slots": [
+                {"id": "ground", "hex": "#000000", "name": "바탕"},
+                {"id": "line", "hex": "#FFFFFF", "name": "가는 세 줄"},
+                {"id": "fixed", "hex": "#123456"},
+            ]
+        },
         "colorways": [
-            {"id": "default", "mapping": {"ground": "#000000"}},
-            {"id": "preset_1", "name": "네이비 · 골드", "mapping": {"ground": "#1B2A49"}},
+            {
+                "id": "default",
+                "mapping": {"ground": "#000000", "line": "#FFFFFF", "fixed": "#123456"},
+            },
+            {
+                "id": "custom_old",
+                "mapping": {"ground": "#111111", "line": "#FFFFFF", "fixed": "#123456"},
+            },
         ],
         "layers": [],
     }
     design_session.seed = 7
-    design_session.colorway = "default"
+    design_session.colorway = "custom_old"
     db_session.add(design_session)
     await db_session.commit()
     sid = str(design_session.id)
     before = await ledger.get_balance(db_session, user.id)
 
     res = await client.post(
-        f"/design/sessions/{sid}/color", json={"colorway_id": "preset_1"}, headers=headers
+        f"/design/sessions/{sid}/color", json={"colors": {"line": "#c9a24b"}}, headers=headers
     )
 
     assert res.status_code == 200, res.text
     payload = worker.generate_payloads[-1]
-    assert payload["intent"] == design_session.current_intent
-    assert (payload["seed"], payload["colorway"]) == (7, "preset_1")
+    # 지금 colorway(custom_old) 위에 고른 부위만 덮고, 옛 사용자 colorway는 지운다.
+    default, custom = payload["intent"]["colorways"]
+    assert default["id"] == "default"
+    assert custom["mapping"] == {"ground": "#111111", "line": "#C9A24B", "fixed": "#123456"}
+    assert custom["id"].startswith("custom_") and custom["id"] != "custom_old"
+    assert (payload["seed"], payload["colorway"]) == (7, custom["id"])
     assert "prompt" not in payload and "motif_slot" not in payload
     assert await ledger.get_balance(db_session, user.id) == before
 
@@ -2993,9 +3009,9 @@ async def test_colorway_rerenders_for_free_and_appends_a_step(client, app, db_se
     assert turns[0]["payload"] == {
         "type": "colorway",
         "run_id": res.json()["run_id"],
-        "colorway_id": "preset_1",
+        "colorway_id": custom["id"],
     }
-    assert turns[1]["payload"]["summary"] == "네이비 · 골드 색으로 바꿨습니다"
+    assert turns[1]["payload"]["summary"] == "색을 바꿨습니다"
 
 
 async def test_logo_saves_motif_once_and_activates_server_chosen_slot(
@@ -3095,14 +3111,14 @@ async def test_logo_saves_motif_once_and_activates_server_chosen_slot(
     assert worker.generate_payloads[-1]["motif_slot"]["slot"] == 1
 
 
-async def test_colorway_rejects_unknown_preset_and_empty_session(client, app, db_session, settings):
+async def test_colorway_rejects_unnamed_slot_and_empty_session(client, app, db_session, settings):
     app.state.worker = FakeWorker()
     user = await make_user(db_session)
     headers = auth_headers(user, settings)
     empty = (await client.post("/design/sessions", headers=headers)).json()["id"]
 
     not_started = await client.post(
-        f"/design/sessions/{empty}/color", json={"colorway_id": "preset_1"}, headers=headers
+        f"/design/sessions/{empty}/color", json={"colors": {"ground": "#000000"}}, headers=headers
     )
     assert not_started.status_code == 409
     assert not_started.json()["code"] == "design_not_started"
@@ -3111,17 +3127,30 @@ async def test_colorway_rejects_unknown_preset_and_empty_session(client, app, db
     design_session.current_intent = {
         "canvas": {"tile_mm": 24},
         "layers": [],
-        "colorways": [{"id": "default", "mapping": {}}],
+        "palette": {
+            "slots": [
+                {"id": "ground", "hex": "#000000", "name": "바탕"},
+                {"id": "fixed", "hex": "#123456"},
+            ]
+        },
+        "colorways": [{"id": "default", "mapping": {"ground": "#000000", "fixed": "#123456"}}],
     }
     db_session.add(design_session)
     await db_session.commit()
-    unknown = await client.post(
+    # 이름 없는 슬롯은 고를 수 있는 부위가 아니다.
+    unnamed = await client.post(
         f"/design/sessions/{design_session.id}/color",
-        json={"colorway_id": "preset_9"},
+        json={"colors": {"fixed": "#FFFFFF"}},
         headers=headers,
     )
-    assert unknown.status_code == 422
-    assert unknown.json()["code"] == "invalid_colorway"
+    assert unnamed.status_code == 422
+    assert unnamed.json()["code"] == "invalid_colorway"
+    bad_hex = await client.post(
+        f"/design/sessions/{design_session.id}/color",
+        json={"colors": {"ground": "navy"}},
+        headers=headers,
+    )
+    assert bad_hex.status_code == 422
     assert app.state.worker.generate_payloads == []
 
 

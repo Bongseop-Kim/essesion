@@ -3213,12 +3213,16 @@ export type ClaimTrackingUpdateRequest = {
 
 /**
  * ColorwayRequest
+ *
+ * 부위별 색 — 키는 intent 팔레트에서 이름(`name`)이 붙은 슬롯 id, 값은 `#RRGGBB`.
  */
 export type ColorwayRequest = {
     /**
-     * Colorway Id
+     * Colors
      */
-    colorway_id: string;
+    colors: {
+        [key: string]: string;
+    };
 };
 
 /**
