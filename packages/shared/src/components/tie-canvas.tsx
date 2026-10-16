@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Box } from "./box";
 import { Flex } from "./flex";
@@ -46,7 +46,11 @@ const TIE_FOCUS_LABEL = {
 } as const;
 
 // 실루엣별 기하 — 마스크·명암 이미지는 같은 크기의 한 장짜리 아트 박스이고, 값은 모두 그 비율이다.
-// - emblem: 포인트 로고 중심 y와 폭(아트 박스 폭 대비). 블레이드 폭 안에 든다.
+// - emblem: 포인트 로고 자리. 로고마다 가로세로 비가 달라 한 점·한 폭으로 못 맞춘다 — 실측한 로고
+//   외곽(getBBox)을 면적 기준 크기 `size`(같은 면적의 정사각 한 변, 아트 폭 대비)로 키우고
+//   `maxW`·`maxH`(아트 폭 대비)로 자른 뒤, `anchor` 점(x=폭 비, y=높이 비)에 붙인다. `center`는
+//   로고 중심, `bottom-right`는 오른쪽 아래 모서리를 그 점에 둔다 — 넓은 로고는 왼쪽, 높은 로고는
+//   위로 자라 오른쪽 여백과 바닥선이 로고와 무관하게 같다(넥타이 샘플의 끝 로고 배치).
 // - focus: 확대 샷 — 아트 박스 폭을 프레임의 zoom배로 키우고, y(아트 박스 높이 기준)를 프레임 중앙에.
 // - tile: 아트 박스 폭 대비 타일 한 장의 폭 — 블레이드 폭 대비 타일 크기가 두 실루엣에서 같게.
 const SILHOUETTES = {
@@ -58,9 +62,26 @@ const SILHOUETTES = {
     shadow: "/images/tie-shadow.webp",
     aspect: 794 / 2097,
     tile: 0.16,
-    emblem: { knot: { y: 0.06, width: 0.13 }, tip: { y: 0.865, width: 0.2 } },
-    // tip 0.91 — 0.93이면 정사각 칸(상세)에서 끝 엠블럼(0.865) 윗부분이 잘린다.
-    focus: { zoom: 2.2, y: { knot: 0.09, blade: 0.5, tip: 0.91 } },
+    emblem: {
+      knot: {
+        anchor: "center",
+        x: 0.5,
+        y: 0.06,
+        size: 0.13,
+        maxW: 0.2,
+        maxH: 0.2,
+      },
+      tip: {
+        anchor: "bottom-right",
+        x: 0.66,
+        y: 0.86,
+        size: 0.06,
+        maxW: 0.12,
+        maxH: 0.09,
+      },
+    },
+    // tip 0.85 — 정사각 칸(상세)에서 끝 엠블럼(바닥 0.86)과 끝이 좁아지는 자리(0.92)가 함께 들어온다.
+    focus: { zoom: 2.2, y: { knot: 0.09, blade: 0.5, tip: 0.85 } },
   },
   // 평면 컷 사진(레포 밖 원본)에서 추출 — extract_tie_flat_assets.py. 928×1172,
   // 블레이드 폭 = 아트 폭의 0.91, 윗변 y 0.03·어깨 0.60·끝 0.97.
@@ -70,13 +91,59 @@ const SILHOUETTES = {
     shadow: "/images/tie-flat-shadow.webp",
     aspect: 928 / 1172,
     tile: 0.37,
-    emblem: { knot: { y: 0.2, width: 0.3 }, tip: { y: 0.74, width: 0.26 } },
+    emblem: {
+      knot: {
+        anchor: "center",
+        x: 0.5,
+        y: 0.2,
+        size: 0.3,
+        maxW: 0.5,
+        maxH: 0.4,
+      },
+      tip: {
+        anchor: "bottom-right",
+        x: 0.85,
+        y: 0.585,
+        size: 0.13,
+        maxW: 0.26,
+        maxH: 0.2,
+      },
+    },
     focus: { zoom: 1.8, y: { knot: 0.22, blade: 0.45, tip: 0.78 } },
   },
 } as const;
 
 // repeat 모드: 프레임 폭 대비 타일 한 장의 폭.
 const REPEAT_TILE_FRACTION = 0.28;
+
+type EmblemGeom = {
+  anchor: "center" | "bottom-right";
+  x: number;
+  y: number;
+  size: number;
+  maxW: number;
+  maxH: number;
+};
+type Rect = { x: number; y: number; width: number; height: number };
+
+// 모티프 계약상 로고는 -0.5..0.5 정사각 안에 든다 — 실측 전·실측 불가(jsdom)면 그 칸 전체.
+const UNIT_RECT: Rect = { x: -0.5, y: -0.5, width: 1, height: 1 };
+
+/** 실측 외곽을 면적 기준으로 키워 anchor 점에 붙인 박스 — left·width는 폭 %, top은 높이 %. */
+export function emblemBox(geom: EmblemGeom, rect: Rect, artAspect: number) {
+  const ratio = rect.width / rect.height;
+  let width = geom.size * Math.sqrt(ratio);
+  let height = geom.size / Math.sqrt(ratio);
+  const shrink = Math.min(1, geom.maxW / width, geom.maxH / height);
+  width *= shrink;
+  height *= shrink;
+  // 높이는 아트 폭 단위 — 아트 높이(1/aspect) 대비로 바꿔 top %에 쓴다.
+  const heightOfArt = height * artAspect;
+  const left = geom.anchor === "center" ? geom.x - width / 2 : geom.x - width;
+  const top =
+    geom.anchor === "center" ? geom.y - heightOfArt / 2 : geom.y - heightOfArt;
+  return { left, top, width, height: heightOfArt };
+}
 
 function maskStyle(src: string): CSSProperties {
   return {
@@ -118,6 +185,25 @@ export function TieCanvas({
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
+
+  // 포인트 로고의 실제 외곽 — 모티프는 긴 변 기준 정규화라 가로세로 비가 로고마다 다르다.
+  const emblemRef = useRef<SVGUseElement>(null);
+  const [emblemRect, setEmblemRect] = useState<Rect>(UNIT_RECT);
+  const emblemSvg = emblem?.svg;
+  useLayoutEffect(() => {
+    const el = emblemRef.current;
+    if (!emblemSvg || !el || typeof el.getBBox !== "function") {
+      setEmblemRect(UNIT_RECT);
+      return;
+    }
+    const { x, y, width, height } = el.getBBox();
+    setEmblemRect(
+      width > 0 && height > 0 ? { x, y, width, height } : UNIT_RECT,
+    );
+  }, [emblemSvg]);
+  const emblemPos = emblem
+    ? emblemBox(geom.emblem[emblem.at], emblemRect, geom.aspect)
+    : null;
 
   const backgroundStyle = {
     backgroundImage: `url(${JSON.stringify(imageSrc)})`,
@@ -191,27 +277,30 @@ export function TieCanvas({
           />
         </Box>
       ) : null}
-      {emblem ? (
+      {emblem && emblemPos ? (
         <Box
           position="absolute"
           aria-hidden
           color="fg.neutral"
           style={{
-            left: "50%",
-            top: `${geom.emblem[emblem.at].y * 100}%`,
-            width: `${geom.emblem[emblem.at].width * 100}%`,
-            aspectRatio: 1,
-            transform: "translate(-50%, -50%)",
+            left: `${emblemPos.left * 100}%`,
+            top: `${emblemPos.top * 100}%`,
+            width: `${emblemPos.width * 100}%`,
+            height: `${emblemPos.height * 100}%`,
           }}
         >
           <svg
-            viewBox="-0.5 -0.5 1 1"
+            viewBox={`${emblemRect.x} ${emblemRect.y} ${emblemRect.width} ${emblemRect.height}`}
             width="100%"
             height="100%"
             role="presentation"
+            style={{ overflow: "visible" }}
           >
             <g dangerouslySetInnerHTML={{ __html: emblem.svg }} />
-            <use href={`#${/id="([^"]+)"/.exec(emblem.svg)?.[1] ?? ""}`} />
+            <use
+              ref={emblemRef}
+              href={`#${/id="([^"]+)"/.exec(emblem.svg)?.[1] ?? ""}`}
+            />
           </svg>
         </Box>
       ) : null}
