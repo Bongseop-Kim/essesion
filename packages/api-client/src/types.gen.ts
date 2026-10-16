@@ -823,6 +823,10 @@ export type AdminDesignExampleOut = {
      */
     id: string;
     /**
+     * Logo In Panel
+     */
+    logo_in_panel?: boolean;
+    /**
      * Logo Preview Svg
      */
     logo_preview_svg: string | null;
@@ -838,6 +842,10 @@ export type AdminDesignExampleOut = {
      * Ordinal
      */
     ordinal: number;
+    /**
+     * Panel Svg
+     */
+    panel_svg?: string | null;
     /**
      * Photo Detail Url
      */
@@ -3956,6 +3964,10 @@ export type DesignExampleOut = {
      */
     id: string;
     /**
+     * Logo In Panel
+     */
+    logo_in_panel?: boolean;
+    /**
      * Logo Preview Svg
      */
     logo_preview_svg: string | null;
@@ -3967,6 +3979,10 @@ export type DesignExampleOut = {
      * Name
      */
     name: string;
+    /**
+     * Panel Svg
+     */
+    panel_svg?: string | null;
     /**
      * Photo Detail Url
      */
@@ -4196,6 +4212,10 @@ export type DesignOut = {
      */
     layout_id: string;
     /**
+     * Panel Svg
+     */
+    panel_svg?: string | null;
+    /**
      * Png Object Key
      */
     png_object_key: string | null;
@@ -4287,6 +4307,10 @@ export type DesignSessionOut = {
      * Last Prompt
      */
     last_prompt?: string | null;
+    /**
+     * Preview Panel Svg
+     */
+    preview_panel_svg?: string | null;
     /**
      * Preview Svg
      */

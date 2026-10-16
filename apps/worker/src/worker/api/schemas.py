@@ -149,7 +149,8 @@ class GenerateRequest(StrictRequest):
 
 
 class MotifSlotInput(StrictRequest):
-    slot: Literal[1, 2]
+    # "logo" = 배치형(panel) 포인트 로고 자리 (worker-pipeline.md, set_motif_slot).
+    slot: Literal[1, 2, "logo"]
     motif_id: str = Field(min_length=1, max_length=100)
 
 
@@ -167,6 +168,8 @@ class DesignOut(BaseModel):
     seed: int
     svg: str
     png_object_key: str | None
+    # 배치형 요소 SVG(블레이드 프레임) — 반복 타일 위에 한 번 얹는다. 없으면 null.
+    panel_svg: str | None = None
 
 
 class GenerationWarning(BaseModel):

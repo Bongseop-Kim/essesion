@@ -69,3 +69,26 @@ def test_seeded_runs_are_deterministic_and_carry_what_the_api_restores():
         assert isinstance(design_log["seed"], int)
         assert design_log["colorway_id"] == "default"
         assert design_log["svg"].startswith("<svg")
+
+
+def test_placement_templates_carry_panel_svg_and_one_logo():
+    # 배치형 템플릿 — panel이 intent·로그에 실리고 포인트 로고는 panel에 하나뿐이다.
+    seed = _seed_module()
+    catalog = _catalog()
+    motif_id = sorted(catalog)[0]
+    placed = [item for item in seed.CURATED if item.panel]
+    assert len(placed) == 6
+    for curated in placed:
+        panel = [
+            {**{k: v for k, v in element.items() if k != "subject"}, "motif_id": motif_id}
+            if "subject" in element
+            else dict(element)
+            for element in curated.panel
+        ]
+        assert sum(1 for element in panel if element.get("role") == "logo") == 1
+        _intent, design_log, warnings = seed._compose_run(
+            curated.plan, motif_ids=[], catalog=catalog, color_names=(), panel=panel
+        )
+        assert warnings == [], curated.example_id
+        assert design_log["panel_svg"].startswith("<svg")
+        assert design_log["intent"]["panel"][0]["type"] == panel[0]["type"]

@@ -1415,6 +1415,11 @@
             "title": "Id",
             "type": "string"
           },
+          "logo_in_panel": {
+            "default": false,
+            "title": "Logo In Panel",
+            "type": "boolean"
+          },
           "logo_preview_svg": {
             "anyOf": [
               {
@@ -1448,6 +1453,17 @@
           "ordinal": {
             "title": "Ordinal",
             "type": "integer"
+          },
+          "panel_svg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Panel Svg"
           },
           "photo_detail_url": {
             "anyOf": [
@@ -7344,6 +7360,11 @@
             "title": "Id",
             "type": "string"
           },
+          "logo_in_panel": {
+            "default": false,
+            "title": "Logo In Panel",
+            "type": "boolean"
+          },
           "logo_preview_svg": {
             "anyOf": [
               {
@@ -7373,6 +7394,17 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "panel_svg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Panel Svg"
           },
           "photo_detail_url": {
             "anyOf": [
@@ -7807,6 +7839,17 @@
             "title": "Layout Id",
             "type": "string"
           },
+          "panel_svg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Panel Svg"
+          },
           "png_object_key": {
             "anyOf": [
               {
@@ -7977,6 +8020,17 @@
               }
             ],
             "title": "Last Prompt"
+          },
+          "preview_panel_svg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Panel Svg"
           },
           "preview_svg": {
             "anyOf": [
@@ -24911,7 +24965,7 @@
     },
     "/design/sessions/{session_id}/logo": {
       "post": {
-        "description": "로고 한 번에 넣기 — 내 모티프 저장(멱등) + 로고 슬롯 교체 재렌더. 무과금.\n\n슬롯은 서버가 정한다: 템플릿의 `logo_slot`이 있으면 그것, 없으면 모티프 레이어가 둘일 때\n2(큰 무늬), 아니면 1.",
+        "description": "로고 한 번에 넣기 — 내 모티프 저장(멱등) + 로고 슬롯 교체 재렌더. 무과금.\n\n슬롯은 서버가 정한다: 배치형(panel) 포인트 로고가 있으면 그 자리(`\"logo\"`), 다음은 템플릿의\n`logo_slot`, 없으면 모티프 레이어가 둘일 때 2(큰 무늬), 아니면 1.",
         "operationId": "place_design_logo",
         "parameters": [
           {

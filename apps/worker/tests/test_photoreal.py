@@ -55,3 +55,22 @@ def test_build_prompts_bind_method_and_weave():
     # 넥타이 프롬프트만 마스크·사진 유지 지시를 갖는다.
     assert "masked necktie" in tie_prompt
     assert "macro photograph" in fabric_prompt
+
+
+def test_tie_mockup_paints_panel_once_on_the_blade():
+    tile = Image.new("RGB", (96, 96), (30, 60, 120))
+    # 블레이드 프레임 아래쪽 절반(어깨선 위 400 ~ 끝)을 빨갛게 — 블레이드 아래에만 보여야 한다.
+    panel = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -4600 1000 6200">'
+        '<rect x="0" y="600" width="1000" height="1000" fill="#ff0000"/></svg>'
+    )
+    plain = Image.open(io.BytesIO(photoreal.tie_mockup_png(tile, tile_mm=48.0)))
+    image = Image.open(io.BytesIO(photoreal.tie_mockup_png(tile, tile_mm=48.0, panel_svg=panel)))
+    assert image.tobytes() != plain.tobytes()
+    red = [
+        y
+        for y in range(0, 1024, 4)
+        if (pixel := image.getpixel((512, y)))[0] > 120 and pixel[2] < 90  # type: ignore[index]
+    ]
+    # 빨강은 넥타이 아래쪽(끝 근처)에만 — 매듭·윗부분에는 없다.
+    assert red and min(red) > 700

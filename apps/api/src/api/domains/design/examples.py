@@ -19,11 +19,13 @@ from api.domains.design.router import (
     DesignAssistantGenerationPayload,
     DesignSessionOut,
     DesignStepActivateTurnPayload,
+    _all_intent_motif_ids,
     _append_turn,
     _design_session_out,
     _ensure_intent_motif_access,
     _intent_motif_ids,
     _motif_preview_svg,
+    _panel_logo_motif_id,
     _resolve_design_run,
 )
 from api.errors import ConflictError, NotFoundError
@@ -50,6 +52,10 @@ class DesignExampleOut(BaseModel):
     # 카드 라벨 둘째 줄 — 없으면 store가 제목만 그린다.
     caption: str | None
     preview_svg: str
+    # 배치형(panel) 요소 SVG — 블레이드에 한 번 얹는다(대각 분할·곡선 띠·포인트 로고). 없으면 null.
+    panel_svg: str | None = None
+    # 포인트 로고가 panel 안에 그려져 있다 — store는 엠블럼 오버레이를 그리지 않는다.
+    logo_in_panel: bool = False
     # 템플릿 데이터 — 정본은 시드 코드, 컬럼은 전달용(플랜 design-template-first 2026-10-14).
     category: str | None
     point: Literal["none", "top", "bottom"]
@@ -88,9 +94,13 @@ class AdminDesignExampleUpdateRequest(StrictModel):
     published: bool | None = None
 
 
-def _preview_svg(design: Any) -> str:
-    svg = design.get("svg") if isinstance(design, dict) else None
+def _preview_svg(design: Any, key: str = "svg") -> str:
+    svg = design.get(key) if isinstance(design, dict) else None
     return svg if isinstance(svg, str) else ""
+
+
+def _design_intent(design: Any) -> object:
+    return design.get("intent") if isinstance(design, dict) else None
 
 
 def _colorways(design: Any) -> list[DesignExampleColorway]:
@@ -100,7 +110,10 @@ def _colorways(design: Any) -> list[DesignExampleColorway]:
 
 
 def _logo_slot_motif_id(example: DesignExample, design: Any) -> str | None:
-    """로고 슬롯(1|2)에 지금 들어 있는 모티프 id — run 디자인의 intent 레이어 순서다."""
+    """로고 자리에 지금 들어 있는 모티프 id — 배치형(panel) 로고가 우선, 다음은 로고 슬롯(1|2)
+    (run 디자인의 intent 레이어 순서)."""
+    if (panel_logo := _panel_logo_motif_id(_design_intent(design))) is not None:
+        return panel_logo
     if example.logo_slot is None or not isinstance(design, dict):
         return None
     motif_ids = _intent_motif_ids(design.get("intent"))
@@ -109,7 +122,7 @@ def _logo_slot_motif_id(example: DesignExample, design: Any) -> str | None:
 
 def _example_out(
     example: DesignExample,
-    preview_svg: str,
+    design: Any,
     logo_preview_svg: str | None,
     colorways: list[DesignExampleColorway] | None = None,
 ) -> DesignExampleOut:
@@ -117,7 +130,9 @@ def _example_out(
         id=example.id,
         name=example.name,
         caption=example.caption,
-        preview_svg=preview_svg,
+        preview_svg=_preview_svg(design),
+        panel_svg=_preview_svg(design, "panel_svg") or None,
+        logo_in_panel=_panel_logo_motif_id(_design_intent(design)) is not None,
         category=example.category,
         point=example.point,  # type: ignore[arg-type]  # CHECK 제약이 값을 보장한다
         logo_slot=example.logo_slot,  # type: ignore[arg-type]
@@ -130,8 +145,8 @@ def _example_out(
 
 async def _examples_with_preview(
     session: SessionDep, *, published_only: bool
-) -> list[tuple[DesignExample, str, str | None, list[DesignExampleColorway]]]:
-    """(예시, 디자인 SVG, 로고 슬롯 모티프 미리보기, colorways) — 슬롯 모티프는 한 번에 조회한다."""
+) -> list[tuple[DesignExample, Any, str | None, list[DesignExampleColorway]]]:
+    """(예시, run 디자인, 로고 자리 모티프 미리보기, colorways) — 로고 모티프는 한 번에 조회한다."""
     query = (
         select(DesignExample, SeamlessGenerationLog.design)
         .join(SeamlessGenerationLog, SeamlessGenerationLog.id == DesignExample.run_id)
@@ -156,7 +171,7 @@ async def _examples_with_preview(
     return [
         (
             example,
-            _preview_svg(design),
+            design,
             motifs.get(_logo_slot_motif_id(example, design) or ""),
             _colorways(design),
         )
@@ -168,11 +183,11 @@ async def _examples_with_preview(
 async def list_design_examples(session: SessionDep) -> list[DesignExampleOut]:
     """첫 진입 갤러리 — 상품과 같은 공개 조회. 그릴 수 없는 예시는 내리지 않는다."""
     return [
-        _example_out(example, preview_svg, logo_preview_svg, colorways)
-        for example, preview_svg, logo_preview_svg, colorways in await _examples_with_preview(
+        _example_out(example, design, logo_preview_svg, colorways)
+        for example, design, logo_preview_svg, colorways in await _examples_with_preview(
             session, published_only=True
         )
-        if preview_svg
+        if _preview_svg(design)
     ]
 
 
@@ -241,10 +256,10 @@ async def create_design_session_from_example(
 
 
 def _admin_out(
-    example: DesignExample, preview_svg: str, logo_preview_svg: str | None = None
+    example: DesignExample, design: Any, logo_preview_svg: str | None = None
 ) -> AdminDesignExampleOut:
     return AdminDesignExampleOut(
-        **_example_out(example, preview_svg, logo_preview_svg).model_dump(),
+        **_example_out(example, design, logo_preview_svg).model_dump(),
         run_id=example.run_id,
         ordinal=example.ordinal,
         published=example.published,
@@ -256,8 +271,8 @@ async def list_admin_design_examples(
     session: SessionDep, admin: AdminUser
 ) -> list[AdminDesignExampleOut]:
     return [
-        _admin_out(example, preview_svg, logo_preview_svg)
-        for example, preview_svg, logo_preview_svg, _ in await _examples_with_preview(
+        _admin_out(example, design, logo_preview_svg)
+        for example, design, logo_preview_svg, _ in await _examples_with_preview(
             session, published_only=False
         )
     ]
@@ -279,7 +294,7 @@ async def create_admin_design_example(
             "이미 같은 run으로 등록된 예시가 있습니다",
             code="duplicate_example_run",
         )
-    motif_ids = _intent_motif_ids(resolved.intent)
+    motif_ids = _all_intent_motif_ids(resolved.intent)
     if motif_ids:
         private = await session.scalar(
             select(Motif.id).where(Motif.id.in_(motif_ids), Motif.source == "user_upload").limit(1)
@@ -298,7 +313,7 @@ async def create_admin_design_example(
     session.add(example)
     await session.commit()
     await session.refresh(example)
-    return _admin_out(example, _preview_svg(resolved.log.design))
+    return _admin_out(example, resolved.log.design)
 
 
 async def _example_or_404(session: SessionDep, example_id: uuid.UUID) -> DesignExample:
@@ -333,7 +348,7 @@ async def update_admin_design_example(
     await session.commit()
     await session.refresh(example)
     log = await session.get(SeamlessGenerationLog, example.run_id)
-    return _admin_out(example, _preview_svg(log.design if log is not None else None))
+    return _admin_out(example, log.design if log is not None else None)
 
 
 @admin_router.delete("/{example_id}", status_code=204)

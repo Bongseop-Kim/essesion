@@ -340,6 +340,99 @@ _SEEDS: list[tuple[str, str, str]] = [
         "C58.36 87.96 65.99 92 75 92C84.01 92 91.64 87.96 100 83.5L100 91.5"
         "C91.64 95.96 84.01 100 75 100C65.99 100 58.36 95.96 50 91.5"
         'C41.64 87.04 34.01 83 25 83C15.99 83 8.36 87.04 0 91.5Z"/></svg>',
+    ),  # 배치형 템플릿 로고 — 높이가 다른 금색 세로 막대 셋과 점(세로 금선 템플릿).
+    (
+        "bars",
+        "gold three vertical bars of different heights with a dot",
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 80">'
+        '<rect x="8" y="40" width="7" height="40" fill="#c9a96a"/>'
+        '<circle cx="11.5" cy="31" r="4" fill="#c9a96a"/>'
+        '<rect x="26" y="8" width="7" height="72" fill="#c9a96a"/>'
+        '<rect x="44" y="24" width="7" height="56" fill="#c9a96a"/></svg>',
+    ),
+    # 배치형 템플릿 로고 — 오른쪽이 열린 금색 C 고리와 위의 잎 하나(넝쿨 가지 템플릿).
+    (
+        "initialc",
+        "gold capital letter C ring with a small leaf",
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+        '<path fill="#c9a96a" d="M79.1 34.6 A38 38 0 1 0 79.1 83.4 L74.1 78.9 A31.5 31.5 0 1 1'
+        ' 74.1 39.1 Z"/><path fill="#c9a96a" d="M64 28 C66 17 76 11 86 11 C84 21 75 28 64 28 Z"/>'
+        "</svg>",
+    ),
+    # 배치형 템플릿 로고 — 아이보리 세리프 N 이니셜(붓 터치 템플릿).
+    (
+        "initialn",
+        "ivory serif capital letter N initial mark",
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 92">'
+        '<polygon fill="#e6dcc3" points="12,10 27,10 68,84 53,84"/>'
+        '<rect fill="#e6dcc3" x="12" y="10" width="5" height="74"/>'
+        '<rect fill="#e6dcc3" x="63" y="8" width="5" height="76"/>'
+        '<rect fill="#e6dcc3" x="4" y="7" width="22" height="4"/>'
+        '<rect fill="#e6dcc3" x="4" y="82" width="22" height="4"/>'
+        '<rect fill="#e6dcc3" x="54" y="7" width="22" height="4"/></svg>',
+    ),
+    # 한 번만 놓는 금색 넝쿨 가지 — 굽은 줄기에 잎이 엇갈려 달린 긴 가지(배치형).
+    (
+        "vine",
+        "long gold climbing vine branch with alternating leaves",
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -40 260 470">'
+        '<path fill="none" stroke="#b39b62" stroke-width="3.2" d="M70 400 C40 310 120 260 100'
+        ' 180 C82 110 150 70 150 8"/>'
+        '<path fill="#b39b62" transform="translate(64.8 379.1) rotate(-48.1) scale(1.2)" d="M0 0'
+        ' C9 -10 30 -11 44 0 C30 11 9 10 0 0 Z"/>'
+        '<path fill="#b39b62" transform="translate(63.9 345.7) rotate(-132.8) scale(1.5)" d="M0'
+        ' 0 C9 -10 30 -11 44 0 C30 11 9 10 0 0 Z"/>'
+        '<path fill="#b39b62" transform="translate(70.6 315.1) rotate(-22.1) scale(1.8)" d="M0 0'
+        ' C9 -10 30 -11 44 0 C30 11 9 10 0 0 Z"/>'
+        '<path fill="#b39b62" transform="translate(81.2 286.2) rotate(-117.8) scale(1.4)" d="M0'
+        ' 0 C9 -10 30 -11 44 0 C30 11 9 10 0 0 Z"/>'
+        '<path fill="#b39b62" transform="translate(92.5 258) rotate(-20.2) scale(1.6)" d="M0 0'
+        ' C9 -10 30 -11 44 0 C30 11 9 10 0 0 Z"/>'
+        '<path fill="#b39b62" transform="translate(100.9 229.2) rotate(-129.8) scale(1.2)" d="M0'
+        ' 0 C9 -10 30 -11 44 0 C30 11 9 10 0 0 Z"/>'
+        '<path fill="#b39b62" transform="translate(103 198.7) rotate(-45.3) scale(1.5)" d="M0 0'
+        ' C9 -10 30 -11 44 0 C30 11 9 10 0 0 Z"/>'
+        '<path fill="#b39b62" transform="translate(97.3 163.7) rotate(-143.3) scale(1.8)" d="M0'
+        ' 0 C9 -10 30 -11 44 0 C30 11 9 10 0 0 Z"/>'
+        '<path fill="#b39b62" transform="translate(99 137.6) rotate(-27.2) scale(1.4)" d="M0 0'
+        ' C9 -10 30 -11 44 0 C30 11 9 10 0 0 Z"/>'
+        '<path fill="#b39b62" transform="translate(106.8 113.6) rotate(-115.9) scale(1.6)" d="M0'
+        ' 0 C9 -10 30 -11 44 0 C30 11 9 10 0 0 Z"/>'
+        '<path fill="#b39b62" transform="translate(118.2 91) rotate(-10.7) scale(1.2)" d="M0 0'
+        ' C9 -10 30 -11 44 0 C30 11 9 10 0 0 Z"/>'
+        '<path fill="#b39b62" transform="translate(130.7 68.8) rotate(-111.5) scale(1.5)" d="M0'
+        ' 0 C9 -10 30 -11 44 0 C30 11 9 10 0 0 Z"/>'
+        '<path fill="#b39b62" transform="translate(141.8 46.3) rotate(-18.4) scale(1.8)" d="M0 0'
+        ' C9 -10 30 -11 44 0 C30 11 9 10 0 0 Z"/>'
+        '<path fill="#b39b62" transform="translate(148.8 22.5) rotate(-131.6) scale(1.4)" d="M0'
+        ' 0 C9 -10 30 -11 44 0 C30 11 9 10 0 0 Z"/>'
+        '<path fill="#b39b62" transform="translate(150 8) rotate(-80) scale(0.8)" d="M0 0 C9 -10'
+        ' 30 -11 44 0 C30 11 9 10 0 0 Z"/></svg>',
+    ),
+    # 한 번만 놓는 세로 붓 자국 — 회백·블루 띠가 들쭉날쭉 겹친 붓 터치(배치형).
+    (
+        "brushstroke",
+        "vertical silver and blue dry brush stroke texture",
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 91.9 300">'
+        '<polygon fill="#c4c0b6" points="2,97 4.4,91 6.8,112 6.8,238 4.9,246 2,243"/>'
+        '<polygon fill="#8f97ab" points="5.5,69 9.1,55 12.7,61 12.7,188 9.8,224 5.5,200"/>'
+        '<polygon fill="#c4c0b6" points="11.3,23 13.4,19 15.5,46 15.5,270 13.9,290 11.3,278"/>'
+        '<polygon fill="#4b67a3" points="14.4,100 18.6,82 22.8,97 22.8,209 19.4,213 14.4,195"/>'
+        '<polygon fill="#c4c0b6" points="20.4,56 23.4,46 26.4,49 26.4,225 24,257 20.4,257"/>'
+        '<polygon fill="#8f97ab" points="26.1,66 27.9,64 29.7,88 29.7,175 28.3,191 26.1,170"/>'
+        '<polygon fill="#c4c0b6" points="30.1,26 34,10 37.9,22 37.9,244 34.8,268 30.1,259"/>'
+        '<polygon fill="#c4c0b6" points="37.1,81 39.8,73 42.5,91 42.5,235 40.4,235 37.1,208"/>'
+        '<polygon fill="#4b67a3" points="41.7,49 45,37 48.3,37 48.3,174 45.7,202 41.7,196"/>'
+        '<polygon fill="#8f97ab" points="46.5,91 48,91 49.5,112 49.5,267 48.3,279 46.5,264"/>'
+        '<polygon fill="#c4c0b6" points="49.3,42 52.9,28 56.5,37 56.5,188 53.7,224 49.3,200"/>'
+        '<polygon fill="#c4c0b6" points="54.5,61 56.9,55 59.3,82 59.3,238 57.4,246 54.5,243"/>'
+        '<polygon fill="#c4c0b6" points="58,100 62.2,82 66.4,88 66.4,270 63,290 58,272"/>'
+        '<polygon fill="#4b67a3" points="64.7,23 66.8,19 68.9,34 68.9,225 67.2,257 64.7,245"/>'
+        '<polygon fill="#c4c0b6" points="69.2,74 72.2,64 75.2,88 75.2,209 72.8,213 69.2,213"/>'
+        '<polygon fill="#c4c0b6" points="73.5,62 77.4,46 81.3,49 81.3,244 78.2,268 73.5,259"/>'
+        '<polygon fill="#c4c0b6" points="80.5,12 82.3,10 84.1,28 84.1,175 82.6,191 80.5,170"/>'
+        '<polygon fill="#8f97ab" points="83.8,49 87.1,37 90.4,49 90.4,235 87.7,235 83.8,229"/>'
+        "</svg>",
     ),
 ]
 

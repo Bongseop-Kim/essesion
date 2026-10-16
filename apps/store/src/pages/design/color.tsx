@@ -140,6 +140,10 @@ export function DesignColorPage() {
   );
   const baseSvg = session?.preview_svg ?? null;
   const svg = baseSvg && recolorSvg(baseSvg, current, picked);
+  // 배치형(panel)도 같은 슬롯 색을 쓴다 — 고른 색을 같이 입힌다.
+  const panelSvg =
+    session?.preview_panel_svg &&
+    recolorSvg(session.preview_panel_svg, current, picked);
 
   const next = async () => {
     if (!session) return;
@@ -196,6 +200,7 @@ export function DesignColorPage() {
 
   const shot: TemplateShot = {
     imageSrc: svgToDataUri(svg),
+    panelSrc: panelSvg ? svgToDataUri(panelSvg) : undefined,
     alt: "고른 색 미리보기",
     tileScale: svgTileScale(svg),
     surface: "none",

@@ -50,7 +50,7 @@ def resolve_motif(motif_id: str, motifs: MotifCatalog | None) -> MotifDef:
 
 
 def iter_motif_ids(raw: object) -> set[str]:
-    """raw intent dict에서 모티프 레이어의 motif_id 수집 — validate 전 스캔.
+    """raw intent dict에서 모티프 레이어·배치형(panel) 모티프의 motif_id 수집 — validate 전 스캔.
 
     layout 변이는 모티프를 추가하지 않으므로 이 집합이 요청 전체의 카탈로그 범위다.
     구조가 어긋난 항목은 조용히 건너뛴다(구조 검증은 validate_intent 소관).
@@ -66,6 +66,11 @@ def iter_motif_ids(raw: object) -> set[str]:
             continue
         params = layer.get("params")
         motif_id = params.get("motif_id") if isinstance(params, dict) else None
+        if isinstance(motif_id, str) and motif_id:
+            ids.add(motif_id)
+    panel = raw.get("panel")
+    for element in panel if isinstance(panel, list) else ():
+        motif_id = element.get("motif_id") if isinstance(element, dict) else None
         if isinstance(motif_id, str) and motif_id:
             ids.add(motif_id)
     return ids

@@ -39,6 +39,13 @@ finalize는 두 단으로 나뉜다.
 - **relief(슬롯 경계 emboss)**: `d=max(1, round(0.17·dpi/25.4))`; rim = `difference(idx, offset(idx, ±d, ±d))` — **wrap-around offset이라 seam-safe**(blur 금지); weave 휘도로 변조; `k=min(0.6, 0.26·relief)` white/black blend 합성.
 - 출력: PNG `dpi=(dpi,dpi)`.
 
+**배치형(panel) 합성**: `prepare_photoreal_inputs`가 intent·colorway로 `compose_panel`(worker-engine.md
+§2b)을 한 번 더 만들어 `tie_mockup_png(panel_svg=…)`에 넘긴다. 넥타이 목업은 타일 반복 위·매듭(반전
+무늬) 아래에 panel을 **한 번** 얹는다 — 블레이드 프레임을 실사 마스크의 어깨 폭·어깨선(store
+`TieCanvas` `SILHOUETTES.photo.blade`와 같은 실측값)에 맞춘다. 정본 타일(`render_fabric`)에는 panel이
+없다 — 공장에 가는 두 이미지 중 배치형이 보이는 것은 이 목업을 참고한 넥타이 실사화뿐이고, 디자이너가
+그것을 보고 다시 그린다(2026-10-16 생산 흐름 확인).
+
 ### compose+rasterize 재실행 지점
 
 - print: 전체 실색 1회.

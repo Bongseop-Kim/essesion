@@ -10,6 +10,7 @@ from typing import Any
 from worker.engine.composition import compose
 from worker.engine.determinism import layout_id_for, stable_digest
 from worker.engine.intent import Intent
+from worker.engine.panel import compose_panel
 from worker.engine.seamless import assert_seamless_invariants
 from worker.engine.validate import validate_intent
 from worker.motifs.registry import MotifCatalog
@@ -27,6 +28,8 @@ class ComposedDesign:
     seed: int
     source_fidelity: str
     warnings: list[str]
+    # 배치형 요소(블레이드에 한 번) — panel이 없으면 None (worker-engine.md §2b).
+    panel_svg: str | None = None
 
 
 def _design_id(layout_id: str, colorway_id: str, seed: int) -> str:
@@ -68,4 +71,5 @@ def compose_design(
         seed=effective_seed,
         source_fidelity=SOURCE_FIDELITY_VECTOR,
         warnings=warnings,
+        panel_svg=compose_panel(intent, base.palette, colorway_id, motifs),
     )

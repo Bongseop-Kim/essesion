@@ -27,9 +27,17 @@ def _intent(motif_id: str | None = None) -> dict[str, object]:
 
 
 async def _make_run(
-    db_session, *, motif_id: str | None = None, status: str = "success"
+    db_session,
+    *,
+    motif_id: str | None = None,
+    status: str = "success",
+    panel_logo: str | None = None,
 ) -> uuid.UUID:
     intent = _intent(motif_id)
+    if panel_logo is not None:
+        intent["panel"] = [
+            {"type": "motif", "motif_id": panel_logo, "at": [890, 980], "size": 140, "role": "logo"}
+        ]
     log = SeamlessGenerationLog(
         input_type="prompt",
         prompt="네이비 도트",
@@ -44,6 +52,7 @@ async def _make_run(
             "seed": 7,
             "svg": _SVG,
             "png_object_key": None,
+            "panel_svg": _SVG if panel_logo is not None else None,
             "intent": intent,
         },
         status=status,
@@ -111,6 +120,8 @@ async def test_public_gallery_lists_published_examples_only(client, db_session):
         "name": "미드나잇 웨이브",
         "caption": "네이비 · 대각 스트라이프",
         "preview_svg": _SVG,
+        "panel_svg": None,
+        "logo_in_panel": False,
         "category": None,
         "point": "none",
         "logo_slot": None,
@@ -332,3 +343,26 @@ async def test_admin_registration_rejects_private_motifs_unknown_runs_and_non_ad
     assert unknown.json()["code"] == "design_result_unavailable"
     assert customer.status_code == 403
     assert await db_session.scalar(select(func.count()).select_from(DesignExample)) == 0
+
+
+async def test_public_gallery_exposes_panel_svg_and_panel_logo(client, db_session):
+    """배치형 템플릿 — panel SVG와 panel 로고 미리보기, 반복형은 null·False."""
+    await _seed_motif(db_session, "seed-bee", "seed")
+    await _seed_motif(db_session, "seed-crest", "seed")
+    placed = await _make_example(
+        db_session,
+        await _make_run(db_session, motif_id="seed-bee", panel_logo="seed-crest"),
+        name="대각 분할",
+        ordinal=0,
+        point="bottom",
+        logo_slot=1,
+    )
+    repeated = await _make_example(db_session, await _make_run(db_session), name="반복", ordinal=1)
+
+    first, second = (await client.get("/design/examples")).json()
+
+    assert (first["id"], second["id"]) == (str(placed.id), str(repeated.id))
+    assert first["panel_svg"] == _SVG and first["logo_in_panel"] is True
+    # panel 로고가 레이어 로고 슬롯보다 우선한다.
+    assert "motif-seed-crest" in first["logo_preview_svg"]
+    assert (second["panel_svg"], second["logo_in_panel"]) == (None, False)

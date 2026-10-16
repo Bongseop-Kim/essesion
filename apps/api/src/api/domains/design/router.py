@@ -128,6 +128,8 @@ class DesignSessionOut(ORMModel):
     last_prompt: str | None = None
     # 편집 포인터(마지막 activate 턴)의 디자인 SVG — 목록 썸네일과 단건의 현재 디자인.
     preview_svg: str | None = None
+    # 같은 런의 배치형(panel) SVG — 블레이드에 한 번 얹는 요소. 없으면 null.
+    preview_panel_svg: str | None = None
     # 단건 GET·스텝 이동 전용 — current_intent의 모티프 슬롯(최대 2). 목록은 빈 배열.
     current_motifs: list[CurrentMotifOut] = Field(default_factory=list)
 
@@ -313,6 +315,18 @@ class DesignOut(BaseModel):
     seed: int
     svg: str
     png_object_key: str | None
+    # 배치형(panel) 요소 SVG — 블레이드 프레임(viewBox 0 -4600 1000 6200, 어깨선 y=1000).
+    panel_svg: str | None = None
+
+    @field_validator("panel_svg")
+    @classmethod
+    def _safe_panel_svg(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        try:
+            return sanitize_svg(value)
+        except SanitizeError as exc:
+            raise ValueError("worker returned unsafe panel svg") from exc
 
 
 class DesignGenerateRequest(StrictModel):
@@ -457,7 +471,8 @@ class DesignMotifActivateTurnPayload(StrictModel):
 
     type: Literal["motif_activate"] = "motif_activate"
     run_id: uuid.UUID
-    slot: Literal[1, 2]
+    # "logo" = 배치형(panel) 포인트 로고 자리 — 로고 넣기만 보낸다.
+    slot: Literal[1, 2, "logo"]
     motif_id: str = Field(min_length=1, max_length=100)
 
 
@@ -576,10 +591,12 @@ def _user_motif_out(link: UserMotif, motif: Motif) -> UserMotifOut:
     )
 
 
-def _pointer_svg_query(session_id: Any) -> Select[tuple[str | None]]:
+def _pointer_svg_query(
+    session_id: Any, key: Literal["svg", "panel_svg"] = "svg"
+) -> Select[tuple[str | None]]:
     """편집 포인터(마지막 activate 턴)의 런이 남긴 디자인 SVG — 목록·단건이 같은 출처를 쓴다."""
     return (
-        select(SeamlessGenerationLog.design["svg"].astext)
+        select(SeamlessGenerationLog.design[key].astext)
         .select_from(DesignSessionTurn)
         .join(
             SeamlessGenerationLog,
@@ -602,7 +619,12 @@ async def _design_session_out(
     """세션 응답 + 현재 디자인 SVG + 모티프 슬롯(카탈로그 포함, 최대 2)."""
 
     out = DesignSessionOut.model_validate(design_session).model_copy(
-        update={"preview_svg": await session.scalar(_pointer_svg_query(design_session.id))}
+        update={
+            "preview_svg": await session.scalar(_pointer_svg_query(design_session.id)),
+            "preview_panel_svg": await session.scalar(
+                _pointer_svg_query(design_session.id, "panel_svg")
+            ),
+        }
     )
     motif_ids = _intent_motif_ids(design_session.current_intent)[:MAX_DESIGN_MOTIFS]
     if not motif_ids:
@@ -834,16 +856,17 @@ async def list_design_sessions(session: SessionDep, user: CurrentUser) -> list[D
     # ponytail: 세션마다 SVG 원문을 그대로 싣는다. 세션이 수십 개로 늘면 목록 페이징이나
     # 별도 썸네일 컬럼으로 바꿀 것.
     preview_svg = _pointer_svg_query(DesignSession.id).scalar_subquery()
+    panel_svg = _pointer_svg_query(DesignSession.id, "panel_svg").scalar_subquery()
     rows = await session.execute(
-        select(DesignSession, last_prompt, preview_svg)
+        select(DesignSession, last_prompt, preview_svg, panel_svg)
         .where(DesignSession.user_id == user.id)
         .order_by(DesignSession.created_at.desc())
     )
     return [
         DesignSessionOut.model_validate(s).model_copy(
-            update={"last_prompt": prompt, "preview_svg": svg}
+            update={"last_prompt": prompt, "preview_svg": svg, "preview_panel_svg": panel}
         )
-        for s, prompt, svg in rows.all()
+        for s, prompt, svg, panel in rows.all()
     ]
 
 
@@ -1757,6 +1780,30 @@ async def _resolve_user_motifs(
     return motifs
 
 
+def _panel_motifs(intent: object) -> list[dict[str, Any]]:
+    panel = intent.get("panel") if isinstance(intent, dict) else None
+    return [
+        element
+        for element in (panel if isinstance(panel, list) else ())
+        if isinstance(element, dict)
+        and element.get("type") == "motif"
+        and isinstance(element.get("motif_id"), str)
+        and element["motif_id"]
+    ]
+
+
+def _panel_logo_motif_id(intent: object) -> str | None:
+    """배치형(panel) 포인트 로고의 모티프 id — worker `engine.panel.panel_logo`와 같은 규칙."""
+    return next((e["motif_id"] for e in _panel_motifs(intent) if e.get("role") == "logo"), None)
+
+
+def _all_intent_motif_ids(intent: object) -> list[str]:
+    """워커가 해석할 모티프 전부 — 레이어 + 배치형(panel). 접근 검사는 이 범위로 한다."""
+    ids = dict.fromkeys(_intent_motif_ids(intent))
+    ids.update(dict.fromkeys(e["motif_id"] for e in _panel_motifs(intent)))
+    return list(ids)
+
+
 def _intent_motif_ids(intent: object) -> list[str]:
     """Return the motif IDs consumed by the worker registry, in layer order."""
     motif_ids: dict[str, None] = {}
@@ -1783,7 +1830,7 @@ async def _ensure_intent_motif_access(
     design_session_id: uuid.UUID | None,
 ) -> None:
     await _ensure_motif_access(
-        _intent_motif_ids(intent),
+        _all_intent_motif_ids(intent),
         session=session,
         user_id=user_id,
         design_session_id=design_session_id,
@@ -2562,6 +2609,20 @@ async def activate_motif(
     user: CurrentUser,
 ) -> DesignGenerateOut:
     """모티프 슬롯 교체 — 모티프 id만 바뀐 결정론 재렌더라 모델 호출도 과금도 없다."""
+    return await _activate_motif_slot(
+        session_id, body.slot, body.motif_id, request=request, session=session, user=user
+    )
+
+
+async def _activate_motif_slot(
+    session_id: uuid.UUID,
+    slot: Literal[1, 2, "logo"],
+    motif_id: str,
+    *,
+    request: Request,
+    session: SessionDep,
+    user: CurrentUser,
+) -> DesignGenerateOut:
     await advisory_xact_lock(session, USER_LOCK.format(user_id=user.id))
     design_session = await session.scalar(
         select(DesignSession).where(DesignSession.id == session_id).with_for_update()
@@ -2570,7 +2631,7 @@ async def activate_motif(
     assert design_session is not None
     if design_session.current_intent is None:
         raise ConflictError("먼저 디자인을 만들어 주세요", code="design_not_started")
-    motif = await session.get(Motif, body.motif_id)
+    motif = await session.get(Motif, motif_id)
     if motif is None:
         raise DomainError("모티프를 찾을 수 없습니다", code="invalid_motif", status=404)
     await _ensure_motif_access(
@@ -2589,7 +2650,7 @@ async def activate_motif(
     payload: dict[str, Any] = {
         "run_id": str(run_id),
         "intent": design_session.current_intent,
-        "motif_slot": {"slot": body.slot, "motif_id": motif.id},
+        "motif_slot": {"slot": slot, "motif_id": motif.id},
     }
     if design_session.seed is not None:
         payload["seed"] = design_session.seed
@@ -2611,7 +2672,7 @@ async def activate_motif(
         session,
         design_session.id,
         "user",
-        DesignMotifActivateTurnPayload(run_id=run_id, slot=body.slot, motif_id=motif.id),
+        DesignMotifActivateTurnPayload(run_id=run_id, slot=slot, motif_id=motif.id),
     )
     await session.commit()
     return await _shielded(
@@ -2718,8 +2779,8 @@ async def place_design_logo(
 ) -> DesignGenerateOut:
     """로고 한 번에 넣기 — 내 모티프 저장(멱등) + 로고 슬롯 교체 재렌더. 무과금.
 
-    슬롯은 서버가 정한다: 템플릿의 `logo_slot`이 있으면 그것, 없으면 모티프 레이어가 둘일 때
-    2(큰 무늬), 아니면 1.
+    슬롯은 서버가 정한다: 배치형(panel) 포인트 로고가 있으면 그 자리(`"logo"`), 다음은 템플릿의
+    `logo_slot`, 없으면 모티프 레이어가 둘일 때 2(큰 무늬), 아니면 1.
     """
     design_session = await session.get(DesignSession, session_id)
     ensure_owner(design_session, user)
@@ -2733,20 +2794,18 @@ async def place_design_logo(
         if design_session.example_id is not None
         else None
     )
-    slot: Literal[1, 2] = (
-        example.logo_slot  # type: ignore[assignment]  # CHECK 제약이 1|2를 보장한다
+    slot: Literal[1, 2, "logo"] = (
+        "logo"
+        if _panel_logo_motif_id(design_session.current_intent) is not None
+        else example.logo_slot  # type: ignore[assignment]  # CHECK 제약이 1|2를 보장한다
         if example is not None and example.logo_slot is not None
         else 2
         if len(_intent_motif_ids(design_session.current_intent)) >= 2
         else 1
     )
     saved = await import_user_motif(body, request, session, user)
-    return await activate_motif(
-        session_id,
-        MotifActivateRequest(slot=slot, motif_id=saved.motif_id),
-        request,
-        session,
-        user,
+    return await _activate_motif_slot(
+        session_id, slot, saved.motif_id, request=request, session=session, user=user
     )
 
 

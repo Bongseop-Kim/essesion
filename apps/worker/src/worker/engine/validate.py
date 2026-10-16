@@ -456,6 +456,10 @@ def validate_intent(raw, *, repair: bool = True) -> ValidationResult:
                         f"length {closure} (tile*hypot({snapped.p}, {snapped.q}))"
                     )
 
+    for index, element in enumerate(intent.panel or ()):
+        if element.type != "motif" and element.color not in palette.slot_ids():
+            errors.append(f"panel[{index}] references unknown color slot {element.color!r}")
+
     if repeated_elements > settings.max_placement_instances:
         errors.append(
             f"intent would render {repeated_elements} repeated elements in total "

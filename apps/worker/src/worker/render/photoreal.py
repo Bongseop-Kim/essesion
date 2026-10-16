@@ -28,9 +28,11 @@ from PIL import Image, ImageOps
 
 from worker.adapters import AdapterClientError
 from worker.config import Settings
+from worker.engine.panel import PANEL_VIEWBOX, compose_panel
 from worker.engine.validate import validate_intent
 from worker.motifs.registry import MotifCatalog
 from worker.render.fabric import FabricError, render_fabric
+from worker.render.raster import rasterize_svg
 from worker.render.weave import weave_image
 
 # 편집 출력 크기 — 넥타이는 베이스 사진(1024×1536)과 동일해야 마스크가 성립한다.
@@ -46,6 +48,9 @@ _MASK_TOP_FRAC = 0.0  # 마스크·명암 PNG가 같은 아트 박스
 _MASK_HEIGHT_FRAC = 1.0
 _TILE_FRACTION_TIE = 0.16
 _TILE_SCALE_BASE_MM = 48.0
+# 배치형(panel) 블레이드 프레임 사상 — TieCanvas `SILHOUETTES.photo.blade`와 같은 값(마스크 실측):
+# 어깨에서의 블레이드 왼·오른 가장자리(폭 비)와 어깨선 높이(높이 비).
+_PHOTO_BLADE_LEFT, _PHOTO_BLADE_RIGHT, _PHOTO_BLADE_SHOULDER = 0.305, 0.694, 0.918
 
 _MOCKUP_SIDE = 1024  # 참고 렌더 캔버스(정사각) — store 캔버스와 같은 구도
 _MOCKUP_PAD = 24
@@ -142,8 +147,32 @@ def _repeat_pattern(tile: Image.Image, size: tuple[int, int], tile_px: int) -> I
     return canvas
 
 
-def tie_mockup_png(tile: Image.Image, *, tile_mm: float) -> bytes:
-    """결정론 넥타이 참고 렌더 — TieCanvas와 같은 기하의 서버측 Pillow 합성."""
+def _panel_layer(panel_svg: str, size: tuple[int, int]) -> Image.Image:
+    """panel SVG를 실루엣 크기의 투명 레이어로 — 블레이드 프레임을 어깨 폭·어깨선에 맞춘다."""
+    sil_w, sil_h = size
+    vx, vy, vw, vh = PANEL_VIEWBOX
+    unit = sil_w * (_PHOTO_BLADE_RIGHT - _PHOTO_BLADE_LEFT) / vw  # 프레임 1 → px
+    # rasterize는 mm·dpi로 받는다 — dpi 254면 0.1mm = 1px.
+    png, _ = rasterize_svg(
+        panel_svg, width_mm=vw * unit / 10, height_mm=vh * unit / 10, dpi=254, stamp_dpi=False
+    )
+    panel = Image.open(io.BytesIO(png)).convert("RGBA")
+    layer = Image.new("RGBA", size, (0, 0, 0, 0))
+    left = round(sil_w * _PHOTO_BLADE_LEFT - vx * unit)
+    top = round(sil_h * _PHOTO_BLADE_SHOULDER - (1000.0 - vy) * unit)
+    # 프레임은 실루엣 위로 넘친다(매듭 아래까지) — 음수 dest 대신 원본 쪽을 잘라 붙인다.
+    layer.alpha_composite(
+        panel, dest=(max(left, 0), max(top, 0)), source=(max(-left, 0), max(-top, 0))
+    )
+    return layer
+
+
+def tie_mockup_png(tile: Image.Image, *, tile_mm: float, panel_svg: str | None = None) -> bytes:
+    """결정론 넥타이 참고 렌더 — TieCanvas와 같은 기하의 서버측 Pillow 합성.
+
+    panel_svg(배치형)는 무늬 위·매듭 아래에 한 번 얹는다 — 공장에 가는 이미지 중 배치형이 보이는
+    건 이 참고 렌더를 따른 실사화뿐이다(worker-pipeline.md §2).
+    """
     canvas = Image.new("RGB", (_MOCKUP_SIDE, _MOCKUP_SIDE), (243, 244, 245))  # bg.neutral-weak
 
     art_h = _MOCKUP_SIDE - 2 * _MOCKUP_PAD
@@ -160,7 +189,12 @@ def tie_mockup_png(tile: Image.Image, *, tile_mm: float) -> bytes:
 
     tile_px = round(art_w * _TILE_FRACTION_TIE * (tile_mm / _TILE_SCALE_BASE_MM))
     pattern = _repeat_pattern(tile, (sil_w, sil_h), tile_px)
-    canvas.paste(pattern, (sil_x, mask_y), silhouette.getchannel("A"))
+    body = pattern
+    if panel_svg is not None:
+        body = pattern.convert("RGBA")
+        body.alpha_composite(_panel_layer(panel_svg, (sil_w, sil_h)))
+        body = body.convert("RGB")
+    canvas.paste(body, (sil_x, mask_y), silhouette.getchannel("A"))
     # 매듭은 무늬 방향이 반대 — TieCanvas와 같이 좌우 반전 무늬를 매듭 마스크로 덮는다.
     knot = _tie_silhouette(mask_h, "tie-knot-mask.png")
     canvas.paste(ImageOps.mirror(pattern), (sil_x, mask_y), knot.getchannel("A"))
@@ -225,9 +259,12 @@ def prepare_photoreal_inputs(
     tie_prompt, fabric_prompt = build_prompts(method=method, weave=weave)
 
     tile = Image.open(io.BytesIO(tile_png)).convert("RGB")
+    panel_svg = compose_panel(result.intent, result.palette, params.get("colorway_id"), motifs)
     return PhotorealInputs(
         tile_png=tile_png,
-        tie_reference_png=tie_mockup_png(tile, tile_mm=result.intent.canvas.tile_mm),
+        tie_reference_png=tie_mockup_png(
+            tile, tile_mm=result.intent.canvas.tile_mm, panel_svg=panel_svg
+        ),
         fabric_input_png=_fabric_input_png(tile),
         weave_reference_png=weave_reference_png(weave),
         tie_prompt=tie_prompt,

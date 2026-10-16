@@ -27,8 +27,23 @@ export function emblemSymbol(previewSvg: string | null | undefined) {
 export function templateLayout(template: DesignExampleOut): TemplateLayout {
   return {
     point: template.point,
-    emblemSvg: emblemSymbol(template.logo_preview_svg),
+    // 배치형(panel) 로고는 panel SVG가 이미 그린다 — 엠블럼 오버레이를 겹치지 않는다.
+    emblemSvg: template.logo_in_panel
+      ? null
+      : emblemSymbol(template.logo_preview_svg),
   };
+}
+
+/** intent에 배치형(panel) 포인트 로고가 있는가 — worker `engine.panel.panel_logo`와 같은 규칙. */
+function hasPanelLogo(intent: DesignSessionOut["current_intent"]) {
+  const panel = intent?.panel;
+  return (
+    Array.isArray(panel) &&
+    panel.some(
+      (element: { type?: unknown; role?: unknown } | null) =>
+        element?.type === "motif" && element.role === "logo",
+    )
+  );
 }
 
 /**
@@ -44,7 +59,9 @@ export function sessionLayout(
   const slot = template?.logo_slot ?? (motifs.length >= 2 ? 2 : 1);
   return {
     point: template?.point ?? "none",
-    emblemSvg: emblemSymbol(motifs[slot - 1]?.preview_svg),
+    emblemSvg: hasPanelLogo(session.current_intent)
+      ? null
+      : emblemSymbol(motifs[slot - 1]?.preview_svg),
   };
 }
 
@@ -56,6 +73,8 @@ function templateEmblem({ point, emblemSvg }: TemplateLayout) {
 
 export type TemplateShot = {
   imageSrc: string;
+  /** 배치형(panel) SVG data URI — 없으면 반복 무늬만. */
+  panelSrc?: string;
   alt: string;
   tileScale: number;
   surface: "none";

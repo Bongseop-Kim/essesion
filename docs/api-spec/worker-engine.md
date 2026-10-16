@@ -17,6 +17,7 @@
 | palette | PaletteSpec | 필수 | slots 1..64 (id, hex, spot?, name?) |
 | colorways | list[ColorwaySpec] | 필수 | 1..32 (id, name?, mapping: slot→색) |
 | layers | list[Layer] | 필수 | 1..64, discriminator=type |
+| panel | list[PanelElement] \| None | None | 1..32, discriminator=type — 배치형(§2b). 없으면 None이라 기존 intent의 dump·layout_id가 바이트 그대로다 |
 
 레이어 공통: `id, type, params, z_order, opacity(0..1, 기본 1.0), clip?`. 종류:
 - **background**: params.color(슬롯 id)
@@ -51,6 +52,32 @@ Placement: `type ∈ {lattice, point_set, path_following, scatter}` + type별 sp
 - **수치 포매팅 `fmt(v)`** (byte-identical 핵심): `f"{float(v):.4f}"`(round-half-to-even) → rstrip("0").rstrip(".") → 빈/"-0"/"-"이면 "0".
 - **2MB 캡**: sanitize 재파싱 **전에** `len(doc.encode("utf-8")) > max_svg_bytes(2_000_000)` → ValueError → `design_invalid` 422.
 - **sanitize**(최종 게이트, byte-stable): defusedxml 파싱(DTD·외부엔티티 금지) + 태그/속성/href/color 화이트리스트 검증 후 **입력 문자열 그대로 반환**(재직렬화 금지). 허용 태그: svg,defs,symbol,pattern,g,rect,line,circle,ellipse,use,path,polygon,polyline (text 없음). color는 currentColor/none/transparent/inherit/#hex(3~8)/url(#내부)만.
+
+## 2b. panel — 배치형(한 번만 놓이는) 요소
+
+타일 반복으로 표현할 수 없는 "넥타이에 한 번만" 놓이는 무늬(대각·V 분할, 한쪽 곡선 띠, 세로 금선, 넝쿨
+가지, 붓 터치)와 **포인트 로고**. `engine/panel.py:compose_panel`이 타일과 **별개의 SVG 문서**
+(`ComposedDesign.panel_svg`, 응답 `design.panel_svg`)를 만든다. seamless 클론·불변식(§3)은 적용하지
+않고, panel이 없으면 None이다. 같은 intent+colorway → byte-identical.
+
+- **블레이드 프레임**(등방 단위): x 0..1000 = 어깨(끝이 좁아지기 시작하는 줄)에서의 블레이드 폭(왼→오),
+  y는 같은 단위로 위→아래, 어깨선이 y=1000, 끝 ≈ 1500. 문서 viewBox `0 -4600 1000 6200` — 위로는 실사
+  컷의 매듭 아래까지 담는다. 등방이라 평면 카드(블레이드 ≈ 1.3 폭)와 실사 컷(≈ 5.5 폭)에서 모양이 같고,
+  평면 카드는 y ≈ 210..1500만 보인다. 배경 투명.
+- **요소**(모두 `extra="forbid"`, 색은 팔레트 슬롯 id라 colorway·색 고르기가 그대로 적용된다):
+  - `region` `{points[3..64], color}` → `<polygon>` 채움.
+  - `line` `{points[2..64], width, color, end_dot?}` → `<polyline>` stroke, `end_dot`이면 끝점에 지름 end_dot 원.
+  - `curve_band` `{points[3n+1], width, color}` → 3차 베지어 `<path>` stroke. 겹띠는 여러 개를 겹친다.
+  - `motif` `{motif_id, at, size, rotation=0, anchor ∈ {center, bottom_right}, role ∈ {logo, decor}}` →
+    `<use>`. `size`는 **면적 기준**(같은 면적 정사각의 한 변) — 정규화 bbox는 늘 단위 박스라 실제 가로세로
+    비는 symbol geometry의 tight bbox로 잰다. `role=logo`는 폭 ≤ 2·size, 높이 ≤ 1.5·size로 자른다(사용자
+    로고는 아무 비율이나 온다). `bottom_right`는 그 모서리를 `at`에 둔다. **logo는 panel에 최대 1개**.
+- 문서 순서는 panel 목록 순서(뒤가 위). symbol은 최초 등장 순 defs. 마지막에 sanitize(§2).
+- 검증: region·line·curve_band의 color가 팔레트 슬롯이어야 한다(`panel[i] references unknown color slot`).
+  `iter_motif_ids`(카탈로그 범위)와 팔레트 정리(`ordered_slot_refs`)는 panel을 포함한다 — 빠지면
+  모티프가 카탈로그에서 빠지거나 panel 전용 슬롯이 지워진다.
+- **로고 교체**: `set_motif_slot(slot="logo")`가 panel 로고의 motif_id만 바꾼다(없으면 `ConstraintInvalid`).
+  레이어 슬롯(1|2) 교체·구성 patch는 panel을 그대로 둔다. 저작 모델은 panel을 만들지 않는다(시드 템플릿만).
 
 ## 3. placement 4종
 

@@ -68,6 +68,9 @@ class CuratedExample:
     color_names: tuple[str, ...] = field(default=())
     # gallery-v1에 없는 템플릿 전용 플랜 — 있으면 example_id로 찾지 않는다(저작 few-shot 제외).
     plan: DesignPlanV3 | None = None
+    # 배치형(panel) 요소 — intent `panel` 형식(블레이드 프레임, worker-engine.md §2b). 색은 팔레트
+    # 슬롯 id(`ground`·`color_<i>`), 모티프는 motif_id 대신 카탈로그 `subject`로 적는다.
+    panel: tuple[dict[str, Any], ...] = field(default=())
 
 
 # 가는 세 줄 사선(핀 스트라이프 트리오)과 줄 사이의 작은 고리 모티프 — 격자 2×2가 사선 주기
@@ -713,6 +716,71 @@ MAREN_WAVE_PLAN = DesignPlanV3.model_validate(
     }
 )
 
+
+# 배치형(panel) 템플릿 공통 — 바탕 위 한 톤 밝은 가는 사선(k=4)으로 원단 결만 깔고, 무늬는
+# 블레이드에 한 번만 놓는 panel 요소가 맡는다(worker-engine.md §2b). 색 순서: 바탕, 결, 그 밖.
+def _textured_plan(ground: str, grain: str, *others: str) -> DesignPlanV3:
+    return DesignPlanV3.model_validate(
+        {
+            "colors": [ground, grain, *others],
+            "ground_color_index": 0,
+            "motifs": [],
+            "layers": [
+                {
+                    "type": "stripe",
+                    "direction": "diagonal_up",
+                    "period_ratio": 0.1767767,
+                    "bands": [{"offset_ratio": 0.0, "width_ratio": 0.18, "color_index": 1}],
+                }
+            ],
+        }
+    )
+
+
+# 포인트 로고 자리(블레이드 프레임) — 어깨선 바로 위 오른쪽, 오른쪽 아래 모서리 고정. 카드의 끝
+# 엠블럼(TieCanvas `SILHOUETTES.flat.emblem.tip`)과 같은 자리·면적이다.
+PANEL_LOGO: dict[str, Any] = {
+    "type": "motif",
+    "at": [890, 975],
+    "size": 140,
+    "anchor": "bottom_right",
+    "role": "logo",
+}
+
+# 05 — 차콜 바탕의 잔 다이아 결(양 사선 가는 줄) 위에 V자 분할: 왼쪽 아래 면은 밝은 회색,
+# 왼팔을 따라 와인 띠, 오른팔은 은색 선이 오른쪽 위 모서리로 올라간다.
+TRENZ_PLAN = DesignPlanV3.model_validate(
+    {
+        "colors": ["#3a3b3f", "#434449", "#6c6d72", "#6e1f2b", "#c9c9c9"],
+        "ground_color_index": 0,
+        "motifs": [],
+        "layers": [
+            {
+                "type": "stripe",
+                "direction": direction,
+                "period_ratio": 0.1767767,
+                "bands": [{"offset_ratio": 0.0, "width_ratio": 0.12, "color_index": 1}],
+            }
+            for direction in ("diagonal_up", "diagonal_down")
+        ],
+    }
+)
+_TRENZ_V = [500, 1030]
+
+
+def _bellen_band(dx: float) -> list[list[float]]:
+    """03 곡선 띠의 중심선 — 블레이드 위에서 오른쪽을 타고 내려와 어깨 왼쪽으로 빠지는 S자."""
+    points = [
+        (790, -4600), (790, -2400), (770, -1400), (760, -400), (740, 300), (560, 700),
+        (300, 900), (160, 1000), (60, 1080), (-40, 1180),
+    ]  # fmt: skip
+    return [[x + dx, y] for x, y in points]
+
+
+# 02 세로 금선 — (x, 끝 y): 블레이드 위에서 내려와 서로 다른 높이에서 점으로 끝난다.
+_MONDRE_LINES = ((70, 620), (180, 1060), (260, 760), (340, 1180), (410, 900), (480, 1300))
+
+
 # 스토어 템플릿 목록 — 여기 없는 예시 행은 시드가 지운다(템플릿은 이 표가 정본).
 CURATED: tuple[CuratedExample, ...] = (
     CuratedExample(
@@ -889,11 +957,137 @@ CURATED: tuple[CuratedExample, ...] = (
         color_names=("바탕",),
         plan=MAREN_WAVE_PLAN,
     ),
+    CuratedExample(
+        example_id="template_placement_diagonal",
+        name="사선 분할과 세리프 A",
+        caption="네이비 바탕을 아이보리 사선 한 줄이 가르고 아래 면은 한 톤 밝게",
+        category="포인트",
+        point="bottom",
+        color_names=("바탕", "결", "아래 면", "사선"),
+        plan=_textured_plan("#1b2a52", "#223463", "#2a3f74", "#e6dcc3"),
+        panel=(
+            {
+                "type": "region",
+                "points": [[-50, 1040], [1050, 170], [1050, 1600], [-50, 1600]],
+                "color": "color_2",
+            },
+            {"type": "line", "points": [[-50, 1040], [1050, 170]], "width": 14, "color": "color_3"},
+            {**PANEL_LOGO, "subject": "apex"},
+        ),
+    ),
+    CuratedExample(
+        example_id="template_placement_gold_lines",
+        name="세로 금선과 막대 로고",
+        caption="짙은 초록 바탕 왼쪽에 길이가 다른 금선이 내려와 점으로 끝난다",
+        category="포인트",
+        point="bottom",
+        color_names=("바탕", "결", "금선"),
+        plan=_textured_plan("#1d3a2c", "#21412f", "#c9a96a"),
+        panel=(
+            *(
+                {
+                    "type": "line",
+                    "points": [[x, -4600], [x, end]],
+                    "width": 6,
+                    "color": "color_2",
+                    "end_dot": 22,
+                }
+                for x, end in _MONDRE_LINES
+            ),
+            {**PANEL_LOGO, "subject": "bars"},
+        ),
+    ),
+    CuratedExample(
+        example_id="template_placement_curve_band",
+        name="곡선 띠와 네잎 로고",
+        caption="와인 바탕에 아이보리·검정 겹띠가 S자로 흘러 어깨 왼쪽으로 빠진다",
+        category="포인트",
+        point="bottom",
+        color_names=("바탕", "결", "띠", "띠 안쪽"),
+        plan=_textured_plan("#6b1a26", "#731e2b", "#ece3cf", "#1e1a1c"),
+        panel=(
+            {"type": "curve_band", "points": _bellen_band(0), "width": 70, "color": "color_2"},
+            {"type": "curve_band", "points": _bellen_band(60), "width": 50, "color": "color_3"},
+            {"type": "curve_band", "points": _bellen_band(95), "width": 10, "color": "color_2"},
+            {**PANEL_LOGO, "subject": "quatrefoil"},
+        ),
+    ),
+    CuratedExample(
+        example_id="template_placement_v_split",
+        name="V자 분할과 큐브 로고",
+        caption="차콜 다이아 결 위에 V자로 면을 나누고 왼팔을 와인 띠가 따라간다",
+        category="포인트",
+        point="bottom",
+        color_names=("바탕", "결", "왼쪽 면", "띠", "선"),
+        plan=TRENZ_PLAN,
+        panel=(
+            {
+                "type": "region",
+                "points": [[-50, 470], _TRENZ_V, [500, 1600], [-50, 1600]],
+                "color": "color_2",
+            },
+            {"type": "line", "points": [[-50, 430], [480, 965]], "width": 55, "color": "color_3"},
+            {
+                "type": "line",
+                "points": [[-50, 470], _TRENZ_V, [1050, 190]],
+                "width": 8,
+                "color": "color_4",
+            },
+            {"type": "line", "points": [_TRENZ_V, [500, 1600]], "width": 5, "color": "color_4"},
+            {**PANEL_LOGO, "subject": "cube"},
+        ),
+    ),
+    CuratedExample(
+        example_id="template_placement_vine",
+        name="넝쿨 가지와 C 로고",
+        caption="짙은 초록 바탕 왼쪽을 따라 금색 넝쿨 가지가 한 줄기 올라간다",
+        category="포인트",
+        point="bottom",
+        color_names=("바탕", "결"),
+        plan=_textured_plan("#1d3a2c", "#21412f"),
+        panel=(
+            {"type": "motif", "subject": "vine", "at": [210, 560], "size": 820, "rotation": -6},
+            {**PANEL_LOGO, "subject": "initialc"},
+        ),
+    ),
+    CuratedExample(
+        example_id="template_placement_brush",
+        name="붓 터치와 세리프 N",
+        caption="네이비 바탕 위 오른쪽 위와 왼쪽 아래에 회백·블루 붓 자국이 한 번씩",
+        category="포인트",
+        point="bottom",
+        color_names=("바탕", "결"),
+        plan=_textured_plan("#1b2a52", "#203060"),
+        panel=(
+            {"type": "motif", "subject": "brushstroke", "at": [700, 420], "size": 420},
+            {
+                "type": "motif",
+                "subject": "brushstroke",
+                "at": [170, 980],
+                "size": 330,
+                "rotation": 4,
+            },
+            {**PANEL_LOGO, "subject": "initialn"},
+        ),
+    ),
 )
 
 
 def plan_for(curated: CuratedExample, examples: dict[str, Any]) -> DesignPlanV3:
     return curated.plan or examples[curated.example_id].plan
+
+
+async def _resolve_panel(
+    session: AsyncSession, panel: tuple[dict[str, Any], ...]
+) -> list[dict[str, Any]]:
+    """panel 모티프의 `subject`를 카탈로그 motif_id로 바꾼 intent 형식 목록."""
+    resolved: list[dict[str, Any]] = []
+    for element in panel:
+        item = dict(element)
+        if "subject" in item:
+            item["motif_id"] = await _catalog_motif_id(session, item.pop("subject"))
+        resolved.append(item)
+    return resolved
 
 
 def _run_id(example_id: str) -> uuid.UUID:
@@ -928,11 +1122,18 @@ def _compose_run(
     motif_ids: list[str],
     catalog: dict[str, MotifDef],
     color_names: tuple[str, ...],
+    panel: list[dict[str, Any]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
-    """플랜 → intent → SVG. 워커 /generate의 intent 경로와 같은 순서를 지킨다."""
+    """플랜 → intent → SVG. 워커 /generate의 intent 경로와 같은 순서를 지킨다.
+
+    panel(배치형)은 플랜 계약 밖이라 컴파일된 intent에 그대로 얹는다 — motif_id로 풀린 상태여야
+    하고, 그 모티프도 catalog에 있어야 한다.
+    """
     authored = compile_design_plan_v3(plan, motif_ids=motif_ids, seed=SEED)
     warnings: list[str] = []
     intent = apply_generation_constraints(authored.intent, warnings=warnings)
+    if panel:
+        intent["panel"] = panel
     _name_color_slots(intent, color_names)
     resolved_plan = snapshot_resolved_plan(plan, intent)
     design = compose_design(
@@ -954,6 +1155,7 @@ def _compose_run(
         "seed": design.seed,
         "svg": design.svg,
         "png_object_key": None,
+        "panel_svg": design.panel_svg,
         "intent": design.intent.model_dump(mode="json"),
     }
     return intent_log, design_log, list(dict.fromkeys(warnings))
@@ -1038,11 +1240,14 @@ async def _run() -> list[str]:
                 motif_ids = [
                     await _catalog_motif_id(session, subject) for subject in curated.motif_subjects
                 ]
+                panel = await _resolve_panel(session, curated.panel)
+                panel_ids = [item["motif_id"] for item in panel if "motif_id" in item]
                 intent_log, design_log, warnings = _compose_run(
                     plan,
                     motif_ids=motif_ids,
-                    catalog=await get_motifs(session, motif_ids),
+                    catalog=await get_motifs(session, [*motif_ids, *panel_ids]),
                     color_names=curated.color_names,
+                    panel=panel,
                 )
                 await _upsert(
                     session,

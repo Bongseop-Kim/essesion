@@ -32,6 +32,12 @@ export type TieCanvasProps = {
    */
   emblem?: { svg: string; at: "knot" | "tip" };
   /**
+   * 배치형(panel) 요소 — 블레이드에 한 번만 놓이는 무늬·포인트 로고(대각 분할, 곡선 띠 등).
+   * 디자인 응답의 `panel_svg`를 data URI로. 블레이드 프레임(viewBox `0 -4600 1000 6200`, x는
+   * 어깨 폭 0..1000, 어깨선 y=1000)을 실루엣의 `blade`로 사상해 무늬 위·명암 아래에 얹는다.
+   */
+  panelSrc?: string;
+  /**
    * `photo`(기본) = 셔츠 깃·매듭까지 있는 실사 컷. `flat` = 매듭 없이 몸통 위를 수평으로 자른
    * 정면 컷(템플릿 목록) — 매듭이 없어 `knot` 자리는 몸통 윗부분이다.
    */
@@ -53,6 +59,8 @@ const TIE_FOCUS_LABEL = {
 //   위로 자라 오른쪽 여백과 바닥선이 로고와 무관하게 같다(넥타이 샘플의 끝 로고 배치).
 // - focus: 확대 샷 — 아트 박스 폭을 프레임의 zoom배로 키우고, y(아트 박스 높이 기준)를 프레임 중앙에.
 // - tile: 아트 박스 폭 대비 타일 한 장의 폭 — 블레이드 폭 대비 타일 크기가 두 실루엣에서 같게.
+// - blade: 배치형(panel) 사상 — 어깨(끝이 좁아지기 시작하는 줄)에서 블레이드 왼·오른 가장자리(폭 비)와
+//   어깨선 높이(높이 비). 마스크 실측값이고, worker photoreal의 `_PHOTO_BLADE_*`와 같아야 한다.
 const SILHOUETTES = {
   // 실사 베이스 사진(worker assets/photo/tie-base.png)에서 추출 — extract_tie_assets.py. 794×2097,
   // 블레이드 최대 폭 = 아트 폭의 0.393, 매듭:몸통 = 1:11.
@@ -62,6 +70,7 @@ const SILHOUETTES = {
     shadow: "/images/tie-shadow.webp",
     aspect: 794 / 2097,
     tile: 0.16,
+    blade: { left: 0.305, right: 0.694, shoulder: 0.918 },
     emblem: {
       knot: {
         anchor: "center",
@@ -91,6 +100,7 @@ const SILHOUETTES = {
     shadow: "/images/tie-flat-shadow.webp",
     aspect: 928 / 1172,
     tile: 0.37,
+    blade: { left: 0.045, right: 0.951, shoulder: 0.601 },
     emblem: {
       knot: {
         anchor: "center",
@@ -115,6 +125,25 @@ const SILHOUETTES = {
 
 // repeat 모드: 프레임 폭 대비 타일 한 장의 폭.
 const REPEAT_TILE_FRACTION = 0.28;
+
+// panel SVG의 블레이드 프레임 viewBox — worker `engine.panel.PANEL_VIEWBOX`와 결속.
+const PANEL_VIEWBOX = { y: -4600, width: 1000, height: 6200, shoulder: 1000 };
+
+/** 블레이드 프레임 viewBox를 아트 박스 비율(left·width는 폭, top·height는 높이)로 — 등방 사상. */
+export function panelBox(
+  blade: { left: number; right: number; shoulder: number },
+  artAspect: number,
+) {
+  const width = blade.right - blade.left;
+  // 프레임 1 단위 = 아트 폭의 width/1000 → 높이 비로는 aspect를 곱한다(높이 = 폭/aspect).
+  const unit = (width / PANEL_VIEWBOX.width) * artAspect;
+  return {
+    left: blade.left,
+    width,
+    top: blade.shoulder - (PANEL_VIEWBOX.shoulder - PANEL_VIEWBOX.y) * unit,
+    height: PANEL_VIEWBOX.height * unit,
+  };
+}
 
 type EmblemGeom = {
   anchor: "center" | "bottom-right";
@@ -166,6 +195,7 @@ export function TieCanvas({
   tileScale = 1,
   focus,
   emblem,
+  panelSrc,
   silhouette = "photo",
   className,
 }: TieCanvasProps) {
@@ -204,6 +234,8 @@ export function TieCanvas({
   const emblemPos = emblem
     ? emblemBox(geom.emblem[emblem.at], emblemRect, geom.aspect)
     : null;
+
+  const panelPos = panelSrc ? panelBox(geom.blade, geom.aspect) : null;
 
   const backgroundStyle = {
     backgroundImage: `url(${JSON.stringify(imageSrc)})`,
@@ -259,6 +291,21 @@ export function TieCanvas({
           className="transition-all duration-100 ease-standard"
           style={backgroundStyle}
         />
+        {panelSrc && panelPos ? (
+          <Box
+            position="absolute"
+            aria-hidden
+            style={{
+              left: `${panelPos.left * 100}%`,
+              top: `${panelPos.top * 100}%`,
+              width: `${panelPos.width * 100}%`,
+              height: `${panelPos.height * 100}%`,
+              backgroundImage: `url(${JSON.stringify(panelSrc)})`,
+              backgroundSize: "100% 100%",
+              backgroundRepeat: "no-repeat",
+            }}
+          />
+        ) : null}
       </Box>
       {/* 매듭은 천이 감겨 무늬 방향이 몸통과 반대다 — 매듭 마스크 안에 좌우 반전 무늬를 얹는다.
           사진에서 딴 매듭은 좌우 비대칭이라 마스크는 두고 안쪽 무늬만 뒤집는다. */}

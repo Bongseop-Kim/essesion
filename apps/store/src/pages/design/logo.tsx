@@ -250,6 +250,9 @@ export function DesignLogoPage() {
         <TemplateDetailShots
           shot={{
             imageSrc: svgToDataUri(svg),
+            panelSrc: session.preview_panel_svg
+              ? svgToDataUri(session.preview_panel_svg)
+              : undefined,
             alt: "현재 디자인 미리보기",
             tileScale: svgTileScale(svg),
             surface: "none",

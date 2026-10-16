@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { emblemBox } from "./tie-canvas";
+import { emblemBox, panelBox } from "./tie-canvas";
 
 const tip = {
   anchor: "bottom-right",
@@ -37,5 +37,19 @@ describe("emblemBox", () => {
     expect(box.left + box.width / 2).toBeCloseTo(0.5);
     expect(box.height).toBeCloseTo(0.13 * 0.5);
     expect(box.top + box.height / 2).toBeCloseTo(0.5);
+  });
+});
+
+describe("panelBox", () => {
+  it("블레이드 프레임의 어깨선(y=1000)이 실루엣 어깨에 오고 사상은 등방이다", () => {
+    const blade = { left: 0.045, right: 0.951, shoulder: 0.601 };
+    const aspect = 928 / 1172;
+    const box = panelBox(blade, aspect);
+    expect(box.left).toBeCloseTo(0.045);
+    expect(box.width).toBeCloseTo(0.906);
+    // viewBox y -4600..1600 중 어깨선 1000은 위에서 5600/6200 지점.
+    expect(box.top + (box.height * 5600) / 6200).toBeCloseTo(0.601);
+    // 높이(아트 높이 비)/aspect = 폭 단위 길이 — 6200/1000 블레이드 폭.
+    expect(box.height / aspect / box.width).toBeCloseTo(6.2);
   });
 });

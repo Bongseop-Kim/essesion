@@ -28,6 +28,7 @@ from worker.engine.constraints import (
     ordered_slot_refs,
     scatter_placement,
 )
+from worker.engine.panel import panel_logo
 from worker.engine.primitives import band_gaps
 from worker.engine.units import snap_angle, stripe_tiles
 
@@ -797,13 +798,23 @@ def _first_motif_layer(raw: dict[str, Any], tile: float, motif_id: str) -> dict[
     }
 
 
-def set_motif_slot(intent: dict[str, Any], *, slot: int, motif_id: str) -> dict[str, Any]:
+def set_motif_slot(
+    intent: dict[str, Any], *, slot: int | Literal["logo"], motif_id: str
+) -> dict[str, Any]:
     """슬롯(1..2)의 모티프 id만 바꾼 새 intent — 없는 슬롯은 레이어를 파생해 만든다.
 
     모티프가 하나도 없는 디자인은 어느 슬롯을 요청해도 첫 레이어를 만든다 — 빈 슬롯 2만
-    따로 만들면 슬롯 1이 영구히 비어 UI가 채울 방법이 없다.
+    따로 만들면 슬롯 1이 영구히 비어 UI가 채울 방법이 없다. `"logo"`는 배치형(panel) 포인트
+    로고 자리 — 그 요소가 없으면 거절한다.
     """
 
+    if slot == "logo":
+        raw = copy.deepcopy(intent)
+        logo = panel_logo(raw)
+        if logo is None:
+            raise ConstraintInvalid(["intent has no panel logo"])
+        logo["motif_id"] = motif_id
+        return raw
     if not 1 <= slot <= MAX_MOTIF_SLOTS:
         raise ConstraintInvalid([f"motif slot must be 1..{MAX_MOTIF_SLOTS}"])
     raw = copy.deepcopy(intent)

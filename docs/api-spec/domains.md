@@ -116,8 +116,8 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 
 | 엔드포인트 | 역할 | 과금 |
 |---|---|---|
-| `POST /design/sessions` · `GET /design/sessions` · `GET·DELETE /design/sessions/{id}` | 세션 CRUD. 목록·단건 모두 `preview_svg`(편집 포인터 = 마지막 activate 런의 디자인 SVG, 없으면 null). 단건은 `current_motifs`, 목록은 `last_prompt`도 포함 | — |
-| `GET /design/examples` | 첫 진입 갤러리(게시된 큐레이션 예시, **공개 조회**). 템플릿 데이터 `category`(필터 칩 라벨)·`point`(`none\|top\|bottom`, 포인트 로고 자리)·`logo_slot`(1\|2 또는 null)·`photo_full_url`·`photo_detail_url`(실사 사진, 없으면 store가 결정론 샷)·`logo_preview_svg`(로고 슬롯 모티프 미리보기, 세션 `current_motifs[].preview_svg`와 같은 형식, 없으면 null)·`colorways[]`(run intent의 `{id,name,mapping}` 그대로 — 템플릿은 `default`만 둔다. 색 고르기 부위는 intent 팔레트의 이름 붙은 슬롯) | 무료 |
+| `POST /design/sessions` · `GET /design/sessions` · `GET·DELETE /design/sessions/{id}` | 세션 CRUD. 목록·단건 모두 `preview_svg`(편집 포인터 = 마지막 activate 런의 디자인 SVG, 없으면 null)·`preview_panel_svg`(같은 런의 배치형 panel SVG — [worker-engine.md](./worker-engine.md) §2b, 없으면 null). 단건은 `current_motifs`, 목록은 `last_prompt`도 포함 | — |
+| `GET /design/examples` | 첫 진입 갤러리(게시된 큐레이션 예시, **공개 조회**). 템플릿 데이터 `category`(필터 칩 라벨)·`point`(`none\|top\|bottom`, 포인트 로고 자리)·`logo_slot`(1\|2 또는 null)·`photo_full_url`·`photo_detail_url`(실사 사진, 없으면 store가 결정론 샷)·`logo_preview_svg`(로고 자리 모티프 미리보기 — panel 로고가 있으면 그것, 아니면 로고 슬롯. 세션 `current_motifs[].preview_svg`와 같은 형식, 없으면 null)·`panel_svg`(배치형 요소 SVG, 반복형은 null)·`logo_in_panel`(포인트 로고를 panel이 그린다 — store는 엠블럼 오버레이를 얹지 않는다)·`colorways[]`(run intent의 `{id,name,mapping}` 그대로 — 템플릿은 `default`만 둔다. 색 고르기 부위는 intent 팔레트의 이름 붙은 슬롯) | 무료 |
 | `POST /design/sessions/from-example` | 예시 run을 새 세션의 시작점으로 복원(`{example_id}`) — 렌더·워커 호출 없음. 세션에 `example_id`가 남고 세션 응답에 노출된다(예시 삭제 시 null) | 무료 |
 | `GET·POST /design/sessions/{id}/turns` | 이력 조회·사용자 메모 턴 | — |
 | `POST /design/generate` | 입력창 문장. 커밋된 디자인이 없으면 **첫 생성**(전체 저작), 있으면 **구성 수정**(patch). 처리하지 못한 모티프 요청은 `motif_intent` sidecar로 피커에 안내하며, 순수 모티프 요청은 무과금 `200 {rejected:"motif",reason?,motif_intent?}` — `reason ∈ {motif_change,motif_recolor,motif_position,target_missing}`은 안내 문구 선택용, 없으면 기본(`motif_change`) 취급 | `design_token_cost_openai_render_standard` / `design_edit_cost` |
@@ -125,7 +125,7 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 | `POST /design/sessions/{id}/motifs/search` | 문장으로 카탈로그 모티프 찾기 | 무료 |
 | `POST /design/sessions/{id}/motifs/generate` | 문장으로 모티프 새로 만들기(GPT Image) | `design_motif_generate_cost` 토큰 |
 | `POST /design/sessions/{id}/motifs/activate` | 슬롯(≤2)의 모티프 교체 → 결정적 재렌더 | 무료 |
-| `POST /design/sessions/{id}/logo` | 로고 한 번에 넣기(`{name, svg}`) = `POST /design/motifs`(내 모티프 저장, content-hash로 멱등) + `motifs/activate`. 슬롯은 서버가 정한다 — 세션의 템플릿(`example_id`)에 `logo_slot`이 있으면 그 값, 없으면 intent의 모티프 레이어가 둘이면 2, 아니면 1. 응답·순서·실패 처리는 motifs/activate와 같다 | 무료 |
+| `POST /design/sessions/{id}/logo` | 로고 한 번에 넣기(`{name, svg}`) = `POST /design/motifs`(내 모티프 저장, content-hash로 멱등) + `motifs/activate`. 슬롯은 서버가 정한다 — intent에 배치형 panel 로고(`role=logo`)가 있으면 그 자리(워커 `motif_slot.slot="logo"`, 턴 `slot:"logo"`), 다음은 세션의 템플릿(`example_id`)에 `logo_slot`이 있으면 그 값, 없으면 intent의 모티프 레이어가 둘이면 2, 아니면 1. 응답·순서·실패 처리는 motifs/activate와 같다 | 무료 |
 | `POST /design/sessions/{id}/color` | 부위별 색 적용(`{colors: {슬롯 id: "#RRGGBB"}}`) → 지금 colorway 매핑에 고른 색을 덮은 새 colorway(`custom_` + 매핑 sha256 앞 12자)를 intent에 넣고(`default`와 이것만 남김) 그 colorway로 결정적 재렌더. 고를 수 있는 부위는 템플릿 intent 팔레트에서 `name`이 붙은 슬롯(시드가 정함) — 그 밖의 슬롯은 422(`invalid_colorway`), hex 형식 오류는 422. 고를 수 있는 색(실 색 표)은 store가 정한다. 순서·실패 처리는 motifs/activate와 같다 | 무료 |
 | `POST /design/motifs` · `GET /design/motifs` · `DELETE /design/motifs/{id}` | 내 모티프 라이브러리(계정당 100개) | 무료 |
 | `POST /design/motifs/text-preview` · `/design/motifs/photo-preview` | 글자·사진 → SVG 변환 | 무료 |

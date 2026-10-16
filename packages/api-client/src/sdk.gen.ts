@@ -1526,8 +1526,8 @@ export const createFinalizeJob = <ThrowOnError extends boolean = false>(options:
  *
  * 로고 한 번에 넣기 — 내 모티프 저장(멱등) + 로고 슬롯 교체 재렌더. 무과금.
  *
- * 슬롯은 서버가 정한다: 템플릿의 `logo_slot`이 있으면 그것, 없으면 모티프 레이어가 둘일 때
- * 2(큰 무늬), 아니면 1.
+ * 슬롯은 서버가 정한다: 배치형(panel) 포인트 로고가 있으면 그 자리(`"logo"`), 다음은 템플릿의
+ * `logo_slot`, 없으면 모티프 레이어가 둘일 때 2(큰 무늬), 아니면 1.
  */
 export const placeDesignLogo = <ThrowOnError extends boolean = false>(options: Options<PlaceDesignLogoData, ThrowOnError>): RequestResult<PlaceDesignLogoResponses, PlaceDesignLogoErrors, ThrowOnError> => (options.client ?? client).post<PlaceDesignLogoResponses, PlaceDesignLogoErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

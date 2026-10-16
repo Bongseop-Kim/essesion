@@ -159,6 +159,9 @@ function TemplateCard({
       <TemplateTieShot
         shot={{
           imageSrc: svgToDataUri(template.preview_svg),
+          panelSrc: template.panel_svg
+            ? svgToDataUri(template.panel_svg)
+            : undefined,
           alt: template.name,
           tileScale: svgTileScale(template.preview_svg),
           surface: "none",

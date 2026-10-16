@@ -3110,6 +3110,31 @@ async def test_logo_saves_motif_once_and_activates_server_chosen_slot(
     assert res.status_code == 200, res.text
     assert worker.generate_payloads[-1]["motif_slot"]["slot"] == 1
 
+    # 배치형(panel) 포인트 로고가 있으면 템플릿 logo_slot보다 그 자리가 우선한다.
+    placed = DesignSession(user_id=user.id, example_id=example.id)
+    placed.current_intent = {
+        **design_session.current_intent,
+        "panel": [
+            {
+                "type": "motif",
+                "motif_id": "seed-crest",
+                "at": [890, 980],
+                "size": 140,
+                "role": "logo",
+            }
+        ],
+    }
+    db_session.add(placed)
+    await db_session.commit()
+    res = await client.post(f"/design/sessions/{placed.id}/logo", json=body, headers=headers)
+    assert res.status_code == 200, res.text
+    assert worker.generate_payloads[-1]["motif_slot"] == {
+        "slot": "logo",
+        "motif_id": "upload-a1b2c3d4e5f6",
+    }
+    turns = (await client.get(f"/design/sessions/{placed.id}/turns", headers=headers)).json()
+    assert any(turn["payload"].get("slot") == "logo" for turn in turns)
+
 
 async def test_colorway_rejects_unnamed_slot_and_empty_session(client, app, db_session, settings):
     app.state.worker = FakeWorker()

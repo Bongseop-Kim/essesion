@@ -125,6 +125,7 @@ _DESIGN_KEYS = {
     "seed",
     "svg",
     "png_object_key",
+    "panel_svg",
 }
 
 

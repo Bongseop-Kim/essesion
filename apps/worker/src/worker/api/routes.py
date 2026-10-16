@@ -289,6 +289,7 @@ async def _render_design(
         seed=design.seed,
         svg=design.svg,
         png_object_key=png_key,
+        panel_svg=design.panel_svg,
     )
 
 
