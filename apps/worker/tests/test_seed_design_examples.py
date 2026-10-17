@@ -59,8 +59,9 @@ def test_seeded_runs_are_deterministic_and_carry_what_the_api_restores():
     for curated in seed.CURATED:
         motif_ids = motif_pool[: len(curated.motif_subjects)]
         plan = seed.plan_for(curated, examples)
-        first = seed._compose_run(plan, motif_ids=motif_ids, catalog=catalog, color_names=())
-        second = seed._compose_run(plan, motif_ids=motif_ids, catalog=catalog, color_names=())
+        kwargs = {"catalog": catalog, "color_names": (), "tile_scale": curated.tile_scale}
+        first = seed._compose_run(plan, motif_ids=motif_ids, **kwargs)
+        second = seed._compose_run(plan, motif_ids=motif_ids, **kwargs)
 
         assert first == second
         intent_log, design_log, _warnings = first

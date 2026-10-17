@@ -6,6 +6,7 @@ usage (레포 루트에서):
 candidate.py 정의:
   PLAN: dict    # DesignPlanV3 형식
   MOTIFS: list  # 플랜 input 슬롯 순서. ("seed", "<subject>") 또는 ("new", "<subject>", "<raw svg>")
+  TILE_SCALE: float  # 선택 — CuratedExample.tile_scale (기본 1.0)
 출력: <out_prefix>.svg, <out_prefix>_tile.png(타일 1장), <out_prefix>_2x2.png(2×2 반복).
 스토어 평면 카드의 넥타이 폭 ≈ 1.5타일 — 2×2 이미지 폭의 3/4이 넥타이 한 폭이다.
 """
@@ -64,7 +65,13 @@ async def main() -> None:
                 catalog[motif_id] = normalized
             ids.append(motif_id)
     await engine.dispose()
-    _, design, warnings = seed._compose_run(plan, motif_ids=ids, catalog=catalog, color_names=())
+    _, design, warnings = seed._compose_run(
+        plan,
+        motif_ids=ids,
+        catalog=catalog,
+        color_names=(),
+        tile_scale=getattr(cand, "TILE_SCALE", 1.0),
+    )
     print("warnings:", warnings)
     svg = design["svg"]
     Path(out + ".svg").write_text(svg)

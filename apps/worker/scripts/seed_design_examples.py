@@ -31,7 +31,7 @@ from db.models.seamless import Motif, SeamlessGenerationLog
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from worker.authoring.compiler import compile_design_plan_v3
+from worker.authoring.compiler import DEFAULT_TILE_MM, compile_design_plan_v3
 from worker.authoring.examples import load_example_set
 from worker.authoring.schema import DesignPlanV3, snapshot_resolved_plan
 from worker.config import get_settings
@@ -72,10 +72,14 @@ class CuratedExample:
     # 배치형(panel) 요소 — intent `panel` 형식(블레이드 프레임, worker-engine.md §2b). 색은 팔레트
     # 슬롯 id(`ground`·`color_<i>`), 모티프는 motif_id 대신 카탈로그 `subject`로 적는다.
     panel: tuple[dict[str, Any], ...] = field(default=())
+    # 타일 배율 — 플랜 비율은 타일 기준이라 키우면 반복 주기가 길어져 타일당 자리가 늘어난다
+    # (엇박 배치).
+    tile_scale: float = 1.0
 
 
-# 슬레이트 그레이 바탕의 가는 세 줄 사선(핀 스트라이프 트리오)과 줄 사이의 세 고리 — 격자 2×2가
-# 사선 주기(타일당 2)와 맞물려 모티프가 항상 줄 사이 한가운데에 놓인다(밴드 묶음은 주기 0.5에 중심).
+# 슬레이트 그레이 바탕의 가는 세 줄 사선(핀 스트라이프 트리오)과 줄 사이의 세 고리 — 타일 2배
+# (96mm)에 사선 k=4. sateen 16·7은 x+y가 48의 배수라 고리가 틈 한 줄 걸러 우상향 띠로
+# 늘어서고(띠 안 간격 17mm), 이웃 띠끼리 어긋나 세로·가로 일직선이 없다(엇박).
 PIN_STRIPE_RINGS_PLAN = DesignPlanV3.model_validate(
     {
         "colors": ["#2e3640", "#d9d4ca"],
@@ -85,7 +89,7 @@ PIN_STRIPE_RINGS_PLAN = DesignPlanV3.model_validate(
             {
                 "type": "stripe",
                 "direction": "diagonal_up",
-                "period_ratio": 0.35355339,
+                "period_ratio": 0.1767767,
                 "bands": [
                     {"offset_ratio": 0.4467, "width_ratio": 0.02, "color_index": 1},
                     {"offset_ratio": 0.49, "width_ratio": 0.02, "color_index": 1},
@@ -95,22 +99,17 @@ PIN_STRIPE_RINGS_PLAN = DesignPlanV3.model_validate(
             {
                 "type": "motif",
                 "motif_index": 0,
-                "size_ratio": 0.14,
-                "placement": {
-                    "type": "lattice",
-                    "columns": 2,
-                    "rows": 2,
-                    "drop": "none",
-                    "fixed_rotation_deg": 0.0,
-                },
+                "size_ratio": 0.07,
+                "placement": {"type": "scatter", "mode": "sateen", "order": 16, "step": 7},
             },
         ],
     }
 )
 
 
-# 네이비 바탕에 로고를 하프드롭(열마다 반 칸 내림) 2×2로 깔고, diagonal_pair의 작은 점이
-# 내려간 열 로고와 같은 높이(1/4·3/4)에서 로고 사이를 채운다 — 넥타이 폭에 로고 두세 개.
+# 네이비 바탕의 로고와 작은 점 — 타일 2배(96mm). 2:3 사선(우상향) 닫힌 경로 하나에 로고 13개를 같은
+# 간격으로 놓으면 기울어진 정사각 격자(sateen 13·8)가 되어 세로·가로 일직선이 없다(엇박). 점은 같은
+# 경로를 반 칸 밀어 로고 사이에 둔다 — 로고·점이 우상향 사슬로 번갈아 선다.
 LOGO_DOTS_PLAN = DesignPlanV3.model_validate(
     {
         "colors": ["#1b2547", "#d8c7a8"],
@@ -123,20 +122,30 @@ LOGO_DOTS_PLAN = DesignPlanV3.model_validate(
             {
                 "type": "motif",
                 "motif_index": 0,
-                "size_ratio": 0.2,
+                "size_ratio": 0.1,
                 "placement": {
-                    "type": "lattice",
-                    "columns": 2,
-                    "rows": 2,
-                    "drop": "half_column",
+                    "type": "path",
+                    "kind": "straight",
+                    "direction": "diagonal_2_3_up",
+                    "spacing_ratio": 0.07692308,
+                    "phase_ratio": 0.0,
+                    "rotation": "fixed",
                     "fixed_rotation_deg": 0.0,
                 },
             },
             {
                 "type": "motif",
                 "motif_index": 1,
-                "size_ratio": 0.045,
-                "placement": {"type": "point_template", "template": "diagonal_pair"},
+                "size_ratio": 0.0225,
+                "placement": {
+                    "type": "path",
+                    "kind": "straight",
+                    "direction": "diagonal_2_3_up",
+                    "spacing_ratio": 0.07692308,
+                    "phase_ratio": 0.03846154,
+                    "rotation": "fixed",
+                    "fixed_rotation_deg": 0.0,
+                },
             },
         ],
     }
@@ -410,29 +419,10 @@ CHECK_R_PLAN = DesignPlanV3.model_validate(
 )
 
 
-# 08 — 가로 바 스트라이프: 블루 바탕에 은색 두 줄·금색 한 줄 바를 타일당 두 번 가로로 두고, 바
-# 사이 한가운데에 날개 엠블럼을 행마다 엇갈려 놓는다(넥타이 폭에 2~3개). 날개는 격자가 아니라
-# 바탕색 레인(주기 1.0 스트라이프의 두 밴드) 위 가로 경로라 행 높이를 바 사이에 맞출 수 있다.
-# 바와 레인 위상은 카드 끝 로고가 바 사이 한 칸에 들고, 그 행의 작은 날개가 로고와 멀게 잡았다.
-# horizontal offset은 위에서 잰다.
-def _wing_row(band: int, phase: float) -> dict[str, Any]:
-    return {
-        "type": "motif",
-        "motif_index": 0,
-        "size_ratio": 0.17,
-        "placement": {
-            "type": "path",
-            "kind": "straight",
-            "direction": "horizontal",
-            "spacing_ratio": 1.0,
-            "phase_ratio": phase,
-            "host_stripe_index": 1,
-            "host_band_index": band,
-            "rotation": "fixed",
-        },
-    }
-
-
+# 08 — 가로 바 스트라이프: 블루 바탕에 은색 두 줄·금색 한 줄 바를 24mm마다 가로로 두고(타일
+# 1.5배 72mm, 주기 1/3), 바 사이 칸 세 줄마다 바탕색 레인 위 가로 경로로 날개 엠블럼을 36mm 간격으로
+# 놓는다. 행마다 12mm씩 왼쪽으로 밀어 날개가 우상향 사슬로 서고(엇박, 같은 열은 3행 뒤), 카드 끝
+# 로고 행의 날개는 로고 양옆에 같은 간격으로 비켜 잡았다. horizontal offset은 위에서 잰다.
 SKYLINE_WINGS_PLAN = DesignPlanV3.model_validate(
     {
         "colors": ["#2a4f9e", "#c9ccd2", "#d9a441"],
@@ -442,11 +432,11 @@ SKYLINE_WINGS_PLAN = DesignPlanV3.model_validate(
             {
                 "type": "stripe",
                 "direction": "horizontal",
-                "period_ratio": 0.5,
+                "period_ratio": 0.33333333,
                 "bands": [
-                    {"offset_ratio": 0.67, "width_ratio": 0.03, "color_index": 1},
-                    {"offset_ratio": 0.73, "width_ratio": 0.03, "color_index": 1},
-                    {"offset_ratio": 0.81, "width_ratio": 0.02, "color_index": 2},
+                    {"offset_ratio": 0.17, "width_ratio": 0.03, "color_index": 1},
+                    {"offset_ratio": 0.23, "width_ratio": 0.03, "color_index": 1},
+                    {"offset_ratio": 0.31, "width_ratio": 0.02, "color_index": 2},
                 ],
             },
             {
@@ -454,12 +444,59 @@ SKYLINE_WINGS_PLAN = DesignPlanV3.model_validate(
                 "direction": "horizontal",
                 "period_ratio": 1.0,
                 "bands": [
-                    {"offset_ratio": 0.12, "width_ratio": 0.02, "color_index": 0},
-                    {"offset_ratio": 0.62, "width_ratio": 0.02, "color_index": 0},
+                    {"offset_ratio": 0.24, "width_ratio": 0.002, "color_index": 0},
+                    {"offset_ratio": 0.57333333, "width_ratio": 0.002, "color_index": 0},
+                    {"offset_ratio": 0.90666667, "width_ratio": 0.002, "color_index": 0},
                 ],
             },
-            _wing_row(0, 0.22),
-            _wing_row(1, 0.72),
+            {
+                "type": "motif",
+                "motif_index": 0,
+                "size_ratio": 0.1133,
+                "placement": {
+                    "type": "path",
+                    "kind": "straight",
+                    "direction": "horizontal",
+                    "spacing_ratio": 0.5,
+                    "phase_ratio": 0.388889,
+                    "host_stripe_index": 1,
+                    "host_band_index": 0,
+                    "rotation": "fixed",
+                    "fixed_rotation_deg": 0.0,
+                },
+            },
+            {
+                "type": "motif",
+                "motif_index": 0,
+                "size_ratio": 0.1133,
+                "placement": {
+                    "type": "path",
+                    "kind": "straight",
+                    "direction": "horizontal",
+                    "spacing_ratio": 0.5,
+                    "phase_ratio": 0.222222,
+                    "host_stripe_index": 1,
+                    "host_band_index": 1,
+                    "rotation": "fixed",
+                    "fixed_rotation_deg": 0.0,
+                },
+            },
+            {
+                "type": "motif",
+                "motif_index": 0,
+                "size_ratio": 0.1133,
+                "placement": {
+                    "type": "path",
+                    "kind": "straight",
+                    "direction": "horizontal",
+                    "spacing_ratio": 0.5,
+                    "phase_ratio": 0.055556,
+                    "host_stripe_index": 1,
+                    "host_band_index": 2,
+                    "rotation": "fixed",
+                    "fixed_rotation_deg": 0.0,
+                },
+            },
         ],
     }
 )
@@ -818,6 +855,7 @@ CURATED: tuple[CuratedExample, ...] = (
         logo_slot=1,
         color_names=("바탕", "가는 세 줄"),
         plan=PIN_STRIPE_RINGS_PLAN,
+        tile_scale=2.0,
     ),
     CuratedExample(
         example_id="template_logo_halfdrop_dots",
@@ -828,6 +866,7 @@ CURATED: tuple[CuratedExample, ...] = (
         logo_slot=1,
         color_names=("바탕",),
         plan=LOGO_DOTS_PLAN,
+        tile_scale=2.0,
     ),
     CuratedExample(
         example_id="template_stripe_pair_apex",
@@ -915,6 +954,7 @@ CURATED: tuple[CuratedExample, ...] = (
         logo_slot=1,
         color_names=("바탕", "은색 두 줄", "금색 줄"),
         plan=SKYLINE_WINGS_PLAN,
+        tile_scale=1.5,
     ),
     CuratedExample(
         example_id="template_quatrefoil_lattice_blossom",
@@ -1154,13 +1194,16 @@ def _compose_run(
     catalog: dict[str, MotifDef],
     color_names: tuple[str, ...],
     panel: list[dict[str, Any]] | None = None,
+    tile_scale: float = 1.0,
 ) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
     """플랜 → intent → SVG. 워커 /generate의 intent 경로와 같은 순서를 지킨다.
 
     panel(배치형)은 플랜 계약 밖이라 컴파일된 intent에 그대로 얹는다 — motif_id로 풀린 상태여야
     하고, 그 모티프도 catalog에 있어야 한다.
     """
-    authored = compile_design_plan_v3(plan, motif_ids=motif_ids, seed=SEED)
+    authored = compile_design_plan_v3(
+        plan, motif_ids=motif_ids, tile_mm=DEFAULT_TILE_MM * tile_scale, seed=SEED
+    )
     warnings: list[str] = []
     intent = apply_generation_constraints(authored.intent, warnings=warnings)
     if panel:
@@ -1279,6 +1322,7 @@ async def _run() -> list[str]:
                     catalog=await get_motifs(session, [*motif_ids, *panel_ids]),
                     color_names=curated.color_names,
                     panel=panel,
+                    tile_scale=curated.tile_scale,
                 )
                 await _upsert(
                     session,
