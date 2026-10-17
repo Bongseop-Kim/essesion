@@ -58,7 +58,6 @@ function renderPage(state: unknown) {
           />
           <Route path="/design" element={<p>템플릿</p>} />
           <Route path="/design/sessions/:id/color" element={<p>색</p>} />
-          <Route path="/design/sessions/:id/logo" element={<p>로고</p>} />
           <Route path="/custom-order" element={<OrderStub />} />
         </Routes>
       </QueryClientProvider>
@@ -99,18 +98,18 @@ describe("DesignResultPage", () => {
     await screen.findByText("주문 job-1");
   });
 
-  it("다시 고르기 셋은 각각 템플릿·색·로고 화면으로 간다", async () => {
+  it("색·로고 다시 고르기는 색·로고 화면으로 간다", async () => {
     renderPage({ job: JOB });
     fireEvent.click(
-      await screen.findByRole("button", { name: "색 다시 고르기" }),
+      await screen.findByRole("button", { name: "색·로고 다시 고르기" }),
     );
     await screen.findByText("색");
   });
 
-  it("완성본 없이 들어오면 로고 화면으로 안내한다", async () => {
+  it("완성본 없이 들어오면 색·로고 화면으로 안내한다", async () => {
     renderPage(null);
     await screen.findByText("아직 만든 결과가 없어요");
-    fireEvent.click(screen.getByRole("button", { name: "로고 올리기" }));
-    await screen.findByText("로고");
+    fireEvent.click(screen.getByRole("button", { name: "색·로고 고르기" }));
+    await screen.findByText("색");
   });
 });

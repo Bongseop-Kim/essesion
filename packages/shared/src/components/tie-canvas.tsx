@@ -7,7 +7,8 @@ import { Flex } from "./flex";
 export type DesignPreviewMode = "repeat" | "tie";
 
 // 소비하는 앱의 public/images에 tie-mask.png·tie-knot-mask.png·tie-shadow.webp가 있어야 한다(store·admin 모두 보유).
-// `silhouette="flat"`은 tie-flat-mask.png·tie-flat-shadow.webp도 필요하다(store만 보유).
+// `silhouette="flat"`은 tie-flat-mask.png·tie-flat-shadow.webp,
+// `silhouette="knot"`은 tie-knot-closeup-{mask,knot-mask}.png·tie-knot-closeup-shadow.webp도 필요하다(store만 보유).
 
 export type TieCanvasProps = {
   /** Sanitized SVG encoded as a data URI. */
@@ -39,9 +40,10 @@ export type TieCanvasProps = {
   panelSrc?: string;
   /**
    * `photo`(기본) = 셔츠 깃·매듭까지 있는 실사 컷. `flat` = 매듭 없이 몸통 위를 수평으로 자른
-   * 정면 컷(템플릿 목록) — 매듭이 없어 `knot` 자리는 몸통 윗부분이다.
+   * 정면 컷(템플릿 목록) — 매듭이 없어 `knot` 자리는 몸통 윗부분이다. `knot` = 실사 사진을 매듭
+   * 둘레만 4:5로 자른 확대 컷(색·로고의 매듭 보기) — 셔츠가 칸을 꽉 채워 안쪽 여백이 없다.
    */
-  silhouette?: "photo" | "flat";
+  silhouette?: "photo" | "flat" | "knot";
   className?: string;
 };
 
@@ -120,6 +122,36 @@ const SILHOUETTES = {
       },
     },
     focus: { zoom: 1.8, y: { knot: 0.22, blade: 0.45, tip: 0.78 } },
+  },
+  // 실사 베이스 사진의 매듭 둘레를 사진 해상도로 자른 600×750 — extract_tie_assets.py의 확대 컷.
+  // 값은 photo 상수를 확대 컷 좌표로 옮긴 것(스크립트가 출력) — 어깨·끝은 칸 밖(>1)이다.
+  knot: {
+    mask: "/images/tie-knot-closeup-mask.png",
+    knotMask: "/images/tie-knot-closeup-knot-mask.png",
+    shadow: "/images/tie-knot-closeup-shadow.webp",
+    aspect: 600 / 750,
+    tile: 0.3664,
+    blade: { left: 0.0534, right: 0.9443, shoulder: 4.4407 },
+    emblem: {
+      knot: {
+        anchor: "center",
+        x: 0.5,
+        y: 0.2902,
+        size: 0.2977,
+        maxW: 0.458,
+        maxH: 0.458,
+      },
+      tip: {
+        anchor: "bottom-right",
+        x: 0.8664,
+        y: 4.1601,
+        size: 0.1374,
+        maxW: 0.2748,
+        maxH: 0.2061,
+      },
+    },
+    // 이미 확대 컷이라 focus는 쓰지 않는다 — 타입을 맞추는 값.
+    focus: { zoom: 1, y: { knot: 0.5, blade: 0.5, tip: 0.5 } },
   },
 } as const;
 
@@ -396,7 +428,8 @@ export function TieCanvas({
           inset={0}
           align="center"
           justify="center"
-          p="x6"
+          // 확대 컷은 셔츠 사진이 칸을 꽉 채워야 한다 — 안쪽 여백 없음.
+          p={silhouette === "knot" ? undefined : "x6"}
           style={{ containerType: "size" }}
         >
           {art}

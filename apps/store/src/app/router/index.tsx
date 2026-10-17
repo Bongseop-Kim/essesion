@@ -116,12 +116,6 @@ export const storeRouteObjects = [
             }),
           },
           {
-            path: "design/sessions/:id/logo",
-            lazy: async () => ({
-              Component: (await import("@/pages/design/logo")).DesignLogoPage,
-            }),
-          },
-          {
             path: "design/sessions/:id/result",
             lazy: async () => ({
               Component: (await import("@/pages/design/result"))

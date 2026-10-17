@@ -13,7 +13,6 @@ import { useLocation, useNavigate, useParams } from "react-router";
 
 import { latestFinalizedJobQueryOptions } from "@/features/design/model/queries";
 import { colorPath } from "@/pages/design/color";
-import { logoPath } from "@/pages/design/logo";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
 
@@ -74,9 +73,9 @@ export function DesignResultPage() {
             <ActionButton
               variant="neutralWeak"
               size="small"
-              onClick={() => navigate(logoPath(id))}
+              onClick={() => navigate(colorPath(id))}
             >
-              로고 올리기
+              색·로고 고르기
             </ActionButton>
           }
         />
@@ -97,8 +96,7 @@ export function DesignResultPage() {
                 이렇게 만들어져요
               </Text>
               <Text textStyle="body" color="fg.neutral-muted">
-                마음에 들면 주문으로, 아니면 템플릿·색·로고 중 하나만 다시
-                고르세요.
+                마음에 들면 주문으로, 아니면 템플릿이나 색·로고를 다시 고르세요.
               </Text>
               <Text textStyle="caption" color="fg.neutral-muted">
                 화면 색과 원단 색은 다를 수 있어요.
@@ -115,13 +113,7 @@ export function DesignResultPage() {
                 variant="neutralWeak"
                 onClick={() => navigate(colorPath(id))}
               >
-                색 다시 고르기
-              </ActionButton>
-              <ActionButton
-                variant="neutralWeak"
-                onClick={() => navigate(logoPath(id))}
-              >
-                로고 다시 올리기
+                색·로고 다시 고르기
               </ActionButton>
             </VStack>
           </VStack>

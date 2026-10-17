@@ -128,8 +128,43 @@ export function TemplateTieShot({
   );
 }
 
-/** 무늬 확대 한 장(2:1) — 모바일 색 고르기에서 칩 바로 아래에 두는 작은 미리보기. */
-export function TemplatePatternShot({ shot }: { shot: TemplateShot }) {
+/** 매듭 확대 한 장(4:5) — 매듭 전용 확대 컷(`silhouette="knot"`), 플랫 카드와 같은 칸 크기. */
+export function TemplateKnotShot({
+  shot,
+  layout,
+}: {
+  shot: TemplateShot;
+  layout: TemplateLayout;
+}) {
+  return (
+    <Box
+      position="relative"
+      width="full"
+      overflow="hidden"
+      bg="bg.neutral-weak"
+      borderRadius="r3"
+      style={{ aspectRatio: "4 / 5" }}
+    >
+      <Box position="absolute" inset={0}>
+        <TieCanvas
+          {...shot}
+          mode="tie"
+          silhouette="knot"
+          emblem={templateEmblem(layout)}
+        />
+      </Box>
+    </Box>
+  );
+}
+
+/** 착용 모습 한 장(4:5) — 색 고르기의 "착용" 보기. 확대 샷 없이 전체 샷만. */
+export function TemplateWornShot({
+  shot,
+  layout,
+}: {
+  shot: TemplateShot;
+  layout: TemplateLayout;
+}) {
   return (
     <Box
       position="relative"
@@ -137,10 +172,15 @@ export function TemplatePatternShot({ shot }: { shot: TemplateShot }) {
       bg="bg.neutral-weak"
       borderRadius="r3"
       overflow="hidden"
-      style={{ aspectRatio: "2 / 1" }}
+      style={{ aspectRatio: "4 / 5" }}
     >
-      <Box position="absolute" inset={0}>
-        <TieCanvas {...shot} mode="tie" focus="blade" />
+      {/* TieCanvas의 위쪽 안쪽 여백(x6)을 칸 밖으로 밀어 깃이 칸 위에 붙게 한다. */}
+      <Box
+        position="absolute"
+        inset={0}
+        style={{ top: "calc(var(--spacing-x6) * -1)" }}
+      >
+        <TieCanvas {...shot} mode="tie" emblem={templateEmblem(layout)} />
       </Box>
     </Box>
   );
