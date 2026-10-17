@@ -74,10 +74,15 @@ def test_seeded_runs_are_deterministic_and_carry_what_the_api_restores():
 
 def test_placement_templates_carry_panel_svg_and_one_logo():
     # 배치형 템플릿 — panel이 intent·로그에 실리고 포인트 로고는 panel에 하나뿐이다.
+    # 로고 없는 panel(엠블럼 뒤 바탕색 받침)은 반복형 템플릿의 보조라 로고 수 검사에서 뺀다.
     seed = _seed_module()
     catalog = _catalog()
     motif_id = sorted(catalog)[0]
-    placed = [item for item in seed.CURATED if item.panel]
+    placed = [
+        item
+        for item in seed.CURATED
+        if any(element.get("role") == "logo" for element in item.panel or ())
+    ]
     assert len(placed) == 8
     for curated in placed:
         panel = [

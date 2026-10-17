@@ -96,6 +96,7 @@ _INTENT_ALLOWED_KEYS = frozenset(
         "size_mm",
         "placement",
         "host_layer",
+        "avoid_layer",
         "lane",
         "path",
         "kind",

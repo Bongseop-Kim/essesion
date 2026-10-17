@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from worker.authoring.compiler import AuthoredDesign, PlanCompileError, compile_design_plan_v3
-from worker.authoring.schema import DesignPlanV3
+from worker.authoring.schema import DesignPlanV3, prune_motif_layers
 from worker.motifs.registry import MotifCatalog
 from worker.motifs.store import find_catalog, get_motifs
 
@@ -92,18 +92,19 @@ async def prepare_authoring_preview(
     raw["motifs"] = [
         {"source": "input", "input_index": index + 1} for index in range(len(resolved_ids))
     ]
-    layers: list[dict[str, object]] = []
-    for layer in raw["layers"]:
-        if layer["type"] != "motif":
-            layers.append(layer)
-            continue
-        original_index = layer["motif_index"]
-        resolved_index = resolved_indexes.get(original_index)
-        if resolved_index is None:
-            continue
-        layer["motif_index"] = resolved_index
-        layers.append(layer)
-    raw["layers"] = layers
+    motif_layers = [layer for layer in plan.layers if layer.type == "motif"]
+    raw_motif_layers = [layer for layer in raw["layers"] if layer["type"] == "motif"]
+    for layer, raw_layer in zip(motif_layers, raw_motif_layers, strict=True):
+        if layer.motif_index in resolved_indexes:
+            raw_layer["motif_index"] = resolved_indexes[layer.motif_index]
+    raw["layers"] = prune_motif_layers(
+        raw["layers"],
+        {
+            ordinal
+            for ordinal, layer in enumerate(motif_layers)
+            if layer.motif_index not in resolved_indexes
+        },
+    )
     preview_plan = DesignPlanV3.model_validate(raw)
     design = compile_design_plan_v3(
         preview_plan,

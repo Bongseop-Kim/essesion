@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import copy
 import json
+from collections.abc import Collection
 from typing import Annotated, Literal
 
 from pydantic import (
@@ -190,6 +191,10 @@ class MotifLayerPlan(_StrictModel):
     motif_index: int = Field(ge=0, le=1)
     size_ratio: float = Field(gt=0.0, le=0.4, allow_inf_nan=False)
     placement: PlacementPlan
+    # Additive (no PLAN_CONTRACT_VERSION bump): ordinal (0-based, among motif layers) of an
+    # EARLIER motif layer whose instances this layer skips where they overlap. Omitted from
+    # dumps when None so existing plans and their fingerprints stay byte-identical.
+    avoid_motif_layer: int | None = Field(default=None, ge=0, exclude_if=lambda v: v is None)
 
 
 StructureLayerPlan = Annotated[
@@ -248,6 +253,10 @@ class DesignPlanV3(_StrictModel):
         if used_motifs != set(range(len(self.motifs))):
             raise ValueError("every declared motif must be used and motif indexes must be dense")
 
+        for ordinal, layer in enumerate(motif_layers):
+            if layer.avoid_motif_layer is not None and layer.avoid_motif_layer >= ordinal:
+                raise ValueError("avoid_motif_layer must reference an earlier motif layer")
+
         stripes = [layer for layer in self.layers if layer.type == "stripe"]
         for layer in motif_layers:
             placement = layer.placement
@@ -264,6 +273,31 @@ class DesignPlanV3(_StrictModel):
             ):
                 raise ValueError("host_band_index is outside stripe bands")
         return self
+
+
+def prune_motif_layers(
+    layers: list[dict[str, object]], dropped: Collection[int]
+) -> list[dict[str, object]]:
+    """Drop dumped plan motif layers by ordinal, renumbering ``avoid_motif_layer``.
+
+    A reference to a dropped layer is cleared rather than left pointing at whatever layer
+    slides into that ordinal.
+    """
+
+    kept: list[dict[str, object]] = []
+    renumbered: dict[int, int] = {}
+    ordinal = 0
+    for layer in layers:
+        if layer["type"] == "motif":
+            old, ordinal = ordinal, ordinal + 1
+            if old in dropped:
+                continue
+            renumbered[old] = len(renumbered)
+            target = layer.pop("avoid_motif_layer", None)
+            if isinstance(target, int) and target in renumbered:
+                layer["avoid_motif_layer"] = renumbered[target]
+        kept.append(layer)
+    return kept
 
 
 def _canonical_motif_source(source: PlanMotifSource) -> dict[str, object]:
@@ -338,19 +372,14 @@ def snapshot_resolved_plan(
             raise ValueError("resolved motif layer is missing a concrete motif_id")
         resolved_by_ordinal[ordinal] = motif_id
 
-    kept_layers: list[dict[str, object]] = []
     ids_by_index: dict[int, set[str]] = {}
-    motif_ordinal = 0
-    for plan_layer, raw_layer in zip(plan.layers, raw["layers"], strict=True):
-        if plan_layer.type != "motif":
-            kept_layers.append(raw_layer)
-            continue
-        motif_id = resolved_by_ordinal.get(motif_ordinal)
-        motif_ordinal += 1
-        if motif_id is None:
-            continue
-        kept_layers.append(raw_layer)
-        ids_by_index.setdefault(plan_layer.motif_index, set()).add(motif_id)
+    for ordinal, layer in enumerate(plan_motif_layers):
+        motif_id = resolved_by_ordinal.get(ordinal)
+        if motif_id is not None:
+            ids_by_index.setdefault(layer.motif_index, set()).add(motif_id)
+    kept_layers = prune_motif_layers(
+        raw["layers"], set(range(len(plan_motif_layers))) - set(resolved_by_ordinal)
+    )
 
     used_indexes = sorted(ids_by_index)
     dense_index = {old: new for new, old in enumerate(used_indexes)}

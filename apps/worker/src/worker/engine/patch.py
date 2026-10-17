@@ -610,6 +610,8 @@ def _apply_placement(
     for layer in _target_layers(raw, patch):
         placement = layer.get("placement")
         placement = dict(placement) if isinstance(placement, dict) else {}
+        # 배치를 새로 만들어도 자리 비우기는 남긴다 — 빠지면 점이 다시 로고 밑에 깔린다.
+        avoid_layer = placement.get("avoid_layer")
         # 배치를 새로 만들면 위상이 0으로 돌아가 두 모티프가 정확히 포개진다 — 비율로 옮긴다.
         offset_fraction = _cell_offset_fraction(placement)
         rotation = (
@@ -668,6 +670,8 @@ def _apply_placement(
             placement["fixed_rotation_deg"] = rotation
             if placement.get("type") == "path_following":
                 placement["rotation"] = "fixed"
+        if avoid_layer is not None:
+            placement["avoid_layer"] = avoid_layer
         layer["placement"] = placement
 
 

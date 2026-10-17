@@ -99,6 +99,9 @@ class Placement(BaseModel):
     lattice: LatticeSpec | None = None
     scatter: ScatterSpec | None = None
     point_set: PointSetSpec | None = None
+    # 앞서 그려지는 모티프 레이어 id — 그 인스턴스와 외접원이 겹치는 자기 인스턴스를 뺀다
+    # (worker-engine.md §3). None은 dump에서 생략돼 기존 intent는 byte-identical하다.
+    avoid_layer: str | None = None
 
     @model_validator(mode="after")
     def _spec_matches_type(self) -> "Placement":

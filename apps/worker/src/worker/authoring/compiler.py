@@ -370,6 +370,13 @@ def compile_design_plan_v3(
         source = sources[structure.motif_index]
         layer_id = f"motif_{motif_layer_index}"
         motif_layer_index += 1
+        placement = _compile_placement(
+            structure.placement,
+            tile_mm=tile_mm,
+            stripes=stripe_plans,
+        )
+        if structure.avoid_motif_layer is not None:
+            placement["avoid_layer"] = f"motif_{structure.avoid_motif_layer}"
         layers.append(
             {
                 "id": layer_id,
@@ -379,11 +386,7 @@ def compile_design_plan_v3(
                     "motif_id": source.motif_id,
                     "size_mm": round(tile_mm * structure.size_ratio, 6),
                 },
-                "placement": _compile_placement(
-                    structure.placement,
-                    tile_mm=tile_mm,
-                    stripes=stripe_plans,
-                ),
+                "placement": placement,
             }
         )
         if source.resolution is not None:

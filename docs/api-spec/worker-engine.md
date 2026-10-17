@@ -29,6 +29,7 @@ Placement: `type ∈ {lattice, point_set, path_following, scatter}` + type별 sp
 - ScatterSpec: mode ∈ {poisson, sateen}, min_dist_mm?(gt0), count?(1..10000), sateen_n?(2..1024), sateen_step?(1..1024), seed_salt?(1..64자)
 - PointSetSpec: points 1..10000
 - path_following: host_layer+lane 또는 standalone path(PathSpec: kind ∈ {straight, wave}, angle?, wavelength?(gt0), amplitude?(ge0)) + spacing_mm(gt0), phase_mm=0, rotation ∈ {follow_path, fixed}?
+- 모든 placement의 `avoid_layer?`는 같은 intent에서 **먼저 그려지는**(`(z_order, id)` 정렬이 앞선) 모티프 레이어 id다. 그 레이어와 겹치는 자기 인스턴스를 뺀다(§3 "자리 비우기"). 없는 id·자기 자신·모티프가 아닌 레이어·뒤에 그려지는 레이어는 `IntentInvalid`다. 생략하면 dump에서 빠져 기존 intent가 바이트 그대로다(`seed_salt`와 같은 가산 선례).
 - 모든 placement의 `fixed_rotation_deg?`는 구성 patch가 사용하는 결정론적 각도다. 생략 시 기존과 동일하게 0°이며 canonical layout JSON에서도 빠져 기존 layout id·SVG 바이트를 보존한다. path-following에서 `rotation=follow_path`면 tangent가 우선한다.
 
 `validate_intent`의 결정론적 repair(경고 발생): dpi→ALLOWED_DPI(150,300,600) 최근접, off-grid stripe period→`tile/(k·hypot(p,q))` 스냅(밴드 비례, round 6자리), 다중밴드 bare lane(start/center/end/gap)→b0.*, ground-gap(coverage > 0.75) 축소·균등 배치. drop_fraction 허용값 `(0.5, 1/3, 0.25)`.
@@ -90,6 +91,8 @@ Placement: `type ∈ {lattice, point_set, path_following, scatter}` + type별 sp
   - **`seed_salt`**: 있으면 `random.Random(stable_hash(f"{seed}:{seed_salt}"))`, 없으면 전역 `seed` 그대로. 같은 산개 설정을 받은 두 모티프 레이어가 같은 난수열을 써서 정확히 포개지는 것을 막는 축이다(격자의 `offset_x/y_mm`와 같은 역할). 구성 patch가 산개 배치를 새로 만들 때 **레이어 id**를 넣는다 — motif_id·레이어 순번·내장 `hash()`는 입력에 넣지 않는다(모티프 교체로 좌표가 바뀌면 안 된다). 값이 없는 기존 intent는 예전 좌표를 그대로 재현한다. 난수열 분리는 비겹침 보장이 아니다.
 - **path_following**: centerline은 host stripe lane 또는 standalone path. stripe lane은 밴드 i마다 `b{i}.start|center|end`와 `b{i}.gap`(밴드 i 끝과 다음 밴드 — 마지막 밴드면 다음 period의 첫 밴드 — 시작 사이 중점, 2026-09-07 "줄 사이에" 배치용)이며, 단일 밴드는 bare `start|center|end|gap`도 받는다. 각도 스냅 `snap_angle`(기울기 `Fraction.limit_denominator(16)`), 길이 `L=tile·hypot(p,q)`, `n=max(1,round(L/spacing)), spacing_eff=L/n`, `s=phase%L + k·spacing_eff (s < L-1e-9)`. straight: `x=offset·nx+s·dx`; wave: 법선방향 `amp·sin(2πs/λ)` 추가, tangent는 도함수 반영. rotation=follow_path면 tangent, 아니면 0.
 - **point_set**: `(x%tile, y%tile, fixed_rotation_deg 또는 0)`.
+
+**자리 비우기(avoid_layer)**: 배치 결과(경계 클론 전)에서, avoid 레이어가 **실제로 그린** 인스턴스(그 레이어도 avoid로 걸러졌으면 걸러진 뒤)와의 토러스 거리가 `(자기 size_mm + 상대 size_mm) / 2` 미만인 자기 인스턴스를 입력 순서대로 버린다 — 두 모티프의 외접 정사각을 원으로 근사한 겹침 판정이다. RNG를 쓰지 않는다. 전부 빠지면 `layer '<id>': avoid_layer '<id>' removed every instance` 경고(영문 진단, 고객 문구 없음). 구성 patch가 배치를 새로 만들어도 `avoid_layer`는 옮겨 담는다.
 
 **seamless 경계 클론**: 렌더 AABB(scale→rotate→translate 순 계산)가 타일 경계를 넘으면 `(dx,dy) ∈ {-1,0,1}²\{(0,0)}` 고정 순서로 시프트 복제(교차하는 것만), 원본 뒤에 append. 전제 size_mm ≤ tile_mm.
 

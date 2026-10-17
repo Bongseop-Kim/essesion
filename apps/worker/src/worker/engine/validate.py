@@ -441,6 +441,24 @@ def validate_intent(raw, *, repair: bool = True) -> ValidationResult:
                             f"layer {layer.id!r}: path_following host_layer "
                             f"{placement.host_layer!r} must be a stripe, not {host.type!r}"
                         )
+            if placement.avoid_layer is not None:
+                target = layers_by_id.get(placement.avoid_layer)
+                if placement.avoid_layer == layer.id:
+                    errors.append(f"layer {layer.id!r}: avoid_layer cannot reference itself")
+                elif target is None:
+                    errors.append(
+                        f"layer {layer.id!r}: avoid_layer {placement.avoid_layer!r} does not exist"
+                    )
+                elif target.type != "motif":
+                    errors.append(
+                        f"layer {layer.id!r}: avoid_layer {placement.avoid_layer!r} "
+                        f"must be a motif layer, not {target.type!r}"
+                    )
+                elif (target.z_order, target.id) >= (layer.z_order, layer.id):
+                    errors.append(
+                        f"layer {layer.id!r}: avoid_layer {placement.avoid_layer!r} "
+                        "must be drawn earlier (lower (z_order, id))"
+                    )
             if (
                 placement.path is not None
                 and placement.path.kind == "wave"

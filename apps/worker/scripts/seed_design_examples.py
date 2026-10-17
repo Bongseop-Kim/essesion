@@ -602,10 +602,10 @@ MONOGRAM_DASH_PLAN = DesignPlanV3.model_validate(
 )
 
 
-# 04 — 네이비 바탕에 아이보리 마름모 점(가운데 진한 빨강)을 엇갈림 격자(가로 0.5·세로 0.25
-# 하프로우)로 깔고, 세리프 R은 점 사이에 끼우지 않고 점 자리를 차지한다(점 사이 빈칸은 점 넷에
-# 갇혀 답답했다). 하프로우 2×4는 자리를 골라 비울 수 없어 같은 여덟 자리를 나눠 깐다 — 짝수 행
-# 넷은 2×2 격자 점, 홀수 행 넷 중 diagonal_pair 둘은 R(행마다 엇갈림), 나머지 둘은 대각 경로 점.
+# 04 — 네이비 바탕에 아이보리 마름모 점(가운데 진한 빨강)을 하프로우(96mm 타일에서 24mm 간격)로
+# 깔고, 세리프 R은 점 자리를 차지하되 sateen 8·3으로 흩어 세로·가로 일직선이 없다. R 여덟 자리는
+# 모두 점 자리 위에 떨어지고, 두 점 레이어(4×4 격자 + grid4_inset — 합치면 하프로우 전체)가
+# avoid_motif_layer로 R과 겹치는 점만 비운다.
 INITIAL_R_DOTS_PLAN = DesignPlanV3.model_validate(
     {
         "colors": ["#141d3c", "#efe6d2"],
@@ -618,33 +618,22 @@ INITIAL_R_DOTS_PLAN = DesignPlanV3.model_validate(
             {
                 "type": "motif",
                 "motif_index": 0,
-                "size_ratio": 0.12,
-                "placement": {"type": "point_template", "template": "diagonal_pair"},
+                "size_ratio": 0.06,
+                "placement": {"type": "scatter", "mode": "sateen", "order": 8, "step": 3},
             },
             {
                 "type": "motif",
                 "motif_index": 1,
-                "size_ratio": 0.1,
-                "placement": {
-                    "type": "lattice",
-                    "columns": 2,
-                    "rows": 2,
-                    "drop": "none",
-                    "fixed_rotation_deg": 0.0,
-                },
+                "size_ratio": 0.05,
+                "placement": {"type": "lattice", "columns": 4, "rows": 4, "drop": "none"},
+                "avoid_motif_layer": 0,
             },
             {
                 "type": "motif",
                 "motif_index": 1,
-                "size_ratio": 0.1,
-                "placement": {
-                    "type": "path",
-                    "kind": "straight",
-                    "direction": "diagonal_up",
-                    "spacing_ratio": 0.5,
-                    "phase_ratio": 0.25,
-                    "rotation": "fixed",
-                },
+                "size_ratio": 0.05,
+                "placement": {"type": "point_template", "template": "grid4_inset"},
+                "avoid_motif_layer": 0,
             },
         ],
     }
@@ -779,6 +768,24 @@ PANEL_LOGO: dict[str, Any] = {
     "anchor": "bottom_right",
     "role": "logo",
 }
+
+
+def _disc(logo: dict[str, Any], *, radius: float, color: str, dy: float = 0.0) -> dict[str, Any]:
+    """포인트 로고(bottom_right 앵커) 중심(+dy)의 원 근사 region — panel엔 원 요소가 없다."""
+    (right, bottom), half = logo["at"], logo["size"] / 2
+    cx, cy = right - half, bottom - half + dy
+    return {
+        "type": "region",
+        "points": [
+            [
+                round(cx + radius * math.cos(2 * math.pi * i / 48), 2),
+                round(cy + radius * math.sin(2 * math.pi * i / 48), 2),
+            ]
+            for i in range(48)
+        ],
+        "color": color,
+    }
+
 
 # 05 — 차콜 바탕의 잔 다이아 결(양 사선 가는 줄) 위에 V자 분할: 왼쪽 아래 면은 밝은 회색,
 # 왼팔을 따라 와인 띠, 오른팔은 은색 선이 오른쪽 위 모서리로 올라간다.
@@ -981,13 +988,21 @@ CURATED: tuple[CuratedExample, ...] = (
     CuratedExample(
         example_id="template_dot_initial_r",
         name="세리프 R과 마름모 도트",
-        caption="네이비 바탕에 빨간 심을 품은 아이보리 마름모 점이 엇갈려 놓이고 사이사이 R 이니셜",
+        caption=(
+            "네이비 바탕에 빨간 심을 품은 아이보리 마름모 점이 엇갈려 놓이고"
+            " 점 자리 곳곳에 R 이니셜이 흩어져"
+        ),
         motif_subjects=("initialr", "rhombdot"),
         category="도트",
         point="bottom",
         logo_slot=1,
         color_names=("바탕",),
         plan=INITIAL_R_DOTS_PLAN,
+        tile_scale=2.0,
+        # 끝 엠블럼(큰 R) 뒤 바탕색 받침 — 흩어진 작은 R·점이 로고 밑에 비치지 않게. 색은 "ground"
+        # 슬롯이라 바탕색을 바꾸면 같이 바뀐다. 로고는 panel이 아니라 엠블럼(logo_slot)이라 사용자
+        # 로고는 여전히 무늬 속 R 자리에도 들어간다.
+        panel=(_disc(PANEL_LOGO, radius=85, dy=10, color="ground"),),
     ),
     CuratedExample(
         example_id="template_initialv_vertical_stripe",
