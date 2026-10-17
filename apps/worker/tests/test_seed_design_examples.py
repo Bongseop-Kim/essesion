@@ -77,7 +77,7 @@ def test_placement_templates_carry_panel_svg_and_one_logo():
     catalog = _catalog()
     motif_id = sorted(catalog)[0]
     placed = [item for item in seed.CURATED if item.panel]
-    assert len(placed) == 6
+    assert len(placed) == 8
     for curated in placed:
         panel = [
             {**{k: v for k, v in element.items() if k != "subject"}, "motif_id": motif_id}

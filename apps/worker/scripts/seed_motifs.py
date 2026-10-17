@@ -16,7 +16,7 @@ import pathlib
 from typing import cast
 
 from db.models.seamless import Motif
-from sqlalchemy import CursorResult, update
+from sqlalchemy import CursorResult, or_, update
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from worker.config import get_settings
 from worker.db import build_engine
@@ -434,6 +434,29 @@ _SEEDS: list[tuple[str, str, str]] = [
         '<polygon fill="#8f97ab" points="83.8,49 87.1,37 90.4,49 90.4,235 87.7,235 83.8,229"/>'
         "</svg>",
     ),
+    # 핀 스트라이프 템플릿용 세 고리 — rings와 같은 모양을 은색·아이보리·연한 금으로 톤 다운.
+    (
+        "ringtrio",
+        "three rings in silver, ivory and muted gold",
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+        '<path fill="#c9c5bd" d="M16 38a20 20 0 1 1 40 0a20 20 0 1 1 -40 0Z'
+        'M24 38a12 12 0 1 0 24 0a12 12 0 1 0 -24 0Z"/>'
+        '<path fill="#c2a46a" d="M44 38a20 20 0 1 1 40 0a20 20 0 1 1 -40 0Z'
+        'M52 38a12 12 0 1 0 24 0a12 12 0 1 0 -24 0Z"/>'
+        '<path fill="#ece3d0" d="M30 62a20 20 0 1 1 40 0a20 20 0 1 1 -40 0Z'
+        'M38 62a12 12 0 1 0 24 0a12 12 0 1 0 -24 0Z"/></svg>',
+    ),
+    # 렙 스트라이프 포인트 로고 — 금 방패에 아이보리 셰브런과 별점. 촘촘한 줄 위에서도 읽히게 속을
+    # 비우지 않고 면으로 채운다.
+    (
+        "crest",
+        "gold shield crest with ivory chevron and dot",
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+        '<path fill="#c9a961" d="M20 12H80V46C80 70 66 84 50 93C34 84 20 70 20 46Z"/>'
+        '<path fill="#9c7d3c" d="M27 19H73V46C73 65 62 77 50 85C38 77 27 65 27 46Z"/>'
+        '<polygon fill="#ece3d0" points="30,64 50,48 70,64 70,73 50,57 30,73"/>'
+        '<circle fill="#ece3d0" cx="50" cy="33" r="6"/></svg>',
+    ),
 ]
 
 
@@ -489,16 +512,23 @@ async def seed_motifs() -> tuple[int, int, int]:
                 source="seed",
                 status="approved",
             )
-            # upsert는 ON CONFLICT DO NOTHING이라 기존 행 tags를 갱신하지 않는다.
-            # 한글·카테고리 tag 백필을 위해 시드 행 tags는 의도값으로 명시 재기록한다(멱등).
+            # upsert는 ON CONFLICT DO NOTHING이라 기존 행 tags·subject를 갱신하지 않는다.
+            # 한글·카테고리 tag 백필과 subject 개명(id는 SVG로 정해져 그대로다)을 위해 시드 행은
+            # 의도값으로 명시 재기록한다(멱등).
             # 실제로 값이 바뀐 행만 임베딩을 무효화한다 — embedding_document가 tags를 포함하므로
             # 태그를 고치면 grounding 벡터가 낡는다. NULL은 index_motif_embeddings.py가 채운다.
             result = cast(
                 CursorResult,
                 await session.execute(
                     update(Motif)
-                    .where(Motif.id == normalized.id, Motif.tags.is_distinct_from(tags))
-                    .values(tags=tags, embedding_openai=None)
+                    .where(
+                        Motif.id == normalized.id,
+                        or_(
+                            Motif.tags.is_distinct_from(tags),
+                            Motif.subject.is_distinct_from(subject),
+                        ),
+                    )
+                    .values(tags=tags, subject=subject, embedding_openai=None)
                 ),
             )
             retagged += result.rowcount

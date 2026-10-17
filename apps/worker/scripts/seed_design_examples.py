@@ -21,6 +21,7 @@ domains/design/examples.py `_preview_svg`), 래스터화는 librsvg에 의존해
 """
 
 import asyncio
+import math
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
@@ -73,11 +74,11 @@ class CuratedExample:
     panel: tuple[dict[str, Any], ...] = field(default=())
 
 
-# 가는 세 줄 사선(핀 스트라이프 트리오)과 줄 사이의 작은 고리 모티프 — 격자 2×2가 사선 주기
-# (타일당 2)와 맞물려 모티프가 항상 줄 사이 한가운데에 놓인다(밴드 묶음은 주기 0.5에 중심).
+# 슬레이트 그레이 바탕의 가는 세 줄 사선(핀 스트라이프 트리오)과 줄 사이의 세 고리 — 격자 2×2가
+# 사선 주기(타일당 2)와 맞물려 모티프가 항상 줄 사이 한가운데에 놓인다(밴드 묶음은 주기 0.5에 중심).
 PIN_STRIPE_RINGS_PLAN = DesignPlanV3.model_validate(
     {
-        "colors": ["#1d3a80", "#d9d4ca"],
+        "colors": ["#2e3640", "#d9d4ca"],
         "ground_color_index": 0,
         "motifs": [{"source": "input", "input_index": 1}],
         "layers": [
@@ -94,7 +95,7 @@ PIN_STRIPE_RINGS_PLAN = DesignPlanV3.model_validate(
             {
                 "type": "motif",
                 "motif_index": 0,
-                "size_ratio": 0.11,
+                "size_ratio": 0.14,
                 "placement": {
                     "type": "lattice",
                     "columns": 2,
@@ -142,13 +143,13 @@ LOGO_DOTS_PLAN = DesignPlanV3.model_validate(
 )
 
 
-# 01 — 클래식 렙 스트라이프: 네이비 바탕에 흰 줄이 양옆을 감싼 빨간 띠를 우상향(/) 사선으로
-# 촘촘히(k=3) 반복한다. 띠 묶음은 주기 0.28~0.72에 모여 원점의 작은 A 마크와 겹치지 않는다.
+# 01 — 클래식 렙 스트라이프: 네이비 바탕에 아이보리 줄이 양옆을 감싼 크림슨 띠를 우상향(/) 사선으로
+# 촘촘히(k=3) 반복한다. 원색 흰·빨강은 카드에서 떨려 보여 한 톤 눌렀다. 로고는 panel 방패 하나.
 ALTIS_STRIPE_PLAN = DesignPlanV3.model_validate(
     {
-        "colors": ["#1b2a52", "#f1efe8", "#c4202e"],
+        "colors": ["#1b2a52", "#e6dfcf", "#9e1b2a"],
         "ground_color_index": 0,
-        "motifs": [{"source": "input", "input_index": 1}],
+        "motifs": [],
         "layers": [
             {
                 "type": "stripe",
@@ -159,18 +160,6 @@ ALTIS_STRIPE_PLAN = DesignPlanV3.model_validate(
                     {"offset_ratio": 0.42, "width_ratio": 0.16, "color_index": 2},
                     {"offset_ratio": 0.67, "width_ratio": 0.05, "color_index": 1},
                 ],
-            },
-            {
-                "type": "motif",
-                "motif_index": 0,
-                "size_ratio": 0.07,
-                "placement": {
-                    "type": "lattice",
-                    "columns": 1,
-                    "rows": 1,
-                    "drop": "none",
-                    "fixed_rotation_deg": 0.0,
-                },
             },
         ],
     }
@@ -421,8 +410,29 @@ CHECK_R_PLAN = DesignPlanV3.model_validate(
 )
 
 
-# 08 — 가로 바 스트라이프: 블루 바탕에 은색 두 줄·금색 한 줄 바를 타일당 두 번 가로로 두고,
-# 바 사이(행 0·½)에 날개 엠블럼을 2×2 하프로우로 엇갈려 놓는다.
+# 08 — 가로 바 스트라이프: 블루 바탕에 은색 두 줄·금색 한 줄 바를 타일당 두 번 가로로 두고, 바
+# 사이 한가운데에 날개 엠블럼을 행마다 엇갈려 놓는다(넥타이 폭에 2~3개). 날개는 격자가 아니라
+# 바탕색 레인(주기 1.0 스트라이프의 두 밴드) 위 가로 경로라 행 높이를 바 사이에 맞출 수 있다.
+# 바와 레인 위상은 카드 끝 로고가 바 사이 한 칸에 들고, 그 행의 작은 날개가 로고와 멀게 잡았다.
+# horizontal offset은 위에서 잰다.
+def _wing_row(band: int, phase: float) -> dict[str, Any]:
+    return {
+        "type": "motif",
+        "motif_index": 0,
+        "size_ratio": 0.17,
+        "placement": {
+            "type": "path",
+            "kind": "straight",
+            "direction": "horizontal",
+            "spacing_ratio": 1.0,
+            "phase_ratio": phase,
+            "host_stripe_index": 1,
+            "host_band_index": band,
+            "rotation": "fixed",
+        },
+    }
+
+
 SKYLINE_WINGS_PLAN = DesignPlanV3.model_validate(
     {
         "colors": ["#2a4f9e", "#c9ccd2", "#d9a441"],
@@ -434,23 +444,22 @@ SKYLINE_WINGS_PLAN = DesignPlanV3.model_validate(
                 "direction": "horizontal",
                 "period_ratio": 0.5,
                 "bands": [
-                    {"offset_ratio": 0.40, "width_ratio": 0.03, "color_index": 1},
-                    {"offset_ratio": 0.46, "width_ratio": 0.03, "color_index": 1},
-                    {"offset_ratio": 0.54, "width_ratio": 0.02, "color_index": 2},
+                    {"offset_ratio": 0.67, "width_ratio": 0.03, "color_index": 1},
+                    {"offset_ratio": 0.73, "width_ratio": 0.03, "color_index": 1},
+                    {"offset_ratio": 0.81, "width_ratio": 0.02, "color_index": 2},
                 ],
             },
             {
-                "type": "motif",
-                "motif_index": 0,
-                "size_ratio": 0.1,
-                "placement": {
-                    "type": "lattice",
-                    "columns": 2,
-                    "rows": 2,
-                    "drop": "half_row",
-                    "fixed_rotation_deg": 0.0,
-                },
+                "type": "stripe",
+                "direction": "horizontal",
+                "period_ratio": 1.0,
+                "bands": [
+                    {"offset_ratio": 0.12, "width_ratio": 0.02, "color_index": 0},
+                    {"offset_ratio": 0.62, "width_ratio": 0.02, "color_index": 0},
+                ],
             },
+            _wing_row(0, 0.22),
+            _wing_row(1, 0.72),
         ],
     }
 )
@@ -556,8 +565,10 @@ MONOGRAM_DASH_PLAN = DesignPlanV3.model_validate(
 )
 
 
-# 04 — 네이비 바탕에 아이보리 마름모 점(가운데 진한 빨강)을 엇갈림 격자로 깐다(가로 0.5·세로 0.25
-# 하프로우, 넥타이 폭에 3개). 세리프 R은 가로 경로로 점 사이 빈자리(0.25, 0)에 타일당 하나 둔다.
+# 04 — 네이비 바탕에 아이보리 마름모 점(가운데 진한 빨강)을 엇갈림 격자(가로 0.5·세로 0.25
+# 하프로우)로 깔고, 세리프 R은 점 사이에 끼우지 않고 점 자리를 차지한다(점 사이 빈칸은 점 넷에
+# 갇혀 답답했다). 하프로우 2×4는 자리를 골라 비울 수 없어 같은 여덟 자리를 나눠 깐다 — 짝수 행
+# 넷은 2×2 격자 점, 홀수 행 넷 중 diagonal_pair 둘은 R(행마다 엇갈림), 나머지 둘은 대각 경로 점.
 INITIAL_R_DOTS_PLAN = DesignPlanV3.model_validate(
     {
         "colors": ["#141d3c", "#efe6d2"],
@@ -571,14 +582,7 @@ INITIAL_R_DOTS_PLAN = DesignPlanV3.model_validate(
                 "type": "motif",
                 "motif_index": 0,
                 "size_ratio": 0.12,
-                "placement": {
-                    "type": "path",
-                    "kind": "straight",
-                    "direction": "horizontal",
-                    "spacing_ratio": 1.0,
-                    "phase_ratio": 0.25,
-                    "rotation": "fixed",
-                },
+                "placement": {"type": "point_template", "template": "diagonal_pair"},
             },
             {
                 "type": "motif",
@@ -587,9 +591,22 @@ INITIAL_R_DOTS_PLAN = DesignPlanV3.model_validate(
                 "placement": {
                     "type": "lattice",
                     "columns": 2,
-                    "rows": 4,
-                    "drop": "half_row",
+                    "rows": 2,
+                    "drop": "none",
                     "fixed_rotation_deg": 0.0,
+                },
+            },
+            {
+                "type": "motif",
+                "motif_index": 1,
+                "size_ratio": 0.1,
+                "placement": {
+                    "type": "path",
+                    "kind": "straight",
+                    "direction": "diagonal_up",
+                    "spacing_ratio": 0.5,
+                    "phase_ratio": 0.25,
+                    "rotation": "fixed",
                 },
             },
         ],
@@ -598,41 +615,30 @@ INITIAL_R_DOTS_PLAN = DesignPlanV3.model_validate(
 
 
 # 06 — 버건디 바탕에 타일마다 세로 스트라이프 묶음 하나(왼쪽부터 굵은 회색·아이보리·검정·회색·
-# 가는 아이보리). vertical 밴드의 offset은 오른쪽에서 잰다 — 화면 순서와 반대로 적는다.
+# 가는 아이보리). vertical 밴드의 offset은 오른쪽에서 잰다 — 화면 순서와 반대로 적는다. 묶음은
+# 카드의 포인트 로고 자리(panel)를 비우도록 민 위상이고, 무늬 속 작은 로고는 두지 않는다.
 VALMONT_VERTICAL_PLAN = DesignPlanV3.model_validate(
     {
         "colors": ["#5e1620", "#8e8a88", "#e6dccb", "#1c1416"],
         "ground_color_index": 0,
-        "motifs": [{"source": "input", "input_index": 1}],
+        "motifs": [],
         "layers": [
             {
                 "type": "stripe",
                 "direction": "vertical",
                 "period_ratio": 1.0,
                 "bands": [
-                    {"offset_ratio": 0.65, "width_ratio": 0.08, "color_index": 1},
-                    {"offset_ratio": 0.57, "width_ratio": 0.045, "color_index": 2},
-                    {"offset_ratio": 0.495, "width_ratio": 0.04, "color_index": 3},
-                    {"offset_ratio": 0.425, "width_ratio": 0.035, "color_index": 1},
+                    {"offset_ratio": 0.33, "width_ratio": 0.08, "color_index": 1},
+                    {"offset_ratio": 0.25, "width_ratio": 0.045, "color_index": 2},
+                    {"offset_ratio": 0.175, "width_ratio": 0.04, "color_index": 3},
+                    {"offset_ratio": 0.105, "width_ratio": 0.035, "color_index": 1},
                 ],
             },
             {
                 "type": "stripe",
                 "direction": "vertical",
                 "period_ratio": 1.0,
-                "bands": [{"offset_ratio": 0.374, "width_ratio": 0.016, "color_index": 2}],
-            },
-            {
-                "type": "motif",
-                "motif_index": 0,
-                "size_ratio": 0.12,
-                "placement": {
-                    "type": "lattice",
-                    "columns": 1,
-                    "rows": 1,
-                    "drop": "none",
-                    "fixed_rotation_deg": 0.0,
-                },
+                "bands": [{"offset_ratio": 0.054, "width_ratio": 0.016, "color_index": 2}],
             },
         ],
     }
@@ -640,7 +646,8 @@ VALMONT_VERTICAL_PLAN = DesignPlanV3.model_validate(
 
 
 # 07 — 네이비 바탕에 아이보리 가는 줄을 양 사선(k=2)으로 겹친 큰 윈도페인 체크. 줄을 반 주기
-# 밀어 타일 원점이 칸 중앙에 오게 하고, 그 칸에 십자 로고를 타일당 하나만 성기게 둔다.
+# 밀어 칸 중앙이 0.25 격자에 오게 하고, 십자 로고를 diagonal_pair로 엇갈려 칸 속에 둔다 —
+# 1×1은 십자가 세로 두 줄로만 박혀 단조로웠다.
 _WINDOWPANE_LINE = [{"offset_ratio": 0.5, "width_ratio": 0.035, "color_index": 1}]
 WINDOWPANE_CROSSLET_PLAN = DesignPlanV3.model_validate(
     {
@@ -664,13 +671,7 @@ WINDOWPANE_CROSSLET_PLAN = DesignPlanV3.model_validate(
                 "type": "motif",
                 "motif_index": 0,
                 "size_ratio": 0.12,
-                "placement": {
-                    "type": "lattice",
-                    "columns": 1,
-                    "rows": 1,
-                    "drop": "none",
-                    "fixed_rotation_deg": 0.0,
-                },
+                "placement": {"type": "point_template", "template": "diagonal_pair"},
             },
         ],
     }
@@ -678,7 +679,8 @@ WINDOWPANE_CROSSLET_PLAN = DesignPlanV3.model_validate(
 
 
 # 10 — 검정 바탕에 한 톤 밝은 차콜 물결선 — 한 파장짜리 두 줄 물결을 3열 2행으로 이어 붙여
-# 0.25 타일 간격의 연속 가로 물결을 만들고, 줄 사이 원점에 작은 물결 원 로고.
+# 0.25 타일 간격의 연속 가로 물결을 만들고, 작은 물결 원 로고는 줄 사이 틈에 diagonal_pair로
+# 엇갈려 둔다(1×1은 행·열이 다 맞는 정배치라 기둥처럼 섰다).
 MAREN_WAVE_PLAN = DesignPlanV3.model_validate(
     {
         "colors": ["#121214", "#34373c"],
@@ -704,13 +706,7 @@ MAREN_WAVE_PLAN = DesignPlanV3.model_validate(
                 "type": "motif",
                 "motif_index": 1,
                 "size_ratio": 0.1,
-                "placement": {
-                    "type": "lattice",
-                    "columns": 1,
-                    "rows": 1,
-                    "drop": "none",
-                    "fixed_rotation_deg": 0.0,
-                },
+                "placement": {"type": "point_template", "template": "diagonal_pair"},
             },
         ],
     }
@@ -768,13 +764,43 @@ TRENZ_PLAN = DesignPlanV3.model_validate(
 _TRENZ_V = [500, 1030]
 
 
-def _bellen_band(dx: float) -> list[list[float]]:
-    """03 곡선 띠의 중심선 — 블레이드 위에서 오른쪽을 타고 내려와 어깨 왼쪽으로 빠지는 S자."""
-    points = [
-        (790, -4600), (790, -2400), (770, -1400), (760, -400), (740, 300), (560, 700),
-        (300, 900), (160, 1000), (60, 1080), (-40, 1180),
-    ]  # fmt: skip
-    return [[x + dx, y] for x, y in points]
+# 03 곡선 띠의 중심선 — 블레이드 위에서 곧게 내려오다 왼쪽으로 크게 휘어 눕고(첫 굽이), 어깨
+# 근처에서 다시 아래로 꺾여(둘째 굽이) 어깨 왼쪽으로 빠지는 S자. 조각 이음점마다 앞뒤 제어점이
+# 한 직선 위라 꺾임이 없다.
+_BELLEN_DROP = ((790.0, -4600.0), (790.0, 0.0))
+_BELLEN_BENDS = (
+    ((790.0, 0.0), (790.0, 480.0), (640.0, 700.0), (400.0, 830.0)),
+    ((400.0, 830.0), (200.0, 938.0), (-10.0, 1040.0), (-130.0, 1240.0)),
+)
+
+
+def _bezier(seg: tuple[tuple[float, float], ...], t: float) -> tuple[float, float, float, float]:
+    """3차 베지어의 점과 단위 접선."""
+    (x0, y0), (x1, y1), (x2, y2), (x3, y3) = seg
+    u = 1 - t
+    x = u**3 * x0 + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t**3 * x3
+    y = u**3 * y0 + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t**3 * y3
+    dx = 3 * (u * u * (x1 - x0) + 2 * u * t * (x2 - x1) + t * t * (x3 - x2))
+    dy = 3 * (u * u * (y1 - y0) + 2 * u * t * (y2 - y1) + t * t * (y3 - y2))
+    n = math.hypot(dx, dy)
+    return x, y, dx / n, dy / n
+
+
+def _bellen_band(offset: float, steps: int = 10) -> list[list[float]]:
+    """곡선 띠를 중심선의 오른쪽 법선으로 offset만큼 민 평행선 — x로만 밀면 누운 구간에서 띠가
+    가늘어진다. 휘는 조각마다 steps개 Hermite 조각(접선 = 중심선 접선)으로 다시 이어 매끄럽다."""
+    (top_x, top_y), (_, join_y) = _BELLEN_DROP
+    x = top_x + offset
+    points = [[x, top_y], [x, top_y / 3], [x, top_y / 6], [x, join_y]]  # 곧은 조각
+    for seg in _BELLEN_BENDS:
+        samples = []
+        for i in range(steps + 1):
+            px, py, tx, ty = _bezier(seg, i / steps)
+            samples.append((px + ty * offset, py - tx * offset, tx, ty))
+        for (ax, ay, atx, aty), (bx, by, btx, bty) in zip(samples, samples[1:], strict=False):
+            h = math.hypot(bx - ax, by - ay) / 3
+            points += [[ax + atx * h, ay + aty * h], [bx - btx * h, by - bty * h], [bx, by]]
+    return [[round(px, 1), round(py, 1)] for px, py in points]
 
 
 # 02 세로 금선 — (x, 끝 y): 블레이드 위에서 내려와 서로 다른 높이에서 점으로 끝난다.
@@ -787,7 +813,7 @@ CURATED: tuple[CuratedExample, ...] = (
         example_id="template_stripe_pin_trio_rings",
         name="핀 스트라이프와 세 고리",
         caption="가는 세 줄 사선 사이에 놓인 작은 고리 엠블럼",
-        motif_subjects=("rings",),
+        motif_subjects=("ringtrio",),
         category="스트라이프",
         logo_slot=1,
         color_names=("바탕", "가는 세 줄"),
@@ -806,13 +832,12 @@ CURATED: tuple[CuratedExample, ...] = (
     CuratedExample(
         example_id="template_stripe_pair_apex",
         name="흰 줄과 빨간 줄 렙 스트라이프",
-        caption="네이비 바탕에 흰 줄이 감싼 빨간 띠가 촘촘히 반복되는 사선과 A 마크",
-        motif_subjects=("apex",),
+        caption="네이비 바탕에 아이보리 줄이 감싼 크림슨 띠가 촘촘히 반복되는 사선과 방패 문장",
         category="스트라이프",
         point="bottom",
-        logo_slot=1,
         color_names=("바탕", "흰 줄", "빨간 줄"),
         plan=ALTIS_STRIPE_PLAN,
+        panel=({**PANEL_LOGO, "subject": "crest"},),
     ),
     CuratedExample(
         example_id="template_stripe_sprig",
@@ -928,12 +953,11 @@ CURATED: tuple[CuratedExample, ...] = (
         example_id="template_initialv_vertical_stripe",
         name="세로 스트라이프와 세리프 V",
         caption="버건디 바탕에 회색·아이보리·검정 세로 줄 묶음과 아이보리 세리프 V 이니셜",
-        motif_subjects=("initialv",),
         category="스트라이프",
         point="bottom",
-        logo_slot=1,
         color_names=("바탕", "회색 줄", "아이보리 줄", "검정 줄"),
         plan=VALMONT_VERTICAL_PLAN,
+        panel=({**PANEL_LOGO, "subject": "initialv"},),
     ),
     CuratedExample(
         example_id="template_windowpane_crosslet",
@@ -968,10 +992,11 @@ CURATED: tuple[CuratedExample, ...] = (
         panel=(
             {
                 "type": "region",
-                "points": [[-50, 1040], [1050, 170], [1050, 1600], [-50, 1600]],
+                "points": [[-50, 1155], [1050, 55], [1050, 1600], [-50, 1600]],
                 "color": "color_2",
             },
-            {"type": "line", "points": [[-50, 1040], [1050, 170]], "width": 14, "color": "color_3"},
+            # 결(diagonal_up 45°)과 평행하게 — 기울기 1
+            {"type": "line", "points": [[-50, 1155], [1050, 55]], "width": 14, "color": "color_3"},
             {**PANEL_LOGO, "subject": "apex"},
         ),
     ),
@@ -1023,13 +1048,19 @@ CURATED: tuple[CuratedExample, ...] = (
         panel=(
             {
                 "type": "region",
-                "points": [[-50, 470], _TRENZ_V, [500, 1600], [-50, 1600]],
+                "points": [[-50, 480], _TRENZ_V, [500, 1600], [-50, 1600]],
                 "color": "color_2",
             },
-            {"type": "line", "points": [[-50, 430], [480, 965]], "width": 55, "color": "color_3"},
+            # 왼팔 위 와인 띠(수직 굵기 55) — 끝은 오른팔에 맞물리게 잘라 꼭짓점까지 채운다
+            {
+                "type": "region",
+                "points": [[-50, 480], _TRENZ_V, [539, 991], [-50, 402]],
+                "color": "color_3",
+            },
+            # 두 팔 모두 다이아 결과 같은 45°
             {
                 "type": "line",
-                "points": [[-50, 470], _TRENZ_V, [1050, 190]],
+                "points": [[-50, 480], _TRENZ_V, [1050, 480]],
                 "width": 8,
                 "color": "color_4",
             },
