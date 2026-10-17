@@ -107,9 +107,10 @@ PIN_STRIPE_RINGS_PLAN = DesignPlanV3.model_validate(
 )
 
 
-# 네이비 바탕의 로고와 작은 점 — 타일 2배(96mm). 2:3 사선(우상향) 닫힌 경로 하나에 로고 13개를 같은
-# 간격으로 놓으면 기울어진 정사각 격자(sateen 13·8)가 되어 세로·가로 일직선이 없다(엇박). 점은 같은
-# 경로를 반 칸 밀어 로고 사이에 둔다 — 로고·점이 우상향 사슬로 번갈아 선다.
+# 네이비 바탕의 로고와 작은 점 — 타일 2배(96mm). 로고는 sateen 12·5라 가장 가까운 이웃이 결과 같은
+# 45° 우상향 사슬(2,-2)/12로 서고(다음 이웃은 1.5배 멀어 사슬이 또렷하다) 세로·가로 일직선이 없다.
+# 사슬은 x+y ≡ 0·½ 두 레인에 놓이므로 점은 레인마다 경로 하나(원점 + 바탕색 레인 밴드)로 로고
+# 사이 한가운데에 둔다.
 LOGO_DOTS_PLAN = DesignPlanV3.model_validate(
     {
         "colors": ["#1b2547", "#d8c7a8"],
@@ -123,12 +124,26 @@ LOGO_DOTS_PLAN = DesignPlanV3.model_validate(
                 "type": "motif",
                 "motif_index": 0,
                 "size_ratio": 0.1,
+                "placement": {"type": "scatter", "mode": "sateen", "order": 12, "step": 5},
+            },
+            {
+                "type": "stripe",
+                "direction": "diagonal_up",
+                "period_ratio": 0.70710678,
+                "bands": [
+                    {"offset_ratio": 0.499, "width_ratio": 0.002, "color_index": 0},
+                ],
+            },
+            {
+                "type": "motif",
+                "motif_index": 1,
+                "size_ratio": 0.0225,
                 "placement": {
                     "type": "path",
                     "kind": "straight",
-                    "direction": "diagonal_2_3_up",
-                    "spacing_ratio": 0.07692308,
-                    "phase_ratio": 0.0,
+                    "direction": "diagonal_up",
+                    "spacing_ratio": 0.16666667,
+                    "phase_ratio": 0.08333333,
                     "rotation": "fixed",
                     "fixed_rotation_deg": 0.0,
                 },
@@ -140,9 +155,11 @@ LOGO_DOTS_PLAN = DesignPlanV3.model_validate(
                 "placement": {
                     "type": "path",
                     "kind": "straight",
-                    "direction": "diagonal_2_3_up",
-                    "spacing_ratio": 0.07692308,
-                    "phase_ratio": 0.03846154,
+                    "direction": "diagonal_up",
+                    "spacing_ratio": 0.16666667,
+                    "phase_ratio": 0.08333333,
+                    "host_stripe_index": 0,
+                    "host_band_index": 0,
                     "rotation": "fixed",
                     "fixed_rotation_deg": 0.0,
                 },
