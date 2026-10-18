@@ -57,7 +57,7 @@ function renderPage(state: unknown) {
             element={<DesignResultPage />}
           />
           <Route path="/design" element={<p>템플릿</p>} />
-          <Route path="/design/sessions/:id/color" element={<p>색</p>} />
+          <Route path="/design/sessions/:id/customize" element={<p>색</p>} />
           <Route path="/custom-order" element={<OrderStub />} />
         </Routes>
       </QueryClientProvider>

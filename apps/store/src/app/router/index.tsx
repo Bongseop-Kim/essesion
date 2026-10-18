@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router";
+import { createBrowserRouter, redirect } from "react-router";
 
 import { AppLayout } from "@/app/layout/app-layout";
 import { ProtectedRoute } from "@/app/router/protected-route";
@@ -110,9 +110,16 @@ export const storeRouteObjects = [
         element: <ProtectedRoute />,
         children: [
           {
+            // 옛 주소(색·로고가 나뉘던 시절) 링크 보존
             path: "design/sessions/:id/color",
+            loader: ({ params }) =>
+              redirect(`/design/sessions/${params.id}/customize`),
+          },
+          {
+            path: "design/sessions/:id/customize",
             lazy: async () => ({
-              Component: (await import("@/pages/design/color")).DesignColorPage,
+              Component: (await import("@/pages/design/customize"))
+                .DesignCustomizePage,
             }),
           },
           {

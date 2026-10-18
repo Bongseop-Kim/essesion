@@ -12,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate, useParams } from "react-router";
 
 import { latestFinalizedJobQueryOptions } from "@/features/design/model/queries";
-import { colorPath } from "@/pages/design/color";
+import { customizePath } from "@/pages/design/customize";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
 
@@ -73,7 +73,7 @@ export function DesignResultPage() {
             <ActionButton
               variant="neutralWeak"
               size="small"
-              onClick={() => navigate(colorPath(id))}
+              onClick={() => navigate(customizePath(id))}
             >
               색·로고 고르기
             </ActionButton>
@@ -111,7 +111,7 @@ export function DesignResultPage() {
               </ActionButton>
               <ActionButton
                 variant="neutralWeak"
-                onClick={() => navigate(colorPath(id))}
+                onClick={() => navigate(customizePath(id))}
               >
                 색·로고 다시 고르기
               </ActionButton>

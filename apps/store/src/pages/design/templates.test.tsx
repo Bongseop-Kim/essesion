@@ -44,7 +44,10 @@ function renderPage(state?: unknown) {
       <QueryClientProvider client={queryClient}>
         <Routes>
           <Route path="/design" element={<DesignTemplatesPage />} />
-          <Route path="/design/sessions/:id/color" element={<p>색 고르기</p>} />
+          <Route
+            path="/design/sessions/:id/customize"
+            element={<p>색 고르기</p>}
+          />
         </Routes>
       </QueryClientProvider>
     </MemoryRouter>,

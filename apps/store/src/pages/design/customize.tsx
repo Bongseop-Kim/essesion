@@ -68,8 +68,8 @@ import {
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
 
-export function colorPath(sessionId: string) {
-  return `/design/sessions/${sessionId}/color`;
+export function customizePath(sessionId: string) {
+  return `/design/sessions/${sessionId}/customize`;
 }
 
 const CRUMBS = [
@@ -248,7 +248,7 @@ function sameHex(a: string | undefined, b: string | undefined) {
  * 지우고 벡터로 바꾸고, SVG면 그대로 쓴다. 썸네일은 올린 원본을 그대로 두고 통과/미통과만 알린다.
  * "생성"은 바꾼 색 적용(무료) → 로고를 템플릿 슬롯에 넣기(무료) → 실사화(토큰) 순서로 돌려 결과로 간다.
  */
-export function DesignColorPage() {
+export function DesignCustomizePage() {
   const { id = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const authenticated = useSession((state) => state.status === "authenticated");

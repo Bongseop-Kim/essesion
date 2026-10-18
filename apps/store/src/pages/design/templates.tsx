@@ -7,7 +7,7 @@ import { useAuthGuard } from "@/features/auth/ui/auth-guard-provider";
 import { designErrorMessage } from "@/features/design/model/errors";
 import { useStartDesignFromExample } from "@/features/design/model/use-example-start";
 import { TemplatePicker } from "@/features/design/ui/template-picker";
-import { colorPath } from "@/pages/design/color";
+import { customizePath } from "@/pages/design/customize";
 import { designExamplesQueryOptions } from "@/shared/lib/live-queries";
 
 /**
@@ -31,7 +31,7 @@ export function DesignTemplatesPage() {
     }
     try {
       const started = await startExample.mutateAsync(exampleId);
-      navigate(colorPath(started.id));
+      navigate(customizePath(started.id));
     } catch (error) {
       snackbar(designErrorMessage(error, "템플릿을 불러오지 못했습니다."));
     }

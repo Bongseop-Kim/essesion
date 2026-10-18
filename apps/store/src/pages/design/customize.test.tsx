@@ -90,7 +90,7 @@ vi.mock("@/features/design/model/queries", () => ({
   }),
 }));
 
-import { DesignColorPage } from "./color";
+import { DesignCustomizePage } from "./customize";
 
 function ResultStub() {
   const { state } = useLocation();
@@ -105,13 +105,13 @@ function renderPage() {
     },
   });
   render(
-    <MemoryRouter initialEntries={["/design/sessions/session-1/color"]}>
+    <MemoryRouter initialEntries={["/design/sessions/session-1/customize"]}>
       <QueryClientProvider client={queryClient}>
         <Routes>
           <Route path="/design/sessions/:id/result" element={<ResultStub />} />
           <Route
-            path="/design/sessions/:id/color"
-            element={<DesignColorPage />}
+            path="/design/sessions/:id/customize"
+            element={<DesignCustomizePage />}
           />
         </Routes>
       </QueryClientProvider>
@@ -134,7 +134,7 @@ async function uploadLogo() {
   );
 }
 
-describe("DesignColorPage", () => {
+describe("DesignCustomizePage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useSession.setState({
