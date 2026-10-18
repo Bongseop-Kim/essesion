@@ -5,18 +5,16 @@ locals {
   # ---- 서비스 env 결선 — 시크릿 값 주입은 gcloud(README), 여기는 참조만 ----
   # 주의: 시크릿에 버전이 없으면 리비전이 기동 실패한다 — 부트스트랩은 2단계 apply(README).
   api_plain_env = merge({
-    ENV                              = "production"
+    ENV = "production"
     # f1-micro max_connections 25 예산 (perf-cost-reduction 리뷰 18번 — 비용 우선, 티어 상향 없음):
-    # api 3×4 + generate 2×4 + finalize 1×4 = 24. 상향 신호: 커넥션 에러 로그.
-    DB_POOL_SIZE                     = "4"
-    GCS_UPLOAD_BUCKET                = google_storage_bucket.uploads.name
-    GCS_ASSETS_BUCKET                = google_storage_bucket.assets.name
-    WORKER_BASE_URL                  = google_cloud_run_v2_service.worker_generate.uri
-    WORKER_OIDC_AUDIENCE             = google_cloud_run_v2_service.worker_generate.uri
-    WORKER_FINALIZE_URL              = google_cloud_run_v2_service.worker_finalize.uri
-    WORKER_FINALIZE_OIDC_AUDIENCE    = google_cloud_run_v2_service.worker_finalize.uri
-    BATCH_OIDC_AUDIENCE              = local.batch_audience # scheduler.tf와 문자열 일치 필수
-    BATCH_INVOKER_EMAIL              = google_service_account.scheduler.email
+    # api 3×4 + generate 2×4 = 20. 상향 신호: 커넥션 에러 로그.
+    DB_POOL_SIZE         = "4"
+    GCS_UPLOAD_BUCKET    = google_storage_bucket.uploads.name
+    GCS_ASSETS_BUCKET    = google_storage_bucket.assets.name
+    WORKER_BASE_URL      = google_cloud_run_v2_service.worker_generate.uri
+    WORKER_OIDC_AUDIENCE = google_cloud_run_v2_service.worker_generate.uri
+    BATCH_OIDC_AUDIENCE  = local.batch_audience # scheduler.tf와 문자열 일치 필수
+    BATCH_INVOKER_EMAIL  = google_service_account.scheduler.email
     }, var.api_extra_env, {
     # OAuth callback은 프록시가 전달한 run.app Host가 아니라 이 공개 origin으로 고정한다.
     PUBLIC_API_ORIGIN = trimsuffix(var.public_api_origin, "/")
@@ -53,16 +51,9 @@ locals {
     GCS_BUCKET = google_storage_bucket.assets.name
   }
 
-  # 같은 이미지를 배포하되 HTTP 표면은 역할별로 닫는다. all은 로컬 개발 전용 기본값.
-  worker_generate_plain_env = merge(local.worker_plain_env, { SERVICE_MODE = "generate" })
-  worker_finalize_plain_env = merge(local.worker_plain_env, { SERVICE_MODE = "finalize" })
-
-  # AI 실사화 컷오버(2026-08-20)로 finalize도 gpt-image 편집을 호출한다 — OPENAI 키는
-  # 두 워커 공통(저작·임베딩 라우트는 여전히 generate 전용, routes.py).
   worker_secret_env = {
-    DATABASE_URL   = google_secret_manager_secret.database_url.secret_id
-    SENTRY_DSN     = google_secret_manager_secret.app["sentry-dsn-worker"].secret_id
-    OPENAI_API_KEY = google_secret_manager_secret.app["openai-api-key"].secret_id
+    DATABASE_URL = google_secret_manager_secret.database_url.secret_id
+    SENTRY_DSN   = google_secret_manager_secret.app["sentry-dsn-worker"].secret_id
   }
 }
 
@@ -246,7 +237,7 @@ resource "google_cloud_run_v2_service" "worker_generate" {
         }
       }
       dynamic "env" {
-        for_each = local.worker_generate_plain_env
+        for_each = local.worker_plain_env
         content {
           name  = env.key
           value = env.value
@@ -287,95 +278,6 @@ resource "google_cloud_run_v2_service" "worker_generate" {
   ]
 }
 
-# CPU·메모리-바운드 — api의 동기 호출만 수신, 동시성 1~2, dpi 상한 600 (§7)
-resource "google_cloud_run_v2_service" "worker_finalize" {
-  name     = "worker-finalize"
-  location = var.region
-  ingress  = "INGRESS_TRAFFIC_ALL"
-
-  template {
-    service_account                  = google_service_account.worker_finalize.email
-    # 동기 요청-응답 — AI 실사화 편집 2회를 병렬로 돌려 실측 ~25s(quality=low,
-    # 2026-08-20 실측). api 쪽 worker_timeout_seconds(180s)가 먼저 만료해
-    # 환불 경로를 타도록, 그보다 여유 있게 길게 유지한다(generate의 180s < 300s와 같은 관계).
-    timeout                          = "240s"
-    max_instance_request_concurrency = 2
-
-    scaling {
-      min_instance_count = 0
-      # f1-micro 커넥션 예산(api DB_POOL_SIZE 주석) + 비용 상한. finalize는 업스트림
-      # 편집 대기(I/O 바운드)라 인스턴스 1개로 동시 2건을 감당한다.
-      max_instance_count = 1
-    }
-
-    containers {
-      image = local.placeholder_image
-      resources {
-        limits   = { cpu = "2", memory = "4Gi" }
-        cpu_idle = true # 요청 기반 과금
-      }
-      startup_probe {
-        initial_delay_seconds = 0
-        timeout_seconds       = 2
-        period_seconds        = 3
-        failure_threshold     = 5
-        http_get {
-          path = "/healthz"
-          port = 8080
-        }
-      }
-      liveness_probe {
-        initial_delay_seconds = 10
-        timeout_seconds       = 3
-        period_seconds        = 30
-        failure_threshold     = 3
-        http_get {
-          path = "/healthz"
-          port = 8080
-        }
-      }
-      dynamic "env" {
-        for_each = local.worker_finalize_plain_env
-        content {
-          name  = env.key
-          value = env.value
-        }
-      }
-      dynamic "env" {
-        for_each = local.worker_secret_env
-        content {
-          name = env.key
-          value_source {
-            secret_key_ref {
-              secret  = env.value
-              version = "latest"
-            }
-          }
-        }
-      }
-      volume_mounts {
-        name       = "cloudsql"
-        mount_path = "/cloudsql"
-      }
-    }
-    volumes {
-      name = "cloudsql"
-      cloud_sql_instance {
-        instances = [google_sql_database_instance.main.connection_name]
-      }
-    }
-  }
-
-  lifecycle {
-    ignore_changes = [template[0].containers[0].image, client, client_version]
-  }
-  depends_on = [
-    google_project_service.apis,
-    google_secret_manager_secret_iam_member.database_url["finalize"],
-    google_secret_manager_secret_iam_member.worker_finalize_secrets,
-  ]
-}
-
 resource "google_cloud_run_v2_service_iam_member" "api_public" {
   name     = google_cloud_run_v2_service.api.name
   location = var.region
@@ -385,13 +287,6 @@ resource "google_cloud_run_v2_service_iam_member" "api_public" {
 
 resource "google_cloud_run_v2_service_iam_member" "generate_invoker_api" {
   name     = google_cloud_run_v2_service.worker_generate.name
-  location = var.region
-  role     = "roles/run.invoker"
-  member   = "serviceAccount:${google_service_account.api.email}"
-}
-
-resource "google_cloud_run_v2_service_iam_member" "finalize_invoker_api" {
-  name     = google_cloud_run_v2_service.worker_finalize.name
   location = var.region
   role     = "roles/run.invoker"
   member   = "serviceAccount:${google_service_account.api.email}"

@@ -62,7 +62,7 @@ gsutil cp infra/production.tfvars gs://essesion-tfstate/production.tfvars  # 값
 ```bash
 # 외부에서 발급받아 수집하는 값 — 각 시크릿마다 따로 실행
 printf '%s' '<값>' | gcloud secrets versions add '<시크릿ID>' --data-file=- --project=ysindustry
-#   toss-secret-key  solapi-api-key  solapi-api-secret  openai-api-key
+#   toss-secret-key  solapi-api-key  solapi-api-secret
 #   google-client-secret  kakao-client-secret  naver-client-secret
 #   sentry-dsn-api  sentry-dsn-worker
 
@@ -170,16 +170,13 @@ curl -fsS 'https://api.essesion.shop/readyz'
 curl -fsS 'https://api.essesion.shop/products?limit=1'
 curl -sS -o /dev/null -w '%{http_code}\n' "$(tofu -chdir=infra output -raw api_url)/products?limit=1"   # 403
 
-# 두 worker는 비공개 — 둘 다 database=ready 확인.
+# worker는 비공개 — database=ready 확인.
 # --audiences는 서비스 계정 자격증명에서만 동작한다. 운영자 단말(사용자 계정)은 run.invoker를 가진
 # SA를 임퍼소네이션해야 하고, 그러려면 자신에게 roles/iam.serviceAccountTokenCreator가 필요하다.
 SA=run-api@ysindustry.iam.gserviceaccount.com
-GENERATE_URL="$(tofu -chdir=infra output -raw worker_generate_url)"
-FINALIZE_URL="$(tofu -chdir=infra output -raw worker_finalize_url)"
-for u in "$GENERATE_URL" "$FINALIZE_URL"; do
-  curl -fsS -H "Authorization: Bearer $(gcloud auth print-identity-token \
-    --impersonate-service-account="$SA" --audiences="$u" --include-email)" "$u/readyz"
-done
+u="$(tofu -chdir=infra output -raw worker_generate_url)"
+curl -fsS -H "Authorization: Bearer $(gcloud auth print-identity-token \
+  --impersonate-service-account="$SA" --audiences="$u" --include-email)" "$u/readyz"
 ```
 
 api `/readyz`에서 `database=ready`, `toss/solapi=real`, `worker=ready`,
@@ -245,53 +242,43 @@ unset BOOTSTRAP_ADMIN_EMAIL
 
 ## Production 데이터 시드
 
-[DB 접속](#운영자-단말에서-db-접속)을 연결하고 `OPENAI_API_KEY`를
-Secret Manager에서 주입한 운영자 환경에서 migrate 뒤 **순서대로** 실행한다. 전부 멱등이며,
-같은 ID가 이미 있으면 DB에서 큐레이션한 내용과 활성 상태를 보존한다.
+[DB 접속](#운영자-단말에서-db-접속)을 연결한 운영자 환경에서 migrate 뒤 **순서대로** 실행한다.
+전부 멱등이고 외부 유료 호출이 없으며, 같은 ID가 이미 있으면 DB에서 큐레이션한 내용과 게시 상태를 보존한다.
 
 ```bash
 uv run python apps/api/scripts/bootstrap_admin.py seed-config      # 무과금 — 설정·가격 초기행
 uv run python apps/worker/scripts/seed_motifs.py
 uv run python apps/worker/scripts/seed_design_examples.py            # 무과금 — 결정론 엔진, 외부 호출 없음
-uv run python apps/worker/scripts/index_motif_embeddings.py --confirm-live
-uv run python apps/worker/scripts/seed_authoring_examples.py --confirm-live
-uv run python apps/worker/scripts/eval_authoring.py --confirm-live
 ```
 
 `seed-config`를 **빠뜨리면 복구를 화면에서 못 한다** — 관리자 설정·가격 화면은 기존 행을 수정하는
 구조라(`domains/admin/configuration.py`) 행이 없으면 만들 수가 없고, `admin_settings`가 비면
-`/admin/settings`가 503, 단가 조회가 `token_cost_not_configured`, 견적이
+`/admin/settings`가 503, 견적이
 `pricing_not_configured`로 떨어진다. 기존 행은 덮지 않으므로(운영자가 화면에서 조정한 값 보존)
-재실행해도 안전하다. 값의 정본은 [money.md §6](../docs/api-spec/money.md)이고
+재실행해도 안전하다. 가격 계산의 정본은 [money.md §3](../docs/api-spec/money.md)이고
 초기값은 `api/config_defaults.py`가 로컬 시드와 공유한다.
 
 `seed-config`는 **첫 개통용**이다. 이미 돌고 있는 DB에 설정 키가 새로 추가될 때는 이 수동 절차에
-의존하지 않는다 — 잊히면 그 키를 읽는 경로가 하드 에러로 죽는다(2026-08-21에 `design_finalize_cost`
-누락으로 `GET /tokens/balance`가 전부 400). 신규·변경 키는 `db/migrations/`의 데이터
+의존하지 않는다 — 잊히면 그 키를 읽는 경로가 하드 에러로 죽는다(2026-08-21에 설정 키
+누락으로 그 키를 읽는 엔드포인트가 전부 400). 신규·변경 키는 `db/migrations/`의 데이터
 마이그레이션으로 넣어 migrate job이 배포마다 자동 적용한다. 규칙은 `api/config_defaults.py` 독스트링.
 
-`seed_design_examples.py`는 store 첫 진입 갤러리다. 빠뜨려도 장애는 아니지만 갤러리 섹션이
-통째로 비어 배포된다. `backfill_motif_tags.py`는 **production에서 실행하지 않는다** — 새 DB에는
-백필할 기존 모티프가 없고 유료 호출만 발생한다.
-
-인덱싱 출력의 `embedded=<전체>/<전체>`와 starter 시드의 `source=bootstrap`을 배포 기록에 남기고,
-admin Motif 상세에서 symbol의 concrete paint 표본을 확인한다. 인덱싱은 `user_upload`을 제외하며
-`OPENAI_API_KEY` 또는 `--confirm-live`가 없으면 외부 호출과 DB 갱신을 시작하지 않는다.
+`seed_design_examples.py`는 store `/design` 템플릿 목록이다. 빠뜨려도 장애는 아니지만 템플릿이
+하나도 없이 배포된다. admin "무늬·로고" 상세에서 symbol의 concrete paint 표본을 확인한다.
 
 ## 배치 (Cloud Scheduler → api /batch/*)
 
-apply 시 잡 **4종**이 생성된다(스케줄은 `scheduler.tf`, KST 기준).
+apply 시 잡 **3종**이 생성된다(스케줄은 `scheduler.tf`, KST 기준).
 
-`batch-{auto-confirm-orders, cancel-stale-orders, cleanup-images, authoring-promotion-candidates}`
+`batch-{auto-confirm-orders, cancel-stale-orders, cleanup-images}`
 
-> **finalize 동기 전환 정리(1회)**: finalize가 Cloud Tasks 큐에서 동기 HTTP로 전환되면서
-> `google_cloud_tasks_queue.finalize`·`tasks-invoker` SA·`batch-reconcile-stale-generation-jobs`
-> 잡·`roles/cloudtasks.enqueuer`가 tf에서 제거됐다 — 다음 apply가 실제 리소스를 파괴한다.
-> apply 전에 구 프로듀서를 멈춘 뒤 **task 단위로** 큐가 비었는지 확인한다 —
-> `gcloud tasks list --queue=finalize --location=asia-northeast3` 출력이 비어 있어야 하며,
-> `gcloud tasks queues describe finalize`는 보조 정보일 뿐 task 잔량의 증거가 아니다.
-> 전환 시점에 `queued`/`processing`으로 걸쳐 있던 `generation_jobs` 행은 마이그레이션
-> `b25371e22c3c`가 canceled로 종결한다 — 별도 수동 조치 없음.
+> **AI 디자인 제거 정리(1회, 2026-10-19)**: `batch-authoring-promotion-candidates`·`batch-recover-token-works`
+> 잡, `worker-finalize` 서비스·`run-worker-finalize` SA와 바인딩, `openai-api-key` 시크릿이 tf에서
+> 제거됐다 — 다음 apply가 실제 리소스를 파괴한다. 순서: ① api 엔드포인트를 지운 배포 직후 apply(스케줄러
+> 404 방지) ② deploy.yml의 worker-finalize 배포 단계가 빠진 커밋이 배포된 뒤 apply(역순이면 배포가
+> "서비스 없음"으로 실패) ③ assets 버킷의 `fabric/`·`tile/` 접두 객체 삭제 — soft delete가 0일이라
+> 즉시 영구 삭제되니 목록·개수를 먼저 확인한다(`uploads/`·`previews/`는 건드리지 않는다)
+> ④ OpenAI 대시보드에서 키 폐기.
 
 api의 검증 env(`BATCH_OIDC_AUDIENCE`, `BATCH_INVOKER_EMAIL`)는 tofu가 주입하므로 수동 조치가 없다.
 로컬 개발은 `batch_token` 폴백.

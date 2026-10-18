@@ -6,10 +6,6 @@ output "worker_generate_url" {
   value = google_cloud_run_v2_service.worker_generate.uri
 }
 
-output "worker_finalize_url" {
-  value = google_cloud_run_v2_service.worker_finalize.uri
-}
-
 output "db_connection_name" {
   description = "cloud-sql-python-connector용 인스턴스 연결 이름"
   value       = google_sql_database_instance.main.connection_name
