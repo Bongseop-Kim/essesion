@@ -33,7 +33,7 @@
 
 ## 근거 — `tile_mm`이 이미 끝까지 흐른다
 
-- 컴파일러가 `tile_mm`을 받는다 — `apps/worker/src/worker/authoring/compiler.py:302`(기본 48,
+- 컴파일러가 `tile_mm`을 받는다 — `apps/worker/src/worker/design_plan/compiler.py:302`(기본 48,
   `:18`). 비율(`period_ratio`·`size_ratio`·`spacing_ratio`)은 모두 타일 기준이다.
 - 스토어는 SVG 루트 `width="Nmm"`으로 반복 배율 N/48을 읽는다 —
   `apps/store/src/features/design/model/svg-preview.ts:30`, `packages/shared/src/components/tie-canvas.tsx:22`.
@@ -61,7 +61,7 @@
       카드로 본다. 타일당 자리가 모자라 밀도가 떨어지면 그 사실을 사용자에게 보이고 결정을 받는다.
 3. **나머지 반복 로고 템플릿** — 사용자가 2단계를 받아들인 뒤 하나씩: 세리프 R과 마름모 도트, 가로 바와
    날개 엠블럼, 물결선과 물결 원 엠블럼, 로고 하프드롭과 점. 줄·물결에 묶이지 않은 로고는 플랜의
-   `scatter` `poisson`(`apps/worker/src/worker/authoring/schema.py:110`, 결정론 seed)으로 불규칙하게
+   `scatter` `poisson`(`apps/worker/src/worker/design_plan/schema.py:110`, 결정론 seed)으로 불규칙하게
    흩을 수 있다 — 다른 모티프와 겹침은 보장되지 않으니 카드로 확인한다.
 4. **명세·스킬** — `docs/api-spec/worker-engine.md:36`의 `tile_mm` 문단에 "시드 템플릿은 엇박 배치를 위해
    48보다 큰 `tile_mm`으로 시작할 수 있다"를 한 줄 더한다. `.claude/skills/tie-template/SKILL.md`의

@@ -42,7 +42,7 @@ MIN_AXIS_COUNT = 2
 MAX_AXIS_COUNT = 10
 # tile_mm은 물리 치수가 아니라 화면 배율 캐리어다(2026-08-19 확정) — 이 SVG는 그대로
 # 실물 출력에 들어가지 않는다. 프론트는 SVG 루트 width="Nmm"을 읽어 반복 배율을 비례시킨다.
-BASE_TILE_MM = 48.0  # authoring compiler의 DEFAULT_TILE_MM과 같은 값 — 프론트 svgTileScale의 분모
+BASE_TILE_MM = 48.0  # design_plan compiler의 DEFAULT_TILE_MM과 같은 값 — 프론트 svgTileScale의 분모
 SCALE_MIN, SCALE_MAX = 0.25, 4.0
 # 누적 클램프 — dpi 고정이라 래스터 픽셀 수가 tile²로 는다(300dpi에서 192mm ≈ 2268px,
 # fabric의 _MAX_INLAY_PIXELS 20M보다 한참 아래).

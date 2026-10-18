@@ -9,14 +9,14 @@ from typing import NamedTuple
 
 import pytest
 from pydantic import ValidationError
-from worker.authoring.compiler import PlanCompileError, compile_design_plan_v3
-from worker.authoring.schema import (
+from worker.config import get_settings
+from worker.design_plan.compiler import PlanCompileError, compile_design_plan_v3
+from worker.design_plan.schema import (
     DesignPlanV3,
     LatticePlacementPlan,
     snapshot_resolved_plan,
     structural_fingerprint,
 )
-from worker.config import get_settings
 from worker.engine.intent import ScatterSpec
 from worker.engine.placement import scatter_target_count
 from worker.engine.validate import validate_intent

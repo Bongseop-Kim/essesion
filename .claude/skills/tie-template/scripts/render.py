@@ -34,9 +34,9 @@ seed = _load("seed_design_examples", ROOT / "apps/worker/scripts/seed_design_exa
 from db.models.seamless import Motif  # noqa: E402
 from sqlalchemy import select  # noqa: E402
 from sqlalchemy.ext.asyncio import async_sessionmaker  # noqa: E402
-from worker.authoring.schema import DesignPlanV3  # noqa: E402
 from worker.config import get_settings  # noqa: E402
 from worker.db import build_engine  # noqa: E402
+from worker.design_plan.schema import DesignPlanV3  # noqa: E402
 from worker.motifs.normalize import normalize_motif_svg  # noqa: E402
 from worker.motifs.store import get_motifs  # noqa: E402
 

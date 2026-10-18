@@ -31,10 +31,10 @@ from db.models.seamless import Motif, SeamlessGenerationLog
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from worker.authoring.compiler import DEFAULT_TILE_MM, compile_design_plan_v3
-from worker.authoring.schema import DesignPlanV3, snapshot_resolved_plan
 from worker.config import get_settings
 from worker.db import build_engine
+from worker.design_plan.compiler import DEFAULT_TILE_MM, compile_design_plan_v3
+from worker.design_plan.schema import DesignPlanV3, snapshot_resolved_plan
 from worker.engine.compose import compose_design
 from worker.engine.constraints import apply_generation_constraints
 from worker.motifs.fingerprint import registry_version_for

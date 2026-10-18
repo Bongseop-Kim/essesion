@@ -183,7 +183,7 @@ patch 축 개수 범위 MIN_AXIS_COUNT=2 / MAX_AXIS_COUNT=10.
 
 스토어 템플릿은 시드 코드(`apps/worker/scripts/seed_design_examples.py`의 `CURATED`)에 DesignPlan v3로 적고, 컴파일러가 intent로 바꾼 뒤 이 엔진이 렌더한다.
 
-- 스키마: `worker.authoring.schema.DesignPlanV3` (`plan_contract_version=3`)
-- 컴파일러: `worker.authoring.compiler` (`compiler_revision=design-plan-v3.2`). 렌더 로그에 남는 이 값은 바꾸지 않는다 — 과거 로그와 비교가 끊긴다.
+- 스키마: `worker.design_plan.schema.DesignPlanV3` (`plan_contract_version=3`)
+- 컴파일러: `worker.design_plan.compiler` (`compiler_revision=design-plan-v3.2`). 렌더 로그에 남는 이 값은 바꾸지 않는다 — 과거 로그와 비교가 끊긴다.
 - 컴파일러 회귀 픽스처: `apps/worker/tests/golden/json/*.json`(ID-파일명 규약으로 byte-identical 검증)
 - Plan에는 normalized ratio와 제한된 enum/template만 둔다. engine layer ID, motif content-hash ID, mm, SVG와 임의 좌표는 컴파일러 뒤에만 존재한다. motif source는 exact/private `input` 또는 검증된 `catalog`뿐이며 catalog grounding은 컴파일러와 최종 엔진 검증이 다시 강제한다.

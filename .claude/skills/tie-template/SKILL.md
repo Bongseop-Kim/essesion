@@ -31,8 +31,8 @@ description: 스토어 /design 넥타이 템플릿을 추가·수정한다 — �
 |---|---|
 | 템플릿 표(`CURATED`)·플랜 상수 | `apps/worker/scripts/seed_design_examples.py` |
 | 손그림 모티프(`_SEEDS`) | `apps/worker/scripts/seed_motifs.py` |
-| 플랜 스키마(레이어·배치) | `apps/worker/src/worker/authoring/schema.py` |
-| 비율→mm, point_template 좌표 | `apps/worker/src/worker/authoring/compiler.py` |
+| 플랜 스키마(레이어·배치) | `apps/worker/src/worker/design_plan/schema.py` |
+| 비율→mm, point_template 좌표 | `apps/worker/src/worker/design_plan/compiler.py` |
 | 카드 넥타이·포인트 로고 배치 | `packages/shared/src/components/tie-canvas.tsx` (`SILHOUETTES`, `emblemBox`) |
 | 카드 구성(목록·상세 샷) | `apps/store/src/features/design/ui/template-shots.tsx` |
 | 렌더 하네스 | `scripts/render.py` (이 스킬 폴더) |

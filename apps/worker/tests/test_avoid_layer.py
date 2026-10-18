@@ -4,8 +4,8 @@ import copy
 import re
 
 import pytest
-from worker.authoring.compiler import compile_design_plan_v3
-from worker.authoring.schema import DesignPlanV3, snapshot_resolved_plan, structural_fingerprint
+from worker.design_plan.compiler import compile_design_plan_v3
+from worker.design_plan.schema import DesignPlanV3, snapshot_resolved_plan, structural_fingerprint
 from worker.engine.compose import compose_design
 from worker.engine.patch import DesignPatchV1, apply_patch
 from worker.engine.validate import IntentInvalid

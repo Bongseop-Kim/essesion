@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from worker.authoring.schema import (
+from worker.design_plan.schema import (
     DesignPlanV3,
     PathDirection,
     PathPlacementPlan,
