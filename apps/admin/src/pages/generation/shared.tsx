@@ -13,13 +13,8 @@ import { Link } from "react-router";
 
 import { formatDateTime } from "../../shared/lib/format";
 import { DateRangeFilters } from "../../shared/ui/date-range-filters";
-import { JOB_STATUS_LABELS } from "./job-status";
-
-export const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const OPERATIONAL_STATUS_LABELS: Record<string, string> = {
-  ...JOB_STATUS_LABELS,
   success: "성공",
   partial: "부분 성공",
   error: "오류",
@@ -42,14 +37,6 @@ export function formatMilliseconds(value: number | null | undefined) {
     return "-";
   }
   return `${Math.round(value).toLocaleString("ko-KR")}ms`;
-}
-
-export function formatDuration(start: string, end: string) {
-  const elapsed = new Date(end).valueOf() - new Date(start).valueOf();
-  if (!Number.isFinite(elapsed) || elapsed < 0) return "-";
-  if (elapsed < 1_000) return `${elapsed}ms`;
-  if (elapsed < 60_000) return `${(elapsed / 1_000).toFixed(1)}초`;
-  return `${(elapsed / 60_000).toFixed(1)}분`;
 }
 
 export function operationalStatusLabel(status: string) {
@@ -97,14 +84,13 @@ export function IdentifierLink({
 }
 
 export function OperationalStatusBadge({ status }: { status: string }) {
-  const tone = ["succeeded", "success"].includes(status)
-    ? "positive"
-    : ["failed", "error"].includes(status)
-      ? "critical"
-      : ["queued", "partial"].includes(status)
-        ? "warning"
-        : status === "canceled"
-          ? "neutral"
+  const tone =
+    status === "success"
+      ? "positive"
+      : status === "error"
+        ? "critical"
+        : status === "partial"
+          ? "warning"
           : "informative";
   return <Badge tone={tone}>{operationalStatusLabel(status)}</Badge>;
 }

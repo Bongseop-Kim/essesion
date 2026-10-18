@@ -5,7 +5,6 @@ import type {
   AdminTimelineEvent,
 } from "@essesion/api-client";
 import {
-  adminApproveTokenRefundMutation,
   adminGetClaimOptions,
   adminGetClaimQueryKey,
   adminListClaimsV2QueryKey,
@@ -76,7 +75,6 @@ function claimTypeLabel(type: string) {
     cancel: "취소",
     return: "반품",
     exchange: "교환",
-    token_refund: "토큰 환불",
   };
   return labels[type] ?? type;
 }
@@ -90,7 +88,6 @@ function claimReasonLabel(reason: string) {
     size_mismatch: "사이즈 불일치",
     color_mismatch: "색상 불일치",
     other: "기타",
-    token_refund: "토큰 환불",
   };
   return labels[reason] ?? "기타 사유";
 }
@@ -302,15 +299,6 @@ export function ClaimDetailPage() {
       await refresh();
     },
   });
-  const refundMutation = useMutation({
-    ...adminApproveTokenRefundMutation(),
-    onSuccess: async () => {
-      snackbar("토큰 환불을 승인했습니다.");
-      setSelectedAction(undefined);
-      setMemo("");
-      await refresh();
-    },
-  });
   const notificationMutation = useMutation({
     ...adminRetryClaimNotificationMutation(),
     onSuccess: async () => {
@@ -332,10 +320,7 @@ export function ClaimDetailPage() {
   });
 
   const data = query.data;
-  const actionPending =
-    statusMutation.isPending ||
-    refundMutation.isPending ||
-    trackingMutation.isPending;
+  const actionPending = statusMutation.isPending || trackingMutation.isPending;
   const trackingDirty =
     trackingAction !== undefined &&
     (trackingCourier !==
@@ -378,10 +363,6 @@ export function ClaimDetailPage() {
 
   const runAction = () => {
     if (selectedAction === undefined || actionPending) return;
-    if (selectedAction.kind === "approve_refund") {
-      refundMutation.mutate({ path: { claim_id: data.id } });
-      return;
-    }
     if (
       selectedAction.target_status === null ||
       selectedAction.target_status === undefined
@@ -583,24 +564,20 @@ export function ClaimDetailPage() {
             <Text as="h3" textStyle="label">
               {selectedAction.label}
             </Text>
-            {selectedAction.kind !== "approve_refund" && (
-              <TextAreaField
-                label={
-                  selectedAction.requires_memo ? "처리 사유 (필수)" : "메모"
-                }
-                value={memo}
-                maxLength={500}
-                errorMessage={validationError}
-                onChange={(event) => setMemo(event.currentTarget.value)}
-              />
-            )}
-            {(statusMutation.isError || refundMutation.isError) && (
+            <TextAreaField
+              label={selectedAction.requires_memo ? "처리 사유 (필수)" : "메모"}
+              value={memo}
+              maxLength={500}
+              errorMessage={validationError}
+              onChange={(event) => setMemo(event.currentTarget.value)}
+            />
+            {statusMutation.isError && (
               <Callout
                 role="alert"
                 tone="critical"
                 title="작업을 완료하지 못했습니다"
                 description={getErrorMessage(
-                  statusMutation.error ?? refundMutation.error,
+                  statusMutation.error,
                   "현재 상태를 새로고침한 뒤 다시 시도해 주세요.",
                 )}
               />

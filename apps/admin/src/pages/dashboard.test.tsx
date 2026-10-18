@@ -266,8 +266,7 @@ describe("DashboardPage", () => {
     renderPage();
 
     expect(await screen.findByText("매출 추이")).toBeTruthy();
-    expect(screen.getByText("이미지 생성")).toBeTruthy();
-    expect(screen.getByText("토큰 판매·소모")).toBeTruthy();
+    expect(screen.getByText("신규 가입")).toBeTruthy();
     // jsdom에서는 ResponsiveContainer 폭이 0이라 차트 내부(SVG)는 검증하지 않는다
     expect(screen.getByRole("table", { name: "인기 상품" })).toBeTruthy();
     expect(await screen.findByText("인기 넥타이")).toBeTruthy();

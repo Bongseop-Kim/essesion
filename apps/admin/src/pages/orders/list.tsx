@@ -33,7 +33,6 @@ const ORDER_TYPE_VALUES = [
   "sale",
   "custom",
   "repair",
-  "token",
   "sample",
 ] as const;
 const ORDER_TYPES = ORDER_TYPE_VALUES.map((value) => ({

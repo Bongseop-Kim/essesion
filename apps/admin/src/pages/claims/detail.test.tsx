@@ -14,7 +14,6 @@ const api = vi.hoisted(() => ({
   getClaim: vi.fn(),
   updateStatus: vi.fn(),
   updateTracking: vi.fn(),
-  approveRefund: vi.fn(),
   retryNotification: vi.fn(),
   listPhotos: vi.fn(),
   createPhotoReadUrl: vi.fn(),
@@ -37,7 +36,6 @@ vi.mock("@essesion/api-client/query", () => ({
   adminUpdateClaimTrackingMutation: () => ({
     mutationFn: api.updateTracking,
   }),
-  adminApproveTokenRefundMutation: () => ({ mutationFn: api.approveRefund }),
   adminRetryClaimNotificationMutation: () => ({
     mutationFn: api.retryNotification,
   }),
@@ -221,10 +219,10 @@ describe("ClaimDetailPage", () => {
     expect(screen.getByLabelText("현재 검색 조건").textContent).toBe("");
   });
 
-  it("토큰 환불은 배송 탭과 긴 빈 배송 필드를 노출하지 않는다", async () => {
+  it("취소 클레임은 배송 탭과 긴 빈 배송 필드를 노출하지 않는다", async () => {
     api.getClaim.mockResolvedValueOnce({
       ...claim,
-      type: "token_refund",
+      type: "cancel",
       tracking_actions: [],
     });
     renderPage("/claims/claim-1?tab=shipping");

@@ -1,14 +1,12 @@
 import type { AdminDesignExampleOut } from "@essesion/api-client";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderAdminPage } from "../../test/render-admin-page";
 
 const api = vi.hoisted(() => ({
   list: vi.fn(),
-  create: vi.fn(),
   update: vi.fn(),
   remove: vi.fn(),
 }));
@@ -19,13 +17,11 @@ vi.mock("@essesion/api-client/query", () => ({
     queryFn: api.list,
   }),
   listAdminDesignExamplesQueryKey: () => ["design-examples"],
-  createAdminDesignExampleMutation: () => ({ mutationFn: api.create }),
   updateAdminDesignExampleMutation: () => ({ mutationFn: api.update }),
   deleteAdminDesignExampleMutation: () => ({ mutationFn: api.remove }),
 }));
 
 import { DesignExamplesPage } from "./list";
-import { DesignExampleNewPage } from "./new";
 
 const RUN_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -59,58 +55,8 @@ describe("DesignExamplesPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     api.list.mockResolvedValue([example]);
-    api.create.mockResolvedValue(example);
     api.update.mockResolvedValue({ ...example, published: true });
     api.remove.mockResolvedValue(undefined);
-  });
-
-  it("생성 실행 ID로 예시를 등록한다", async () => {
-    const user = userEvent.setup();
-    renderAdminPage(<DesignExampleNewPage />);
-
-    // 필수 표시(*)가 라벨 텍스트에 붙는다.
-    await user.type(screen.getByLabelText(/^생성 실행 ID/), RUN_ID);
-    await user.type(screen.getByLabelText(/갤러리 이름/), "미드나잇 웨이브");
-    await user.type(
-      screen.getByLabelText("카드 설명"),
-      "네이비 · 대각 스트라이프",
-    );
-    await user.type(screen.getByLabelText("노출 순서"), "3");
-    await user.click(screen.getByRole("button", { name: "미게시로 등록" }));
-
-    await waitFor(() =>
-      expect(api.create.mock.calls[0]?.[0]).toEqual({
-        body: {
-          run_id: RUN_ID,
-          name: "미드나잇 웨이브",
-          caption: "네이비 · 대각 스트라이프",
-          ordinal: 3,
-        },
-      }),
-    );
-  });
-
-  it("목록의 예시 등록 버튼에서 전용 등록 화면으로 이동한다", async () => {
-    const user = userEvent.setup();
-    renderAdminPage(
-      <Routes>
-        <Route path="/design-examples" element={<DesignExamplesPage />} />
-        <Route path="/design-examples/new" element={<DesignExampleNewPage />} />
-      </Routes>,
-      { entry: "/design-examples" },
-    );
-    await screen.findByRole("switch", { name: "미드나잇 웨이브 게시" });
-
-    expect(screen.queryByLabelText(/^생성 실행 ID/)).toBeNull();
-    await user.click(screen.getByRole("button", { name: "예시 등록" }));
-
-    expect(
-      await screen.findByRole("heading", {
-        name: "디자인 예시 등록",
-        level: 1,
-      }),
-    ).toBeTruthy();
-    expect(screen.getByLabelText(/^생성 실행 ID/)).toBeTruthy();
   });
 
   it("게시 스위치는 즉시, 순서는 포커스를 잃을 때만 저장한다", async () => {

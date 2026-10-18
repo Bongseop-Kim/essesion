@@ -63,12 +63,6 @@ const columns: readonly AdminTableColumn<AdminCustomerSummaryOut>[] = [
     ),
   },
   {
-    key: "token",
-    header: "토큰",
-    align: "end",
-    render: (customer) => `${customer.token_balance.toLocaleString("ko-KR")}개`,
-  },
-  {
     key: "orders",
     header: "주문",
     align: "end",

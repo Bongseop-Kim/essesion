@@ -48,7 +48,6 @@ const ORDER_TYPES = [
   { value: "sale", label: "일반 주문" },
   { value: "custom", label: "주문 제작" },
   { value: "repair", label: "수선" },
-  { value: "token", label: "토큰" },
   { value: "sample", label: "샘플" },
   // 수기 주문은 orders가 아닌 별도 장부 — 지표에는 합산되고 '최근 주문' 표는 비운다.
   { value: "manual", label: "수기 주문" },
@@ -188,9 +187,6 @@ const quoteColumns: readonly AdminTableColumn<DashboardRecentQuoteOut>[] = [
 ];
 
 const BRAND_COLOR = "var(--color-bg-brand-solid)";
-const POSITIVE_COLOR = "var(--color-bg-positive-solid)";
-const CRITICAL_COLOR = "var(--color-bg-critical-solid)";
-const INFORMATIVE_COLOR = "var(--color-bg-informative-solid)";
 
 /**
  * 매출 추이 스택 막대의 구획 — 순서·색 슬롯은 주문 유형에 고정한다.
@@ -221,7 +217,6 @@ const AMOUNT_SERIES = (
       label: "수선(수기)",
       color: "var(--color-bg-chart-6)",
     },
-    { key: "token_amount", label: "토큰", color: "var(--color-bg-chart-7)" },
   ] as const
 ).map((item) => ({ ...item, kind: "bar" as const, stackId: "amount" }));
 
@@ -357,11 +352,7 @@ export function DashboardPage() {
     ]);
   };
 
-  // 생성 스택 차트용 파생값 — '비실패' = 실패 외(성공·대기·진행 포함)
-  const points = (timeseries.data?.points ?? []).map((point) => ({
-    ...point,
-    generation_not_failed: point.generation_total - point.generation_failed,
-  }));
+  const points = timeseries.data?.points ?? [];
   const rankedProducts = (topProducts.data?.items ?? []).map(
     (product, index) => ({ ...product, rank: index + 1 }),
   );
@@ -562,65 +553,6 @@ export function DashboardPage() {
                 },
               ]}
               valueFormatter={(value) => `${value.toLocaleString("ko")}명`}
-            />
-          </ChartCard>
-          <ChartCard title="이미지 생성" loading={timeseries.isLoading}>
-            <TrendChart
-              data={points}
-              series={[
-                {
-                  key: "generation_not_failed",
-                  label: "실패 외",
-                  color: POSITIVE_COLOR,
-                  kind: "bar",
-                  stackId: "generation",
-                },
-                {
-                  key: "generation_failed",
-                  label: "실패",
-                  color: CRITICAL_COLOR,
-                  kind: "bar",
-                  stackId: "generation",
-                },
-              ]}
-              tooltipRows={(point) => [
-                {
-                  label: "전체",
-                  value: `${point.generation_total.toLocaleString("ko")}건`,
-                },
-                {
-                  label: "실패",
-                  value: `${point.generation_failed.toLocaleString("ko")}건`,
-                  color: CRITICAL_COLOR,
-                },
-                {
-                  label: "실패율",
-                  value:
-                    point.generation_total > 0
-                      ? `${Math.round((point.generation_failed / point.generation_total) * 100)}%`
-                      : "-",
-                },
-              ]}
-            />
-          </ChartCard>
-          <ChartCard title="토큰 판매·소모" loading={timeseries.isLoading}>
-            <TrendChart
-              data={points}
-              series={[
-                {
-                  key: "token_sold",
-                  label: "판매",
-                  color: POSITIVE_COLOR,
-                  kind: "line",
-                },
-                {
-                  key: "token_consumed",
-                  label: "소모",
-                  color: INFORMATIVE_COLOR,
-                  kind: "line",
-                },
-              ]}
-              valueFormatter={(value) => `${value.toLocaleString("ko")}개`}
             />
           </ChartCard>
         </Grid>

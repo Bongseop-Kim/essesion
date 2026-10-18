@@ -15,7 +15,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 
 import {
-  type ClaimListType,
+  type ClaimType,
   claimItemTitle,
   claimReasonLabel,
   claimStatusTone,
@@ -25,14 +25,13 @@ import { groupByCreatedDate } from "@/shared/lib/date-groups";
 import { ChipFilterBar } from "@/shared/ui/chip-filter-bar";
 import { ContentLayout } from "@/shared/ui/content-layout";
 
-type ClaimFilter = "all" | ClaimListType;
+type ClaimFilter = "all" | ClaimType;
 
 const CLAIM_FILTERS: readonly { value: ClaimFilter; label: string }[] = [
   { value: "all", label: "전체" },
   { value: "cancel", label: "취소" },
   { value: "return", label: "반품" },
   { value: "exchange", label: "교환" },
-  { value: "token_refund", label: "토큰 환불" },
 ];
 
 export function ClaimListPage() {

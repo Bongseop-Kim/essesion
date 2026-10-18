@@ -1,12 +1,8 @@
-import type { DesignSessionOut, GenerationJobOut } from "@essesion/api-client";
+import type { DesignSessionOut } from "@essesion/api-client";
 import {
   getDesignSessionOptions,
   getDesignSessionQueryKey,
-  listGenerationJobsInfiniteOptions,
-  listGenerationJobsOptions,
 } from "@essesion/api-client/query";
-
-export const FINALIZED_JOBS_PAGE_SIZE = 20;
 
 /** 진행 중 생성을 서버에서 다시 보는 간격 — `active_generation_id`가 있는 동안만 돈다. */
 export const ACTIVE_GENERATION_POLL_MS = 2_000;
@@ -21,8 +17,8 @@ export type ActiveGenerationWait = "fast" | "slow" | "expired";
 /**
  * 서버가 아직 생성 중인가 — null이면 진행 중인 생성이 없다.
  *
- * `expired`는 "실패했다"가 아니라 "여기서 기다리는 건 그만둔다"다. 성공·환불 판정은
- * 서버(회수 또는 복구 배치)만 한다.
+ * `expired`는 "실패했다"가 아니라 "여기서 기다리는 건 그만둔다"다. 성공·실패 판정은
+ * 서버(stale 회수)만 한다.
  */
 export function activeGenerationWait(
   session: DesignSessionOut | undefined,
@@ -62,47 +58,5 @@ export function designSessionQueryOptions({
         ? ACTIVE_GENERATION_SLOW_POLL_MS
         : ACTIVE_GENERATION_POLL_MS;
     },
-  };
-}
-
-/** 이 세션의 최신 완성본 한 건 — 결과 화면 새로고침 복원용. */
-export function latestFinalizedJobQueryOptions({
-  sessionId,
-  authenticated,
-}: {
-  authenticated: boolean;
-  sessionId: string;
-}) {
-  return {
-    ...listGenerationJobsOptions({
-      query: {
-        kind: "finalize",
-        status: "succeeded",
-        session_id: sessionId,
-        limit: 1,
-      },
-    }),
-    enabled: authenticated && !!sessionId,
-  };
-}
-
-export function finalizedJobsInfiniteQueryOptions(authenticated: boolean) {
-  return {
-    ...listGenerationJobsInfiniteOptions({
-      query: {
-        kind: "finalize",
-        status: "succeeded",
-        limit: FINALIZED_JOBS_PAGE_SIZE,
-      },
-    }),
-    enabled: authenticated,
-    initialPageParam: 0,
-    getNextPageParam: (
-      lastPage: GenerationJobOut[],
-      allPages: GenerationJobOut[][],
-    ) =>
-      lastPage.length === FINALIZED_JOBS_PAGE_SIZE
-        ? allPages.length * FINALIZED_JOBS_PAGE_SIZE
-        : undefined,
   };
 }

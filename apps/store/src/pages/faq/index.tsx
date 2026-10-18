@@ -21,7 +21,7 @@ export function FaqPage() {
     <>
       <PageMeta
         title="자주 묻는 질문 | ESSE SION"
-        description="ESSE SION의 배송, 주문, 맞춤 제작, 수선과 디자인 토큰 이용 방법을 안내합니다."
+        description="ESSE SION의 배송, 주문, 맞춤 제작, 수선 이용 방법을 안내합니다."
         path="/faq"
       />
       <ContentLayout

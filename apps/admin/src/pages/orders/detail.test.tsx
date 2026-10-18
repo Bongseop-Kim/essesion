@@ -207,10 +207,9 @@ describe("OrderDetailPage", () => {
     expect(screen.getByRole("button", { name: "배송 시작" })).toBeTruthy();
   });
 
-  it("활동 이력 딥링크를 복원하고 토큰 주문에는 불필요한 배송·수선 탭을 숨긴다", async () => {
+  it("활동 이력 딥링크를 복원한다", async () => {
     api.getOrder.mockResolvedValue({
       ...order,
-      order_type: "token",
       claim_summary: null,
       active_claim: null,
       admin_actions: [],
@@ -224,7 +223,6 @@ describe("OrderDetailPage", () => {
         .getAttribute("aria-selected"),
     ).toBe("true");
     expect(screen.getByRole("tabpanel", { name: "활동 이력" })).toBeTruthy();
-    expect(screen.queryByRole("tab", { name: "배송" })).toBeNull();
     expect(screen.getByText("기록된 상태 변경이 없습니다.")).toBeTruthy();
   });
 

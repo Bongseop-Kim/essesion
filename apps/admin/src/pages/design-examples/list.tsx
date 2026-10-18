@@ -9,7 +9,6 @@ import {
   ActionButton,
   AlertDialog,
   Box,
-  HStack,
   ImageFrame,
   Switch,
   snackbar,
@@ -18,7 +17,6 @@ import {
 } from "@essesion/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useNavigate } from "react-router";
 
 import { getErrorMessage } from "../../shared/lib/format";
 import { AdminCard } from "../../shared/ui/admin-card";
@@ -70,7 +68,6 @@ function OrdinalCell({
 }
 
 export function DesignExamplesPage() {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const query = useQuery(listAdminDesignExamplesOptions());
   const [search, setSearch] = useState<string>();
@@ -108,11 +105,11 @@ export function DesignExamplesPage() {
     ...deleteAdminDesignExampleMutation(),
     onSuccess: async () => {
       setDeleteTarget(null);
-      snackbar("예시를 삭제했습니다.");
+      snackbar("템플릿을 삭제했습니다.");
       await refresh();
     },
     onError: (error) =>
-      snackbar(getErrorMessage(error, "예시를 삭제하지 못했습니다.")),
+      snackbar(getErrorMessage(error, "템플릿을 삭제하지 못했습니다.")),
   });
 
   const columns: readonly AdminTableColumn<AdminDesignExampleOut>[] = [
@@ -201,19 +198,14 @@ export function DesignExamplesPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title="디자인 예시"
-          description="스토어 디자인 첫 화면 갤러리에 보일 디자인을 고릅니다. 고객이 고르면 토큰 차감 없이 이 디자인으로 시작합니다."
-        />
-        <ActionButton onClick={() => navigate("/design-examples/new")}>
-          예시 등록
-        </ActionButton>
-      </HStack>
+      <RouteHeading
+        title="템플릿"
+        description="스토어 템플릿 목록에 보일 템플릿을 고릅니다. 템플릿은 시드 코드(seed_design_examples.py)로 만듭니다."
+      />
 
       <AdminCard
-        title="등록된 예시"
-        description="게시 스위치를 켠 예시만 스토어 갤러리에 순서대로 노출됩니다."
+        title="등록된 템플릿"
+        description="게시 스위치를 켠 템플릿만 스토어 템플릿 목록에 순서대로 노출됩니다."
         action={
           <ActionButton
             variant="neutralWeak"
@@ -250,7 +242,7 @@ export function DesignExamplesPage() {
               />
             }
             secondaryFilterCount={Number(published !== "all")}
-            secondaryTitle="디자인 예시 필터"
+            secondaryTitle="템플릿 필터"
             secondaryDescription="게시 상태를 골라 적용합니다."
             onResetSecondaryFilters={() => setDraftPublished(published)}
             onApplySecondaryFilters={() => {
@@ -281,7 +273,7 @@ export function DesignExamplesPage() {
             }}
           />
           <AdminTable
-            label="디자인 예시 목록"
+            label="템플릿 목록"
             columns={columns}
             rows={filteredExamples}
             getRowKey={(row) => row.id}
@@ -289,7 +281,7 @@ export function DesignExamplesPage() {
               query.isLoading ? "loading" : query.isError ? "error" : "success"
             }
             onRetry={() => void query.refetch()}
-            emptyTitle="조건에 맞는 디자인 예시가 없습니다"
+            emptyTitle="조건에 맞는 템플릿이 없습니다"
             emptyDescription="검색어나 게시 상태를 바꿔 다시 확인해 주세요."
           />
         </VStack>
@@ -300,8 +292,8 @@ export function DesignExamplesPage() {
         onOpenChange={(open) => {
           if (!open && !remove.isPending) setDeleteTarget(null);
         }}
-        title="예시를 삭제할까요?"
-        description="갤러리에서 즉시 사라집니다. 같은 생성 실행 ID로 다시 등록할 수 있습니다."
+        title="템플릿을 삭제할까요?"
+        description="스토어 템플릿 목록에서 즉시 사라집니다. 시드를 다시 실행하면 돌아옵니다."
         primaryActionProps={{
           children: "삭제",
           variant: "criticalSolid",

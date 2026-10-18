@@ -10,6 +10,24 @@ export type NoticeItem = {
 
 const NOTICE_DATA = [
   {
+    id: "ai-design-end",
+    category: "서비스",
+    title: "AI 디자인 생성·디자인 토큰 서비스 종료와 약관·정책 변경 안내",
+    content: `2026년 10월 19일부로 AI 디자인 생성과 디자인 토큰 서비스를 종료합니다.
+
+■ 이후 이용 방법
+- 디자인 페이지에서 템플릿을 고르고 색과 로고를 바꾼 뒤 바로 맞춤 주문할 수 있습니다.
+- 꾸민 디자인은 맞춤 주문의 참고 이미지로 함께 접수됩니다.
+
+■ 약관·정책 변경 (시행일 2026년 10월 19일)
+- 이용약관: 디자인 토큰 정의와 AI 디자인·디자인 토큰 조항 삭제
+- 환불정책: 디자인 토큰과 디지털 서비스 조항 삭제
+- 개인정보처리방침: AI 디자인 생성 처리 목적·수집 항목과 OpenAI 처리위탁·국외이전 항목 삭제`,
+    pinned: true,
+    is_visible: true,
+    published_at: "2026-10-19",
+  },
+  {
     id: "service-rebuild",
     category: "서비스",
     title: "ESSE SION 서비스 개편 안내",
@@ -51,7 +69,7 @@ const NOTICE_DATA = [
     title: "Google·Kakao 소셜 로그인 안내",
     content: `고객 계정은 Google 또는 Kakao 소셜 로그인으로 이용할 수 있습니다.
 
-상품과 안내 페이지는 로그인 없이 볼 수 있으며, 주문·결제·배송지·주문 내역과 디자인 토큰 관리는 로그인이 필요합니다. 고객용 아이디·비밀번호 회원가입은 제공하지 않습니다.`,
+상품과 안내 페이지는 로그인 없이 볼 수 있으며, 주문·결제·배송지와 주문 내역 관리는 로그인이 필요합니다. 고객용 아이디·비밀번호 회원가입은 제공하지 않습니다.`,
     pinned: false,
     is_visible: true,
     published_at: "2026-07-09",
@@ -60,7 +78,7 @@ const NOTICE_DATA = [
     id: "toss-payment",
     category: "결제",
     title: "토스페이먼츠 결제 및 결과 확인 안내",
-    content: `상품, 수선, 제작 및 디자인 토큰 결제는 토스페이먼츠 결제창에서 진행합니다.
+    content: `상품, 수선과 제작 결제는 토스페이먼츠 결제창에서 진행합니다.
 
 결제 직후 화면을 닫았거나 결과 확인이 늦어지는 경우 같은 주문을 다시 결제하기 전에 마이페이지 주문 내역을 먼저 확인해 주세요. 승인 결과는 중복 처리되지 않도록 주문 단위로 확인합니다.`,
     pinned: false,
@@ -88,17 +106,6 @@ const NOTICE_DATA = [
     pinned: false,
     is_visible: true,
     published_at: "2026-07-06",
-  },
-  {
-    id: "design-token-purchase",
-    category: "AI 디자인",
-    title: "디자인 토큰 구매와 실패 복원 안내",
-    content: `AI 디자인 생성에 사용하는 디자인 토큰 패키지와 잔액을 토큰 구매 페이지에서 확인할 수 있습니다.
-
-정상 완료된 생성 요청에는 안내된 토큰이 사용됩니다. 시스템 또는 외부 생성 처리 실패로 결과를 만들지 못한 경우 해당 요청에서 차감된 토큰은 자동으로 복원됩니다.`,
-    pinned: false,
-    is_visible: true,
-    published_at: "2026-07-05",
   },
   {
     id: "order-claim-history",

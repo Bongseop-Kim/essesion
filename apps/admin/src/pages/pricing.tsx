@@ -41,7 +41,6 @@ const CATEGORY_TABS = [
   { value: "custom_order", label: "주문제작" },
   { value: "fabric", label: "원단" },
   { value: "sample_discount", label: "샘플 할인" },
-  { value: "token", label: "토큰" },
 ] as const;
 
 // 라벨 원문: YeongSeon admin pricing-form의 CONSTANT_LABELS·SAMPLE_COUPON_LABELS
@@ -74,12 +73,6 @@ const PRICING_LABELS: Record<string, string> = {
   sample_discount_sewing: "봉제 샘플 할인",
   sample_discount_fabric_printing: "원단 샘플 (날염) 할인",
   sample_discount_fabric_yarn_dyed: "원단 샘플 (선염) 할인",
-  token_plan_starter_price: "Starter 플랜 가격",
-  token_plan_starter_amount: "Starter 플랜 토큰 수량",
-  token_plan_popular_price: "Popular 플랜 가격",
-  token_plan_popular_amount: "Popular 플랜 토큰 수량",
-  token_plan_pro_price: "Pro 플랜 가격",
-  token_plan_pro_amount: "Pro 플랜 토큰 수량",
 };
 
 function pricingLabel(key: string) {

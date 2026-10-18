@@ -16,7 +16,7 @@ export function TermsOfServiceContent() {
       <PolicySection title="1. 목적">
         <Text as="p" {...bodyProps}>
           이 약관은 영선산업(상호명 ESSE SION, 이하 “회사”)이 제공하는 온라인
-          쇼핑, 수선, 맞춤·샘플 제작과 AI 디자인 서비스의 이용 조건 및 회사와
+          쇼핑, 수선, 맞춤·샘플 제작과 디자인 서비스의 이용 조건 및 회사와
           이용자의 권리·의무를 정합니다.
         </Text>
       </PolicySection>
@@ -27,7 +27,6 @@ export function TermsOfServiceContent() {
             "‘서비스’는 회사가 웹사이트와 관련 시스템을 통해 제공하는 상품 판매 및 제반 기능을 말합니다.",
             "‘회원’은 소셜 로그인 또는 회사가 발급한 계정으로 인증하여 서비스를 이용하는 사람을 말합니다.",
             "‘주문 제작’은 이용자가 선택하거나 제출한 사양에 따라 개별 생산하는 맞춤·샘플 제작을 말합니다.",
-            "‘디자인 토큰’은 AI 디자인 기능 사용 시 차감되는 유료 또는 무료 크레딧을 말합니다.",
           ]}
         />
       </PolicySection>
@@ -56,8 +55,7 @@ export function TermsOfServiceContent() {
             "일반 상품의 정보 제공, 주문, 결제와 배송",
             "넥타이 수선과 고객 직접 발송·완료품 반환 관리",
             "맞춤 제작 및 샘플 제작의 사양 선택, 견적과 주문",
-            "AI 기반 디자인 생성과 결과물 관리",
-            "디자인 토큰 구매·사용·잔액 및 환불 신청 관리",
+            "넥타이 디자인 템플릿의 색·로고 편집과 맞춤 주문 연결",
             "그 밖에 회사가 공지하고 제공하는 고객지원 기능",
           ]}
         />
@@ -95,21 +93,12 @@ export function TermsOfServiceContent() {
           기준으로 진행합니다. 실물 확인 결과 작업이 불가능하거나 추가 협의가
           필요할 수 있으며, 이 경우 회사는 진행 여부와 비용을 안내합니다. 개별
           제작이 시작된 이후의 취소·환불 제한은 환불정책과 관련 법령을 따릅니다.
+          이용자가 디자인에 올린 로고·이미지는 이용자가 사용할 권리를 가진
+          것이어야 합니다.
         </Text>
       </PolicySection>
 
-      <PolicySection title="10. AI 디자인과 디자인 토큰">
-        <PolicyList
-          items={[
-            "AI 생성 결과는 입력, 외부 모델과 시스템 상태에 따라 달라질 수 있으며 특정 결과를 보장하지 않습니다.",
-            "생성 요청이 실패하면 해당 요청에 차감된 토큰은 시스템 정책에 따라 복원됩니다.",
-            "유료 토큰과 무료 토큰의 잔액·사용 순서·유효기간은 구매 화면과 환불정책에 표시합니다.",
-            "이용자는 타인의 개인정보, 저작권, 상표권 등 권리를 침해하는 자료를 입력해서는 안 됩니다.",
-          ]}
-        />
-      </PolicySection>
-
-      <PolicySection title="11. 서비스의 변경과 중단">
+      <PolicySection title="10. 서비스의 변경과 중단">
         <Text as="p" {...bodyProps}>
           회사는 점검, 설비 장애, 외부 서비스 중단 또는 운영상 필요한 경우
           서비스의 전부나 일부를 변경·중단할 수 있습니다. 예측 가능한 중단은
@@ -117,19 +106,19 @@ export function TermsOfServiceContent() {
         </Text>
       </PolicySection>
 
-      <PolicySection title="12. 이용자의 의무">
+      <PolicySection title="11. 이용자의 의무">
         <PolicyList
           items={[
             "허위 정보 등록, 타인 정보나 결제수단의 도용을 하지 않을 것",
             "서비스 또는 시스템의 정상 운영을 방해하지 않을 것",
             "회사나 제3자의 지식재산권, 개인정보와 명예를 침해하지 않을 것",
-            "불법·유해 콘텐츠를 업로드하거나 생성하도록 요청하지 않을 것",
+            "불법·유해 콘텐츠를 업로드하지 않을 것",
             "관련 법령, 이 약관과 서비스 화면의 안내를 준수할 것",
           ]}
         />
       </PolicySection>
 
-      <PolicySection title="13. 계약 해지와 이용 제한">
+      <PolicySection title="12. 계약 해지와 이용 제한">
         <Text as="p" {...bodyProps}>
           회원은 마이페이지에서 탈퇴를 요청할 수 있습니다. 회사는 약관 위반,
           부정 결제, 서비스 방해 등 합리적인 사유가 있으면 사전 통지 후 이용을
@@ -138,7 +127,7 @@ export function TermsOfServiceContent() {
         </Text>
       </PolicySection>
 
-      <PolicySection title="14. 책임과 분쟁 해결">
+      <PolicySection title="13. 책임과 분쟁 해결">
         <Text as="p" {...bodyProps}>
           회사와 이용자는 분쟁이 발생하면 성실히 협의합니다. 회사는 고의 또는
           과실로 이용자에게 손해를 발생시킨 경우 관련 법령에 따라 책임을
@@ -147,9 +136,9 @@ export function TermsOfServiceContent() {
         </Text>
       </PolicySection>
 
-      <PolicySection title="15. 시행일">
+      <PolicySection title="14. 시행일">
         <PolicyInfoBox>
-          <Text textStyle="labelSm">시행일: 2026년 8월 31일</Text>
+          <Text textStyle="labelSm">시행일: 2026년 10월 19일</Text>
         </PolicyInfoBox>
       </PolicySection>
     </PolicyDocument>
@@ -161,7 +150,7 @@ export function TermsOfServicePage() {
     <>
       <PageMeta
         title="이용약관 | ESSE SION"
-        description="ESSE SION의 상품, 수선, 맞춤 제작, AI 디자인 서비스 이용 조건을 안내합니다."
+        description="ESSE SION의 상품, 수선, 맞춤 제작, 디자인 서비스 이용 조건을 안내합니다."
         path="/terms-of-service"
       />
       <ContentLayout

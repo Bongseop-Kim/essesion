@@ -12,7 +12,6 @@ const TYPE_LABELS: Record<string, string> = {
   cancel: "취소",
   return: "반품",
   exchange: "교환",
-  token_refund: "토큰 환불",
 };
 
 function fallbackTone(status: string): ClaimBadgePresentation["tone"] {
@@ -38,11 +37,6 @@ export function claimBadge(claim: ClaimBadgeInput): ClaimBadgePresentation {
     return claim.status === "완료"
       ? { label: `${typeLabel} 완료`, tone: "positive" }
       : { label: `${typeLabel} 진행중`, tone: "informative" };
-  }
-  if (claim.type === "token_refund") {
-    return claim.status === "완료"
-      ? { label: "토큰 환불 완료", tone: "positive" }
-      : { label: "토큰 환불 처리중", tone: "warning" };
   }
   return {
     label: `${typeLabel} ${claim.status}`,

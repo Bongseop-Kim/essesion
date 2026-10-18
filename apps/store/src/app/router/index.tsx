@@ -70,10 +70,13 @@ export const storeRouteObjects = [
         }),
       },
       {
-        path: "token/purchase",
-        lazy: async () => ({
-          Component: (await import("@/pages/token-purchase")).TokenPurchasePage,
-        }),
+        // 디자인 토큰 판매 종료(2026-10-19) — 옛 링크 보존
+        path: "token/*",
+        loader: () => redirect("/"),
+      },
+      {
+        path: "my-page/token-history",
+        loader: () => redirect("/"),
       },
       {
         path: "faq",
@@ -150,27 +153,6 @@ export const storeRouteObjects = [
             }),
           },
           {
-            path: "token/purchase/payment",
-            lazy: async () => ({
-              Component: (await import("@/pages/token-purchase/payment"))
-                .TokenPaymentPage,
-            }),
-          },
-          {
-            path: "token/purchase/success",
-            lazy: async () => ({
-              Component: (await import("@/pages/token-purchase/success"))
-                .TokenPurchaseSuccessPage,
-            }),
-          },
-          {
-            path: "token/purchase/fail",
-            lazy: async () => ({
-              Component: (await import("@/pages/token-purchase/fail"))
-                .TokenPurchaseFailPage,
-            }),
-          },
-          {
             path: "order/payment/success",
             lazy: async () => ({
               Component: (await import("@/pages/order/payment-success"))
@@ -207,13 +189,6 @@ export const storeRouteObjects = [
             lazy: async () => ({
               Component: (await import("@/pages/my-page/claim-detail"))
                 .ClaimDetailPage,
-            }),
-          },
-          {
-            path: "my-page/token-history",
-            lazy: async () => ({
-              Component: (await import("@/pages/my-page/token-history"))
-                .TokenHistoryPage,
             }),
           },
           {

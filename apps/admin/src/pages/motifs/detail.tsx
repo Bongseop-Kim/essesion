@@ -3,12 +3,10 @@ import {
   getAdminMotifOptions,
   getAdminMotifQueryKey,
   listAdminMotifsQueryKey,
-  reviewAdminMotifMutation,
   updateAdminMotifMutation,
 } from "@essesion/api-client/query";
 import {
   ActionButton,
-  AlertDialog,
   Callout,
   ContentPlaceholder,
   Grid,
@@ -17,15 +15,12 @@ import {
   RadioGroupItem,
   Skeleton,
   snackbar,
-  Tag,
-  TagGroup,
   Text,
-  TextAreaField,
   TextField,
   VStack,
 } from "@essesion/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { FormEvent, MouseEvent } from "react";
+import type { FormEvent } from "react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
@@ -38,10 +33,9 @@ import { useAdminSession } from "../../shared/session/admin-session";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { DetailList } from "../../shared/ui/detail-list";
 import { RouteHeading } from "../../shared/ui/route-heading";
-import { formatStatus, StatusBadge } from "../../shared/ui/status-badge";
+import { formatStatus } from "../../shared/ui/status-badge";
 import { SafeSvgPreview } from "../generation/safe-svg-preview";
 
-type ReviewStatus = "approved" | "rejected";
 type MotifStyle = "" | "flat" | "outline";
 
 const SCOPE_LABELS: Record<string, string> = {
@@ -62,11 +56,6 @@ function formatMotifStyle(value: string | null | undefined) {
   return value ? (STYLE_LABELS[value] ?? value) : "미지정";
 }
 
-const REVIEW_LABELS: Record<ReviewStatus, string> = {
-  approved: "승인",
-  rejected: "거절",
-};
-
 function MotifMetadataForm({
   motif,
   onUpdated,
@@ -79,18 +68,14 @@ function MotifMetadataForm({
   const canEdit =
     state.status === "authenticated" && state.session.role === "admin";
   const [subject, setSubject] = useState(motif.subject ?? "");
-  const [description, setDescription] = useState(motif.description ?? "");
-  const [tags, setTags] = useState(motif.tags.join(", "));
   const [style, setStyle] = useState<MotifStyle>(
     motif.style === "flat" || motif.style === "outline" ? motif.style : "",
   );
   const mutation = useMutation({
     ...updateAdminMotifMutation(),
     onSuccess: async (value) => {
-      snackbar("모티프 메타데이터를 저장했습니다.");
+      snackbar("무늬·로고 정보를 저장했습니다.");
       setSubject(value.subject ?? "");
-      setDescription(value.description ?? "");
-      setTags(value.tags.join(", "));
       setStyle(
         value.style === "flat" || value.style === "outline" ? value.style : "",
       );
@@ -103,7 +88,7 @@ function MotifMetadataForm({
 
   if (!canEdit) {
     return (
-      <AdminCard title="검색 메타데이터">
+      <AdminCard title="무늬·로고 정보">
         <Text textStyle="bodySm" color="fg.neutral-muted">
           매니저는 메타데이터를 조회만 할 수 있습니다.
         </Text>
@@ -117,21 +102,13 @@ function MotifMetadataForm({
       path: { motif_id: motif.id },
       body: {
         subject: subject.trim() || null,
-        description: description.trim() || null,
-        tags: tags
-          .split(/[,\n]/)
-          .map((tag) => tag.trim())
-          .filter(Boolean),
         style: style || null,
       },
     });
   };
 
   return (
-    <AdminCard
-      title="검색 메타데이터"
-      description="카탈로그 검색과 디자인 생성 시 모티프 매칭에 쓰입니다."
-    >
+    <AdminCard title="무늬·로고 정보">
       <VStack as="form" gap="x4" alignItems="stretch" onSubmit={submit}>
         <TextField
           label="주제"
@@ -139,24 +116,10 @@ function MotifMetadataForm({
           value={subject}
           onChange={(event) => setSubject(event.target.value)}
         />
-        <TextAreaField
-          label="설명"
-          maxLength={500}
-          rows={3}
-          value={description}
-          onChange={(event) => setDescription(event.target.value)}
-        />
-        <TextAreaField
-          label="태그"
-          description="쉼표 또는 줄바꿈으로 구분합니다."
-          rows={2}
-          value={tags}
-          onChange={(event) => setTags(event.target.value)}
-        />
         <VStack gap="x2" alignItems="stretch">
           <Text textStyle="labelSm">스타일</Text>
           <RadioGroup
-            aria-label="모티프 스타일"
+            aria-label="무늬·로고 스타일"
             orientation="horizontal"
             value={style}
             onValueChange={(value) => setStyle(value as MotifStyle)}
@@ -170,7 +133,7 @@ function MotifMetadataForm({
           <Callout
             role="alert"
             tone="critical"
-            title="메타데이터를 저장하지 못했습니다"
+            title="무늬·로고 정보를 저장하지 못했습니다"
             description={getErrorMessage(
               mutation.error,
               "입력값을 확인한 뒤 다시 시도해 주세요.",
@@ -225,10 +188,10 @@ function MotifDetailLoading() {
   return (
     <VStack gap="x6" alignItems="stretch" aria-busy="true">
       <RouteHeading
-        title="모티프 상세"
-        description="모티프 메타데이터와 미리보기를 불러오고 있습니다."
+        title="무늬·로고 상세"
+        description="무늬·로고 정보와 미리보기를 불러오고 있습니다."
       />
-      <AdminCard title="모티프 상세">
+      <AdminCard title="무늬·로고 상세">
         <Grid columns={{ base: 1, md: 2 }} gap="x4">
           <Skeleton width="100%" height={320} />
           <VStack gap="x3" alignItems="stretch">
@@ -239,117 +202,6 @@ function MotifDetailLoading() {
         </Grid>
       </AdminCard>
     </VStack>
-  );
-}
-
-function MotifReviewActions({
-  motif,
-  onUpdated,
-}: {
-  motif: MotifDetailOut;
-  onUpdated: (value: MotifDetailOut) => void;
-}) {
-  const queryClient = useQueryClient();
-  const { state } = useAdminSession();
-  const canReview =
-    state.status === "authenticated" && state.session.role === "admin";
-  const [nextStatus, setNextStatus] = useState<ReviewStatus>();
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const mutation = useMutation({
-    ...reviewAdminMotifMutation(),
-    onSuccess: async (value) => {
-      const label = value.status === "approved" ? "승인" : "거절";
-      snackbar(`모티프를 ${label}했습니다.`);
-      onUpdated(value);
-      setNextStatus(undefined);
-      await queryClient.invalidateQueries({
-        queryKey: listAdminMotifsQueryKey(),
-      });
-    },
-  });
-
-  if (!canReview) {
-    return (
-      <AdminCard title="카탈로그 검토">
-        <Text textStyle="bodySm" color="fg.neutral-muted">
-          매니저는 검토 상태를 조회만 할 수 있습니다.
-        </Text>
-      </AdminCard>
-    );
-  }
-
-  const choose = (status: ReviewStatus) => {
-    mutation.reset();
-    setNextStatus(status);
-    setConfirmOpen(true);
-  };
-  const submit = (event: MouseEvent<HTMLButtonElement>) => {
-    // AlertDialog는 preventDefault가 없으면 클릭 즉시 닫힌다 — mutation이 끝날 때까지 열어둔다.
-    event.preventDefault();
-    if (nextStatus === undefined || mutation.isPending) return;
-    mutation.mutate(
-      {
-        path: { motif_id: motif.id },
-        body: { status: nextStatus },
-      },
-      { onSettled: () => setConfirmOpen(false) },
-    );
-  };
-
-  return (
-    <AdminCard
-      title="카탈로그 검토"
-      description="승인한 모티프만 다른 사용자의 검색과 디자인 생성에 쓰입니다."
-    >
-      <VStack gap="x3" alignItems="stretch">
-        <HStack gap="x2" wrap>
-          <ActionButton
-            variant="criticalSolid"
-            disabled={mutation.isPending || motif.status === "rejected"}
-            onClick={() => choose("rejected")}
-          >
-            거절
-          </ActionButton>
-          <ActionButton
-            disabled={mutation.isPending || motif.status === "approved"}
-            onClick={() => choose("approved")}
-          >
-            승인
-          </ActionButton>
-        </HStack>
-        {mutation.isError && (
-          <Callout
-            role="alert"
-            tone="critical"
-            title="모티프 검토 상태를 저장하지 못했습니다"
-            description={getErrorMessage(
-              mutation.error,
-              "현재 상태를 새로고침한 뒤 다시 시도해 주세요.",
-            )}
-          />
-        )}
-      </VStack>
-      <AlertDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title={`이 모티프를 ${nextStatus ? REVIEW_LABELS[nextStatus] : "처리"}할까요?`}
-        description={
-          nextStatus === "approved"
-            ? "승인 직후 공개 카탈로그 검색과 재사용 풀에 반영됩니다."
-            : "거절하면 공개 카탈로그에서 빠집니다. 이미 이 모티프를 쓰고 있는 디자인에는 그대로 남습니다."
-        }
-        primaryActionProps={{
-          children: nextStatus ? REVIEW_LABELS[nextStatus] : "확인",
-          variant: nextStatus === "rejected" ? "criticalSolid" : "brandSolid",
-          loading: mutation.isPending,
-          onClick: submit,
-        }}
-        secondaryActionProps={{
-          children: "취소",
-          disabled: mutation.isPending,
-        }}
-      />
-    </AdminCard>
   );
 }
 
@@ -369,12 +221,12 @@ export function MotifDetailPage() {
     return (
       <VStack gap="x6" alignItems="stretch">
         <RouteHeading
-          title="모티프 상세"
-          description="모티프 메타데이터와 안전성 검사를 통과한 SVG입니다."
+          title="무늬·로고 상세"
+          description="무늬·로고 정보와 안전성 검사를 통과한 SVG입니다."
         />
         <ContentPlaceholder
-          title="모티프 상세를 불러오지 못했습니다"
-          description="모티프 ID를 확인하거나 다시 시도해 주세요."
+          title="무늬·로고 상세를 불러오지 못했습니다"
+          description="ID를 확인하거나 다시 시도해 주세요."
           action={
             <ActionButton onClick={() => void query.refetch()}>
               다시 시도
@@ -401,19 +253,15 @@ export function MotifDetailPage() {
           description={`모티프 ID: ${motif.id} · SVG 상태: ${formatStatus(motif.svg_status)}`}
         />
         <HStack gap="x2">
-          <StatusBadge status={motif.status} />
           <ActionButton variant="ghost" onClick={() => navigate("/motifs")}>
             목록으로
           </ActionButton>
         </HStack>
       </HStack>
 
-      <Grid columns={{ base: 1, lg: 2 }} gap="x5" alignItems="start">
-        <MotifMetadataForm motif={motif} onUpdated={updateCachedMotif} />
-        <MotifReviewActions motif={motif} onUpdated={updateCachedMotif} />
-      </Grid>
+      <MotifMetadataForm motif={motif} onUpdated={updateCachedMotif} />
 
-      <AdminCard title="모티프 상세">
+      <AdminCard title="무늬·로고 상세">
         <Grid columns={{ base: 1, md: 2 }} gap="x5">
           <SafeSvgPreview
             svg={preview}
@@ -427,14 +275,6 @@ export function MotifDetailPage() {
                 { label: "범위", value: formatMotifScope(motif.scope) },
                 { label: "스타일", value: formatMotifStyle(motif.style) },
                 { label: "소스", value: motif.source },
-                { label: "검토 상태", value: formatStatus(motif.status) },
-                {
-                  label: "검토 시각",
-                  value:
-                    motif.reviewed_at === null
-                      ? "-"
-                      : formatDateTime(motif.reviewed_at),
-                },
                 { label: "생성일", value: formatDateTime(motif.created_at) },
                 {
                   // 이미지 생성은 별도 generation log를 남기지 않는다 — 세션 상관은 이 두 값뿐.
@@ -462,26 +302,6 @@ export function MotifDetailPage() {
                 },
               ]}
             />
-            {motif.description !== null && (
-              <VStack gap="x1">
-                <Text textStyle="caption" color="fg.neutral-muted">
-                  설명
-                </Text>
-                <Text textStyle="bodySm">{motif.description}</Text>
-              </VStack>
-            )}
-            {motif.tags.length > 0 && (
-              <VStack gap="x1">
-                <Text textStyle="caption" color="fg.neutral-muted">
-                  태그
-                </Text>
-                <TagGroup>
-                  {motif.tags.map((tag) => (
-                    <Tag key={tag}>{tag}</Tag>
-                  ))}
-                </TagGroup>
-              </VStack>
-            )}
           </VStack>
         </Grid>
       </AdminCard>

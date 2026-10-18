@@ -34,7 +34,6 @@ type GaEvents = {
   add_to_wishlist: { currency: "KRW"; value: number; items: GaItem[] };
   begin_checkout: { currency: "KRW"; value: number };
   purchase: { currency: "KRW"; value: number; transaction_id?: string };
-  token_purchase: { currency: "KRW"; value: number; token_amount: number };
   quote_request: { quantity: number };
 };
 

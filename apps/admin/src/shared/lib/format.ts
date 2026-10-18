@@ -65,7 +65,6 @@ export function formatOrderType(value: string) {
       sale: "일반",
       custom: "주문 제작",
       repair: "수선",
-      token: "토큰",
       sample: "샘플",
     }[value] ?? value
   );

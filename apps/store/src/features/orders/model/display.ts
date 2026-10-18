@@ -3,7 +3,6 @@ const ORDER_TYPE_LABELS: Record<string, string> = {
   repair: "수선",
   custom: "주문 제작",
   sample: "샘플",
-  token: "토큰",
 };
 
 export function orderTypeLabel(type: string): string {

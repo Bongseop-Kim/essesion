@@ -23,7 +23,7 @@ import { SeamlessLogDetailPage } from "./seamless-detail";
 const log: SeamlessDetailOut = {
   id: "22222222-2222-4222-8222-222222222222",
   request_id: "request-2",
-  input_type: "prompt",
+  input_type: "intent",
   status: "success",
   warning_count: 0,
   generate_ms: 100,
@@ -41,8 +41,8 @@ const log: SeamlessDetailOut = {
   seed: 1,
   warning_groups: [],
   diagnostics: {
-    mode: "prompt",
-    model: "gpt-5.6-luna",
+    mode: "motif_slot",
+    model: null,
     prompt_revision: null,
     patch_axes: [],
     authoring_attempts: 1,
@@ -91,22 +91,7 @@ describe("SeamlessLogDetailPage", () => {
     vi.clearAllMocks();
   });
 
-  it("저장된 프롬프트 원문을 줄바꿈 그대로 표시한다", async () => {
-    const prompt = "청록색 꽃무늬를 작게 배치해 줘.\n꽃 사이 간격은 넓게.";
-    renderPage({
-      ...log,
-      input_type: "prompt",
-      has_prompt: true,
-      prompt,
-    });
-
-    expect(await screen.findByText("프롬프트 원문")).toBeTruthy();
-    expect(
-      screen.getByText(prompt, { normalizer: (value) => value }),
-    ).toBeTruthy();
-  });
-
-  it("프롬프트에서 확정된 intent를 JSON으로 표시한다", async () => {
+  it("확정된 intent를 JSON으로 표시한다", async () => {
     const user = userEvent.setup();
     const intent = {
       intent_version: 1,
@@ -128,15 +113,11 @@ describe("SeamlessLogDetailPage", () => {
         },
       ],
     };
-    renderPage({
-      ...log,
-      input_type: "prompt",
-      has_prompt: true,
-      prompt: "청록색 꽃무늬를 작게 배치해 줘.",
-      intent,
-    });
+    renderPage({ ...log, intent });
 
-    expect(await screen.findByText("디자인 의도")).toBeTruthy();
+    expect(
+      await screen.findByRole("heading", { name: "디자인 의도" }),
+    ).toBeTruthy();
     const trigger = screen.getByRole("button", { name: "Intent JSON" });
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
 
@@ -196,9 +177,6 @@ describe("SeamlessLogDetailPage", () => {
     renderPage({
       ...log,
       status: "partial",
-      input_type: "prompt",
-      has_prompt: true,
-      prompt: "청록색 꽃무늬를 작게 배치해 줘.",
       warning_count: 8,
       warning_groups: [
         {
@@ -215,11 +193,10 @@ describe("SeamlessLogDetailPage", () => {
     });
 
     expect(await screen.findAllByText("부분 성공")).toHaveLength(2);
-    expect(screen.getByText("텍스트 프롬프트")).toBeTruthy();
+    expect(screen.getByText("디자인 의도")).toBeTruthy();
     expect(screen.getByText("모티프 레이어 2개를 제외했습니다")).toBeTruthy();
     expect(screen.getByText("CMYK 색역 확인이 필요한 색상 6개")).toBeTruthy();
     expect(screen.getByText("생성 진단")).toBeTruthy();
-    expect(screen.getByText("gpt-5.6-luna")).toBeTruthy();
     expect(screen.queryByText("GPT Image 호출")).toBeNull();
     expect(screen.getByText(/인쇄 전에 색상을 확인해 주세요/)).toBeTruthy();
     expect(screen.queryByRole("region", { name: "기술 정보" })).toBeNull();
@@ -230,7 +207,7 @@ describe("SeamlessLogDetailPage", () => {
 
     const region = screen.getByRole("region", { name: "기술 정보" });
     expect(within(region).getByText(/"status": "partial"/)).toBeTruthy();
-    expect(within(region).getByText(/"input_type": "prompt"/)).toBeTruthy();
+    expect(within(region).getByText(/"input_type": "intent"/)).toBeTruthy();
     expect(within(region).getByText(/"motif_layer_dropped"/)).toBeTruthy();
     expect(within(region).getByText(/"cmyk_gamut"/)).toBeTruthy();
   });
@@ -255,109 +232,29 @@ describe("SeamlessLogDetailPage", () => {
     expect(screen.queryByText(/분류되지 않은 생성 경고/)).toBeNull();
   });
 
-  it("외부 연동 단계·모티프 해석·사용자 결과를 함께 표시한다", async () => {
+  it("생성 방식·단계 시간·사용자 결과를 함께 표시한다", async () => {
     renderPage({
       ...log,
-      diagnostics: {
-        ...log.diagnostics,
-        mode: "patch",
-        patch_axes: ["background", "motif_size_mm"],
-        patch: {
-          placement: { arrangement: "staggered", count_per_axis: 4 },
-          note: "간격을 넓히고 대각선으로 배치했습니다",
-        },
-        prompt_revision: "design-plan-v1",
-        authoring_ms: 121,
-        compose_ms: 18,
-        render_ms: 9,
-        failure_provider: "openai_embedding",
-        failure_operation: "embed",
-        failure_reason: "rate_limited",
-        failure_status_code: 429,
-        motif_resolutions: [
-          {
-            layer_id: "motif_1",
-            subject: "triangle",
-            scope: "partial",
-            outcome: "dropped",
-            motif_id: null,
-            similarity: null,
-            match_type: null,
-            provider: "openai_embedding",
-            operation: "embed",
-            reason_code: "rate_limited",
-            status_code: 429,
-          },
-        ],
-      },
+      diagnostics: { ...log.diagnostics, compose_ms: 18, render_ms: 9 },
       outcome: {
+        ...log.outcome,
         session_id: "44444444-4444-4444-8444-444444444444",
         user_id: "55555555-5555-4555-8555-555555555555",
         user_name: "김고객",
         reactivated: true,
-        regenerated: true,
-        finalized: true,
-      },
-      design: {
-        id: "design-1",
-        layout_id: "layout-1",
-        source_fidelity: "exact",
-        colorway_id: "default",
-        seed: 7,
-        svg: null,
-        svg_status: "unavailable",
       },
     });
 
-    expect(await screen.findByText("design-plan-v1")).toBeTruthy();
-    expect(screen.getByText("저작 121ms · 합성 18ms · 렌더 9ms")).toBeTruthy();
-    expect(screen.getByText("구성 수정")).toBeTruthy();
-    expect(screen.getByText("바탕색 · 무늬 크기")).toBeTruthy();
-    expect(screen.getByText("구성 patch 원본")).toBeTruthy();
-    expect(screen.getByText("OpenAI 임베딩 · embed")).toBeTruthy();
-    expect(screen.getByText("요청 한도 초과 (429)")).toBeTruthy();
-    expect(
-      screen.getByText(/OpenAI 임베딩: 요청 한도 초과 \(429\)/),
-    ).toBeTruthy();
-
+    expect(await screen.findByText("모티프 교체")).toBeTruthy();
+    expect(screen.getByText("합성 18ms · 렌더 9ms")).toBeTruthy();
     const outcome = screen
       .getByRole("heading", { name: "사용자 결과" })
       .closest("section");
     expect(outcome).not.toBeNull();
-    expect(
-      within(outcome as HTMLElement).getByText("이력에서 다시 활성화"),
-    ).toBeTruthy();
-    expect(within(outcome as HTMLElement).getAllByText("있음")).toHaveLength(3);
-    expect(
-      within(outcome as HTMLElement).getByText("원단 최종화"),
-    ).toBeTruthy();
+    expect(within(outcome as HTMLElement).getByText("있음")).toBeTruthy();
     expect(
       screen.getByRole("link", { name: "김고객" }).getAttribute("href"),
     ).toBe("/customers/55555555-5555-4555-8555-555555555555");
-  });
-
-  it("토큰 차감·환불·순변동과 미연결 상태를 구분한다", async () => {
-    const unmatched = renderPage();
-    expect(await screen.findByText("연결된 토큰 기록 없음")).toBeTruthy();
-    unmatched.unmount();
-
-    renderPage({
-      ...log,
-      token_accounting: {
-        matched: true,
-        debited: 5,
-        refunded: 2,
-        net: -3,
-      },
-    });
-
-    const accounting = (
-      await screen.findByRole("heading", { name: "토큰 정산" })
-    ).closest("section");
-    expect(accounting).not.toBeNull();
-    expect(within(accounting as HTMLElement).getByText("-5 토큰")).toBeTruthy();
-    expect(within(accounting as HTMLElement).getByText("+2 토큰")).toBeTruthy();
-    expect(within(accounting as HTMLElement).getByText("-3 토큰")).toBeTruthy();
   });
 
   it("로그와 엔진 식별자를 기본으로 접어 둔다", async () => {
@@ -366,7 +263,7 @@ describe("SeamlessLogDetailPage", () => {
 
     const trigger = await screen.findByRole("button", { name: "기술 정보" });
     const backLink = screen.getByRole("link", {
-      name: "Seamless 로그 목록으로 돌아가기",
+      name: "디자인 렌더 로그 목록으로 돌아가기",
     });
     expect(
       backLink.compareDocumentPosition(trigger) &

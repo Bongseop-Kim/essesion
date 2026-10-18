@@ -10,29 +10,29 @@ const ITEMS: {
   main?: boolean;
 }[] = [
   {
-    alt: "AI로 만든 넥타이 디자인",
+    alt: "템플릿으로 만든 넥타이 디자인",
     image: "/images/home/tile-1448.webp",
     srcSet:
       "/images/home/tile-724.webp 724w, /images/home/tile-1448.webp 1448w",
     main: true,
   },
   {
-    alt: "AI 넥타이 디자인 예시 1",
+    alt: "넥타이 디자인 예시 1",
     image: "/images/home/1-1448.webp",
     srcSet: "/images/home/1-724.webp 724w, /images/home/1-1448.webp 1448w",
   },
   {
-    alt: "AI 넥타이 디자인 예시 2",
+    alt: "넥타이 디자인 예시 2",
     image: "/images/home/2-1448.webp",
     srcSet: "/images/home/2-724.webp 724w, /images/home/2-1448.webp 1448w",
   },
   {
-    alt: "AI 넥타이 디자인 예시 3",
+    alt: "넥타이 디자인 예시 3",
     image: "/images/home/3-1448.webp",
     srcSet: "/images/home/3-724.webp 724w, /images/home/3-1448.webp 1448w",
   },
   {
-    alt: "AI 넥타이 디자인 예시 4",
+    alt: "넥타이 디자인 예시 4",
     image: "/images/home/4-1448.webp",
     srcSet: "/images/home/4-724.webp 724w, /images/home/4-1448.webp 1448w",
   },
@@ -44,8 +44,8 @@ export function Lookbook() {
   return (
     <Section>
       <SectionHeader
-        title="문장 하나로 만드는 넥타이 디자인"
-        more="AI 디자인 생성"
+        title="템플릿으로 만드는 넥타이 디자인"
+        more="디자인하기"
         href={DESIGN_HREF}
       />
 

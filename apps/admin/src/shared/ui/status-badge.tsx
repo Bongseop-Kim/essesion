@@ -61,7 +61,6 @@ const statusLabels: Readonly<Record<string, string>> = {
   reserved: "예약",
   repair: "수선",
   sale: "일반 주문",
-  token: "토큰",
   safe: "안전",
   unsafe: "차단",
   approved: "승인",

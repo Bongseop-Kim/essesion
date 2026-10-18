@@ -24,13 +24,7 @@ import { groupByCreatedDate } from "@/shared/lib/date-groups";
 import { ChipFilterBar } from "@/shared/ui/chip-filter-bar";
 import { ContentLayout } from "@/shared/ui/content-layout";
 
-type OrderTypeFilter =
-  | "all"
-  | "sale"
-  | "repair"
-  | "custom"
-  | "sample"
-  | "token";
+type OrderTypeFilter = "all" | "sale" | "repair" | "custom" | "sample";
 
 const ORDER_TYPE_FILTERS: readonly { value: OrderTypeFilter; label: string }[] =
   [
@@ -39,7 +33,6 @@ const ORDER_TYPE_FILTERS: readonly { value: OrderTypeFilter; label: string }[] =
     { value: "repair", label: "수선" },
     { value: "custom", label: "주문제작" },
     { value: "sample", label: "샘플" },
-    { value: "token", label: "토큰" },
   ];
 
 export function OrderListPage() {

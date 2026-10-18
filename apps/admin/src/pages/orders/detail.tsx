@@ -439,10 +439,7 @@ export function OrderDetailPage() {
   const actionPending = statusMutation.isPending || trackingMutation.isPending;
   const actionOpen = selectedAction !== undefined;
   const blocker = useDirtyFormBlocker(actionOpen, undefined, true);
-  const hasShippingTab =
-    data !== undefined &&
-    (data.order_type !== "token" ||
-      (data.shipping_address !== null && data.shipping_address !== undefined));
+  const hasShippingTab = data !== undefined;
   const tab = orderTabFrom(params, hasShippingTab);
 
   const setTab = (value: string) => {

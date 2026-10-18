@@ -25,7 +25,6 @@ const CLAIM_TYPES = [
   { value: "cancel", label: "취소" },
   { value: "return", label: "반품" },
   { value: "exchange", label: "교환" },
-  { value: "token_refund", label: "토큰 환불" },
 ] as const;
 
 const CLAIM_STATUSES = [
