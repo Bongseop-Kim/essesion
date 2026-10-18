@@ -1,6 +1,5 @@
 """고객·쿠폰·토큰·가격/설정 관리자 계약 — 실제 PostgreSQL."""
 
-import asyncio
 import uuid
 from datetime import UTC, date, datetime, timedelta
 
@@ -11,7 +10,6 @@ from db.models.commerce import (
     PricingConstant,
     UserCoupon,
 )
-from db.models.tokens import DesignToken
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
@@ -100,7 +98,6 @@ async def test_customer_search_is_body_based_and_customer_only(client, db_sessio
         f"/admin/customers/{customer.id}", headers=auth_headers(admin, settings)
     )
     assert detail.status_code == 200
-    assert detail.json()["token_balance"] == 0
 
 
 async def test_admin_coupon_list_searches_names_and_exact_id(client, db_session, settings):
@@ -365,82 +362,6 @@ async def test_coupon_names_are_normalized_and_conflicts_are_stable(client, db_s
     assert blank.json()["code"] == "invalid_coupon_name"
 
 
-async def test_token_adjustment_operation_is_idempotent(client, db_session, settings):
-    admin = await make_admin(db_session)
-    customer = await make_user(db_session)
-    operation_id = uuid.uuid4()
-    payload = {
-        "operation_id": str(operation_id),
-        "user_id": str(customer.id),
-        "amount": 25,
-        "description": "CS 보상 토큰 지급",
-    }
-    headers = auth_headers(admin, settings)
-
-    first = await client.post("/admin/tokens/manage", json=payload, headers=headers)
-    second = await client.post("/admin/tokens/manage", json=payload, headers=headers)
-    assert first.status_code == second.status_code == 200
-    assert first.json()["new_balance"] == second.json()["new_balance"] == 25
-    assert (
-        await db_session.scalar(
-            select(func.count()).select_from(DesignToken).where(DesignToken.user_id == customer.id)
-        )
-        == 1
-    )
-
-    collision = await client.post(
-        "/admin/tokens/manage",
-        json={**payload, "amount": 30},
-        headers=headers,
-    )
-    assert collision.status_code == 409
-
-    privileged = await client.post(
-        "/admin/tokens/manage",
-        json={
-            **payload,
-            "operation_id": str(uuid.uuid4()),
-            "user_id": str(admin.id),
-        },
-        headers=headers,
-    )
-    assert privileged.status_code == 404
-
-
-async def test_concurrent_token_adjustment_replays_one_operation(client, db_session, settings):
-    admin = await make_admin(db_session)
-    customer = await make_user(db_session)
-    payload = {
-        "operation_id": str(uuid.uuid4()),
-        "user_id": str(customer.id),
-        "amount": 7,
-        "description": "동시 요청 멱등성 검증",
-    }
-    headers = auth_headers(admin, settings)
-
-    first, second = await asyncio.gather(
-        client.post("/admin/tokens/manage", json=payload, headers=headers),
-        client.post("/admin/tokens/manage", json=payload, headers=headers),
-    )
-
-    assert first.status_code == second.status_code == 200
-    assert first.json()["new_balance"] == second.json()["new_balance"] == 7
-    assert (
-        await db_session.scalar(
-            select(func.count()).select_from(DesignToken).where(DesignToken.user_id == customer.id)
-        )
-        == 1
-    )
-    assert (
-        await db_session.scalar(
-            select(func.count())
-            .select_from(AdminOperationLog)
-            .where(AdminOperationLog.operation_id == payload["operation_id"])
-        )
-        == 1
-    )
-
-
 async def test_pricing_and_settings_are_allowlisted_atomic_and_admin_only(
     client, db_session, settings
 ):
@@ -448,11 +369,6 @@ async def test_pricing_and_settings_are_allowlisted_atomic_and_admin_only(
     manager = await make_user(db_session, role="manager")
     await _seed_all_pricing(db_session)
     await _ensure_setting(db_session, "default_courier_company", "롯데택배")
-    await _ensure_setting(db_session, "design_finalize_cost", "5")
-    await _ensure_setting(db_session, "design_token_initial_grant", "30")
-    await _ensure_setting(db_session, "design_token_cost_openai_render_standard", "5")
-    await _ensure_setting(db_session, "design_edit_cost", "2")
-    await _ensure_setting(db_session, "design_motif_generate_cost", "3")
     admin_headers = auth_headers(admin, settings)
 
     pricing = await client.get("/admin/pricing", headers=admin_headers)

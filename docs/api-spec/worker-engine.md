@@ -178,3 +178,12 @@ patch 축 개수 범위 MIN_AXIS_COUNT=2 / MAX_AXIS_COUNT=10.
 2. 모티프 symbol은 한 번만 등록하고 모든 인스턴스가 같은 concrete-color symbol을 참조한다.
 3. sanitize는 검증만 하고 문자열을 재직렬화하지 않는다.
 4. 결정론은 동일한 Pillow·렌더러·에셋 버전이 전제다. Pillow는 `uv.lock`으로 고정되지만 librsvg 시스템 패키지 버전 고정은 남아 있다(ARCHITECTURE §6·§8.2).
+
+## 10. 템플릿 플랜 (DesignPlan v3)
+
+스토어 템플릿은 시드 코드(`apps/worker/scripts/seed_design_examples.py`의 `CURATED`)에 DesignPlan v3로 적고, 컴파일러가 intent로 바꾼 뒤 이 엔진이 렌더한다.
+
+- 스키마: `worker.authoring.schema.DesignPlanV3` (`plan_contract_version=3`)
+- 컴파일러: `worker.authoring.compiler` (`compiler_revision=design-plan-v3.2`). 렌더 로그에 남는 이 값은 바꾸지 않는다 — 과거 로그와 비교가 끊긴다.
+- 컴파일러 회귀 픽스처: `apps/worker/tests/golden/json/*.json`(ID-파일명 규약으로 byte-identical 검증)
+- Plan에는 normalized ratio와 제한된 enum/template만 둔다. engine layer ID, motif content-hash ID, mm, SVG와 임의 좌표는 컴파일러 뒤에만 존재한다. motif source는 exact/private `input` 또는 검증된 `catalog`뿐이며 catalog grounding은 컴파일러와 최종 엔진 검증이 다시 강제한다.

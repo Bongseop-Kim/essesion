@@ -122,13 +122,13 @@ async def test_seed_config_fills_gaps_without_clobbering_operator_values(db_sess
     assert settings_count == len(ADMIN_SETTINGS)
     assert pricing_count == len(PRICING)
 
-    # 운영자가 화면에서 단가를 올리고 플랜 가격을 조정한 상황.
+    # 운영자가 화면에서 택배사와 단가를 조정한 상황.
     tuned = await db_session.scalar(
-        select(AdminSetting).where(AdminSetting.key == "design_edit_cost")
+        select(AdminSetting).where(AdminSetting.key == "default_courier_company")
     )
-    tuned.value = "30"
+    tuned.value = "CJ대한통운"
     tuned_price = await db_session.scalar(
-        select(PricingConstant).where(PricingConstant.key == "token_plan_pro_price")
+        select(PricingConstant).where(PricingConstant.key == "REFORM_SHIPPING_COST")
     )
     tuned_price.amount = 19000
     await db_session.flush()
@@ -138,7 +138,7 @@ async def test_seed_config_fills_gaps_without_clobbering_operator_values(db_sess
     await db_session.flush()
     await db_session.refresh(tuned)
     await db_session.refresh(tuned_price)
-    assert tuned.value == "30"
+    assert tuned.value == "CJ대한통운"
     assert tuned_price.amount == 19000
     assert await db_session.scalar(select(func.count()).select_from(AdminSetting)) == len(
         ADMIN_SETTINGS
@@ -149,8 +149,22 @@ async def test_seed_config_fills_gaps_without_clobbering_operator_values(db_sess
     await db_session.flush()
     await db_session.refresh(tuned)
     await db_session.refresh(tuned_price)
-    assert tuned.value == ADMIN_SETTINGS["design_edit_cost"]
-    assert tuned_price.amount == PRICING["token_plan_pro_price"][0]
+    assert tuned.value == ADMIN_SETTINGS["default_courier_company"]
+    assert tuned_price.amount == PRICING["REFORM_SHIPPING_COST"][0]
+
+
+async def test_seed_config_removes_retired_token_keys(db_session):
+    """토큰 종료(2026-10-19)로 은퇴한 설정·가격 행은 seed-config 재실행이 지운다."""
+    db_session.add(AdminSetting(key="design_edit_cost", value="12"))
+    db_session.add(PricingConstant(key="token_plan_pro_price", amount=18000, category="token"))
+    await db_session.flush()
+
+    await apply_config_defaults(db_session, overwrite=False)
+    await db_session.flush()
+    db_session.expire_all()
+
+    assert await db_session.get(AdminSetting, "design_edit_cost") is None
+    assert await db_session.get(PricingConstant, "token_plan_pro_price") is None
 
 
 async def test_seed_config_covers_every_key_the_admin_screen_requires(db_session):

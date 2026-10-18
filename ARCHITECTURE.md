@@ -440,7 +440,6 @@ intent version + resolved intent + seed + colorway
 | intent 스키마, placement 4종, colorway, 엔진 상수·상한 | [worker-engine.md](./docs/api-spec/worker-engine.md) |
 | 모티프 정규화·content hash·GPT Image·임베딩·catalog grounding·색 불변 계약 | [worker-motifs.md](./docs/api-spec/worker-motifs.md) |
 | 래스터화, fabric finalize, worker HTTP 계약, patch·sidecar·과금 경계 | [worker-pipeline.md](./docs/api-spec/worker-pipeline.md) |
-| Plan v3 저작·RAG 검색·승격 상태기계·관리자 저작 | [authoring-plan-v3.md](./docs/api-spec/authoring-plan-v3.md) |
 | `/design` 엔드포인트 표면 | [domains.md](./docs/api-spec/domains.md) §11 |
 
 ---
@@ -547,6 +546,5 @@ Cloud Scheduler가 bounded batch **5종**을 API `/batch/*`로 호출한다(`inf
 | worker 엔진 | [docs/api-spec/worker-engine.md](./docs/api-spec/worker-engine.md) |
 | worker pipeline | [docs/api-spec/worker-pipeline.md](./docs/api-spec/worker-pipeline.md) |
 | motif resolve | [docs/api-spec/worker-motifs.md](./docs/api-spec/worker-motifs.md) |
-| Plan v3 저작·승격 | [docs/api-spec/authoring-plan-v3.md](./docs/api-spec/authoring-plan-v3.md) |
 | admin UI 계약 | [apps/admin/AGENTS.md](./apps/admin/AGENTS.md) |
 | 보안·동시성·공급망 감사 | [docs/reviews/repo-refactor-2026-07.md](./docs/reviews/repo-refactor-2026-07.md) |

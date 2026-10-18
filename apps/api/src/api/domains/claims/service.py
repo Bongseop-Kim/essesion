@@ -35,14 +35,12 @@ FORWARD_CLAIM: dict[str, set[tuple[str, str]]] = {
         ("수거완료", "재발송"),
         ("재발송", "완료"),
     },
-    "token_refund": set(),  # 완료는 환불 승인 플로우 전용
 }
 
 REJECTABLE_FROM: dict[str, set[str]] = {
     "cancel": {"접수", "처리중"},
     "return": {"접수", "수거요청", "수거완료"},
     "exchange": {"접수", "수거요청", "수거완료", "재발송"},
-    "token_refund": {"접수"},
 }
 
 # 롤백 — 공통 거부→접수 + 타입별
@@ -50,7 +48,6 @@ ROLLBACK_CLAIM: dict[str, set[tuple[str, str]]] = {
     "cancel": {("거부", "접수"), ("처리중", "접수")},
     "return": {("거부", "접수"), ("수거요청", "접수")},
     "exchange": {("거부", "접수"), ("수거요청", "접수")},
-    "token_refund": {("거부", "접수")},
 }
 
 
@@ -140,10 +137,6 @@ async def cancel_claim(session: AsyncSession, user: User, claim_id: uuid.UUID) -
     claim = await session.scalar(select(Claim).where(Claim.id == claim_id).with_for_update())
     ensure_owner(claim, user)
     assert claim is not None
-    if claim.type == "token_refund":
-        raise DomainError(
-            "token_refund 클레임은 직접 취소할 수 없습니다", code="invalid_claim_type"
-        )
     if claim.status != "접수":
         raise DomainError("접수 상태에서만 클레임을 취소할 수 있습니다", code="invalid_status")
     await session.execute(delete(Claim).where(Claim.id == claim.id))

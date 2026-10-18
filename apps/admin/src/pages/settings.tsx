@@ -1,4 +1,7 @@
-import type { AdminSettingOut } from "@essesion/api-client";
+import type {
+  AdminSettingOut,
+  SettingsUpdateRequest,
+} from "@essesion/api-client";
 import {
   getAdminSettingsOptions,
   getAdminSettingsQueryKey,
@@ -183,11 +186,12 @@ export function SettingsPage() {
       body: {
         operation_id: operationId,
         reason: reason.trim(),
+        // 설정 키가 하나뿐이라 생성 타입이 1-튜플이다(api max_length=키 수).
         items: changed.map((item) => ({
           key: item.key,
           value: draft[item.key] ?? "",
           expected_updated_at: item.updated_at,
-        })),
+        })) as SettingsUpdateRequest["items"],
       },
     });
   };

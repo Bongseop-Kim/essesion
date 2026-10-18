@@ -47,13 +47,6 @@ async def _order_confirm_purchase(session: AsyncSession, owner: User) -> tuple[s
     return f"/orders/{order.id}/confirm-purchase", None
 
 
-async def _token_refund_cancel(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
-    from .factories import make_token_refund_claim
-
-    claim = await make_token_refund_claim(session, owner)
-    return f"/tokens/refund-requests/{claim.id}/cancel", None
-
-
 async def _quote_detail(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
     from db.models.commerce import QuoteRequest, ShippingAddress
 
@@ -149,6 +142,12 @@ async def _design_session_detail(session: AsyncSession, owner: User) -> tuple[st
     return f"/design/sessions/{design_session.id}", None
 
 
+async def _design_logo(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
+    path, _ = await _design_session_detail(session, owner)
+    # 디자인 전 세션 — 소유자는 409(design_not_started)로 워커 호출 전에 끝난다.
+    return f"{path}/logo", {"name": "acme", "svg": "<svg/>"}
+
+
 async def _claim_delete(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
     from db.models.commerce import Claim, OrderItem
 
@@ -179,65 +178,6 @@ async def _claim_delete(session: AsyncSession, owner: User) -> tuple[str, dict |
     return f"/claims/{claim.id}", None
 
 
-async def _design_motif_search(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
-    from db.models.design import DesignSession
-
-    design_session = DesignSession(user_id=owner.id)
-    session.add(design_session)
-    await session.commit()
-    return (
-        f"/design/sessions/{design_session.id}/motifs/search",
-        {"query": "flower"},
-    )
-
-
-async def _design_motif_generate(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
-    from db.models.design import DesignSession
-
-    design_session = DesignSession(user_id=owner.id)
-    session.add(design_session)
-    await session.commit()
-    return (
-        f"/design/sessions/{design_session.id}/motifs/generate",
-        {"prompt": "flower"},
-    )
-
-
-async def _design_motif_activate(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
-    from db.models.design import DesignSession
-
-    design_session = DesignSession(user_id=owner.id)
-    session.add(design_session)
-    await session.commit()
-    return (
-        f"/design/sessions/{design_session.id}/motifs/activate",
-        {"slot": 1, "motif_id": "seed-flower"},
-    )
-
-
-async def _design_session_delete(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
-    return await _design_session_detail(session, owner)
-
-
-async def _design_job_delete(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
-    from db.models.design import DesignSession, GenerationJob
-
-    design_session = DesignSession(user_id=owner.id)
-    session.add(design_session)
-    await session.flush()
-    job = GenerationJob(
-        user_id=owner.id,
-        session_id=design_session.id,
-        kind="finalize",
-        status="succeeded",
-        params={},
-        result={"object_key": "fabric/authz-test.png"},
-    )
-    session.add(job)
-    await session.commit()
-    return f"/design/jobs/{job.id}", None
-
-
 async def _address_delete(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
     from db.models.commerce import ShippingAddress
 
@@ -257,7 +197,6 @@ async def _address_delete(session: AsyncSession, owner: User) -> tuple[str, dict
 OWNER_CASES: list[OwnerCase] = [
     OwnerCase("orders_detail", "GET", _order_detail),
     OwnerCase("orders_confirm_purchase", "POST", _order_confirm_purchase),
-    OwnerCase("token_refund_cancel", "POST", _token_refund_cancel),
     OwnerCase("claims_delete", "DELETE", _claim_delete),
     OwnerCase("quotes_detail", "GET", _quote_detail),
     OwnerCase("inquiries_detail", "GET", _inquiry_detail),
@@ -266,26 +205,11 @@ OWNER_CASES: list[OwnerCase] = [
     OwnerCase("reviews_update", "PATCH", _review_update),
     OwnerCase("reviews_delete", "DELETE", _review_delete),
     OwnerCase("design_session_detail", "GET", _design_session_detail),
-    OwnerCase("design_session_delete", "DELETE", _design_session_delete),
-    OwnerCase("design_job_delete", "DELETE", _design_job_delete),
-    OwnerCase("design_motif_search", "POST", _design_motif_search),
-    OwnerCase("design_motif_generate", "POST", _design_motif_generate),
-    OwnerCase("design_motif_activate", "POST", _design_motif_activate),
+    OwnerCase("design_logo", "POST", _design_logo),
     OwnerCase("address_delete", "DELETE", _address_delete),
 ]
 
 ADMIN_CASES: list[AdminCase] = [
-    AdminCase(
-        "admin_tokens_manage",
-        "POST",
-        "/admin/tokens/manage",
-        {
-            "operation_id": "00000000-0000-0000-0000-000000000001",
-            "user_id": "00000000-0000-0000-0000-000000000000",
-            "amount": 1,
-            "description": "권한 확인",
-        },
-    ),
     AdminCase(
         "admin_products_create",
         "POST",
@@ -350,10 +274,5 @@ ADMIN_CASES: list[AdminCase] = [
         "POST",
         "/admin/orders/00000000-0000-0000-0000-000000000000/status",
         {"new_status": "배송중"},
-    ),
-    AdminCase(
-        "admin_token_refund_approve",
-        "POST",
-        "/admin/token-refunds/00000000-0000-0000-0000-000000000000/approve",
     ),
 ]

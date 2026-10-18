@@ -13,7 +13,7 @@ from db.models.commerce import (
     ShippingAddress,
 )
 from db.models.design import DesignSession, GenerationJob
-from db.models.tokens import DesignToken, TokenPurchase
+from db.models.tokens import DesignToken
 from fastapi import APIRouter
 from pydantic import BaseModel, field_validator
 from sqlalchemy import delete, exists, func, or_, select, update
@@ -129,20 +129,8 @@ async def _has_history(session: AsyncSession, user_id: uuid.UUID) -> bool:
                     exists().where(Claim.user_id == user_id),
                     exists().where(QuoteRequest.user_id == user_id),
                     exists().where(Inquiry.user_id == user_id),
-                    # 초기 무료 지급 한 행만 있는 OAuth 사용자는 아래 hard-delete에서
-                    # 원장을 함께 지운다. 그 외 토큰 원장과 디자인 세션·잡은 FK가
-                    # NO ACTION이고 보존 정책도 미확정이므로 이력으로 취급한다.
-                    exists().where(
-                        DesignToken.user_id == user_id,
-                        or_(
-                            DesignToken.type != "grant",
-                            DesignToken.token_class != "free",
-                            DesignToken.description.is_distinct_from("신규 가입 토큰 지급"),
-                            DesignToken.work_id.is_not(None),
-                            DesignToken.source_order_id.is_not(None),
-                        ),
-                    ),
-                    exists().where(TokenPurchase.user_id == user_id),
+                    # 디자인 세션·잡은 FK가 NO ACTION이라 이력으로 취급한다.
+                    # (generation_jobs는 Phase 4 DROP 때 이 줄과 함께 사라진다.)
                     exists().where(DesignSession.user_id == user_id),
                     exists().where(GenerationJob.user_id == user_id),
                 )
@@ -179,8 +167,8 @@ async def delete_account(session: SessionDep, user: CurrentUser) -> None:
         )
         await session.commit()
     else:
-        # OAuth 가입 트리거의 초기 무료 지급은 사용자 소유 비거래 데이터다. 이력
-        # 판정이 다른 토큰 행을 모두 걸러냈으므로 user FK를 지우기 전에 함께 제거한다.
+        # 무료 토큰 원장은 금전 가치가 없다(2026-10-19 토큰 종료). design_tokens.user_id가
+        # NO ACTION이라 user보다 먼저 지운다 — Phase 4에서 테이블 DROP과 함께 이 줄도 지운다.
         await session.execute(delete(DesignToken).where(DesignToken.user_id == user.id))
         await session.delete(user)
         await session.commit()

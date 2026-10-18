@@ -278,8 +278,6 @@ uv run python apps/worker/scripts/eval_authoring.py --confirm-live
 admin Motif 상세에서 symbol의 concrete paint 표본을 확인한다. 인덱싱은 `user_upload`을 제외하며
 `OPENAI_API_KEY` 또는 `--confirm-live`가 없으면 외부 호출과 DB 갱신을 시작하지 않는다.
 
-승격 배치·직접 저작·관측 필드 계약은 [authoring-plan-v3.md](../docs/api-spec/authoring-plan-v3.md).
-
 ## 배치 (Cloud Scheduler → api /batch/*)
 
 apply 시 잡 **4종**이 생성된다(스케줄은 `scheduler.tf`, KST 기준).

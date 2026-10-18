@@ -19,7 +19,6 @@ import httpx
 from api.config import get_settings
 from api.config_defaults import apply_config_defaults
 from api.db import build_engine
-from api.domains.auth.service import grant_initial_tokens
 from api.integrations.gcs import (
     assets_bucket_name,
     build_gcs_client,
@@ -38,7 +37,6 @@ from db.models.commerce import (
     UserCoupon,
 )
 from db.models.images import Image
-from db.models.tokens import DesignToken
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -109,19 +107,6 @@ async def _ensure_user(session, email: str, name: str, role: str, password: str)
         User(email=email, name=name, role=role, password_hash=password_hasher.hash(password))
     )
     print(f"  user: {email} ({role})")
-
-
-async def _ensure_initial_tokens(session) -> None:
-    """시드 고객에게 가입 지급분을 넣는다 — 가입 경로를 타지 않아 원장이 비어 있다."""
-    customer_id = await session.scalar(select(User.id).where(User.email == "customer@local"))
-    if customer_id is None:
-        return
-    if await session.scalar(select(DesignToken.id).where(DesignToken.user_id == customer_id)):
-        return
-    # 설정은 on_conflict_do_nothing이라 DB에 다른 값이 남아 있을 수 있다 — 실제 지급분을 찍는다.
-    granted = await grant_initial_tokens(session, customer_id)
-    if granted:
-        print(f"  design tokens: customer@local ← {granted}")
 
 
 async def _ensure_product_image(session, gcs, settings, product: Product) -> None:
@@ -497,8 +482,6 @@ async def main() -> None:
                 _backfill_option_label(product, product_data["option_label"])
             await _ensure_product_image(session, gcs, settings, product)
 
-        # admin_settings 이후 — grant_initial_tokens가 design_token_initial_grant를 읽는다.
-        await _ensure_initial_tokens(session)
         await _ensure_test_coupon(session)
         await _ensure_admin_smoke_order(session)
         await _ensure_content_visibility_orders(session)

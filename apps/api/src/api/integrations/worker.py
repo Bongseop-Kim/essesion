@@ -1,7 +1,6 @@
 """워커 HTTP 클라이언트 — Cloud Run 프라이빗 호출 시 메타데이터 서버 OIDC id-token 첨부.
 
-generate/finalize는 서로 다른 Cloud Run audience다. audience가 비어 있으면(로컬) 인증 없이
-호출하고, finalize URL이 비어 있으면 단일 로컬 worker base URL로 폴백한다.
+audience가 비어 있으면(로컬) 인증 없이 호출한다.
 """
 
 import base64
@@ -23,11 +22,8 @@ _TOKEN_REFRESH_MARGIN_S = 60
 # 워커의 고정 오류 코드 → (고객 문구, 422 stage). stage=None이면 응답에 담지 않는다.
 # 사진 코드는 사용자가 다른 사진으로 고칠 수 있는 조건이라 문구가 무엇을 바꿔야 하는지 말한다.
 _WORKER_REJECTIONS: dict[str, tuple[str, str | None]] = {
-    "authoring_invalid": ("디자인 구성을 만들지 못했습니다", "authoring"),
     "constraint_conflict": ("선택한 디자인 설정을 함께 적용할 수 없습니다", "constraints"),
     "intent_invalid": ("선택한 디자인 정보를 처리할 수 없습니다", "intent"),
-    "candidate_invalid": ("디자인 후보를 완성하지 못했습니다", "candidate"),
-    "semantic_mismatch": ("요청한 주제와 맞는 모티프 구성을 만들지 못했습니다", "authoring"),
     "photo_background_unclear": (
         "배경이 고르지 않아 사진에서 그림만 오려내지 못했습니다. "
         "배경이 단색에 가까운 사진을 골라 주세요",
@@ -38,7 +34,6 @@ _WORKER_REJECTIONS: dict[str, tuple[str, str | None]] = {
         "형태가 또렷하고 색이 적은 사진을 골라 주세요",
         None,
     ),
-    "FINALIZE_INVALID_INPUT": ("디자인 정보를 실사화할 수 없습니다", None),
 }
 
 
@@ -51,79 +46,27 @@ class WorkerClient:
                 (
                     settings.worker_base_url.startswith("https://"),
                     settings.worker_oidc_audience,
-                    settings.worker_finalize_url.startswith("https://"),
-                    settings.worker_finalize_oidc_audience,
                 )
             )
             self.capability_mode = "ready" if configured else "unavailable"
-        self._generate_client = httpx.AsyncClient(
+        self._client = httpx.AsyncClient(
             base_url=settings.worker_base_url,
             timeout=settings.worker_timeout_seconds,
         )
-        finalize_url = settings.worker_finalize_url or settings.worker_base_url
-        self._finalize_client = httpx.AsyncClient(
-            base_url=finalize_url,
-            timeout=settings.worker_timeout_seconds,
-        )
-        self._generate_audience = settings.worker_oidc_audience
-        self._finalize_audience = (
-            settings.worker_finalize_oidc_audience
-            if settings.worker_finalize_url
-            else settings.worker_oidc_audience
-        )
+        self._audience = settings.worker_oidc_audience
         self._tokens: dict[str, tuple[str, float]] = {}
 
     async def aclose(self) -> None:
-        await self._generate_client.aclose()
-        await self._finalize_client.aclose()
+        await self._client.aclose()
 
     async def generate(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._post_json("/generate", payload)
 
-    async def finalize(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """실사화 동기 렌더 — {"object_key": ...} 반환. 영구 실패는 WorkerRequestError."""
-        return await self._post_json("/finalize", payload, finalize=True)
-
-    async def motif_candidates(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return await self._post_json("/motifs/candidates", payload)
-
-    async def motif_generate(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return await self._post_json("/motifs/generate", payload)
-
     async def motif_import(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._post_json("/motifs/import", payload)
 
-    async def motif_text_preview(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return await self._post_json("/motifs/text-preview", payload)
-
     async def motif_photo_preview(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._post_json("/motifs/photo-preview", payload)
-
-    async def ideas(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return await self._post_json("/ideas", payload)
-
-    async def scan_authoring_promotions(self, *, limit: int = 100) -> dict[str, Any]:
-        return await self._post_json("/authoring/promotions/scan", {"limit": limit})
-
-    async def ensure_authoring_promotion_embedding(self, candidate_id: str) -> dict[str, Any]:
-        return await self._post_json(
-            "/authoring/promotions/embedding",
-            {"candidate_id": candidate_id},
-        )
-
-    async def preview_authoring_example(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return await self._post_json("/authoring/compile-preview", payload)
-
-    async def prepare_authoring_example(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return await self._post_json("/authoring/examples/prepare", payload)
-
-    async def current_authoring_embedding_model(self) -> dict[str, Any]:
-        return await self._post_json("/authoring/examples/embedding-model", {})
-
-    async def export(self, payload: dict[str, Any]) -> tuple[bytes, str]:
-        """SVG → PNG/TIFF 바이너리. (content, media_type) 반환 — 워커가 dpi/치수의 최종 권위."""
-        res = await self._post("/export", payload, finalize=True)
-        return res.content, res.headers.get("content-type", "application/octet-stream")
 
     async def _auth_headers(self, audience: str) -> dict[str, str]:
         if not audience:
@@ -151,30 +94,27 @@ class WorkerClient:
             self._tokens[audience] = cached
         return {"Authorization": f"Bearer {cached[0]}"}
 
-    async def _post(
-        self, path: str, payload: dict[str, Any], *, finalize: bool = False
-    ) -> httpx.Response:
-        client = self._finalize_client if finalize else self._generate_client
-        audience = self._finalize_audience if finalize else self._generate_audience
+    async def _post(self, path: str, payload: dict[str, Any]) -> httpx.Response:
         try:
-            headers = {"X-Request-ID": request_id_var.get(), **(await self._auth_headers(audience))}
-            res = await client.post(path, json=payload, headers=headers)
+            headers = {
+                "X-Request-ID": request_id_var.get(),
+                **(await self._auth_headers(self._audience)),
+            }
+            res = await self._client.post(path, json=payload, headers=headers)
         except httpx.HTTPError as exc:
             raise UpstreamError("이미지 워커 호출에 실패했습니다") from exc
         if res.status_code in (400, 422):
             # 워커의 고정 오류 계약만 보존한다. 모델/검증 원문은 사용자 응답으로
             # 흘리지 않아 프롬프트·내부 경로·provider 세부정보 노출을 막는다.
-            if path in ("/generate", "/motifs/photo-preview", "/finalize"):
+            if path in ("/generate", "/motifs/photo-preview"):
                 raise _worker_rejection(res)
             raise WorkerRequestError("이미지 워커가 요청을 거부했습니다")
         if res.status_code >= 400:
             raise UpstreamError("이미지 워커가 요청을 처리하지 못했습니다")
         return res
 
-    async def _post_json(
-        self, path: str, payload: dict[str, Any], *, finalize: bool = False
-    ) -> dict[str, Any]:
-        res = await self._post(path, payload, finalize=finalize)
+    async def _post_json(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+        res = await self._post(path, payload)
         try:
             body: Any = res.json()
         except ValueError as exc:

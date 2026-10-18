@@ -37,7 +37,6 @@ FORWARD: dict[str, set[tuple[str, str]]] = {
         ("배송중", "배송완료"),
         ("배송완료", "완료"),
     },
-    "token": set(),  # 완료는 결제 confirm 전용
 }
 
 CANCELABLE_FROM: dict[str, set[str]] = {
@@ -45,7 +44,6 @@ CANCELABLE_FROM: dict[str, set[str]] = {
     "custom": {"대기중", "결제중", "접수"},
     "sample": {"대기중", "결제중", "접수"},
     "repair": {"대기중", "결제중", "발송대기", "발송중", "발송확인중"},
-    "token": {"대기중", "결제중"},
 }
 
 ROLLBACK_FORBIDDEN_CURRENT = {"배송중", "배송완료", "완료", "취소", "수거완료", "재발송"}
@@ -61,7 +59,6 @@ ROLLBACK: dict[str, set[tuple[str, str]]] = {
     },
     "sample": {("결제중", "대기중"), ("접수", "대기중"), ("제작중", "접수")},
     "repair": {("수선중", "접수"), ("수선완료", "수선중")},
-    "token": {("결제중", "대기중")},
 }
 
 
@@ -107,7 +104,6 @@ CLAIM_CANCEL_ACTION_FROM: dict[str, set[str]] = {
     "custom": {"대기중", "접수"},
     "sample": {"대기중", "접수"},
     "repair": {"대기중", "발송대기", "발송중", "발송확인중"},
-    "token": {"대기중"},
 }
 
 CLAIM_RETURN_EXCHANGE_ACTION_FROM: dict[str, set[str]] = {
@@ -129,7 +125,7 @@ def customer_actions(
             actions.append("claim_cancel")
         if status in CLAIM_RETURN_EXCHANGE_ACTION_FROM.get(order_type, set()):
             actions += ["claim_return", "claim_exchange"]
-        if order_type != "token" and status in ("배송중", "배송완료"):
+        if status in ("배송중", "배송완료"):
             actions.append("confirm_purchase")
     if has_review_target and status in REVIEWABLE_STATUSES:
         actions.append("write_review")

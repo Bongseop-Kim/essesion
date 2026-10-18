@@ -12,11 +12,11 @@ from api.domains.orders.schemas import (
 )
 from api.schemas import ORMModel
 
-OrderTypeFilter = Literal["all", "sale", "custom", "repair", "token", "sample"]
+OrderTypeFilter = Literal["all", "sale", "custom", "repair", "sample"]
 # 대시보드 전용 — "manual"은 Order.order_type이 아니라 manual_orders 테이블을 가리킨다.
 # 수기 주문은 Order 파이프라인과 무관한 별도 장부라, 주문 목록 필터(OrderTypeFilter)에는
 # 넣지 않고 집계에서만 유형처럼 취급한다 (docs/api-spec/domains.md §10).
-DashboardOrderTypeFilter = Literal["all", "sale", "custom", "repair", "token", "sample", "manual"]
+DashboardOrderTypeFilter = Literal["all", "sale", "custom", "repair", "sample", "manual"]
 OrderStatusFilter = Literal[
     "all",
     "대기중",
@@ -102,21 +102,16 @@ class DashboardTimeseriesPointOut(BaseModel):
     day: date
     order_count: int
     order_amount: int
-    # 유형별 매출 — 7종의 합은 항상 order_amount와 같다(대시보드 스택 막대의 구획).
+    # 유형별 매출 — 6종의 합은 항상 order_amount와 같다(대시보드 스택 막대의 구획).
     # manual_*는 orders가 아닌 수기 장부이고, 품목에 주문제작 스펙이 하나라도 있으면
     # manual_custom으로 센다(수기 주문은 금액이 주문 단위라 품목 배분 근거가 없다).
     sale_amount: int
     custom_amount: int
     repair_amount: int
     sample_amount: int
-    token_amount: int
     manual_custom_amount: int
     manual_repair_amount: int
     new_customer_count: int
-    generation_total: int
-    generation_failed: int
-    token_consumed: int
-    token_sold: int
 
 
 class DashboardTimeseriesOut(BaseModel):

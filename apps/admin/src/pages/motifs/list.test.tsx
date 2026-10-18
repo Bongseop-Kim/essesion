@@ -58,8 +58,6 @@ const page: PageMotifSummaryOut = {
       scope: "whole",
       style: "outline",
       source: "registry",
-      status: "pending",
-      reviewed_at: null,
       created_at: "2026-07-12T01:00:00Z",
       bbox: [0, 0, 24, 24],
       symbol:
@@ -74,8 +72,6 @@ const page: PageMotifSummaryOut = {
 
 const detail: MotifDetailOut = {
   ...page.items[0]!,
-  description: "정면 동백꽃 모티프",
-  tags: ["flower", "camellia"],
   anchor: [12, 12],
   ingested_user_id: null,
   ingested_session_id: null,
@@ -110,7 +106,6 @@ describe("MotifsPage", () => {
     ).toBeTruthy();
     expect(api.listOptions).toHaveBeenCalledWith({
       query: {
-        status: "all",
         scope: "whole",
         q: undefined,
         start_date: undefined,

@@ -10,7 +10,7 @@
 - [오프라인 채점기](../../apps/worker/scripts/eval_design_accuracy.py): 실제 colorway, 정규화 intent,
   배치 좌표·수량·면적당 밀도, 비대상 모티프 보존, stripe host/lane, 거절 이유를 검사한다.
   조건별·모드별·분할별 건수와 코퍼스 hash를 출력하고 누락·잘못된 결과를 분모에서 제외하지 않는다.
-- [평가 명세](../api-spec/design-evaluation.md): 실행 명령, 입력 JSON, 비교 허용오차, 통과 정의와 측정 한계를 기록했다.
+- 평가 명세(`docs/api-spec/design-evaluation.md`, 2026-10-19 AI 디자인 제거로 삭제): 실행 명령, 입력 JSON, 비교 허용오차, 통과 정의와 측정 한계를 기록했다.
   기존 live authoring 도구는 유지하고 문서에서 두 평가의 목적을 연결했다.
 
 ## 검증

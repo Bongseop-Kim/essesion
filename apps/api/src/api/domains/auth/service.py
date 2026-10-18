@@ -6,8 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from db.models.auth import RefreshToken, User, UserIdentity
-from db.models.commerce import AdminSetting, ShippingAddress
-from db.models.tokens import DesignToken
+from db.models.commerce import ShippingAddress
 from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +15,7 @@ from starlette.concurrency import run_in_threadpool
 from api.config import Settings
 from api.db import USER_LOCK, advisory_xact_lock
 from api.domains.auth.oauth import NaverPayAddress
-from api.errors import DomainError, UnauthorizedError
+from api.errors import UnauthorizedError
 from api.phone_numbers import normalize_mobile_phone
 from api.security import hash_refresh_token, new_refresh_token, password_hasher
 
@@ -164,39 +163,6 @@ async def revoke_all_refresh_tokens(
     )
 
 
-async def grant_initial_tokens(session: AsyncSession, user_id: uuid.UUID) -> int:
-    """신규 가입 토큰 — typed admin 설정을 그대로 적용하고, 지급한 수량을 돌려준다."""
-    value = await session.scalar(
-        select(AdminSetting.value).where(AdminSetting.key == "design_token_initial_grant")
-    )
-    if value is None:
-        raise DomainError(
-            "신규 사용자 초기 토큰 설정이 없습니다",
-            code="missing_configuration",
-            status=503,
-        )
-    clean = value.strip()
-    if not clean.isdigit() or not 0 <= int(clean) <= 100_000:
-        raise DomainError(
-            "신규 사용자 초기 토큰 설정이 올바르지 않습니다",
-            code="invalid_configuration",
-            status=503,
-        )
-    amount = int(clean)
-    if amount == 0:
-        return 0
-    session.add(
-        DesignToken(
-            user_id=user_id,
-            amount=amount,
-            type="grant",
-            token_class="free",
-            description="신규 가입 토큰 지급",
-        )
-    )
-    return amount
-
-
 async def ensure_oauth_user(
     session: AsyncSession,
     provider: str,
@@ -265,7 +231,6 @@ async def _ensure_oauth_user(
         )
         session.add(user)
         await session.flush()
-        await grant_initial_tokens(session, user.id)
 
     session.add(UserIdentity(user_id=user.id, provider=provider, provider_user_id=provider_user_id))
     await session.commit()

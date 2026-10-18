@@ -265,22 +265,6 @@ export function SeamlessLogDetailPage() {
         />
       </AdminCard>
 
-      {log.outcome.session_id != null && (
-        <AdminCard
-          title="사용자 결과"
-          description="이 생성 이후 같은 디자인 세션에서 확인된 행동입니다."
-        >
-          <DetailList
-            items={[
-              {
-                label: "이력에서 다시 활성화",
-                value: log.outcome.reactivated ? "있음" : "없음",
-              },
-            ]}
-          />
-        </AdminCard>
-      )}
-
       {log.warning_groups.length > 0 && (
         <AdminCard
           title="생성 경고"

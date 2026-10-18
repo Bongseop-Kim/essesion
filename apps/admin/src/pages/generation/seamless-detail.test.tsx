@@ -35,43 +35,20 @@ const log: SeamlessDetailOut = {
   failure_code: null,
   failure_stage: null,
   created_at: "2026-07-12T01:00:00Z",
-  has_prompt: false,
-  prompt: null,
   intent: null,
   seed: 1,
   warning_groups: [],
   diagnostics: {
     mode: "motif_slot",
-    model: null,
-    prompt_revision: null,
-    patch_axes: [],
-    authoring_attempts: 1,
-    catalog_candidate_count: null,
-    resolved_count: 3,
-    authoring_ms: null,
     compose_ms: null,
     render_ms: null,
     failure_code: null,
     failure_stage: null,
-    failure_provider: null,
-    failure_operation: null,
-    failure_reason: null,
-    failure_status_code: null,
-    motif_resolutions: [],
   },
   outcome: {
     session_id: null,
     user_id: null,
     user_name: null,
-    reactivated: false,
-    regenerated: false,
-    finalized: false,
-  },
-  token_accounting: {
-    matched: false,
-    debited: 0,
-    refunded: 0,
-    net: 0,
   },
   design: null,
 };
@@ -232,7 +209,7 @@ describe("SeamlessLogDetailPage", () => {
     expect(screen.queryByText(/분류되지 않은 생성 경고/)).toBeNull();
   });
 
-  it("생성 방식·단계 시간·사용자 결과를 함께 표시한다", async () => {
+  it("생성 방식·단계 시간·고객을 함께 표시한다", async () => {
     renderPage({
       ...log,
       diagnostics: { ...log.diagnostics, compose_ms: 18, render_ms: 9 },
@@ -241,17 +218,11 @@ describe("SeamlessLogDetailPage", () => {
         session_id: "44444444-4444-4444-8444-444444444444",
         user_id: "55555555-5555-4555-8555-555555555555",
         user_name: "김고객",
-        reactivated: true,
       },
     });
 
     expect(await screen.findByText("모티프 교체")).toBeTruthy();
     expect(screen.getByText("합성 18ms · 렌더 9ms")).toBeTruthy();
-    const outcome = screen
-      .getByRole("heading", { name: "사용자 결과" })
-      .closest("section");
-    expect(outcome).not.toBeNull();
-    expect(within(outcome as HTMLElement).getByText("있음")).toBeTruthy();
     expect(
       screen.getByRole("link", { name: "김고객" }).getAttribute("href"),
     ).toBe("/customers/55555555-5555-4555-8555-555555555555");

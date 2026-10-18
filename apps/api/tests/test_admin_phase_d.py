@@ -16,13 +16,11 @@ from db.models.commerce import (
     Claim,
     ClaimNotificationLog,
     ClaimStatusLog,
-    Order,
     OrderItem,
     OrderStatusLog,
     PaymentIncident,
     RepairShippingReceipt,
 )
-from db.models.tokens import DesignToken
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
@@ -31,7 +29,6 @@ from .factories import (
     make_address,
     make_admin,
     make_order,
-    make_token_refund_claim,
     make_user,
 )
 
@@ -807,8 +804,6 @@ async def test_manual_partial_cancel_rejects_unverified_amount(app, client, db_s
 async def test_ambiguous_money_operations_create_incidents_and_block_blind_retry(
     app, client, db_session, settings, monkeypatch
 ):
-    admin = await make_admin(db_session)
-    manager = await make_user(db_session, role="manager")
     customer = await make_user(db_session)
     toss = _ScriptedToss()
     old_toss = app.state.toss
@@ -879,96 +874,5 @@ async def test_ambiguous_money_operations_create_incidents_and_block_blind_retry
     assert blind_retry.status_code == 409
     assert blind_retry.json()["code"] == "payment_reconciliation_required"
     assert toss.confirm_calls == 1
-
-    refund_claim = await make_token_refund_claim(db_session, customer)
-    refund_order = await db_session.get(Order, refund_claim.order_id)
-    assert refund_order is not None
-    refund_order.payment_key = "phase-d-refund-timeout-key"
-    db_session.add(
-        DesignToken(
-            user_id=customer.id,
-            amount=100,
-            type="purchase",
-            token_class="paid",
-            work_id=f"order_{refund_order.id}",
-            source_order_id=refund_order.id,
-            expires_at=datetime.now(UTC) + timedelta(days=365),
-        )
-    )
-    await db_session.commit()
-    toss.cancel_exception = TimeoutError("provider timeout")
-
-    async def assert_refund_operation_is_durable() -> None:
-        async with app.state.sessionmaker() as verification:
-            prepared = await verification.scalar(
-                select(PaymentIncident).where(
-                    PaymentIncident.claim_id == refund_claim.id,
-                    PaymentIncident.incident_type == "refund",
-                    PaymentIncident.status == "open",
-                )
-            )
-            assert prepared is not None
-            assert prepared.details["phase"] == "provider_call_pending"
-
-    toss.before_cancel = assert_refund_operation_is_durable
-
-    manager_forbidden = await client.post(
-        f"/admin/token-refunds/{refund_claim.id}/approve",
-        headers=auth_headers(manager, settings),
-    )
-    assert manager_forbidden.status_code == 403
-    assert toss.cancel_calls == 0
-
-    refund = await client.post(
-        f"/admin/token-refunds/{refund_claim.id}/approve",
-        headers=auth_headers(admin, settings),
-    )
-    assert refund.status_code == 502
-    assert refund.json()["code"] == "payment_outcome_unknown"
-    refund_incident = await db_session.scalar(
-        select(PaymentIncident).where(
-            PaymentIncident.claim_id == refund_claim.id,
-            PaymentIncident.incident_type == "refund",
-            PaymentIncident.status == "open",
-        )
-    )
-    assert refund_incident is not None
-    assert refund_incident.details["lookup_payment_key"] == "phase-d-refund-timeout-key"
-
-    refund_blind_retry = await client.post(
-        f"/admin/token-refunds/{refund_claim.id}/approve",
-        headers=auth_headers(admin, settings),
-    )
-    assert refund_blind_retry.status_code == 409
-    assert refund_blind_retry.json()["code"] == "payment_reconciliation_required"
-    assert toss.cancel_calls == 1
-
-    toss.cancel_exception = None
-    toss.lookups[refund_order.payment_key] = TossResult(
-        ok=True,
-        status=200,
-        body={
-            "paymentKey": refund_order.payment_key,
-            "status": "CANCELED",
-            "orderId": str(refund_order.payment_group_id),
-            "totalAmount": refund_order.total_price,
-            "balanceAmount": 0,
-            "cancels": [{"cancelAmount": refund_order.total_price}],
-        },
-    )
-    reconciled = await client.post(
-        f"/admin/payment-incidents/{refund_incident.id}/reconcile",
-        headers=auth_headers(admin, settings),
-    )
-    assert reconciled.status_code == 200, reconciled.text
-    assert reconciled.json()["details"]["reconciliation"]["apply_result"] == "applied"
-    await db_session.refresh(refund_claim)
-    await db_session.refresh(refund_order)
-    assert refund_claim.status == "완료"
-    assert refund_order.status == "취소"
-    outbox = await db_session.scalar(
-        select(ClaimNotificationLog).where(ClaimNotificationLog.claim_id == refund_claim.id)
-    )
-    assert outbox is not None and outbox.delivery_status == "pending"
 
     app.state.toss = old_toss

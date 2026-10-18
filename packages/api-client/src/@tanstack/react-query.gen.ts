@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { activateDesignStep, activateMotif, adminApproveTokenRefund, adminCreateProduct, adminGetClaim, adminGetPaymentIncident, adminGetProduct, adminListClaimsV2, adminListPaymentIncidents, adminListProducts, adminLogin, adminLogout, adminManageTokens, adminReconcilePaymentIncident, adminRefreshTokens, adminResolvePaymentIncident, adminRetryClaimNotification, adminUpdateClaimStatus, adminUpdateClaimTracking, adminUpdateOrderStatus, adminUpdateOrderTracking, adminUpdateProduct, answerAdminInquiry, appendDesignTurn, applyColorway, authoringPromotionCandidates, autoConfirmOrders, batchAuthoringExamplePreviews, calculateCustomOrder, calculateSampleOrder, cancelClaim, cancelStaleOrders, cancelTokenRefund, cleanupImages, completeAdminPopupImageUpload, completeAdminProductImageUpload, completeDesignReferenceUpload, completeOrderImage, completeReviewPhotoUpload, confirmPayment, confirmPurchase, createAdminCoupon, createAdminDesignExample, createAdminOrderReferenceImageReadUrl, createAdminPopup, createAdminPopupImageUploadUrl, createAdminProductImageUploadUrl, createAdminQuoteImageReadUrl, createAdminRepairReceiptPhotoReadUrl, createAuthoringExample, createClaim, createCustomOrder, createDesignIdeas, createDesignOrderReference, createDesignSession, createDesignSessionFromExample, createFinalizeJob, createInquiry, createManualOrder, createManualOrderImageReadUrl, createManualOrderImageUploadUrl, createMyOrderReferenceImageReadUrl, createMyRepairReceiptPhotoReadUrl, createOrder, createQuote, createReadUrl, createReformUploadUrl, createReview, createReviewPhotoUploadUrl, createSampleOrder, createTokenOrder, createUploadUrl, decideAuthoringCandidate, deleteAccount, deleteAddress, deleteAdminDesignExample, deleteAdminPopup, deleteAdminPopupImageUpload, deleteAdminProductImageUpload, deleteAdminReview, deleteAuthoringExample, deleteDesignSession, deleteGenerationJob, deleteInquiry, deleteManualOrder, deleteReview, deleteUserMotif, exportDesign, generateDesign, generateMotif, getActivePopup, getAdminCapabilities, getAdminCoupon, getAdminCustomer, getAdminGenerationJob, getAdminGenerationJobStats, getAdminInquiry, getAdminMotif, getAdminOrder, getAdminPricing, getAdminQuote, getAdminSeamlessLog, getAdminSeamlessStats, getAdminSettings, getAuthoringCandidate, getAuthoringExample, getCart, getDashboardOverview, getDashboardRecentOrders, getDashboardRecentQuotes, getDesignSession, getInquiry, getManualOrder, getMe, getOrder, getProduct, getQuote, getReformPricing, getReview, getTokenBalance, getTokenPlans, healthz, importUserMotif, issueCoupon, likeProduct, listAddresses, listAdminCoupons, listAdminCustomerCoupons, listAdminCustomerOrders, listAdminCustomers, listAdminCustomerTokens, listAdminDesignExamples, listAdminGenerationJobs, listAdminInquiries, listAdminMotifs, listAdminOrderReferenceImages, listAdminPopups, listAdminQuotes, listAdminRepairReceiptPhotos, listAdminReviews, listAdminSeamlessLogs, listAllOrders, listAuthoringCandidates, listAuthoringExamples, listDesignExamples, listDesignSessions, listDesignTurns, listGenerationJobs, listIssuedCoupons, listManualOrders, listMyClaims, listMyCoupons, listMyInquiries, listMyOrderReferenceImages, listMyOrders, listMyQuotes, listMyRepairReceiptPhotos, listProducts, listPublicInquiries, listRefundableTokenOrders, listReviews, listTokenHistory, listUserMotifs, login, logout, type Options, patchManualOrderStatus, placeDesignLogo, previewAuthoringExample, previewCouponAudience, previewPhotoMotif, previewTextMotif, recoverTokenWorks, refreshTokens, registerReformUpload, registerRepairShippingUpload, removeCartItems, replaceCart, requestTokenRefund, reviewAdminMotif, revokeCoupons, revokeCouponUsers, searchAdminCustomers, searchAdminInquiries, searchMotifs, sendPhoneVerification, setAuthoringExampleActivation, setNotificationPreferences, submitRepairNoTracking, submitRepairTracking, tossWebhook, unlikeProduct, updateAdminCoupon, updateAdminDesignExample, updateAdminMotif, updateAdminPopup, updateAdminPricing, updateAdminQuoteStatus, updateAdminSettings, updateAuthoringExample, updateInquiry, updateManualOrder, updateProfile, updateReview, upsertAddress, verifyPhone } from '../sdk.gen';
-import type { ActivateDesignStepData, ActivateDesignStepError, ActivateDesignStepResponse, ActivateMotifData, ActivateMotifError, ActivateMotifResponse, AdminApproveTokenRefundData, AdminApproveTokenRefundError, AdminApproveTokenRefundResponse, AdminCreateProductData, AdminCreateProductError, AdminCreateProductResponse, AdminGetClaimData, AdminGetClaimError, AdminGetClaimResponse, AdminGetPaymentIncidentData, AdminGetPaymentIncidentError, AdminGetPaymentIncidentResponse, AdminGetProductData, AdminGetProductError, AdminGetProductResponse, AdminListClaimsV2Data, AdminListClaimsV2Error, AdminListClaimsV2Response, AdminListPaymentIncidentsData, AdminListPaymentIncidentsError, AdminListPaymentIncidentsResponse, AdminListProductsData, AdminListProductsError, AdminListProductsResponse, AdminLoginData, AdminLoginError, AdminLoginResponse, AdminLogoutData, AdminLogoutResponse, AdminManageTokensData, AdminManageTokensError, AdminManageTokensResponse, AdminReconcilePaymentIncidentData, AdminReconcilePaymentIncidentError, AdminReconcilePaymentIncidentResponse, AdminRefreshTokensData, AdminRefreshTokensResponse, AdminResolvePaymentIncidentData, AdminResolvePaymentIncidentError, AdminResolvePaymentIncidentResponse, AdminRetryClaimNotificationData, AdminRetryClaimNotificationError, AdminRetryClaimNotificationResponse, AdminUpdateClaimStatusData, AdminUpdateClaimStatusError, AdminUpdateClaimStatusResponse, AdminUpdateClaimTrackingData, AdminUpdateClaimTrackingError, AdminUpdateClaimTrackingResponse, AdminUpdateOrderStatusData, AdminUpdateOrderStatusError, AdminUpdateOrderStatusResponse, AdminUpdateOrderTrackingData, AdminUpdateOrderTrackingError, AdminUpdateOrderTrackingResponse, AdminUpdateProductData, AdminUpdateProductError, AdminUpdateProductResponse, AnswerAdminInquiryData, AnswerAdminInquiryError, AnswerAdminInquiryResponse, AppendDesignTurnData, AppendDesignTurnError, AppendDesignTurnResponse, ApplyColorwayData, ApplyColorwayError, ApplyColorwayResponse, AuthoringPromotionCandidatesData, AuthoringPromotionCandidatesResponse, AutoConfirmOrdersData, AutoConfirmOrdersResponse, BatchAuthoringExamplePreviewsData, BatchAuthoringExamplePreviewsError, BatchAuthoringExamplePreviewsResponse, CalculateCustomOrderData, CalculateCustomOrderError, CalculateCustomOrderResponse, CalculateSampleOrderData, CalculateSampleOrderError, CalculateSampleOrderResponse, CancelClaimData, CancelClaimError, CancelClaimResponse, CancelStaleOrdersData, CancelStaleOrdersResponse, CancelTokenRefundData, CancelTokenRefundError, CancelTokenRefundResponse, CleanupImagesData, CleanupImagesResponse, CompleteAdminPopupImageUploadData, CompleteAdminPopupImageUploadError, CompleteAdminPopupImageUploadResponse, CompleteAdminProductImageUploadData, CompleteAdminProductImageUploadError, CompleteAdminProductImageUploadResponse, CompleteDesignReferenceUploadData, CompleteDesignReferenceUploadError, CompleteDesignReferenceUploadResponse, CompleteOrderImageData, CompleteOrderImageError, CompleteOrderImageResponse, CompleteReviewPhotoUploadData, CompleteReviewPhotoUploadError, CompleteReviewPhotoUploadResponse, ConfirmPaymentData, ConfirmPaymentError, ConfirmPaymentResponse, ConfirmPurchaseData, ConfirmPurchaseError, ConfirmPurchaseResponse, CreateAdminCouponData, CreateAdminCouponError, CreateAdminCouponResponse, CreateAdminDesignExampleData, CreateAdminDesignExampleError, CreateAdminDesignExampleResponse, CreateAdminOrderReferenceImageReadUrlData, CreateAdminOrderReferenceImageReadUrlError, CreateAdminOrderReferenceImageReadUrlResponse, CreateAdminPopupData, CreateAdminPopupError, CreateAdminPopupImageUploadUrlData, CreateAdminPopupImageUploadUrlError, CreateAdminPopupImageUploadUrlResponse, CreateAdminPopupResponse, CreateAdminProductImageUploadUrlData, CreateAdminProductImageUploadUrlError, CreateAdminProductImageUploadUrlResponse, CreateAdminQuoteImageReadUrlData, CreateAdminQuoteImageReadUrlError, CreateAdminQuoteImageReadUrlResponse, CreateAdminRepairReceiptPhotoReadUrlData, CreateAdminRepairReceiptPhotoReadUrlError, CreateAdminRepairReceiptPhotoReadUrlResponse, CreateAuthoringExampleData, CreateAuthoringExampleError, CreateAuthoringExampleResponse, CreateClaimData, CreateClaimError, CreateClaimResponse, CreateCustomOrderData, CreateCustomOrderError, CreateCustomOrderResponse, CreateDesignIdeasData, CreateDesignIdeasError, CreateDesignIdeasResponse, CreateDesignOrderReferenceData, CreateDesignOrderReferenceError, CreateDesignOrderReferenceResponse, CreateDesignSessionData, CreateDesignSessionFromExampleData, CreateDesignSessionFromExampleError, CreateDesignSessionFromExampleResponse, CreateDesignSessionResponse, CreateFinalizeJobData, CreateFinalizeJobError, CreateFinalizeJobResponse, CreateInquiryData, CreateInquiryError, CreateInquiryResponse, CreateManualOrderData, CreateManualOrderError, CreateManualOrderImageReadUrlData, CreateManualOrderImageReadUrlError, CreateManualOrderImageReadUrlResponse, CreateManualOrderImageUploadUrlData, CreateManualOrderImageUploadUrlError, CreateManualOrderImageUploadUrlResponse, CreateManualOrderResponse, CreateMyOrderReferenceImageReadUrlData, CreateMyOrderReferenceImageReadUrlError, CreateMyOrderReferenceImageReadUrlResponse, CreateMyRepairReceiptPhotoReadUrlData, CreateMyRepairReceiptPhotoReadUrlError, CreateMyRepairReceiptPhotoReadUrlResponse, CreateOrderData, CreateOrderError, CreateOrderResponse, CreateQuoteData, CreateQuoteError, CreateQuoteResponse, CreateReadUrlData, CreateReadUrlError, CreateReadUrlResponse, CreateReformUploadUrlData, CreateReformUploadUrlError, CreateReformUploadUrlResponse, CreateReviewData, CreateReviewError, CreateReviewPhotoUploadUrlData, CreateReviewPhotoUploadUrlError, CreateReviewPhotoUploadUrlResponse, CreateReviewResponse, CreateSampleOrderData, CreateSampleOrderError, CreateSampleOrderResponse, CreateTokenOrderData, CreateTokenOrderError, CreateTokenOrderResponse, CreateUploadUrlData, CreateUploadUrlError, CreateUploadUrlResponse, DecideAuthoringCandidateData, DecideAuthoringCandidateError, DecideAuthoringCandidateResponse, DeleteAccountData, DeleteAccountResponse, DeleteAddressData, DeleteAddressError, DeleteAddressResponse, DeleteAdminDesignExampleData, DeleteAdminDesignExampleError, DeleteAdminDesignExampleResponse, DeleteAdminPopupData, DeleteAdminPopupError, DeleteAdminPopupImageUploadData, DeleteAdminPopupImageUploadError, DeleteAdminPopupImageUploadResponse, DeleteAdminPopupResponse, DeleteAdminProductImageUploadData, DeleteAdminProductImageUploadError, DeleteAdminProductImageUploadResponse, DeleteAdminReviewData, DeleteAdminReviewError, DeleteAdminReviewResponse, DeleteAuthoringExampleData, DeleteAuthoringExampleError, DeleteAuthoringExampleResponse, DeleteDesignSessionData, DeleteDesignSessionError, DeleteDesignSessionResponse, DeleteGenerationJobData, DeleteGenerationJobError, DeleteGenerationJobResponse, DeleteInquiryData, DeleteInquiryError, DeleteInquiryResponse, DeleteManualOrderData, DeleteManualOrderError, DeleteManualOrderResponse, DeleteReviewData, DeleteReviewError, DeleteReviewResponse, DeleteUserMotifData, DeleteUserMotifError, DeleteUserMotifResponse, ExportDesignData, ExportDesignError, GenerateDesignData, GenerateDesignError, GenerateDesignResponse, GenerateMotifData, GenerateMotifError, GenerateMotifResponse, GetActivePopupData, GetActivePopupResponse, GetAdminCapabilitiesData, GetAdminCapabilitiesResponse, GetAdminCouponData, GetAdminCouponError, GetAdminCouponResponse, GetAdminCustomerData, GetAdminCustomerError, GetAdminCustomerResponse, GetAdminGenerationJobData, GetAdminGenerationJobError, GetAdminGenerationJobResponse, GetAdminGenerationJobStatsData, GetAdminGenerationJobStatsError, GetAdminGenerationJobStatsResponse, GetAdminInquiryData, GetAdminInquiryError, GetAdminInquiryResponse, GetAdminMotifData, GetAdminMotifError, GetAdminMotifResponse, GetAdminOrderData, GetAdminOrderError, GetAdminOrderResponse, GetAdminPricingData, GetAdminPricingResponse, GetAdminQuoteData, GetAdminQuoteError, GetAdminQuoteResponse, GetAdminSeamlessLogData, GetAdminSeamlessLogError, GetAdminSeamlessLogResponse, GetAdminSeamlessStatsData, GetAdminSeamlessStatsError, GetAdminSeamlessStatsResponse, GetAdminSettingsData, GetAdminSettingsResponse, GetAuthoringCandidateData, GetAuthoringCandidateError, GetAuthoringCandidateResponse, GetAuthoringExampleData, GetAuthoringExampleError, GetAuthoringExampleResponse, GetCartData, GetCartResponse, GetDashboardOverviewData, GetDashboardOverviewError, GetDashboardOverviewResponse, GetDashboardRecentOrdersData, GetDashboardRecentOrdersError, GetDashboardRecentOrdersResponse, GetDashboardRecentQuotesData, GetDashboardRecentQuotesError, GetDashboardRecentQuotesResponse, GetDesignSessionData, GetDesignSessionError, GetDesignSessionResponse, GetInquiryData, GetInquiryError, GetInquiryResponse, GetManualOrderData, GetManualOrderError, GetManualOrderResponse, GetMeData, GetMeResponse, GetOrderData, GetOrderError, GetOrderResponse, GetProductData, GetProductError, GetProductResponse, GetQuoteData, GetQuoteError, GetQuoteResponse, GetReformPricingData, GetReformPricingResponse, GetReviewData, GetReviewError, GetReviewResponse, GetTokenBalanceData, GetTokenBalanceResponse, GetTokenPlansData, GetTokenPlansResponse, HealthzData, HealthzResponse, ImportUserMotifData, ImportUserMotifError, ImportUserMotifResponse, IssueCouponData, IssueCouponError, IssueCouponResponse, LikeProductData, LikeProductError, LikeProductResponse, ListAddressesData, ListAddressesResponse, ListAdminCouponsData, ListAdminCouponsError, ListAdminCouponsResponse, ListAdminCustomerCouponsData, ListAdminCustomerCouponsError, ListAdminCustomerCouponsResponse, ListAdminCustomerOrdersData, ListAdminCustomerOrdersError, ListAdminCustomerOrdersResponse, ListAdminCustomersData, ListAdminCustomersError, ListAdminCustomersResponse, ListAdminCustomerTokensData, ListAdminCustomerTokensError, ListAdminCustomerTokensResponse, ListAdminDesignExamplesData, ListAdminDesignExamplesResponse, ListAdminGenerationJobsData, ListAdminGenerationJobsError, ListAdminGenerationJobsResponse, ListAdminInquiriesData, ListAdminInquiriesError, ListAdminInquiriesResponse, ListAdminMotifsData, ListAdminMotifsError, ListAdminMotifsResponse, ListAdminOrderReferenceImagesData, ListAdminOrderReferenceImagesError, ListAdminOrderReferenceImagesResponse, ListAdminPopupsData, ListAdminPopupsResponse, ListAdminQuotesData, ListAdminQuotesError, ListAdminQuotesResponse, ListAdminRepairReceiptPhotosData, ListAdminRepairReceiptPhotosError, ListAdminRepairReceiptPhotosResponse, ListAdminReviewsData, ListAdminReviewsError, ListAdminReviewsResponse, ListAdminSeamlessLogsData, ListAdminSeamlessLogsError, ListAdminSeamlessLogsResponse, ListAllOrdersData, ListAllOrdersError, ListAllOrdersResponse, ListAuthoringCandidatesData, ListAuthoringCandidatesError, ListAuthoringCandidatesResponse, ListAuthoringExamplesData, ListAuthoringExamplesError, ListAuthoringExamplesResponse, ListDesignExamplesData, ListDesignExamplesResponse, ListDesignSessionsData, ListDesignSessionsResponse, ListDesignTurnsData, ListDesignTurnsError, ListDesignTurnsResponse, ListGenerationJobsData, ListGenerationJobsError, ListGenerationJobsResponse, ListIssuedCouponsData, ListIssuedCouponsError, ListIssuedCouponsResponse, ListManualOrdersData, ListManualOrdersError, ListManualOrdersResponse, ListMyClaimsData, ListMyClaimsResponse, ListMyCouponsData, ListMyCouponsError, ListMyCouponsResponse, ListMyInquiriesData, ListMyInquiriesResponse, ListMyOrderReferenceImagesData, ListMyOrderReferenceImagesError, ListMyOrderReferenceImagesResponse, ListMyOrdersData, ListMyOrdersError, ListMyOrdersResponse, ListMyQuotesData, ListMyQuotesResponse, ListMyRepairReceiptPhotosData, ListMyRepairReceiptPhotosError, ListMyRepairReceiptPhotosResponse, ListProductsData, ListProductsError, ListProductsResponse, ListPublicInquiriesData, ListPublicInquiriesError, ListPublicInquiriesResponse, ListRefundableTokenOrdersData, ListRefundableTokenOrdersResponse, ListReviewsData, ListReviewsError, ListReviewsResponse, ListTokenHistoryData, ListTokenHistoryError, ListTokenHistoryResponse, ListUserMotifsData, ListUserMotifsError, ListUserMotifsResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutResponse, PatchManualOrderStatusData, PatchManualOrderStatusError, PatchManualOrderStatusResponse, PlaceDesignLogoData, PlaceDesignLogoError, PlaceDesignLogoResponse, PreviewAuthoringExampleData, PreviewAuthoringExampleError, PreviewAuthoringExampleResponse, PreviewCouponAudienceData, PreviewCouponAudienceError, PreviewCouponAudienceResponse, PreviewPhotoMotifData, PreviewPhotoMotifError, PreviewPhotoMotifResponse, PreviewTextMotifData, PreviewTextMotifError, PreviewTextMotifResponse, RecoverTokenWorksData, RecoverTokenWorksResponse, RefreshTokensData, RefreshTokensResponse, RegisterReformUploadData, RegisterReformUploadError, RegisterReformUploadResponse, RegisterRepairShippingUploadData, RegisterRepairShippingUploadError, RegisterRepairShippingUploadResponse, RemoveCartItemsData, RemoveCartItemsError, RemoveCartItemsResponse, ReplaceCartData, ReplaceCartError, ReplaceCartResponse, RequestTokenRefundData, RequestTokenRefundError, RequestTokenRefundResponse, ReviewAdminMotifData, ReviewAdminMotifError, ReviewAdminMotifResponse, RevokeCouponsData, RevokeCouponsError, RevokeCouponsResponse, RevokeCouponUsersData, RevokeCouponUsersError, RevokeCouponUsersResponse, SearchAdminCustomersData, SearchAdminCustomersError, SearchAdminCustomersResponse, SearchAdminInquiriesData, SearchAdminInquiriesError, SearchAdminInquiriesResponse, SearchMotifsData, SearchMotifsError, SearchMotifsResponse, SendPhoneVerificationData, SendPhoneVerificationError, SendPhoneVerificationResponse, SetAuthoringExampleActivationData, SetAuthoringExampleActivationError, SetAuthoringExampleActivationResponse, SetNotificationPreferencesData, SetNotificationPreferencesError, SetNotificationPreferencesResponse, SubmitRepairNoTrackingData, SubmitRepairNoTrackingError, SubmitRepairNoTrackingResponse, SubmitRepairTrackingData, SubmitRepairTrackingError, SubmitRepairTrackingResponse, TossWebhookData2, TossWebhookError, TossWebhookResponse, UnlikeProductData, UnlikeProductError, UnlikeProductResponse, UpdateAdminCouponData, UpdateAdminCouponError, UpdateAdminCouponResponse, UpdateAdminDesignExampleData, UpdateAdminDesignExampleError, UpdateAdminDesignExampleResponse, UpdateAdminMotifData, UpdateAdminMotifError, UpdateAdminMotifResponse, UpdateAdminPopupData, UpdateAdminPopupError, UpdateAdminPopupResponse, UpdateAdminPricingData, UpdateAdminPricingError, UpdateAdminPricingResponse, UpdateAdminQuoteStatusData, UpdateAdminQuoteStatusError, UpdateAdminQuoteStatusResponse, UpdateAdminSettingsData, UpdateAdminSettingsError, UpdateAdminSettingsResponse, UpdateAuthoringExampleData, UpdateAuthoringExampleError, UpdateAuthoringExampleResponse, UpdateInquiryData, UpdateInquiryError, UpdateInquiryResponse, UpdateManualOrderData, UpdateManualOrderError, UpdateManualOrderResponse, UpdateProfileData, UpdateProfileError, UpdateProfileResponse, UpdateReviewData, UpdateReviewError, UpdateReviewResponse, UpsertAddressData, UpsertAddressError, UpsertAddressResponse, VerifyPhoneData, VerifyPhoneError, VerifyPhoneResponse } from '../types.gen';
+import { adminCreateProduct, adminGetClaim, adminGetPaymentIncident, adminGetProduct, adminListClaimsV2, adminListPaymentIncidents, adminListProducts, adminLogin, adminLogout, adminReconcilePaymentIncident, adminRefreshTokens, adminResolvePaymentIncident, adminRetryClaimNotification, adminUpdateClaimStatus, adminUpdateClaimTracking, adminUpdateOrderStatus, adminUpdateOrderTracking, adminUpdateProduct, answerAdminInquiry, autoConfirmOrders, calculateCustomOrder, calculateSampleOrder, cancelClaim, cancelStaleOrders, cleanupImages, completeAdminPopupImageUpload, completeAdminProductImageUpload, completeDesignReferenceUpload, completeOrderImage, completeReviewPhotoUpload, confirmPayment, confirmPurchase, createAdminCoupon, createAdminOrderReferenceImageReadUrl, createAdminPopup, createAdminPopupImageUploadUrl, createAdminProductImageUploadUrl, createAdminQuoteImageReadUrl, createAdminRepairReceiptPhotoReadUrl, createClaim, createCustomOrder, createDesignSessionFromExample, createInquiry, createManualOrder, createManualOrderImageReadUrl, createManualOrderImageUploadUrl, createMyOrderReferenceImageReadUrl, createMyRepairReceiptPhotoReadUrl, createOrder, createQuote, createReadUrl, createReformUploadUrl, createReview, createReviewPhotoUploadUrl, createSampleOrder, createUploadUrl, deleteAccount, deleteAddress, deleteAdminDesignExample, deleteAdminPopup, deleteAdminPopupImageUpload, deleteAdminProductImageUpload, deleteAdminReview, deleteInquiry, deleteManualOrder, deleteReview, getActivePopup, getAdminCapabilities, getAdminCoupon, getAdminCustomer, getAdminInquiry, getAdminMotif, getAdminOrder, getAdminPricing, getAdminQuote, getAdminSeamlessLog, getAdminSeamlessStats, getAdminSettings, getCart, getDashboardOverview, getDashboardRecentOrders, getDashboardRecentQuotes, getDesignSession, getInquiry, getManualOrder, getMe, getOrder, getProduct, getQuote, getReformPricing, getReview, healthz, issueCoupon, likeProduct, listAddresses, listAdminCoupons, listAdminCustomerCoupons, listAdminCustomerOrders, listAdminCustomers, listAdminDesignExamples, listAdminInquiries, listAdminMotifs, listAdminOrderReferenceImages, listAdminPopups, listAdminQuotes, listAdminRepairReceiptPhotos, listAdminReviews, listAdminSeamlessLogs, listAllOrders, listDesignExamples, listIssuedCoupons, listManualOrders, listMyClaims, listMyCoupons, listMyInquiries, listMyOrderReferenceImages, listMyOrders, listMyQuotes, listMyRepairReceiptPhotos, listProducts, listPublicInquiries, listReviews, login, logout, type Options, patchManualOrderStatus, placeDesignLogo, previewCouponAudience, previewPhotoMotif, refreshTokens, registerReformUpload, registerRepairShippingUpload, removeCartItems, replaceCart, revokeCoupons, revokeCouponUsers, searchAdminCustomers, searchAdminInquiries, sendPhoneVerification, setNotificationPreferences, submitRepairNoTracking, submitRepairTracking, tossWebhook, unlikeProduct, updateAdminCoupon, updateAdminDesignExample, updateAdminMotif, updateAdminPopup, updateAdminPricing, updateAdminQuoteStatus, updateAdminSettings, updateInquiry, updateManualOrder, updateProfile, updateReview, upsertAddress, verifyPhone } from '../sdk.gen';
+import type { AdminCreateProductData, AdminCreateProductError, AdminCreateProductResponse, AdminGetClaimData, AdminGetClaimError, AdminGetClaimResponse, AdminGetPaymentIncidentData, AdminGetPaymentIncidentError, AdminGetPaymentIncidentResponse, AdminGetProductData, AdminGetProductError, AdminGetProductResponse, AdminListClaimsV2Data, AdminListClaimsV2Error, AdminListClaimsV2Response, AdminListPaymentIncidentsData, AdminListPaymentIncidentsError, AdminListPaymentIncidentsResponse, AdminListProductsData, AdminListProductsError, AdminListProductsResponse, AdminLoginData, AdminLoginError, AdminLoginResponse, AdminLogoutData, AdminLogoutResponse, AdminReconcilePaymentIncidentData, AdminReconcilePaymentIncidentError, AdminReconcilePaymentIncidentResponse, AdminRefreshTokensData, AdminRefreshTokensResponse, AdminResolvePaymentIncidentData, AdminResolvePaymentIncidentError, AdminResolvePaymentIncidentResponse, AdminRetryClaimNotificationData, AdminRetryClaimNotificationError, AdminRetryClaimNotificationResponse, AdminUpdateClaimStatusData, AdminUpdateClaimStatusError, AdminUpdateClaimStatusResponse, AdminUpdateClaimTrackingData, AdminUpdateClaimTrackingError, AdminUpdateClaimTrackingResponse, AdminUpdateOrderStatusData, AdminUpdateOrderStatusError, AdminUpdateOrderStatusResponse, AdminUpdateOrderTrackingData, AdminUpdateOrderTrackingError, AdminUpdateOrderTrackingResponse, AdminUpdateProductData, AdminUpdateProductError, AdminUpdateProductResponse, AnswerAdminInquiryData, AnswerAdminInquiryError, AnswerAdminInquiryResponse, AutoConfirmOrdersData, AutoConfirmOrdersResponse, CalculateCustomOrderData, CalculateCustomOrderError, CalculateCustomOrderResponse, CalculateSampleOrderData, CalculateSampleOrderError, CalculateSampleOrderResponse, CancelClaimData, CancelClaimError, CancelClaimResponse, CancelStaleOrdersData, CancelStaleOrdersResponse, CleanupImagesData, CleanupImagesResponse, CompleteAdminPopupImageUploadData, CompleteAdminPopupImageUploadError, CompleteAdminPopupImageUploadResponse, CompleteAdminProductImageUploadData, CompleteAdminProductImageUploadError, CompleteAdminProductImageUploadResponse, CompleteDesignReferenceUploadData, CompleteDesignReferenceUploadError, CompleteDesignReferenceUploadResponse, CompleteOrderImageData, CompleteOrderImageError, CompleteOrderImageResponse, CompleteReviewPhotoUploadData, CompleteReviewPhotoUploadError, CompleteReviewPhotoUploadResponse, ConfirmPaymentData, ConfirmPaymentError, ConfirmPaymentResponse, ConfirmPurchaseData, ConfirmPurchaseError, ConfirmPurchaseResponse, CreateAdminCouponData, CreateAdminCouponError, CreateAdminCouponResponse, CreateAdminOrderReferenceImageReadUrlData, CreateAdminOrderReferenceImageReadUrlError, CreateAdminOrderReferenceImageReadUrlResponse, CreateAdminPopupData, CreateAdminPopupError, CreateAdminPopupImageUploadUrlData, CreateAdminPopupImageUploadUrlError, CreateAdminPopupImageUploadUrlResponse, CreateAdminPopupResponse, CreateAdminProductImageUploadUrlData, CreateAdminProductImageUploadUrlError, CreateAdminProductImageUploadUrlResponse, CreateAdminQuoteImageReadUrlData, CreateAdminQuoteImageReadUrlError, CreateAdminQuoteImageReadUrlResponse, CreateAdminRepairReceiptPhotoReadUrlData, CreateAdminRepairReceiptPhotoReadUrlError, CreateAdminRepairReceiptPhotoReadUrlResponse, CreateClaimData, CreateClaimError, CreateClaimResponse, CreateCustomOrderData, CreateCustomOrderError, CreateCustomOrderResponse, CreateDesignSessionFromExampleData, CreateDesignSessionFromExampleError, CreateDesignSessionFromExampleResponse, CreateInquiryData, CreateInquiryError, CreateInquiryResponse, CreateManualOrderData, CreateManualOrderError, CreateManualOrderImageReadUrlData, CreateManualOrderImageReadUrlError, CreateManualOrderImageReadUrlResponse, CreateManualOrderImageUploadUrlData, CreateManualOrderImageUploadUrlError, CreateManualOrderImageUploadUrlResponse, CreateManualOrderResponse, CreateMyOrderReferenceImageReadUrlData, CreateMyOrderReferenceImageReadUrlError, CreateMyOrderReferenceImageReadUrlResponse, CreateMyRepairReceiptPhotoReadUrlData, CreateMyRepairReceiptPhotoReadUrlError, CreateMyRepairReceiptPhotoReadUrlResponse, CreateOrderData, CreateOrderError, CreateOrderResponse, CreateQuoteData, CreateQuoteError, CreateQuoteResponse, CreateReadUrlData, CreateReadUrlError, CreateReadUrlResponse, CreateReformUploadUrlData, CreateReformUploadUrlError, CreateReformUploadUrlResponse, CreateReviewData, CreateReviewError, CreateReviewPhotoUploadUrlData, CreateReviewPhotoUploadUrlError, CreateReviewPhotoUploadUrlResponse, CreateReviewResponse, CreateSampleOrderData, CreateSampleOrderError, CreateSampleOrderResponse, CreateUploadUrlData, CreateUploadUrlError, CreateUploadUrlResponse, DeleteAccountData, DeleteAccountResponse, DeleteAddressData, DeleteAddressError, DeleteAddressResponse, DeleteAdminDesignExampleData, DeleteAdminDesignExampleError, DeleteAdminDesignExampleResponse, DeleteAdminPopupData, DeleteAdminPopupError, DeleteAdminPopupImageUploadData, DeleteAdminPopupImageUploadError, DeleteAdminPopupImageUploadResponse, DeleteAdminPopupResponse, DeleteAdminProductImageUploadData, DeleteAdminProductImageUploadError, DeleteAdminProductImageUploadResponse, DeleteAdminReviewData, DeleteAdminReviewError, DeleteAdminReviewResponse, DeleteInquiryData, DeleteInquiryError, DeleteInquiryResponse, DeleteManualOrderData, DeleteManualOrderError, DeleteManualOrderResponse, DeleteReviewData, DeleteReviewError, DeleteReviewResponse, GetActivePopupData, GetActivePopupResponse, GetAdminCapabilitiesData, GetAdminCapabilitiesResponse, GetAdminCouponData, GetAdminCouponError, GetAdminCouponResponse, GetAdminCustomerData, GetAdminCustomerError, GetAdminCustomerResponse, GetAdminInquiryData, GetAdminInquiryError, GetAdminInquiryResponse, GetAdminMotifData, GetAdminMotifError, GetAdminMotifResponse, GetAdminOrderData, GetAdminOrderError, GetAdminOrderResponse, GetAdminPricingData, GetAdminPricingResponse, GetAdminQuoteData, GetAdminQuoteError, GetAdminQuoteResponse, GetAdminSeamlessLogData, GetAdminSeamlessLogError, GetAdminSeamlessLogResponse, GetAdminSeamlessStatsData, GetAdminSeamlessStatsError, GetAdminSeamlessStatsResponse, GetAdminSettingsData, GetAdminSettingsResponse, GetCartData, GetCartResponse, GetDashboardOverviewData, GetDashboardOverviewError, GetDashboardOverviewResponse, GetDashboardRecentOrdersData, GetDashboardRecentOrdersError, GetDashboardRecentOrdersResponse, GetDashboardRecentQuotesData, GetDashboardRecentQuotesError, GetDashboardRecentQuotesResponse, GetDesignSessionData, GetDesignSessionError, GetDesignSessionResponse, GetInquiryData, GetInquiryError, GetInquiryResponse, GetManualOrderData, GetManualOrderError, GetManualOrderResponse, GetMeData, GetMeResponse, GetOrderData, GetOrderError, GetOrderResponse, GetProductData, GetProductError, GetProductResponse, GetQuoteData, GetQuoteError, GetQuoteResponse, GetReformPricingData, GetReformPricingResponse, GetReviewData, GetReviewError, GetReviewResponse, HealthzData, HealthzResponse, IssueCouponData, IssueCouponError, IssueCouponResponse, LikeProductData, LikeProductError, LikeProductResponse, ListAddressesData, ListAddressesResponse, ListAdminCouponsData, ListAdminCouponsError, ListAdminCouponsResponse, ListAdminCustomerCouponsData, ListAdminCustomerCouponsError, ListAdminCustomerCouponsResponse, ListAdminCustomerOrdersData, ListAdminCustomerOrdersError, ListAdminCustomerOrdersResponse, ListAdminCustomersData, ListAdminCustomersError, ListAdminCustomersResponse, ListAdminDesignExamplesData, ListAdminDesignExamplesResponse, ListAdminInquiriesData, ListAdminInquiriesError, ListAdminInquiriesResponse, ListAdminMotifsData, ListAdminMotifsError, ListAdminMotifsResponse, ListAdminOrderReferenceImagesData, ListAdminOrderReferenceImagesError, ListAdminOrderReferenceImagesResponse, ListAdminPopupsData, ListAdminPopupsResponse, ListAdminQuotesData, ListAdminQuotesError, ListAdminQuotesResponse, ListAdminRepairReceiptPhotosData, ListAdminRepairReceiptPhotosError, ListAdminRepairReceiptPhotosResponse, ListAdminReviewsData, ListAdminReviewsError, ListAdminReviewsResponse, ListAdminSeamlessLogsData, ListAdminSeamlessLogsError, ListAdminSeamlessLogsResponse, ListAllOrdersData, ListAllOrdersError, ListAllOrdersResponse, ListDesignExamplesData, ListDesignExamplesResponse, ListIssuedCouponsData, ListIssuedCouponsError, ListIssuedCouponsResponse, ListManualOrdersData, ListManualOrdersError, ListManualOrdersResponse, ListMyClaimsData, ListMyClaimsResponse, ListMyCouponsData, ListMyCouponsError, ListMyCouponsResponse, ListMyInquiriesData, ListMyInquiriesResponse, ListMyOrderReferenceImagesData, ListMyOrderReferenceImagesError, ListMyOrderReferenceImagesResponse, ListMyOrdersData, ListMyOrdersError, ListMyOrdersResponse, ListMyQuotesData, ListMyQuotesResponse, ListMyRepairReceiptPhotosData, ListMyRepairReceiptPhotosError, ListMyRepairReceiptPhotosResponse, ListProductsData, ListProductsError, ListProductsResponse, ListPublicInquiriesData, ListPublicInquiriesError, ListPublicInquiriesResponse, ListReviewsData, ListReviewsError, ListReviewsResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutResponse, PatchManualOrderStatusData, PatchManualOrderStatusError, PatchManualOrderStatusResponse, PlaceDesignLogoData, PlaceDesignLogoError, PlaceDesignLogoResponse, PreviewCouponAudienceData, PreviewCouponAudienceError, PreviewCouponAudienceResponse, PreviewPhotoMotifData, PreviewPhotoMotifError, PreviewPhotoMotifResponse, RefreshTokensData, RefreshTokensResponse, RegisterReformUploadData, RegisterReformUploadError, RegisterReformUploadResponse, RegisterRepairShippingUploadData, RegisterRepairShippingUploadError, RegisterRepairShippingUploadResponse, RemoveCartItemsData, RemoveCartItemsError, RemoveCartItemsResponse, ReplaceCartData, ReplaceCartError, ReplaceCartResponse, RevokeCouponsData, RevokeCouponsError, RevokeCouponsResponse, RevokeCouponUsersData, RevokeCouponUsersError, RevokeCouponUsersResponse, SearchAdminCustomersData, SearchAdminCustomersError, SearchAdminCustomersResponse, SearchAdminInquiriesData, SearchAdminInquiriesError, SearchAdminInquiriesResponse, SendPhoneVerificationData, SendPhoneVerificationError, SendPhoneVerificationResponse, SetNotificationPreferencesData, SetNotificationPreferencesError, SetNotificationPreferencesResponse, SubmitRepairNoTrackingData, SubmitRepairNoTrackingError, SubmitRepairNoTrackingResponse, SubmitRepairTrackingData, SubmitRepairTrackingError, SubmitRepairTrackingResponse, TossWebhookData2, TossWebhookError, TossWebhookResponse, UnlikeProductData, UnlikeProductError, UnlikeProductResponse, UpdateAdminCouponData, UpdateAdminCouponError, UpdateAdminCouponResponse, UpdateAdminDesignExampleData, UpdateAdminDesignExampleError, UpdateAdminDesignExampleResponse, UpdateAdminMotifData, UpdateAdminMotifError, UpdateAdminMotifResponse, UpdateAdminPopupData, UpdateAdminPopupError, UpdateAdminPopupResponse, UpdateAdminPricingData, UpdateAdminPricingError, UpdateAdminPricingResponse, UpdateAdminQuoteStatusData, UpdateAdminQuoteStatusError, UpdateAdminQuoteStatusResponse, UpdateAdminSettingsData, UpdateAdminSettingsError, UpdateAdminSettingsResponse, UpdateInquiryData, UpdateInquiryError, UpdateInquiryResponse, UpdateManualOrderData, UpdateManualOrderError, UpdateManualOrderResponse, UpdateProfileData, UpdateProfileError, UpdateProfileResponse, UpdateReviewData, UpdateReviewError, UpdateReviewResponse, UpsertAddressData, UpsertAddressError, UpsertAddressResponse, VerifyPhoneData, VerifyPhoneError, VerifyPhoneResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -37,292 +37,6 @@ const createQueryKey = <TOptions extends Options>(id: string, options?: TOptions
         params.query = options.query;
     }
     return [params];
-};
-
-export const listAuthoringCandidatesQueryKey = (options?: Options<ListAuthoringCandidatesData>) => createQueryKey('listAuthoringCandidates', options);
-
-/**
- * List Authoring Candidates
- */
-export const listAuthoringCandidatesOptions = (options?: Options<ListAuthoringCandidatesData>) => queryOptions<ListAuthoringCandidatesResponse, ListAuthoringCandidatesError, ListAuthoringCandidatesResponse, ReturnType<typeof listAuthoringCandidatesQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await listAuthoringCandidates({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: listAuthoringCandidatesQueryKey(options)
-});
-
-const createInfiniteParams = <K extends Pick<QueryKey<Options>[0], 'body' | 'headers' | 'path' | 'query'>>(queryKey: QueryKey<Options>, page: K) => {
-    const params = { ...queryKey[0] };
-    if (page.body) {
-        params.body = {
-            ...queryKey[0].body as any,
-            ...page.body as any
-        };
-    }
-    if (page.headers) {
-        params.headers = {
-            ...queryKey[0].headers,
-            ...page.headers
-        };
-    }
-    if (page.path) {
-        params.path = {
-            ...queryKey[0].path as any,
-            ...page.path as any
-        };
-    }
-    if (page.query) {
-        params.query = {
-            ...queryKey[0].query as any,
-            ...page.query as any
-        };
-    }
-    return params as unknown as typeof page;
-};
-
-export const listAuthoringCandidatesInfiniteQueryKey = (options?: Options<ListAuthoringCandidatesData>): QueryKey<Options<ListAuthoringCandidatesData>> => createQueryKey('listAuthoringCandidates', options, true);
-
-/**
- * List Authoring Candidates
- */
-export const listAuthoringCandidatesInfiniteOptions = (options?: Options<ListAuthoringCandidatesData>) => {
-    const opts = infiniteQueryOptions<ListAuthoringCandidatesResponse, ListAuthoringCandidatesError, InfiniteData<ListAuthoringCandidatesResponse>, QueryKey<Options<ListAuthoringCandidatesData>>, number | Pick<QueryKey<Options<ListAuthoringCandidatesData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
-    // @ts-ignore
-    {
-        queryFn: async ({ pageParam, queryKey, signal }) => {
-            // @ts-ignore
-            const page: Pick<QueryKey<Options<ListAuthoringCandidatesData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
-                query: {
-                    offset: pageParam
-                }
-            };
-            const params = createInfiniteParams(queryKey, page);
-            const { data } = await listAuthoringCandidates({
-                ...options,
-                ...params,
-                signal,
-                throwOnError: true
-            });
-            return data;
-        },
-        queryKey: listAuthoringCandidatesInfiniteQueryKey(options)
-    });
-    return opts as Omit<typeof opts, 'initialData'>;
-};
-
-export const getAuthoringCandidateQueryKey = (options: Options<GetAuthoringCandidateData>) => createQueryKey('getAuthoringCandidate', options);
-
-/**
- * Get Authoring Candidate
- */
-export const getAuthoringCandidateOptions = (options: Options<GetAuthoringCandidateData>) => queryOptions<GetAuthoringCandidateResponse, GetAuthoringCandidateError, GetAuthoringCandidateResponse, ReturnType<typeof getAuthoringCandidateQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await getAuthoringCandidate({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: getAuthoringCandidateQueryKey(options)
-});
-
-/**
- * Decide Authoring Candidate
- */
-export const decideAuthoringCandidateMutation = (options?: Partial<Options<DecideAuthoringCandidateData>>): UseMutationOptions<DecideAuthoringCandidateResponse, DecideAuthoringCandidateError, Options<DecideAuthoringCandidateData>> => {
-    const mutationOptions: UseMutationOptions<DecideAuthoringCandidateResponse, DecideAuthoringCandidateError, Options<DecideAuthoringCandidateData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await decideAuthoringCandidate({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-export const listAuthoringExamplesQueryKey = (options?: Options<ListAuthoringExamplesData>) => createQueryKey('listAuthoringExamples', options);
-
-/**
- * List Authoring Examples
- */
-export const listAuthoringExamplesOptions = (options?: Options<ListAuthoringExamplesData>) => queryOptions<ListAuthoringExamplesResponse, ListAuthoringExamplesError, ListAuthoringExamplesResponse, ReturnType<typeof listAuthoringExamplesQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await listAuthoringExamples({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: listAuthoringExamplesQueryKey(options)
-});
-
-export const listAuthoringExamplesInfiniteQueryKey = (options?: Options<ListAuthoringExamplesData>): QueryKey<Options<ListAuthoringExamplesData>> => createQueryKey('listAuthoringExamples', options, true);
-
-/**
- * List Authoring Examples
- */
-export const listAuthoringExamplesInfiniteOptions = (options?: Options<ListAuthoringExamplesData>) => {
-    const opts = infiniteQueryOptions<ListAuthoringExamplesResponse, ListAuthoringExamplesError, InfiniteData<ListAuthoringExamplesResponse>, QueryKey<Options<ListAuthoringExamplesData>>, number | Pick<QueryKey<Options<ListAuthoringExamplesData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
-    // @ts-ignore
-    {
-        queryFn: async ({ pageParam, queryKey, signal }) => {
-            // @ts-ignore
-            const page: Pick<QueryKey<Options<ListAuthoringExamplesData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
-                query: {
-                    offset: pageParam
-                }
-            };
-            const params = createInfiniteParams(queryKey, page);
-            const { data } = await listAuthoringExamples({
-                ...options,
-                ...params,
-                signal,
-                throwOnError: true
-            });
-            return data;
-        },
-        queryKey: listAuthoringExamplesInfiniteQueryKey(options)
-    });
-    return opts as Omit<typeof opts, 'initialData'>;
-};
-
-/**
- * Create Authoring Example
- */
-export const createAuthoringExampleMutation = (options?: Partial<Options<CreateAuthoringExampleData>>): UseMutationOptions<CreateAuthoringExampleResponse, CreateAuthoringExampleError, Options<CreateAuthoringExampleData>> => {
-    const mutationOptions: UseMutationOptions<CreateAuthoringExampleResponse, CreateAuthoringExampleError, Options<CreateAuthoringExampleData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await createAuthoringExample({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-export const batchAuthoringExamplePreviewsQueryKey = (options: Options<BatchAuthoringExamplePreviewsData>) => createQueryKey('batchAuthoringExamplePreviews', options);
-
-/**
- * Batch Authoring Example Previews
- *
- * 목록 페이지의 타일 프리뷰를 한 번에 렌더한다.
- *
- * 행마다 요청을 쏘면 페이지 크기 100에서 워커 렌더 101건이 동시에 몰린다 —
- * 한 요청으로 모아 렌더 동시성을 제한한다. 결과는 요청 순서를 보존한다.
- */
-export const batchAuthoringExamplePreviewsOptions = (options: Options<BatchAuthoringExamplePreviewsData>) => queryOptions<BatchAuthoringExamplePreviewsResponse, BatchAuthoringExamplePreviewsError, BatchAuthoringExamplePreviewsResponse, ReturnType<typeof batchAuthoringExamplePreviewsQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await batchAuthoringExamplePreviews({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: batchAuthoringExamplePreviewsQueryKey(options)
-});
-
-/**
- * Delete Authoring Example
- */
-export const deleteAuthoringExampleMutation = (options?: Partial<Options<DeleteAuthoringExampleData>>): UseMutationOptions<DeleteAuthoringExampleResponse, DeleteAuthoringExampleError, Options<DeleteAuthoringExampleData>> => {
-    const mutationOptions: UseMutationOptions<DeleteAuthoringExampleResponse, DeleteAuthoringExampleError, Options<DeleteAuthoringExampleData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await deleteAuthoringExample({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-export const getAuthoringExampleQueryKey = (options: Options<GetAuthoringExampleData>) => createQueryKey('getAuthoringExample', options);
-
-/**
- * Get Authoring Example
- */
-export const getAuthoringExampleOptions = (options: Options<GetAuthoringExampleData>) => queryOptions<GetAuthoringExampleResponse, GetAuthoringExampleError, GetAuthoringExampleResponse, ReturnType<typeof getAuthoringExampleQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await getAuthoringExample({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: getAuthoringExampleQueryKey(options)
-});
-
-/**
- * Update Authoring Example
- */
-export const updateAuthoringExampleMutation = (options?: Partial<Options<UpdateAuthoringExampleData>>): UseMutationOptions<UpdateAuthoringExampleResponse, UpdateAuthoringExampleError, Options<UpdateAuthoringExampleData>> => {
-    const mutationOptions: UseMutationOptions<UpdateAuthoringExampleResponse, UpdateAuthoringExampleError, Options<UpdateAuthoringExampleData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await updateAuthoringExample({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Set Authoring Example Activation
- */
-export const setAuthoringExampleActivationMutation = (options?: Partial<Options<SetAuthoringExampleActivationData>>): UseMutationOptions<SetAuthoringExampleActivationResponse, SetAuthoringExampleActivationError, Options<SetAuthoringExampleActivationData>> => {
-    const mutationOptions: UseMutationOptions<SetAuthoringExampleActivationResponse, SetAuthoringExampleActivationError, Options<SetAuthoringExampleActivationData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await setAuthoringExampleActivation({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Preview Authoring Example
- */
-export const previewAuthoringExampleMutation = (options?: Partial<Options<PreviewAuthoringExampleData>>): UseMutationOptions<PreviewAuthoringExampleResponse, PreviewAuthoringExampleError, Options<PreviewAuthoringExampleData>> => {
-    const mutationOptions: UseMutationOptions<PreviewAuthoringExampleResponse, PreviewAuthoringExampleError, Options<PreviewAuthoringExampleData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await previewAuthoringExample({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
 };
 
 export const getAdminCapabilitiesQueryKey = (options?: Options<GetAdminCapabilitiesData>) => createQueryKey('getAdminCapabilities', options);
@@ -377,6 +91,35 @@ export const adminListClaimsV2Options = (options?: Options<AdminListClaimsV2Data
     },
     queryKey: adminListClaimsV2QueryKey(options)
 });
+
+const createInfiniteParams = <K extends Pick<QueryKey<Options>[0], 'body' | 'headers' | 'path' | 'query'>>(queryKey: QueryKey<Options>, page: K) => {
+    const params = { ...queryKey[0] };
+    if (page.body) {
+        params.body = {
+            ...queryKey[0].body as any,
+            ...page.body as any
+        };
+    }
+    if (page.headers) {
+        params.headers = {
+            ...queryKey[0].headers,
+            ...page.headers
+        };
+    }
+    if (page.path) {
+        params.path = {
+            ...queryKey[0].path as any,
+            ...page.path as any
+        };
+    }
+    if (page.query) {
+        params.query = {
+            ...queryKey[0].query as any,
+            ...page.query as any
+        };
+    }
+    return params as unknown as typeof page;
+};
 
 export const adminListClaimsV2InfiniteQueryKey = (options?: Options<AdminListClaimsV2Data>): QueryKey<Options<AdminListClaimsV2Data>> => createQueryKey('adminListClaimsV2', options, true);
 
@@ -855,54 +598,6 @@ export const listAdminCustomerOrdersInfiniteOptions = (options: Options<ListAdmi
     return opts as Omit<typeof opts, 'initialData'>;
 };
 
-export const listAdminCustomerTokensQueryKey = (options: Options<ListAdminCustomerTokensData>) => createQueryKey('listAdminCustomerTokens', options);
-
-/**
- * List Admin Customer Tokens
- */
-export const listAdminCustomerTokensOptions = (options: Options<ListAdminCustomerTokensData>) => queryOptions<ListAdminCustomerTokensResponse, ListAdminCustomerTokensError, ListAdminCustomerTokensResponse, ReturnType<typeof listAdminCustomerTokensQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await listAdminCustomerTokens({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: listAdminCustomerTokensQueryKey(options)
-});
-
-export const listAdminCustomerTokensInfiniteQueryKey = (options: Options<ListAdminCustomerTokensData>): QueryKey<Options<ListAdminCustomerTokensData>> => createQueryKey('listAdminCustomerTokens', options, true);
-
-/**
- * List Admin Customer Tokens
- */
-export const listAdminCustomerTokensInfiniteOptions = (options: Options<ListAdminCustomerTokensData>) => {
-    const opts = infiniteQueryOptions<ListAdminCustomerTokensResponse, ListAdminCustomerTokensError, InfiniteData<ListAdminCustomerTokensResponse>, QueryKey<Options<ListAdminCustomerTokensData>>, number | Pick<QueryKey<Options<ListAdminCustomerTokensData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
-    // @ts-ignore
-    {
-        queryFn: async ({ pageParam, queryKey, signal }) => {
-            // @ts-ignore
-            const page: Pick<QueryKey<Options<ListAdminCustomerTokensData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
-                query: {
-                    offset: pageParam
-                }
-            };
-            const params = createInfiniteParams(queryKey, page);
-            const { data } = await listAdminCustomerTokens({
-                ...options,
-                ...params,
-                signal,
-                throwOnError: true
-            });
-            return data;
-        },
-        queryKey: listAdminCustomerTokensInfiniteQueryKey(options)
-    });
-    return opts as Omit<typeof opts, 'initialData'>;
-};
-
 export const getDashboardOverviewQueryKey = (options?: Options<GetDashboardOverviewData>) => createQueryKey('getDashboardOverview', options);
 
 /**
@@ -978,25 +673,6 @@ export const listAdminDesignExamplesOptions = (options?: Options<ListAdminDesign
 });
 
 /**
- * Create Admin Design Example
- *
- * run 하나를 예시로 등록한다 — 비공개 모티프를 쓰는 run은 공개할 수 없다.
- */
-export const createAdminDesignExampleMutation = (options?: Partial<Options<CreateAdminDesignExampleData>>): UseMutationOptions<CreateAdminDesignExampleResponse, CreateAdminDesignExampleError, Options<CreateAdminDesignExampleData>> => {
-    const mutationOptions: UseMutationOptions<CreateAdminDesignExampleResponse, CreateAdminDesignExampleError, Options<CreateAdminDesignExampleData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await createAdminDesignExample({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
  * Delete Admin Design Example
  */
 export const deleteAdminDesignExampleMutation = (options?: Partial<Options<DeleteAdminDesignExampleData>>): UseMutationOptions<DeleteAdminDesignExampleResponse, DeleteAdminDesignExampleError, Options<DeleteAdminDesignExampleData>> => {
@@ -1029,120 +705,6 @@ export const updateAdminDesignExampleMutation = (options?: Partial<Options<Updat
     };
     return mutationOptions;
 };
-
-export const listAdminGenerationJobsQueryKey = (options?: Options<ListAdminGenerationJobsData>) => createQueryKey('listAdminGenerationJobs', options);
-
-/**
- * List Admin Generation Jobs
- */
-export const listAdminGenerationJobsOptions = (options?: Options<ListAdminGenerationJobsData>) => queryOptions<ListAdminGenerationJobsResponse, ListAdminGenerationJobsError, ListAdminGenerationJobsResponse, ReturnType<typeof listAdminGenerationJobsQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await listAdminGenerationJobs({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: listAdminGenerationJobsQueryKey(options)
-});
-
-export const listAdminGenerationJobsInfiniteQueryKey = (options?: Options<ListAdminGenerationJobsData>): QueryKey<Options<ListAdminGenerationJobsData>> => createQueryKey('listAdminGenerationJobs', options, true);
-
-/**
- * List Admin Generation Jobs
- */
-export const listAdminGenerationJobsInfiniteOptions = (options?: Options<ListAdminGenerationJobsData>) => {
-    const opts = infiniteQueryOptions<ListAdminGenerationJobsResponse, ListAdminGenerationJobsError, InfiniteData<ListAdminGenerationJobsResponse>, QueryKey<Options<ListAdminGenerationJobsData>>, string | null | Pick<QueryKey<Options<ListAdminGenerationJobsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
-    // @ts-ignore
-    {
-        queryFn: async ({ pageParam, queryKey, signal }) => {
-            // @ts-ignore
-            const page: Pick<QueryKey<Options<ListAdminGenerationJobsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
-                query: {
-                    start: pageParam
-                }
-            };
-            const params = createInfiniteParams(queryKey, page);
-            const { data } = await listAdminGenerationJobs({
-                ...options,
-                ...params,
-                signal,
-                throwOnError: true
-            });
-            return data;
-        },
-        queryKey: listAdminGenerationJobsInfiniteQueryKey(options)
-    });
-    return opts as Omit<typeof opts, 'initialData'>;
-};
-
-export const getAdminGenerationJobStatsQueryKey = (options?: Options<GetAdminGenerationJobStatsData>) => createQueryKey('getAdminGenerationJobStats', options);
-
-/**
- * Get Admin Generation Job Stats
- */
-export const getAdminGenerationJobStatsOptions = (options?: Options<GetAdminGenerationJobStatsData>) => queryOptions<GetAdminGenerationJobStatsResponse, GetAdminGenerationJobStatsError, GetAdminGenerationJobStatsResponse, ReturnType<typeof getAdminGenerationJobStatsQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await getAdminGenerationJobStats({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: getAdminGenerationJobStatsQueryKey(options)
-});
-
-export const getAdminGenerationJobStatsInfiniteQueryKey = (options?: Options<GetAdminGenerationJobStatsData>): QueryKey<Options<GetAdminGenerationJobStatsData>> => createQueryKey('getAdminGenerationJobStats', options, true);
-
-/**
- * Get Admin Generation Job Stats
- */
-export const getAdminGenerationJobStatsInfiniteOptions = (options?: Options<GetAdminGenerationJobStatsData>) => {
-    const opts = infiniteQueryOptions<GetAdminGenerationJobStatsResponse, GetAdminGenerationJobStatsError, InfiniteData<GetAdminGenerationJobStatsResponse>, QueryKey<Options<GetAdminGenerationJobStatsData>>, string | null | Pick<QueryKey<Options<GetAdminGenerationJobStatsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
-    // @ts-ignore
-    {
-        queryFn: async ({ pageParam, queryKey, signal }) => {
-            // @ts-ignore
-            const page: Pick<QueryKey<Options<GetAdminGenerationJobStatsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
-                query: {
-                    start: pageParam
-                }
-            };
-            const params = createInfiniteParams(queryKey, page);
-            const { data } = await getAdminGenerationJobStats({
-                ...options,
-                ...params,
-                signal,
-                throwOnError: true
-            });
-            return data;
-        },
-        queryKey: getAdminGenerationJobStatsInfiniteQueryKey(options)
-    });
-    return opts as Omit<typeof opts, 'initialData'>;
-};
-
-export const getAdminGenerationJobQueryKey = (options: Options<GetAdminGenerationJobData>) => createQueryKey('getAdminGenerationJob', options);
-
-/**
- * Get Admin Generation Job
- */
-export const getAdminGenerationJobOptions = (options: Options<GetAdminGenerationJobData>) => queryOptions<GetAdminGenerationJobResponse, GetAdminGenerationJobError, GetAdminGenerationJobResponse, ReturnType<typeof getAdminGenerationJobQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await getAdminGenerationJob({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: getAdminGenerationJobQueryKey(options)
-});
 
 export const listAdminSeamlessLogsQueryKey = (options?: Options<ListAdminSeamlessLogsData>) => createQueryKey('listAdminSeamlessLogs', options);
 
@@ -1599,23 +1161,6 @@ export const updateAdminMotifMutation = (options?: Partial<Options<UpdateAdminMo
     const mutationOptions: UseMutationOptions<UpdateAdminMotifResponse, UpdateAdminMotifError, Options<UpdateAdminMotifData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await updateAdminMotif({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Review Admin Motif
- */
-export const reviewAdminMotifMutation = (options?: Partial<Options<ReviewAdminMotifData>>): UseMutationOptions<ReviewAdminMotifResponse, ReviewAdminMotifError, Options<ReviewAdminMotifData>> => {
-    const mutationOptions: UseMutationOptions<ReviewAdminMotifResponse, ReviewAdminMotifError, Options<ReviewAdminMotifData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await reviewAdminMotif({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -2405,40 +1950,6 @@ export const updateAdminSettingsMutation = (options?: Partial<Options<UpdateAdmi
 };
 
 /**
- * Admin Approve Token Refund
- */
-export const adminApproveTokenRefundMutation = (options?: Partial<Options<AdminApproveTokenRefundData>>): UseMutationOptions<AdminApproveTokenRefundResponse, AdminApproveTokenRefundError, Options<AdminApproveTokenRefundData>> => {
-    const mutationOptions: UseMutationOptions<AdminApproveTokenRefundResponse, AdminApproveTokenRefundError, Options<AdminApproveTokenRefundData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await adminApproveTokenRefund({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Admin Manage Tokens
- */
-export const adminManageTokensMutation = (options?: Partial<Options<AdminManageTokensData>>): UseMutationOptions<AdminManageTokensResponse, AdminManageTokensError, Options<AdminManageTokensData>> => {
-    const mutationOptions: UseMutationOptions<AdminManageTokensResponse, AdminManageTokensError, Options<AdminManageTokensData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await adminManageTokens({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
  * Admin Login
  */
 export const adminLoginMutation = (options?: Partial<Options<AdminLoginData>>): UseMutationOptions<AdminLoginResponse, AdminLoginError, Options<AdminLoginData>> => {
@@ -2595,23 +2106,6 @@ export const refreshTokensMutation = (options?: Partial<Options<RefreshTokensDat
 };
 
 /**
- * Authoring Promotion Candidates
- */
-export const authoringPromotionCandidatesMutation = (options?: Partial<Options<AuthoringPromotionCandidatesData>>): UseMutationOptions<AuthoringPromotionCandidatesResponse, DefaultError, Options<AuthoringPromotionCandidatesData>> => {
-    const mutationOptions: UseMutationOptions<AuthoringPromotionCandidatesResponse, DefaultError, Options<AuthoringPromotionCandidatesData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await authoringPromotionCandidates({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
  * Auto Confirm Orders
  *
  * 배송완료/배송중 7일 경과 주문 자동 구매확정 (활성 클레임 제외).
@@ -2658,28 +2152,6 @@ export const cleanupImagesMutation = (options?: Partial<Options<CleanupImagesDat
     const mutationOptions: UseMutationOptions<CleanupImagesResponse, DefaultError, Options<CleanupImagesData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await cleanupImages({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Recover Token Works
- *
- * 기한이 지난 미완료 차감을 환불한다 — 프로세스 중단 복구 (money.md §6).
- *
- * 대상은 api가 남긴 pending 기록뿐이다 — 기록 없는 오래된 차감은 자동 환불하지 않는다.
- * 외부 호출은 재실행하지 않으며, 회수 불가능한 provider 비용은 서비스가 부담한다.
- */
-export const recoverTokenWorksMutation = (options?: Partial<Options<RecoverTokenWorksData>>): UseMutationOptions<RecoverTokenWorksResponse, DefaultError, Options<RecoverTokenWorksData>> => {
-    const mutationOptions: UseMutationOptions<RecoverTokenWorksResponse, DefaultError, Options<RecoverTokenWorksData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await recoverTokenWorks({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -2850,293 +2322,12 @@ export const listDesignExamplesOptions = (options?: Options<ListDesignExamplesDa
 });
 
 /**
- * Export Design
- *
- * 디자인 SVG를 PNG/TIFF로 변환해 바이너리로 반환 (워커 /export 프록시, 과금 없음).
- */
-export const exportDesignMutation = (options?: Partial<Options<ExportDesignData>>): UseMutationOptions<unknown, ExportDesignError, Options<ExportDesignData>> => {
-    const mutationOptions: UseMutationOptions<unknown, ExportDesignError, Options<ExportDesignData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await exportDesign({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Generate Design
- */
-export const generateDesignMutation = (options?: Partial<Options<GenerateDesignData>>): UseMutationOptions<GenerateDesignResponse, GenerateDesignError, Options<GenerateDesignData>> => {
-    const mutationOptions: UseMutationOptions<GenerateDesignResponse, GenerateDesignError, Options<GenerateDesignData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await generateDesign({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Create Design Ideas
- *
- * 현재 작성 문맥만 전송하는 무과금 helper. 세션 턴과 토큰 원장에는 기록하지 않는다.
- */
-export const createDesignIdeasMutation = (options?: Partial<Options<CreateDesignIdeasData>>): UseMutationOptions<CreateDesignIdeasResponse, CreateDesignIdeasError, Options<CreateDesignIdeasData>> => {
-    const mutationOptions: UseMutationOptions<CreateDesignIdeasResponse, CreateDesignIdeasError, Options<CreateDesignIdeasData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await createDesignIdeas({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-export const listGenerationJobsQueryKey = (options?: Options<ListGenerationJobsData>) => createQueryKey('listGenerationJobs', options);
-
-/**
- * List Generation Jobs
- */
-export const listGenerationJobsOptions = (options?: Options<ListGenerationJobsData>) => queryOptions<ListGenerationJobsResponse, ListGenerationJobsError, ListGenerationJobsResponse, ReturnType<typeof listGenerationJobsQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await listGenerationJobs({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: listGenerationJobsQueryKey(options)
-});
-
-export const listGenerationJobsInfiniteQueryKey = (options?: Options<ListGenerationJobsData>): QueryKey<Options<ListGenerationJobsData>> => createQueryKey('listGenerationJobs', options, true);
-
-/**
- * List Generation Jobs
- */
-export const listGenerationJobsInfiniteOptions = (options?: Options<ListGenerationJobsData>) => {
-    const opts = infiniteQueryOptions<ListGenerationJobsResponse, ListGenerationJobsError, InfiniteData<ListGenerationJobsResponse>, QueryKey<Options<ListGenerationJobsData>>, number | Pick<QueryKey<Options<ListGenerationJobsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
-    // @ts-ignore
-    {
-        queryFn: async ({ pageParam, queryKey, signal }) => {
-            // @ts-ignore
-            const page: Pick<QueryKey<Options<ListGenerationJobsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
-                query: {
-                    offset: pageParam
-                }
-            };
-            const params = createInfiniteParams(queryKey, page);
-            const { data } = await listGenerationJobs({
-                ...options,
-                ...params,
-                signal,
-                throwOnError: true
-            });
-            return data;
-        },
-        queryKey: listGenerationJobsInfiniteQueryKey(options)
-    });
-    return opts as Omit<typeof opts, 'initialData'>;
-};
-
-/**
- * Delete Generation Job
- *
- * 완성본을 삭제한다 — 동기 전환 후 잡은 항상 종결 상태다(성공만 기록).
- *
- * 주문은 산출물을 복사본(Image)으로 참조하므로 삭제와 무관하다. 토큰은 이미
- * 소모된 것 — 삭제해도 환불하지 않는다(결과물은 이미 제공됐다).
- */
-export const deleteGenerationJobMutation = (options?: Partial<Options<DeleteGenerationJobData>>): UseMutationOptions<DeleteGenerationJobResponse, DeleteGenerationJobError, Options<DeleteGenerationJobData>> => {
-    const mutationOptions: UseMutationOptions<DeleteGenerationJobResponse, DeleteGenerationJobError, Options<DeleteGenerationJobData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await deleteGenerationJob({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Create Design Order Reference
- *
- * 소유한 finalize 결과를 주문 첨부용 비공개 객체로 가져온다.
- *
- * finalize 1건은 파일 2개(넥타이 실사 + 정본 타일)를 남긴다 — 화면은 여전히 카드
- * 1개로 본다(DesignOrderReferenceOut 주석).
- */
-export const createDesignOrderReferenceMutation = (options?: Partial<Options<CreateDesignOrderReferenceData>>): UseMutationOptions<CreateDesignOrderReferenceResponse, CreateDesignOrderReferenceError, Options<CreateDesignOrderReferenceData>> => {
-    const mutationOptions: UseMutationOptions<CreateDesignOrderReferenceResponse, CreateDesignOrderReferenceError, Options<CreateDesignOrderReferenceData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await createDesignOrderReference({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-export const listUserMotifsQueryKey = (options?: Options<ListUserMotifsData>) => createQueryKey('listUserMotifs', options);
-
-/**
- * List User Motifs
- */
-export const listUserMotifsOptions = (options?: Options<ListUserMotifsData>) => queryOptions<ListUserMotifsResponse, ListUserMotifsError, ListUserMotifsResponse, ReturnType<typeof listUserMotifsQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await listUserMotifs({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: listUserMotifsQueryKey(options)
-});
-
-export const listUserMotifsInfiniteQueryKey = (options?: Options<ListUserMotifsData>): QueryKey<Options<ListUserMotifsData>> => createQueryKey('listUserMotifs', options, true);
-
-/**
- * List User Motifs
- */
-export const listUserMotifsInfiniteOptions = (options?: Options<ListUserMotifsData>) => {
-    const opts = infiniteQueryOptions<ListUserMotifsResponse, ListUserMotifsError, InfiniteData<ListUserMotifsResponse>, QueryKey<Options<ListUserMotifsData>>, number | Pick<QueryKey<Options<ListUserMotifsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
-    // @ts-ignore
-    {
-        queryFn: async ({ pageParam, queryKey, signal }) => {
-            // @ts-ignore
-            const page: Pick<QueryKey<Options<ListUserMotifsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
-                query: {
-                    offset: pageParam
-                }
-            };
-            const params = createInfiniteParams(queryKey, page);
-            const { data } = await listUserMotifs({
-                ...options,
-                ...params,
-                signal,
-                throwOnError: true
-            });
-            return data;
-        },
-        queryKey: listUserMotifsInfiniteQueryKey(options)
-    });
-    return opts as Omit<typeof opts, 'initialData'>;
-};
-
-/**
- * Import User Motif
- */
-export const importUserMotifMutation = (options?: Partial<Options<ImportUserMotifData>>): UseMutationOptions<ImportUserMotifResponse, ImportUserMotifError, Options<ImportUserMotifData>> => {
-    const mutationOptions: UseMutationOptions<ImportUserMotifResponse, ImportUserMotifError, Options<ImportUserMotifData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await importUserMotif({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
  * Preview Photo Motif
  */
 export const previewPhotoMotifMutation = (options?: Partial<Options<PreviewPhotoMotifData>>): UseMutationOptions<PreviewPhotoMotifResponse, PreviewPhotoMotifError, Options<PreviewPhotoMotifData>> => {
     const mutationOptions: UseMutationOptions<PreviewPhotoMotifResponse, PreviewPhotoMotifError, Options<PreviewPhotoMotifData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await previewPhotoMotif({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Preview Text Motif
- */
-export const previewTextMotifMutation = (options?: Partial<Options<PreviewTextMotifData>>): UseMutationOptions<PreviewTextMotifResponse, PreviewTextMotifError, Options<PreviewTextMotifData>> => {
-    const mutationOptions: UseMutationOptions<PreviewTextMotifResponse, PreviewTextMotifError, Options<PreviewTextMotifData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await previewTextMotif({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Delete User Motif
- */
-export const deleteUserMotifMutation = (options?: Partial<Options<DeleteUserMotifData>>): UseMutationOptions<DeleteUserMotifResponse, DeleteUserMotifError, Options<DeleteUserMotifData>> => {
-    const mutationOptions: UseMutationOptions<DeleteUserMotifResponse, DeleteUserMotifError, Options<DeleteUserMotifData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await deleteUserMotif({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-export const listDesignSessionsQueryKey = (options?: Options<ListDesignSessionsData>) => createQueryKey('listDesignSessions', options);
-
-/**
- * List Design Sessions
- */
-export const listDesignSessionsOptions = (options?: Options<ListDesignSessionsData>) => queryOptions<ListDesignSessionsResponse, DefaultError, ListDesignSessionsResponse, ReturnType<typeof listDesignSessionsQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await listDesignSessions({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: listDesignSessionsQueryKey(options)
-});
-
-/**
- * Create Design Session
- */
-export const createDesignSessionMutation = (options?: Partial<Options<CreateDesignSessionData>>): UseMutationOptions<CreateDesignSessionResponse, DefaultError, Options<CreateDesignSessionData>> => {
-    const mutationOptions: UseMutationOptions<CreateDesignSessionResponse, DefaultError, Options<CreateDesignSessionData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await createDesignSession({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -3166,25 +2357,6 @@ export const createDesignSessionFromExampleMutation = (options?: Partial<Options
     return mutationOptions;
 };
 
-/**
- * Delete Design Session
- *
- * 세션과 턴 이력을 삭제한다. finalize 결과물은 독립 소유라 남긴다.
- */
-export const deleteDesignSessionMutation = (options?: Partial<Options<DeleteDesignSessionData>>): UseMutationOptions<DeleteDesignSessionResponse, DeleteDesignSessionError, Options<DeleteDesignSessionData>> => {
-    const mutationOptions: UseMutationOptions<DeleteDesignSessionResponse, DeleteDesignSessionError, Options<DeleteDesignSessionData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await deleteDesignSession({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
 export const getDesignSessionQueryKey = (options: Options<GetDesignSessionData>) => createQueryKey('getDesignSession', options);
 
 /**
@@ -3204,45 +2376,6 @@ export const getDesignSessionOptions = (options: Options<GetDesignSessionData>) 
 });
 
 /**
- * Apply Colorway
- *
- * 부위별 색 적용 — 지금 colorway에 고른 색을 덮은 새 colorway로 결정론 재렌더. 무과금.
- *
- * 고를 수 있는 부위는 intent 팔레트에서 `name`이 붙은 슬롯(시드가 정한다). 그 밖의 슬롯은 422.
- * 새 colorway id는 mapping 해시(같은 색 → 같은 디자인 id). intent에는 `default`와 이것만 남긴다.
- */
-export const applyColorwayMutation = (options?: Partial<Options<ApplyColorwayData>>): UseMutationOptions<ApplyColorwayResponse, ApplyColorwayError, Options<ApplyColorwayData>> => {
-    const mutationOptions: UseMutationOptions<ApplyColorwayResponse, ApplyColorwayError, Options<ApplyColorwayData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await applyColorway({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Create Finalize Job
- */
-export const createFinalizeJobMutation = (options?: Partial<Options<CreateFinalizeJobData>>): UseMutationOptions<CreateFinalizeJobResponse, CreateFinalizeJobError, Options<CreateFinalizeJobData>> => {
-    const mutationOptions: UseMutationOptions<CreateFinalizeJobResponse, CreateFinalizeJobError, Options<CreateFinalizeJobData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await createFinalizeJob({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
  * Place Design Logo
  *
  * 로고 한 번에 넣기 — 내 모티프 저장(멱등) + 로고 슬롯 교체 재렌더. 무과금.
@@ -3255,113 +2388,6 @@ export const placeDesignLogoMutation = (options?: Partial<Options<PlaceDesignLog
     const mutationOptions: UseMutationOptions<PlaceDesignLogoResponse, PlaceDesignLogoError, Options<PlaceDesignLogoData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await placeDesignLogo({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Activate Motif
- *
- * 모티프 슬롯 교체 — 모티프 id만 바뀐 결정론 재렌더라 모델 호출도 과금도 없다.
- */
-export const activateMotifMutation = (options?: Partial<Options<ActivateMotifData>>): UseMutationOptions<ActivateMotifResponse, ActivateMotifError, Options<ActivateMotifData>> => {
-    const mutationOptions: UseMutationOptions<ActivateMotifResponse, ActivateMotifError, Options<ActivateMotifData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await activateMotif({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Generate Motif
- */
-export const generateMotifMutation = (options?: Partial<Options<GenerateMotifData>>): UseMutationOptions<GenerateMotifResponse, GenerateMotifError, Options<GenerateMotifData>> => {
-    const mutationOptions: UseMutationOptions<GenerateMotifResponse, GenerateMotifError, Options<GenerateMotifData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await generateMotif({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Search Motifs
- *
- * 문장으로 카탈로그를 찾는다 — 워커가 이미지를 생성하지 않으므로 무과금.
- */
-export const searchMotifsMutation = (options?: Partial<Options<SearchMotifsData>>): UseMutationOptions<SearchMotifsResponse, SearchMotifsError, Options<SearchMotifsData>> => {
-    const mutationOptions: UseMutationOptions<SearchMotifsResponse, SearchMotifsError, Options<SearchMotifsData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await searchMotifs({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Activate Design Step
- */
-export const activateDesignStepMutation = (options?: Partial<Options<ActivateDesignStepData>>): UseMutationOptions<ActivateDesignStepResponse, ActivateDesignStepError, Options<ActivateDesignStepData>> => {
-    const mutationOptions: UseMutationOptions<ActivateDesignStepResponse, ActivateDesignStepError, Options<ActivateDesignStepData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await activateDesignStep({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-export const listDesignTurnsQueryKey = (options: Options<ListDesignTurnsData>) => createQueryKey('listDesignTurns', options);
-
-/**
- * List Design Turns
- */
-export const listDesignTurnsOptions = (options: Options<ListDesignTurnsData>) => queryOptions<ListDesignTurnsResponse, ListDesignTurnsError, ListDesignTurnsResponse, ReturnType<typeof listDesignTurnsQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await listDesignTurns({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: listDesignTurnsQueryKey(options)
-});
-
-/**
- * Append Design Turn
- */
-export const appendDesignTurnMutation = (options?: Partial<Options<AppendDesignTurnData>>): UseMutationOptions<AppendDesignTurnResponse, AppendDesignTurnError, Options<AppendDesignTurnData>> => {
-    const mutationOptions: UseMutationOptions<AppendDesignTurnResponse, AppendDesignTurnError, Options<AppendDesignTurnData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await appendDesignTurn({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -4253,159 +3279,6 @@ export const updateReviewMutation = (options?: Partial<Options<UpdateReviewData>
     };
     return mutationOptions;
 };
-
-export const getTokenBalanceQueryKey = (options?: Options<GetTokenBalanceData>) => createQueryKey('getTokenBalance', options);
-
-/**
- * Get Token Balance
- */
-export const getTokenBalanceOptions = (options?: Options<GetTokenBalanceData>) => queryOptions<GetTokenBalanceResponse, DefaultError, GetTokenBalanceResponse, ReturnType<typeof getTokenBalanceQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await getTokenBalance({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: getTokenBalanceQueryKey(options)
-});
-
-export const listTokenHistoryQueryKey = (options?: Options<ListTokenHistoryData>) => createQueryKey('listTokenHistory', options);
-
-/**
- * List Token History
- */
-export const listTokenHistoryOptions = (options?: Options<ListTokenHistoryData>) => queryOptions<ListTokenHistoryResponse, ListTokenHistoryError, ListTokenHistoryResponse, ReturnType<typeof listTokenHistoryQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await listTokenHistory({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: listTokenHistoryQueryKey(options)
-});
-
-export const listTokenHistoryInfiniteQueryKey = (options?: Options<ListTokenHistoryData>): QueryKey<Options<ListTokenHistoryData>> => createQueryKey('listTokenHistory', options, true);
-
-/**
- * List Token History
- */
-export const listTokenHistoryInfiniteOptions = (options?: Options<ListTokenHistoryData>) => {
-    const opts = infiniteQueryOptions<ListTokenHistoryResponse, ListTokenHistoryError, InfiniteData<ListTokenHistoryResponse>, QueryKey<Options<ListTokenHistoryData>>, number | Pick<QueryKey<Options<ListTokenHistoryData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
-    // @ts-ignore
-    {
-        queryFn: async ({ pageParam, queryKey, signal }) => {
-            // @ts-ignore
-            const page: Pick<QueryKey<Options<ListTokenHistoryData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
-                query: {
-                    offset: pageParam
-                }
-            };
-            const params = createInfiniteParams(queryKey, page);
-            const { data } = await listTokenHistory({
-                ...options,
-                ...params,
-                signal,
-                throwOnError: true
-            });
-            return data;
-        },
-        queryKey: listTokenHistoryInfiniteQueryKey(options)
-    });
-    return opts as Omit<typeof opts, 'initialData'>;
-};
-
-/**
- * Create Token Order
- */
-export const createTokenOrderMutation = (options?: Partial<Options<CreateTokenOrderData>>): UseMutationOptions<CreateTokenOrderResponse, CreateTokenOrderError, Options<CreateTokenOrderData>> => {
-    const mutationOptions: UseMutationOptions<CreateTokenOrderResponse, CreateTokenOrderError, Options<CreateTokenOrderData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await createTokenOrder({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-export const getTokenPlansQueryKey = (options?: Options<GetTokenPlansData>) => createQueryKey('getTokenPlans', options);
-
-/**
- * Get Token Plans
- */
-export const getTokenPlansOptions = (options?: Options<GetTokenPlansData>) => queryOptions<GetTokenPlansResponse, DefaultError, GetTokenPlansResponse, ReturnType<typeof getTokenPlansQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await getTokenPlans({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: getTokenPlansQueryKey(options)
-});
-
-/**
- * Request Token Refund
- */
-export const requestTokenRefundMutation = (options?: Partial<Options<RequestTokenRefundData>>): UseMutationOptions<RequestTokenRefundResponse, RequestTokenRefundError, Options<RequestTokenRefundData>> => {
-    const mutationOptions: UseMutationOptions<RequestTokenRefundResponse, RequestTokenRefundError, Options<RequestTokenRefundData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await requestTokenRefund({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Cancel Token Refund
- */
-export const cancelTokenRefundMutation = (options?: Partial<Options<CancelTokenRefundData>>): UseMutationOptions<CancelTokenRefundResponse, CancelTokenRefundError, Options<CancelTokenRefundData>> => {
-    const mutationOptions: UseMutationOptions<CancelTokenRefundResponse, CancelTokenRefundError, Options<CancelTokenRefundData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await cancelTokenRefund({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-export const listRefundableTokenOrdersQueryKey = (options?: Options<ListRefundableTokenOrdersData>) => createQueryKey('listRefundableTokenOrders', options);
-
-/**
- * List Refundable Token Orders
- */
-export const listRefundableTokenOrdersOptions = (options?: Options<ListRefundableTokenOrdersData>) => queryOptions<ListRefundableTokenOrdersResponse, DefaultError, ListRefundableTokenOrdersResponse, ReturnType<typeof listRefundableTokenOrdersQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await listRefundableTokenOrders({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: listRefundableTokenOrdersQueryKey(options)
-});
 
 /**
  * Delete Account

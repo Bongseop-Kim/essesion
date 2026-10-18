@@ -4,8 +4,6 @@ import uuid
 from datetime import UTC, datetime
 
 from db.models.commerce import Claim, Inquiry, OrderItem, OrderStatusLog
-from db.models.design import GenerationJob
-from db.models.tokens import DesignToken, TokenPurchase
 
 from .factories import (
     auth_headers,
@@ -40,17 +38,6 @@ async def test_invalid_transition_rejected(client, db_session, settings):
     res = await _status_update(client, settings, admin, order.id, {"new_status": "배송완료"})
     assert res.status_code == 400
     assert "Invalid transition" in res.json()["detail"]
-
-
-async def test_token_order_cannot_complete_manually(client, db_session, settings):
-    admin = await make_admin(db_session)
-    user = await make_user(db_session)
-    order = await make_order(db_session, user, order_type="token", status="결제중")
-    res = await _status_update(client, settings, admin, order.id, {"new_status": "완료"})
-    assert res.status_code == 400  # 완료는 결제 confirm 전용
-
-    cancel = await _status_update(client, settings, admin, order.id, {"new_status": "취소"})
-    assert cancel.status_code == 200
 
 
 async def test_rollback_requires_memo(client, db_session, settings):
@@ -189,10 +176,10 @@ async def test_order_list_page_filters_search_and_stable_sort(client, db_session
     same_time = datetime(2026, 5, 1, 3, 0, tzinfo=UTC)
     sale_a = await make_order(db_session, user, created_at=same_time, total_price=2000)
     sale_b = await make_order(db_session, user, created_at=same_time, total_price=1000)
-    token = await make_order(
+    sample = await make_order(
         db_session,
         user,
-        order_type="token",
+        order_type="sample",
         status="완료",
         total_price=3000,
         created_at=datetime(2026, 4, 30, 15, 0, tzinfo=UTC),  # KST 2026-05-01 00:00
@@ -200,7 +187,7 @@ async def test_order_list_page_filters_search_and_stable_sort(client, db_session
     outside = await make_order(
         db_session,
         user,
-        order_type="token",
+        order_type="sample",
         status="완료",
         created_at=datetime(2026, 4, 30, 14, 59, tzinfo=UTC),
     )
@@ -224,7 +211,7 @@ async def test_order_list_page_filters_search_and_stable_sort(client, db_session
     filtered = await client.get(
         "/admin/orders",
         params={
-            "order_type": "token",
+            "order_type": "sample",
             "status": "완료",
             "start_date": "2026-05-01",
             "end_date": "2026-05-01",
@@ -233,7 +220,7 @@ async def test_order_list_page_filters_search_and_stable_sort(client, db_session
     )
     assert filtered.status_code == 200
     assert filtered.json()["limit"] == 20
-    assert [item["id"] for item in filtered.json()["items"]] == [str(token.id)]
+    assert [item["id"] for item in filtered.json()["items"]] == [str(sample.id)]
     assert str(outside.id) not in {item["id"] for item in filtered.json()["items"]}
 
     open_start = await client.get(
@@ -245,7 +232,7 @@ async def test_order_list_page_filters_search_and_stable_sort(client, db_session
     assert {item["id"] for item in open_start.json()["items"]} == {
         str(sale_a.id),
         str(sale_b.id),
-        str(token.id),
+        str(sample.id),
     }
 
     open_end = await client.get(
@@ -292,10 +279,10 @@ async def test_dashboard_summary_and_recent_orders(client, db_session, settings)
         created_at=datetime(2026, 5, 30, 0, 0, tzinfo=UTC),
         paid_at=datetime(2026, 6, 1, 0, 0, tzinfo=UTC),
     )
-    token = await make_order(
+    sample = await make_order(
         db_session,
         user,
-        order_type="token",
+        order_type="sample",
         status="완료",
         total_price=2500,
         created_at=datetime(2026, 6, 1, 1, 0, tzinfo=UTC),
@@ -379,12 +366,12 @@ async def test_dashboard_summary_and_recent_orders(client, db_session, settings)
 
     recent = await client.get(
         "/admin/dashboard/recent-orders",
-        params={"order_type": "token", "limit": 1},
+        params={"order_type": "sample", "limit": 1},
         headers=headers,
     )
     assert recent.status_code == 200
     assert recent.json()["total"] == 1
-    assert recent.json()["items"][0]["id"] == str(token.id)
+    assert recent.json()["items"][0]["id"] == str(sample.id)
     assert recent.json()["as_of"] is not None
     assert (
         await client.get("/admin/dashboard/recent-orders", params={"limit": 21}, headers=headers)
@@ -523,58 +510,6 @@ async def test_dashboard_timeseries_kst_buckets_and_zero_fill(client, db_session
     # 신규 가입: customer는 집계, admin은 제외
     user.created_at = datetime(2026, 6, 10, 3, 0, tzinfo=UTC)
     admin.created_at = datetime(2026, 6, 10, 3, 0, tzinfo=UTC)
-    db_session.add_all(
-        [
-            GenerationJob(
-                user_id=user.id,
-                kind="finalize",
-                status="succeeded",
-                params={},
-                created_at=datetime(2026, 6, 10, 4, 0, tzinfo=UTC),
-            ),
-            GenerationJob(
-                user_id=user.id,
-                kind="finalize",
-                status="failed",
-                params={},
-                created_at=datetime(2026, 6, 10, 5, 0, tzinfo=UTC),
-            ),
-            # 토큰 소모 = 차감(-)만 절대값 합산, 지급(+)은 미포함
-            DesignToken(
-                user_id=user.id,
-                amount=100,
-                type="purchase",
-                token_class="paid",
-                created_at=datetime(2026, 6, 10, 6, 0, tzinfo=UTC),
-            ),
-            DesignToken(
-                user_id=user.id,
-                amount=-30,
-                type="use",
-                token_class="paid",
-                created_at=datetime(2026, 6, 10, 7, 0, tzinfo=UTC),
-            ),
-            # 토큰 판매 = 완료만, 대기중 제외
-            TokenPurchase(
-                user_id=user.id,
-                payment_group_id=uuid.uuid4(),
-                plan_key="starter",
-                token_amount=100,
-                price=9900,
-                status="완료",
-                created_at=datetime(2026, 6, 10, 8, 0, tzinfo=UTC),
-            ),
-            TokenPurchase(
-                user_id=user.id,
-                payment_group_id=uuid.uuid4(),
-                plan_key="starter",
-                token_amount=100,
-                price=9900,
-                status="대기중",
-                created_at=datetime(2026, 6, 10, 9, 0, tzinfo=UTC),
-            ),
-        ]
-    )
     await db_session.commit()
 
     res = await client.get(
@@ -594,22 +529,13 @@ async def test_dashboard_timeseries_kst_buckets_and_zero_fill(client, db_session
         "custom_amount": 0,
         "repair_amount": 0,
         "sample_amount": 0,
-        "token_amount": 0,
         "manual_custom_amount": 0,
         "manual_repair_amount": 0,
         "new_customer_count": 0,
-        "generation_total": 0,
-        "generation_failed": 0,
-        "token_consumed": 0,
-        "token_sold": 0,
     }
     assert mid["order_count"] == 1
     assert mid["order_amount"] == 10000
     assert mid["new_customer_count"] == 1  # admin 제외
-    assert mid["generation_total"] == 2
-    assert mid["generation_failed"] == 1
-    assert mid["token_consumed"] == 30
-    assert mid["token_sold"] == 100
     assert last["order_count"] == 1
     assert last["order_amount"] == 3000
     assert body["as_of"] is not None
@@ -624,7 +550,7 @@ async def test_dashboard_timeseries_order_type_filter_scopes_order_series_only(
     await make_order(
         db_session,
         user,
-        order_type="token",
+        order_type="sample",
         status="완료",
         total_price=2500,
         created_at=day,
@@ -640,7 +566,7 @@ async def test_dashboard_timeseries_order_type_filter_scopes_order_series_only(
     )
     assert res.status_code == 200
     point = res.json()["timeseries"]["points"][0]
-    assert point["order_count"] == 0  # token 주문은 sale 필터에서 제외
+    assert point["order_count"] == 0  # sample 주문은 sale 필터에서 제외
     assert point["new_customer_count"] == 1  # 주문 외 시리즈는 필터 무관
 
 
@@ -649,7 +575,6 @@ _AMOUNT_KEYS = (
     "custom_amount",
     "repair_amount",
     "sample_amount",
-    "token_amount",
     "manual_custom_amount",
     "manual_repair_amount",
 )
@@ -665,7 +590,6 @@ async def test_dashboard_timeseries_splits_amount_by_order_type(client, db_sessi
         ("custom", 20000),
         ("repair", 30000),
         ("sample", 4000),
-        ("token", 5000),
     ):
         await make_order(
             db_session,
@@ -687,8 +611,7 @@ async def test_dashboard_timeseries_splits_amount_by_order_type(client, db_sessi
     assert point["custom_amount"] == 20000
     assert point["repair_amount"] == 30000
     assert point["sample_amount"] == 4000
-    assert point["token_amount"] == 5000
-    assert sum(point[key] for key in _AMOUNT_KEYS) == point["order_amount"] == 69000
+    assert sum(point[key] for key in _AMOUNT_KEYS) == point["order_amount"] == 64000
 
     # 유형 필터는 분해에도 적용된다 — 고른 유형 구획만 남는다.
     filtered = await client.get(

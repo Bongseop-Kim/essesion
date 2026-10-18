@@ -51,9 +51,6 @@ const customer: AdminCustomerDetailOut = {
   notification_consent: true,
   notification_enabled: true,
   marketing_kakao_sms_consent: false,
-  token_balance: 12,
-  paid_token_balance: 10,
-  bonus_token_balance: 2,
   order_count: 0,
   active_coupon_count: 0,
 };

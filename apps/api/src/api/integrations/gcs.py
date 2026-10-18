@@ -95,10 +95,6 @@ class GcsClient(Protocol):
         self, object_key: str, *, bucket_name: str | None = None
     ) -> GcsObjectMetadata | None: ...
 
-    async def copy_from_bucket(
-        self, source_bucket: str, source_key: str, destination_key: str
-    ) -> bool: ...
-
 
 class RealGcsClient:
     def __init__(self, bucket_name: str, emulator_host: str = ""):
@@ -237,41 +233,6 @@ class RealGcsClient:
             return GcsObjectMetadata(size_bytes=int(blob.size or 0), content_type=blob.content_type)
 
         return await run_in_threadpool(_load)
-
-    async def copy_from_bucket(
-        self, source_bucket: str, source_key: str, destination_key: str
-    ) -> bool:
-        """공개 생성물을 비공개 업로드 버킷으로 복사한다.
-
-        호출자가 DB 소유권과 대상 키 정책을 먼저 검증한다. 대상 객체가 이미 있으면
-        성공으로 취급해 동시 create-only 복사에서도 기존 객체를 덮어쓰지 않는다.
-        """
-
-        from google.cloud.exceptions import PreconditionFailed
-
-        def _copy() -> None:
-            source = self._client.bucket(source_bucket)
-            source.copy_blob(
-                source.blob(source_key),
-                self._bucket,
-                destination_key,
-                if_generation_match=0,
-            )
-
-        try:
-            await run_in_threadpool(_copy)
-            return True
-        except PreconditionFailed:
-            # 같은 잡의 대상 객체가 이미 있으면 복사 목적을 달성한 것(동시 요청 포함).
-            return True
-        except Exception:
-            logger.exception(
-                "GCS 버킷 간 복사 실패: gs://%s/%s -> %s",
-                source_bucket,
-                source_key,
-                destination_key,
-            )
-            return False
 
 
 def build_gcs_client(settings: Settings) -> GcsClient:

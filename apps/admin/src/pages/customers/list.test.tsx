@@ -32,7 +32,6 @@ const page: PageAdminCustomerSummaryOut = {
       is_active: true,
       phone_verified: true,
       created_at: "2026-07-12T01:00:00Z",
-      token_balance: 12,
       order_count: 3,
       active_coupon_count: 1,
     },

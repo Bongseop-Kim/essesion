@@ -22,17 +22,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 ADMIN_SETTINGS = {
     "default_courier_company": "롯데택배",
-    # 1토큰 ≈ 1원 스케일. 단가 산정 근거·손익 가드는 money.md §6이 정본이다.
-    # 탐색~실사화 1회 완주 ≈ 385토큰(생성 25 + 모티프 100 + 수정 12×5 + 실사화 200)의 약 2배
-    "design_token_initial_grant": "750",
-    "design_token_cost_openai_render_standard": "25",
-    "design_edit_cost": "12",
-    "design_motif_generate_cost": "100",
-    "design_finalize_cost": "200",
 }
 
 # 이전 스키마의 admin_settings 잔재 — 남아 있으면 관리자 화면에 유령 행이 남는다.
-_RETIRED_ADMIN_SETTING_KEYS = ("design_finalize_daily_limit",)
+# design_*는 2026-10-19 AI 디자인·토큰 제거로 은퇴한 키다.
+_RETIRED_ADMIN_SETTING_KEYS = (
+    "design_finalize_daily_limit",
+    "design_token_initial_grant",
+    "design_token_cost_openai_render_standard",
+    "design_edit_cost",
+    "design_motif_generate_cost",
+    "design_finalize_cost",
+)
 
 PRICING: dict[str, tuple[int, str]] = {
     # reform
@@ -66,13 +67,6 @@ PRICING: dict[str, tuple[int, str]] = {
     "sample_discount_sewing": (30000, "sample_discount"),
     "sample_discount_fabric_printing": (30000, "sample_discount"),
     "sample_discount_fabric_yarn_dyed": (40000, "sample_discount"),
-    # token plans — 가격과 수량은 다르다. 볼륨 할인은 보너스 토큰으로 드러난다 (money.md §6 표).
-    "token_plan_starter_price": (2500, "token"),
-    "token_plan_starter_amount": (2500, "token"),
-    "token_plan_popular_price": (6500, "token"),
-    "token_plan_popular_amount": (7500, "token"),
-    "token_plan_pro_price": (18000, "token"),
-    "token_plan_pro_amount": (25000, "token"),
 }
 
 # 이전 스키마의 잔재 — 남아 있으면 견적이 옛 키를 집거나 관리자 화면에 유령 행이 남는다.
@@ -85,13 +79,20 @@ _RETIRED_PRICING_KEYS = (
     "SAMPLE_FABRIC_AND_SEWING_YARN_DYED_COST",
     "sample_discount_fabric_and_sewing_printing",
     "sample_discount_fabric_and_sewing_yarn_dyed",
+    # 2026-10-19 디자인 토큰 판매 종료
+    "token_plan_starter_price",
+    "token_plan_starter_amount",
+    "token_plan_popular_price",
+    "token_plan_popular_amount",
+    "token_plan_pro_price",
+    "token_plan_pro_amount",
 )
 
 
 async def apply_config_defaults(session: AsyncSession, *, overwrite: bool) -> tuple[int, int]:
     """두 설정 테이블에 기본값을 채운다. 멱등이며 반환값은 (설정 수, 가격 수).
 
-    overwrite=True는 로컬 전용이다 — 단가만 옛 값에 남으면 플랜 수량과 어긋난다.
+    overwrite=True는 로컬 전용이다 — 로컬 값을 기본값으로 되돌린다.
     production은 False로 부른다. 운영자가 admin 화면에서 조정한 값을 재실행이
     되돌리면 안 되기 때문이다. 빠진 행만 채우고 기존 행은 손대지 않는다.
     """

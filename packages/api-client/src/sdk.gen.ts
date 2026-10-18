@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ActivateDesignStepData, ActivateDesignStepErrors, ActivateDesignStepResponses, ActivateMotifData, ActivateMotifErrors, ActivateMotifResponses, AdminApproveTokenRefundData, AdminApproveTokenRefundErrors, AdminApproveTokenRefundResponses, AdminCreateProductData, AdminCreateProductErrors, AdminCreateProductResponses, AdminGetClaimData, AdminGetClaimErrors, AdminGetClaimResponses, AdminGetPaymentIncidentData, AdminGetPaymentIncidentErrors, AdminGetPaymentIncidentResponses, AdminGetProductData, AdminGetProductErrors, AdminGetProductResponses, AdminListClaimsV2Data, AdminListClaimsV2Errors, AdminListClaimsV2Responses, AdminListPaymentIncidentsData, AdminListPaymentIncidentsErrors, AdminListPaymentIncidentsResponses, AdminListProductsData, AdminListProductsErrors, AdminListProductsResponses, AdminLoginData, AdminLoginErrors, AdminLoginResponses, AdminLogoutData, AdminLogoutResponses, AdminManageTokensData, AdminManageTokensErrors, AdminManageTokensResponses, AdminReconcilePaymentIncidentData, AdminReconcilePaymentIncidentErrors, AdminReconcilePaymentIncidentResponses, AdminRefreshTokensData, AdminRefreshTokensResponses, AdminResolvePaymentIncidentData, AdminResolvePaymentIncidentErrors, AdminResolvePaymentIncidentResponses, AdminRetryClaimNotificationData, AdminRetryClaimNotificationErrors, AdminRetryClaimNotificationResponses, AdminUpdateClaimStatusData, AdminUpdateClaimStatusErrors, AdminUpdateClaimStatusResponses, AdminUpdateClaimTrackingData, AdminUpdateClaimTrackingErrors, AdminUpdateClaimTrackingResponses, AdminUpdateOrderStatusData, AdminUpdateOrderStatusErrors, AdminUpdateOrderStatusResponses, AdminUpdateOrderTrackingData, AdminUpdateOrderTrackingErrors, AdminUpdateOrderTrackingResponses, AdminUpdateProductData, AdminUpdateProductErrors, AdminUpdateProductResponses, AnswerAdminInquiryData, AnswerAdminInquiryErrors, AnswerAdminInquiryResponses, AppendDesignTurnData, AppendDesignTurnErrors, AppendDesignTurnResponses, ApplyColorwayData, ApplyColorwayErrors, ApplyColorwayResponses, AuthoringPromotionCandidatesData, AuthoringPromotionCandidatesResponses, AutoConfirmOrdersData, AutoConfirmOrdersResponses, BatchAuthoringExamplePreviewsData, BatchAuthoringExamplePreviewsErrors, BatchAuthoringExamplePreviewsResponses, CalculateCustomOrderData, CalculateCustomOrderErrors, CalculateCustomOrderResponses, CalculateSampleOrderData, CalculateSampleOrderErrors, CalculateSampleOrderResponses, CancelClaimData, CancelClaimErrors, CancelClaimResponses, CancelStaleOrdersData, CancelStaleOrdersResponses, CancelTokenRefundData, CancelTokenRefundErrors, CancelTokenRefundResponses, CleanupImagesData, CleanupImagesResponses, CompleteAdminPopupImageUploadData, CompleteAdminPopupImageUploadErrors, CompleteAdminPopupImageUploadResponses, CompleteAdminProductImageUploadData, CompleteAdminProductImageUploadErrors, CompleteAdminProductImageUploadResponses, CompleteDesignReferenceUploadData, CompleteDesignReferenceUploadErrors, CompleteDesignReferenceUploadResponses, CompleteOrderImageData, CompleteOrderImageErrors, CompleteOrderImageResponses, CompleteReviewPhotoUploadData, CompleteReviewPhotoUploadErrors, CompleteReviewPhotoUploadResponses, ConfirmPaymentData, ConfirmPaymentErrors, ConfirmPaymentResponses, ConfirmPurchaseData, ConfirmPurchaseErrors, ConfirmPurchaseResponses, CreateAdminCouponData, CreateAdminCouponErrors, CreateAdminCouponResponses, CreateAdminDesignExampleData, CreateAdminDesignExampleErrors, CreateAdminDesignExampleResponses, CreateAdminOrderReferenceImageReadUrlData, CreateAdminOrderReferenceImageReadUrlErrors, CreateAdminOrderReferenceImageReadUrlResponses, CreateAdminPopupData, CreateAdminPopupErrors, CreateAdminPopupImageUploadUrlData, CreateAdminPopupImageUploadUrlErrors, CreateAdminPopupImageUploadUrlResponses, CreateAdminPopupResponses, CreateAdminProductImageUploadUrlData, CreateAdminProductImageUploadUrlErrors, CreateAdminProductImageUploadUrlResponses, CreateAdminQuoteImageReadUrlData, CreateAdminQuoteImageReadUrlErrors, CreateAdminQuoteImageReadUrlResponses, CreateAdminRepairReceiptPhotoReadUrlData, CreateAdminRepairReceiptPhotoReadUrlErrors, CreateAdminRepairReceiptPhotoReadUrlResponses, CreateAuthoringExampleData, CreateAuthoringExampleErrors, CreateAuthoringExampleResponses, CreateClaimData, CreateClaimErrors, CreateClaimResponses, CreateCustomOrderData, CreateCustomOrderErrors, CreateCustomOrderResponses, CreateDesignIdeasData, CreateDesignIdeasErrors, CreateDesignIdeasResponses, CreateDesignOrderReferenceData, CreateDesignOrderReferenceErrors, CreateDesignOrderReferenceResponses, CreateDesignSessionData, CreateDesignSessionFromExampleData, CreateDesignSessionFromExampleErrors, CreateDesignSessionFromExampleResponses, CreateDesignSessionResponses, CreateFinalizeJobData, CreateFinalizeJobErrors, CreateFinalizeJobResponses, CreateInquiryData, CreateInquiryErrors, CreateInquiryResponses, CreateManualOrderData, CreateManualOrderErrors, CreateManualOrderImageReadUrlData, CreateManualOrderImageReadUrlErrors, CreateManualOrderImageReadUrlResponses, CreateManualOrderImageUploadUrlData, CreateManualOrderImageUploadUrlErrors, CreateManualOrderImageUploadUrlResponses, CreateManualOrderResponses, CreateMyOrderReferenceImageReadUrlData, CreateMyOrderReferenceImageReadUrlErrors, CreateMyOrderReferenceImageReadUrlResponses, CreateMyRepairReceiptPhotoReadUrlData, CreateMyRepairReceiptPhotoReadUrlErrors, CreateMyRepairReceiptPhotoReadUrlResponses, CreateOrderData, CreateOrderErrors, CreateOrderResponses, CreateQuoteData, CreateQuoteErrors, CreateQuoteResponses, CreateReadUrlData, CreateReadUrlErrors, CreateReadUrlResponses, CreateReformUploadUrlData, CreateReformUploadUrlErrors, CreateReformUploadUrlResponses, CreateReviewData, CreateReviewErrors, CreateReviewPhotoUploadUrlData, CreateReviewPhotoUploadUrlErrors, CreateReviewPhotoUploadUrlResponses, CreateReviewResponses, CreateSampleOrderData, CreateSampleOrderErrors, CreateSampleOrderResponses, CreateTokenOrderData, CreateTokenOrderErrors, CreateTokenOrderResponses, CreateUploadUrlData, CreateUploadUrlErrors, CreateUploadUrlResponses, DecideAuthoringCandidateData, DecideAuthoringCandidateErrors, DecideAuthoringCandidateResponses, DeleteAccountData, DeleteAccountResponses, DeleteAddressData, DeleteAddressErrors, DeleteAddressResponses, DeleteAdminDesignExampleData, DeleteAdminDesignExampleErrors, DeleteAdminDesignExampleResponses, DeleteAdminPopupData, DeleteAdminPopupErrors, DeleteAdminPopupImageUploadData, DeleteAdminPopupImageUploadErrors, DeleteAdminPopupImageUploadResponses, DeleteAdminPopupResponses, DeleteAdminProductImageUploadData, DeleteAdminProductImageUploadErrors, DeleteAdminProductImageUploadResponses, DeleteAdminReviewData, DeleteAdminReviewErrors, DeleteAdminReviewResponses, DeleteAuthoringExampleData, DeleteAuthoringExampleErrors, DeleteAuthoringExampleResponses, DeleteDesignSessionData, DeleteDesignSessionErrors, DeleteDesignSessionResponses, DeleteGenerationJobData, DeleteGenerationJobErrors, DeleteGenerationJobResponses, DeleteInquiryData, DeleteInquiryErrors, DeleteInquiryResponses, DeleteManualOrderData, DeleteManualOrderErrors, DeleteManualOrderResponses, DeleteReviewData, DeleteReviewErrors, DeleteReviewResponses, DeleteUserMotifData, DeleteUserMotifErrors, DeleteUserMotifResponses, ExportDesignData, ExportDesignErrors, ExportDesignResponses, GenerateDesignData, GenerateDesignErrors, GenerateDesignResponses, GenerateMotifData, GenerateMotifErrors, GenerateMotifResponses, GetActivePopupData, GetActivePopupResponses, GetAdminCapabilitiesData, GetAdminCapabilitiesResponses, GetAdminCouponData, GetAdminCouponErrors, GetAdminCouponResponses, GetAdminCustomerData, GetAdminCustomerErrors, GetAdminCustomerResponses, GetAdminGenerationJobData, GetAdminGenerationJobErrors, GetAdminGenerationJobResponses, GetAdminGenerationJobStatsData, GetAdminGenerationJobStatsErrors, GetAdminGenerationJobStatsResponses, GetAdminInquiryData, GetAdminInquiryErrors, GetAdminInquiryResponses, GetAdminMotifData, GetAdminMotifErrors, GetAdminMotifResponses, GetAdminOrderData, GetAdminOrderErrors, GetAdminOrderResponses, GetAdminPricingData, GetAdminPricingResponses, GetAdminQuoteData, GetAdminQuoteErrors, GetAdminQuoteResponses, GetAdminSeamlessLogData, GetAdminSeamlessLogErrors, GetAdminSeamlessLogResponses, GetAdminSeamlessStatsData, GetAdminSeamlessStatsErrors, GetAdminSeamlessStatsResponses, GetAdminSettingsData, GetAdminSettingsResponses, GetAuthoringCandidateData, GetAuthoringCandidateErrors, GetAuthoringCandidateResponses, GetAuthoringExampleData, GetAuthoringExampleErrors, GetAuthoringExampleResponses, GetCartData, GetCartResponses, GetDashboardOverviewData, GetDashboardOverviewErrors, GetDashboardOverviewResponses, GetDashboardRecentOrdersData, GetDashboardRecentOrdersErrors, GetDashboardRecentOrdersResponses, GetDashboardRecentQuotesData, GetDashboardRecentQuotesErrors, GetDashboardRecentQuotesResponses, GetDesignSessionData, GetDesignSessionErrors, GetDesignSessionResponses, GetInquiryData, GetInquiryErrors, GetInquiryResponses, GetManualOrderData, GetManualOrderErrors, GetManualOrderResponses, GetMeData, GetMeResponses, GetOrderData, GetOrderErrors, GetOrderResponses, GetProductData, GetProductErrors, GetProductResponses, GetQuoteData, GetQuoteErrors, GetQuoteResponses, GetReformPricingData, GetReformPricingResponses, GetReviewData, GetReviewErrors, GetReviewResponses, GetTokenBalanceData, GetTokenBalanceResponses, GetTokenPlansData, GetTokenPlansResponses, HealthzData, HealthzResponses, ImportUserMotifData, ImportUserMotifErrors, ImportUserMotifResponses, IssueCouponData, IssueCouponErrors, IssueCouponResponses, LikeProductData, LikeProductErrors, LikeProductResponses, ListAddressesData, ListAddressesResponses, ListAdminCouponsData, ListAdminCouponsErrors, ListAdminCouponsResponses, ListAdminCustomerCouponsData, ListAdminCustomerCouponsErrors, ListAdminCustomerCouponsResponses, ListAdminCustomerOrdersData, ListAdminCustomerOrdersErrors, ListAdminCustomerOrdersResponses, ListAdminCustomersData, ListAdminCustomersErrors, ListAdminCustomersResponses, ListAdminCustomerTokensData, ListAdminCustomerTokensErrors, ListAdminCustomerTokensResponses, ListAdminDesignExamplesData, ListAdminDesignExamplesResponses, ListAdminGenerationJobsData, ListAdminGenerationJobsErrors, ListAdminGenerationJobsResponses, ListAdminInquiriesData, ListAdminInquiriesErrors, ListAdminInquiriesResponses, ListAdminMotifsData, ListAdminMotifsErrors, ListAdminMotifsResponses, ListAdminOrderReferenceImagesData, ListAdminOrderReferenceImagesErrors, ListAdminOrderReferenceImagesResponses, ListAdminPopupsData, ListAdminPopupsResponses, ListAdminQuotesData, ListAdminQuotesErrors, ListAdminQuotesResponses, ListAdminRepairReceiptPhotosData, ListAdminRepairReceiptPhotosErrors, ListAdminRepairReceiptPhotosResponses, ListAdminReviewsData, ListAdminReviewsErrors, ListAdminReviewsResponses, ListAdminSeamlessLogsData, ListAdminSeamlessLogsErrors, ListAdminSeamlessLogsResponses, ListAllOrdersData, ListAllOrdersErrors, ListAllOrdersResponses, ListAuthoringCandidatesData, ListAuthoringCandidatesErrors, ListAuthoringCandidatesResponses, ListAuthoringExamplesData, ListAuthoringExamplesErrors, ListAuthoringExamplesResponses, ListDesignExamplesData, ListDesignExamplesResponses, ListDesignSessionsData, ListDesignSessionsResponses, ListDesignTurnsData, ListDesignTurnsErrors, ListDesignTurnsResponses, ListGenerationJobsData, ListGenerationJobsErrors, ListGenerationJobsResponses, ListIssuedCouponsData, ListIssuedCouponsErrors, ListIssuedCouponsResponses, ListManualOrdersData, ListManualOrdersErrors, ListManualOrdersResponses, ListMyClaimsData, ListMyClaimsResponses, ListMyCouponsData, ListMyCouponsErrors, ListMyCouponsResponses, ListMyInquiriesData, ListMyInquiriesResponses, ListMyOrderReferenceImagesData, ListMyOrderReferenceImagesErrors, ListMyOrderReferenceImagesResponses, ListMyOrdersData, ListMyOrdersErrors, ListMyOrdersResponses, ListMyQuotesData, ListMyQuotesResponses, ListMyRepairReceiptPhotosData, ListMyRepairReceiptPhotosErrors, ListMyRepairReceiptPhotosResponses, ListProductsData, ListProductsErrors, ListProductsResponses, ListPublicInquiriesData, ListPublicInquiriesErrors, ListPublicInquiriesResponses, ListRefundableTokenOrdersData, ListRefundableTokenOrdersResponses, ListReviewsData, ListReviewsErrors, ListReviewsResponses, ListTokenHistoryData, ListTokenHistoryErrors, ListTokenHistoryResponses, ListUserMotifsData, ListUserMotifsErrors, ListUserMotifsResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutResponses, PatchManualOrderStatusData, PatchManualOrderStatusErrors, PatchManualOrderStatusResponses, PlaceDesignLogoData, PlaceDesignLogoErrors, PlaceDesignLogoResponses, PreviewAuthoringExampleData, PreviewAuthoringExampleErrors, PreviewAuthoringExampleResponses, PreviewCouponAudienceData, PreviewCouponAudienceErrors, PreviewCouponAudienceResponses, PreviewPhotoMotifData, PreviewPhotoMotifErrors, PreviewPhotoMotifResponses, PreviewTextMotifData, PreviewTextMotifErrors, PreviewTextMotifResponses, RecoverTokenWorksData, RecoverTokenWorksResponses, RefreshTokensData, RefreshTokensResponses, RegisterReformUploadData, RegisterReformUploadErrors, RegisterReformUploadResponses, RegisterRepairShippingUploadData, RegisterRepairShippingUploadErrors, RegisterRepairShippingUploadResponses, RemoveCartItemsData, RemoveCartItemsErrors, RemoveCartItemsResponses, ReplaceCartData, ReplaceCartErrors, ReplaceCartResponses, RequestTokenRefundData, RequestTokenRefundErrors, RequestTokenRefundResponses, ReviewAdminMotifData, ReviewAdminMotifErrors, ReviewAdminMotifResponses, RevokeCouponsData, RevokeCouponsErrors, RevokeCouponsResponses, RevokeCouponUsersData, RevokeCouponUsersErrors, RevokeCouponUsersResponses, SearchAdminCustomersData, SearchAdminCustomersErrors, SearchAdminCustomersResponses, SearchAdminInquiriesData, SearchAdminInquiriesErrors, SearchAdminInquiriesResponses, SearchMotifsData, SearchMotifsErrors, SearchMotifsResponses, SendPhoneVerificationData, SendPhoneVerificationErrors, SendPhoneVerificationResponses, SetAuthoringExampleActivationData, SetAuthoringExampleActivationErrors, SetAuthoringExampleActivationResponses, SetNotificationPreferencesData, SetNotificationPreferencesErrors, SetNotificationPreferencesResponses, SubmitRepairNoTrackingData, SubmitRepairNoTrackingErrors, SubmitRepairNoTrackingResponses, SubmitRepairTrackingData, SubmitRepairTrackingErrors, SubmitRepairTrackingResponses, TossWebhookData2, TossWebhookErrors, TossWebhookResponses, UnlikeProductData, UnlikeProductErrors, UnlikeProductResponses, UpdateAdminCouponData, UpdateAdminCouponErrors, UpdateAdminCouponResponses, UpdateAdminDesignExampleData, UpdateAdminDesignExampleErrors, UpdateAdminDesignExampleResponses, UpdateAdminMotifData, UpdateAdminMotifErrors, UpdateAdminMotifResponses, UpdateAdminPopupData, UpdateAdminPopupErrors, UpdateAdminPopupResponses, UpdateAdminPricingData, UpdateAdminPricingErrors, UpdateAdminPricingResponses, UpdateAdminQuoteStatusData, UpdateAdminQuoteStatusErrors, UpdateAdminQuoteStatusResponses, UpdateAdminSettingsData, UpdateAdminSettingsErrors, UpdateAdminSettingsResponses, UpdateAuthoringExampleData, UpdateAuthoringExampleErrors, UpdateAuthoringExampleResponses, UpdateInquiryData, UpdateInquiryErrors, UpdateInquiryResponses, UpdateManualOrderData, UpdateManualOrderErrors, UpdateManualOrderResponses, UpdateProfileData, UpdateProfileErrors, UpdateProfileResponses, UpdateReviewData, UpdateReviewErrors, UpdateReviewResponses, UpsertAddressData, UpsertAddressErrors, UpsertAddressResponses, VerifyPhoneData, VerifyPhoneErrors, VerifyPhoneResponses } from './types.gen';
+import type { AdminCreateProductData, AdminCreateProductErrors, AdminCreateProductResponses, AdminGetClaimData, AdminGetClaimErrors, AdminGetClaimResponses, AdminGetPaymentIncidentData, AdminGetPaymentIncidentErrors, AdminGetPaymentIncidentResponses, AdminGetProductData, AdminGetProductErrors, AdminGetProductResponses, AdminListClaimsV2Data, AdminListClaimsV2Errors, AdminListClaimsV2Responses, AdminListPaymentIncidentsData, AdminListPaymentIncidentsErrors, AdminListPaymentIncidentsResponses, AdminListProductsData, AdminListProductsErrors, AdminListProductsResponses, AdminLoginData, AdminLoginErrors, AdminLoginResponses, AdminLogoutData, AdminLogoutResponses, AdminReconcilePaymentIncidentData, AdminReconcilePaymentIncidentErrors, AdminReconcilePaymentIncidentResponses, AdminRefreshTokensData, AdminRefreshTokensResponses, AdminResolvePaymentIncidentData, AdminResolvePaymentIncidentErrors, AdminResolvePaymentIncidentResponses, AdminRetryClaimNotificationData, AdminRetryClaimNotificationErrors, AdminRetryClaimNotificationResponses, AdminUpdateClaimStatusData, AdminUpdateClaimStatusErrors, AdminUpdateClaimStatusResponses, AdminUpdateClaimTrackingData, AdminUpdateClaimTrackingErrors, AdminUpdateClaimTrackingResponses, AdminUpdateOrderStatusData, AdminUpdateOrderStatusErrors, AdminUpdateOrderStatusResponses, AdminUpdateOrderTrackingData, AdminUpdateOrderTrackingErrors, AdminUpdateOrderTrackingResponses, AdminUpdateProductData, AdminUpdateProductErrors, AdminUpdateProductResponses, AnswerAdminInquiryData, AnswerAdminInquiryErrors, AnswerAdminInquiryResponses, AutoConfirmOrdersData, AutoConfirmOrdersResponses, CalculateCustomOrderData, CalculateCustomOrderErrors, CalculateCustomOrderResponses, CalculateSampleOrderData, CalculateSampleOrderErrors, CalculateSampleOrderResponses, CancelClaimData, CancelClaimErrors, CancelClaimResponses, CancelStaleOrdersData, CancelStaleOrdersResponses, CleanupImagesData, CleanupImagesResponses, CompleteAdminPopupImageUploadData, CompleteAdminPopupImageUploadErrors, CompleteAdminPopupImageUploadResponses, CompleteAdminProductImageUploadData, CompleteAdminProductImageUploadErrors, CompleteAdminProductImageUploadResponses, CompleteDesignReferenceUploadData, CompleteDesignReferenceUploadErrors, CompleteDesignReferenceUploadResponses, CompleteOrderImageData, CompleteOrderImageErrors, CompleteOrderImageResponses, CompleteReviewPhotoUploadData, CompleteReviewPhotoUploadErrors, CompleteReviewPhotoUploadResponses, ConfirmPaymentData, ConfirmPaymentErrors, ConfirmPaymentResponses, ConfirmPurchaseData, ConfirmPurchaseErrors, ConfirmPurchaseResponses, CreateAdminCouponData, CreateAdminCouponErrors, CreateAdminCouponResponses, CreateAdminOrderReferenceImageReadUrlData, CreateAdminOrderReferenceImageReadUrlErrors, CreateAdminOrderReferenceImageReadUrlResponses, CreateAdminPopupData, CreateAdminPopupErrors, CreateAdminPopupImageUploadUrlData, CreateAdminPopupImageUploadUrlErrors, CreateAdminPopupImageUploadUrlResponses, CreateAdminPopupResponses, CreateAdminProductImageUploadUrlData, CreateAdminProductImageUploadUrlErrors, CreateAdminProductImageUploadUrlResponses, CreateAdminQuoteImageReadUrlData, CreateAdminQuoteImageReadUrlErrors, CreateAdminQuoteImageReadUrlResponses, CreateAdminRepairReceiptPhotoReadUrlData, CreateAdminRepairReceiptPhotoReadUrlErrors, CreateAdminRepairReceiptPhotoReadUrlResponses, CreateClaimData, CreateClaimErrors, CreateClaimResponses, CreateCustomOrderData, CreateCustomOrderErrors, CreateCustomOrderResponses, CreateDesignSessionFromExampleData, CreateDesignSessionFromExampleErrors, CreateDesignSessionFromExampleResponses, CreateInquiryData, CreateInquiryErrors, CreateInquiryResponses, CreateManualOrderData, CreateManualOrderErrors, CreateManualOrderImageReadUrlData, CreateManualOrderImageReadUrlErrors, CreateManualOrderImageReadUrlResponses, CreateManualOrderImageUploadUrlData, CreateManualOrderImageUploadUrlErrors, CreateManualOrderImageUploadUrlResponses, CreateManualOrderResponses, CreateMyOrderReferenceImageReadUrlData, CreateMyOrderReferenceImageReadUrlErrors, CreateMyOrderReferenceImageReadUrlResponses, CreateMyRepairReceiptPhotoReadUrlData, CreateMyRepairReceiptPhotoReadUrlErrors, CreateMyRepairReceiptPhotoReadUrlResponses, CreateOrderData, CreateOrderErrors, CreateOrderResponses, CreateQuoteData, CreateQuoteErrors, CreateQuoteResponses, CreateReadUrlData, CreateReadUrlErrors, CreateReadUrlResponses, CreateReformUploadUrlData, CreateReformUploadUrlErrors, CreateReformUploadUrlResponses, CreateReviewData, CreateReviewErrors, CreateReviewPhotoUploadUrlData, CreateReviewPhotoUploadUrlErrors, CreateReviewPhotoUploadUrlResponses, CreateReviewResponses, CreateSampleOrderData, CreateSampleOrderErrors, CreateSampleOrderResponses, CreateUploadUrlData, CreateUploadUrlErrors, CreateUploadUrlResponses, DeleteAccountData, DeleteAccountResponses, DeleteAddressData, DeleteAddressErrors, DeleteAddressResponses, DeleteAdminDesignExampleData, DeleteAdminDesignExampleErrors, DeleteAdminDesignExampleResponses, DeleteAdminPopupData, DeleteAdminPopupErrors, DeleteAdminPopupImageUploadData, DeleteAdminPopupImageUploadErrors, DeleteAdminPopupImageUploadResponses, DeleteAdminPopupResponses, DeleteAdminProductImageUploadData, DeleteAdminProductImageUploadErrors, DeleteAdminProductImageUploadResponses, DeleteAdminReviewData, DeleteAdminReviewErrors, DeleteAdminReviewResponses, DeleteInquiryData, DeleteInquiryErrors, DeleteInquiryResponses, DeleteManualOrderData, DeleteManualOrderErrors, DeleteManualOrderResponses, DeleteReviewData, DeleteReviewErrors, DeleteReviewResponses, GetActivePopupData, GetActivePopupResponses, GetAdminCapabilitiesData, GetAdminCapabilitiesResponses, GetAdminCouponData, GetAdminCouponErrors, GetAdminCouponResponses, GetAdminCustomerData, GetAdminCustomerErrors, GetAdminCustomerResponses, GetAdminInquiryData, GetAdminInquiryErrors, GetAdminInquiryResponses, GetAdminMotifData, GetAdminMotifErrors, GetAdminMotifResponses, GetAdminOrderData, GetAdminOrderErrors, GetAdminOrderResponses, GetAdminPricingData, GetAdminPricingResponses, GetAdminQuoteData, GetAdminQuoteErrors, GetAdminQuoteResponses, GetAdminSeamlessLogData, GetAdminSeamlessLogErrors, GetAdminSeamlessLogResponses, GetAdminSeamlessStatsData, GetAdminSeamlessStatsErrors, GetAdminSeamlessStatsResponses, GetAdminSettingsData, GetAdminSettingsResponses, GetCartData, GetCartResponses, GetDashboardOverviewData, GetDashboardOverviewErrors, GetDashboardOverviewResponses, GetDashboardRecentOrdersData, GetDashboardRecentOrdersErrors, GetDashboardRecentOrdersResponses, GetDashboardRecentQuotesData, GetDashboardRecentQuotesErrors, GetDashboardRecentQuotesResponses, GetDesignSessionData, GetDesignSessionErrors, GetDesignSessionResponses, GetInquiryData, GetInquiryErrors, GetInquiryResponses, GetManualOrderData, GetManualOrderErrors, GetManualOrderResponses, GetMeData, GetMeResponses, GetOrderData, GetOrderErrors, GetOrderResponses, GetProductData, GetProductErrors, GetProductResponses, GetQuoteData, GetQuoteErrors, GetQuoteResponses, GetReformPricingData, GetReformPricingResponses, GetReviewData, GetReviewErrors, GetReviewResponses, HealthzData, HealthzResponses, IssueCouponData, IssueCouponErrors, IssueCouponResponses, LikeProductData, LikeProductErrors, LikeProductResponses, ListAddressesData, ListAddressesResponses, ListAdminCouponsData, ListAdminCouponsErrors, ListAdminCouponsResponses, ListAdminCustomerCouponsData, ListAdminCustomerCouponsErrors, ListAdminCustomerCouponsResponses, ListAdminCustomerOrdersData, ListAdminCustomerOrdersErrors, ListAdminCustomerOrdersResponses, ListAdminCustomersData, ListAdminCustomersErrors, ListAdminCustomersResponses, ListAdminDesignExamplesData, ListAdminDesignExamplesResponses, ListAdminInquiriesData, ListAdminInquiriesErrors, ListAdminInquiriesResponses, ListAdminMotifsData, ListAdminMotifsErrors, ListAdminMotifsResponses, ListAdminOrderReferenceImagesData, ListAdminOrderReferenceImagesErrors, ListAdminOrderReferenceImagesResponses, ListAdminPopupsData, ListAdminPopupsResponses, ListAdminQuotesData, ListAdminQuotesErrors, ListAdminQuotesResponses, ListAdminRepairReceiptPhotosData, ListAdminRepairReceiptPhotosErrors, ListAdminRepairReceiptPhotosResponses, ListAdminReviewsData, ListAdminReviewsErrors, ListAdminReviewsResponses, ListAdminSeamlessLogsData, ListAdminSeamlessLogsErrors, ListAdminSeamlessLogsResponses, ListAllOrdersData, ListAllOrdersErrors, ListAllOrdersResponses, ListDesignExamplesData, ListDesignExamplesResponses, ListIssuedCouponsData, ListIssuedCouponsErrors, ListIssuedCouponsResponses, ListManualOrdersData, ListManualOrdersErrors, ListManualOrdersResponses, ListMyClaimsData, ListMyClaimsResponses, ListMyCouponsData, ListMyCouponsErrors, ListMyCouponsResponses, ListMyInquiriesData, ListMyInquiriesResponses, ListMyOrderReferenceImagesData, ListMyOrderReferenceImagesErrors, ListMyOrderReferenceImagesResponses, ListMyOrdersData, ListMyOrdersErrors, ListMyOrdersResponses, ListMyQuotesData, ListMyQuotesResponses, ListMyRepairReceiptPhotosData, ListMyRepairReceiptPhotosErrors, ListMyRepairReceiptPhotosResponses, ListProductsData, ListProductsErrors, ListProductsResponses, ListPublicInquiriesData, ListPublicInquiriesErrors, ListPublicInquiriesResponses, ListReviewsData, ListReviewsErrors, ListReviewsResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutResponses, PatchManualOrderStatusData, PatchManualOrderStatusErrors, PatchManualOrderStatusResponses, PlaceDesignLogoData, PlaceDesignLogoErrors, PlaceDesignLogoResponses, PreviewCouponAudienceData, PreviewCouponAudienceErrors, PreviewCouponAudienceResponses, PreviewPhotoMotifData, PreviewPhotoMotifErrors, PreviewPhotoMotifResponses, RefreshTokensData, RefreshTokensResponses, RegisterReformUploadData, RegisterReformUploadErrors, RegisterReformUploadResponses, RegisterRepairShippingUploadData, RegisterRepairShippingUploadErrors, RegisterRepairShippingUploadResponses, RemoveCartItemsData, RemoveCartItemsErrors, RemoveCartItemsResponses, ReplaceCartData, ReplaceCartErrors, ReplaceCartResponses, RevokeCouponsData, RevokeCouponsErrors, RevokeCouponsResponses, RevokeCouponUsersData, RevokeCouponUsersErrors, RevokeCouponUsersResponses, SearchAdminCustomersData, SearchAdminCustomersErrors, SearchAdminCustomersResponses, SearchAdminInquiriesData, SearchAdminInquiriesErrors, SearchAdminInquiriesResponses, SendPhoneVerificationData, SendPhoneVerificationErrors, SendPhoneVerificationResponses, SetNotificationPreferencesData, SetNotificationPreferencesErrors, SetNotificationPreferencesResponses, SubmitRepairNoTrackingData, SubmitRepairNoTrackingErrors, SubmitRepairNoTrackingResponses, SubmitRepairTrackingData, SubmitRepairTrackingErrors, SubmitRepairTrackingResponses, TossWebhookData2, TossWebhookErrors, TossWebhookResponses, UnlikeProductData, UnlikeProductErrors, UnlikeProductResponses, UpdateAdminCouponData, UpdateAdminCouponErrors, UpdateAdminCouponResponses, UpdateAdminDesignExampleData, UpdateAdminDesignExampleErrors, UpdateAdminDesignExampleResponses, UpdateAdminMotifData, UpdateAdminMotifErrors, UpdateAdminMotifResponses, UpdateAdminPopupData, UpdateAdminPopupErrors, UpdateAdminPopupResponses, UpdateAdminPricingData, UpdateAdminPricingErrors, UpdateAdminPricingResponses, UpdateAdminQuoteStatusData, UpdateAdminQuoteStatusErrors, UpdateAdminQuoteStatusResponses, UpdateAdminSettingsData, UpdateAdminSettingsErrors, UpdateAdminSettingsResponses, UpdateInquiryData, UpdateInquiryErrors, UpdateInquiryResponses, UpdateManualOrderData, UpdateManualOrderErrors, UpdateManualOrderResponses, UpdateProfileData, UpdateProfileErrors, UpdateProfileResponses, UpdateReviewData, UpdateReviewErrors, UpdateReviewResponses, UpsertAddressData, UpsertAddressErrors, UpsertAddressResponses, VerifyPhoneData, VerifyPhoneErrors, VerifyPhoneResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -17,134 +17,6 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
      */
     meta?: keyof ClientMeta extends never ? Record<string, unknown> : ClientMeta;
 };
-
-/**
- * List Authoring Candidates
- */
-export const listAuthoringCandidates = <ThrowOnError extends boolean = false>(options?: Options<ListAuthoringCandidatesData, ThrowOnError>): RequestResult<ListAuthoringCandidatesResponses, ListAuthoringCandidatesErrors, ThrowOnError> => (options?.client ?? client).get<ListAuthoringCandidatesResponses, ListAuthoringCandidatesErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/admin/authoring/candidates',
-    ...options
-});
-
-/**
- * Get Authoring Candidate
- */
-export const getAuthoringCandidate = <ThrowOnError extends boolean = false>(options: Options<GetAuthoringCandidateData, ThrowOnError>): RequestResult<GetAuthoringCandidateResponses, GetAuthoringCandidateErrors, ThrowOnError> => (options.client ?? client).get<GetAuthoringCandidateResponses, GetAuthoringCandidateErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/admin/authoring/candidates/{candidate_id}',
-    ...options
-});
-
-/**
- * Decide Authoring Candidate
- */
-export const decideAuthoringCandidate = <ThrowOnError extends boolean = false>(options: Options<DecideAuthoringCandidateData, ThrowOnError>): RequestResult<DecideAuthoringCandidateResponses, DecideAuthoringCandidateErrors, ThrowOnError> => (options.client ?? client).post<DecideAuthoringCandidateResponses, DecideAuthoringCandidateErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/admin/authoring/candidates/{candidate_id}/decision',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * List Authoring Examples
- */
-export const listAuthoringExamples = <ThrowOnError extends boolean = false>(options?: Options<ListAuthoringExamplesData, ThrowOnError>): RequestResult<ListAuthoringExamplesResponses, ListAuthoringExamplesErrors, ThrowOnError> => (options?.client ?? client).get<ListAuthoringExamplesResponses, ListAuthoringExamplesErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/admin/authoring/examples',
-    ...options
-});
-
-/**
- * Create Authoring Example
- */
-export const createAuthoringExample = <ThrowOnError extends boolean = false>(options: Options<CreateAuthoringExampleData, ThrowOnError>): RequestResult<CreateAuthoringExampleResponses, CreateAuthoringExampleErrors, ThrowOnError> => (options.client ?? client).post<CreateAuthoringExampleResponses, CreateAuthoringExampleErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/admin/authoring/examples',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Batch Authoring Example Previews
- *
- * 목록 페이지의 타일 프리뷰를 한 번에 렌더한다.
- *
- * 행마다 요청을 쏘면 페이지 크기 100에서 워커 렌더 101건이 동시에 몰린다 —
- * 한 요청으로 모아 렌더 동시성을 제한한다. 결과는 요청 순서를 보존한다.
- */
-export const batchAuthoringExamplePreviews = <ThrowOnError extends boolean = false>(options: Options<BatchAuthoringExamplePreviewsData, ThrowOnError>): RequestResult<BatchAuthoringExamplePreviewsResponses, BatchAuthoringExamplePreviewsErrors, ThrowOnError> => (options.client ?? client).get<BatchAuthoringExamplePreviewsResponses, BatchAuthoringExamplePreviewsErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/admin/authoring/examples/preview-batch',
-    ...options
-});
-
-/**
- * Delete Authoring Example
- */
-export const deleteAuthoringExample = <ThrowOnError extends boolean = false>(options: Options<DeleteAuthoringExampleData, ThrowOnError>): RequestResult<DeleteAuthoringExampleResponses, DeleteAuthoringExampleErrors, ThrowOnError> => (options.client ?? client).delete<DeleteAuthoringExampleResponses, DeleteAuthoringExampleErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/admin/authoring/examples/{example_id}',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Get Authoring Example
- */
-export const getAuthoringExample = <ThrowOnError extends boolean = false>(options: Options<GetAuthoringExampleData, ThrowOnError>): RequestResult<GetAuthoringExampleResponses, GetAuthoringExampleErrors, ThrowOnError> => (options.client ?? client).get<GetAuthoringExampleResponses, GetAuthoringExampleErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/admin/authoring/examples/{example_id}',
-    ...options
-});
-
-/**
- * Update Authoring Example
- */
-export const updateAuthoringExample = <ThrowOnError extends boolean = false>(options: Options<UpdateAuthoringExampleData, ThrowOnError>): RequestResult<UpdateAuthoringExampleResponses, UpdateAuthoringExampleErrors, ThrowOnError> => (options.client ?? client).patch<UpdateAuthoringExampleResponses, UpdateAuthoringExampleErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/admin/authoring/examples/{example_id}',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Set Authoring Example Activation
- */
-export const setAuthoringExampleActivation = <ThrowOnError extends boolean = false>(options: Options<SetAuthoringExampleActivationData, ThrowOnError>): RequestResult<SetAuthoringExampleActivationResponses, SetAuthoringExampleActivationErrors, ThrowOnError> => (options.client ?? client).post<SetAuthoringExampleActivationResponses, SetAuthoringExampleActivationErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/admin/authoring/examples/{example_id}/activation',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Preview Authoring Example
- */
-export const previewAuthoringExample = <ThrowOnError extends boolean = false>(options: Options<PreviewAuthoringExampleData, ThrowOnError>): RequestResult<PreviewAuthoringExampleResponses, PreviewAuthoringExampleErrors, ThrowOnError> => (options.client ?? client).post<PreviewAuthoringExampleResponses, PreviewAuthoringExampleErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/admin/authoring/preview',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
 
 /**
  * Get Admin Capabilities
@@ -363,15 +235,6 @@ export const listAdminCustomerOrders = <ThrowOnError extends boolean = false>(op
 });
 
 /**
- * List Admin Customer Tokens
- */
-export const listAdminCustomerTokens = <ThrowOnError extends boolean = false>(options: Options<ListAdminCustomerTokensData, ThrowOnError>): RequestResult<ListAdminCustomerTokensResponses, ListAdminCustomerTokensErrors, ThrowOnError> => (options.client ?? client).get<ListAdminCustomerTokensResponses, ListAdminCustomerTokensErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/admin/customers/{user_id}/tokens',
-    ...options
-});
-
-/**
  * Get Dashboard Overview
  *
  * 대시보드 요약·추이·인기 상품 — 같은 기간 파라미터를 쓰는 세 조회를 한 요청으로.
@@ -410,21 +273,6 @@ export const listAdminDesignExamples = <ThrowOnError extends boolean = false>(op
 });
 
 /**
- * Create Admin Design Example
- *
- * run 하나를 예시로 등록한다 — 비공개 모티프를 쓰는 run은 공개할 수 없다.
- */
-export const createAdminDesignExample = <ThrowOnError extends boolean = false>(options: Options<CreateAdminDesignExampleData, ThrowOnError>): RequestResult<CreateAdminDesignExampleResponses, CreateAdminDesignExampleErrors, ThrowOnError> => (options.client ?? client).post<CreateAdminDesignExampleResponses, CreateAdminDesignExampleErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/admin/design/examples',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
  * Delete Admin Design Example
  */
 export const deleteAdminDesignExample = <ThrowOnError extends boolean = false>(options: Options<DeleteAdminDesignExampleData, ThrowOnError>): RequestResult<DeleteAdminDesignExampleResponses, DeleteAdminDesignExampleErrors, ThrowOnError> => (options.client ?? client).delete<DeleteAdminDesignExampleResponses, DeleteAdminDesignExampleErrors, ThrowOnError>({
@@ -444,33 +292,6 @@ export const updateAdminDesignExample = <ThrowOnError extends boolean = false>(o
         'Content-Type': 'application/json',
         ...options.headers
     }
-});
-
-/**
- * List Admin Generation Jobs
- */
-export const listAdminGenerationJobs = <ThrowOnError extends boolean = false>(options?: Options<ListAdminGenerationJobsData, ThrowOnError>): RequestResult<ListAdminGenerationJobsResponses, ListAdminGenerationJobsErrors, ThrowOnError> => (options?.client ?? client).get<ListAdminGenerationJobsResponses, ListAdminGenerationJobsErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/admin/generation/jobs',
-    ...options
-});
-
-/**
- * Get Admin Generation Job Stats
- */
-export const getAdminGenerationJobStats = <ThrowOnError extends boolean = false>(options?: Options<GetAdminGenerationJobStatsData, ThrowOnError>): RequestResult<GetAdminGenerationJobStatsResponses, GetAdminGenerationJobStatsErrors, ThrowOnError> => (options?.client ?? client).get<GetAdminGenerationJobStatsResponses, GetAdminGenerationJobStatsErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/admin/generation/jobs/stats',
-    ...options
-});
-
-/**
- * Get Admin Generation Job
- */
-export const getAdminGenerationJob = <ThrowOnError extends boolean = false>(options: Options<GetAdminGenerationJobData, ThrowOnError>): RequestResult<GetAdminGenerationJobResponses, GetAdminGenerationJobErrors, ThrowOnError> => (options.client ?? client).get<GetAdminGenerationJobResponses, GetAdminGenerationJobErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/admin/generation/jobs/{job_id}',
-    ...options
 });
 
 /**
@@ -656,19 +477,6 @@ export const getAdminMotif = <ThrowOnError extends boolean = false>(options: Opt
 export const updateAdminMotif = <ThrowOnError extends boolean = false>(options: Options<UpdateAdminMotifData, ThrowOnError>): RequestResult<UpdateAdminMotifResponses, UpdateAdminMotifErrors, ThrowOnError> => (options.client ?? client).patch<UpdateAdminMotifResponses, UpdateAdminMotifErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/admin/motifs/{motif_id}',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Review Admin Motif
- */
-export const reviewAdminMotif = <ThrowOnError extends boolean = false>(options: Options<ReviewAdminMotifData, ThrowOnError>): RequestResult<ReviewAdminMotifResponses, ReviewAdminMotifErrors, ThrowOnError> => (options.client ?? client).post<ReviewAdminMotifResponses, ReviewAdminMotifErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/admin/motifs/{motif_id}/review',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -1051,28 +859,6 @@ export const updateAdminSettings = <ThrowOnError extends boolean = false>(option
 });
 
 /**
- * Admin Approve Token Refund
- */
-export const adminApproveTokenRefund = <ThrowOnError extends boolean = false>(options: Options<AdminApproveTokenRefundData, ThrowOnError>): RequestResult<AdminApproveTokenRefundResponses, AdminApproveTokenRefundErrors, ThrowOnError> => (options.client ?? client).post<AdminApproveTokenRefundResponses, AdminApproveTokenRefundErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/admin/token-refunds/{claim_id}/approve',
-    ...options
-});
-
-/**
- * Admin Manage Tokens
- */
-export const adminManageTokens = <ThrowOnError extends boolean = false>(options: Options<AdminManageTokensData, ThrowOnError>): RequestResult<AdminManageTokensResponses, AdminManageTokensErrors, ThrowOnError> => (options.client ?? client).post<AdminManageTokensResponses, AdminManageTokensErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/admin/tokens/manage',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
  * Admin Login
  */
 export const adminLogin = <ThrowOnError extends boolean = false>(options: Options<AdminLoginData, ThrowOnError>): RequestResult<AdminLoginResponses, AdminLoginErrors, ThrowOnError> => (options.client ?? client).post<AdminLoginResponses, AdminLoginErrors, ThrowOnError>({
@@ -1154,15 +940,6 @@ export const verifyPhone = <ThrowOnError extends boolean = false>(options: Optio
 export const refreshTokens = <ThrowOnError extends boolean = false>(options?: Options<RefreshTokensData, ThrowOnError>): RequestResult<RefreshTokensResponses, unknown, ThrowOnError> => (options?.client ?? client).post<RefreshTokensResponses, unknown, ThrowOnError>({ url: '/auth/refresh', ...options });
 
 /**
- * Authoring Promotion Candidates
- */
-export const authoringPromotionCandidates = <ThrowOnError extends boolean = false>(options?: Options<AuthoringPromotionCandidatesData, ThrowOnError>): RequestResult<AuthoringPromotionCandidatesResponses, unknown, ThrowOnError> => (options?.client ?? client).post<AuthoringPromotionCandidatesResponses, unknown, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/batch/authoring-promotion-candidates',
-    ...options
-});
-
-/**
  * Auto Confirm Orders
  *
  * 배송완료/배송중 7일 경과 주문 자동 구매확정 (활성 클레임 제외).
@@ -1192,20 +969,6 @@ export const cancelStaleOrders = <ThrowOnError extends boolean = false>(options?
 export const cleanupImages = <ThrowOnError extends boolean = false>(options?: Options<CleanupImagesData, ThrowOnError>): RequestResult<CleanupImagesResponses, unknown, ThrowOnError> => (options?.client ?? client).post<CleanupImagesResponses, unknown, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/batch/cleanup-images',
-    ...options
-});
-
-/**
- * Recover Token Works
- *
- * 기한이 지난 미완료 차감을 환불한다 — 프로세스 중단 복구 (money.md §6).
- *
- * 대상은 api가 남긴 pending 기록뿐이다 — 기록 없는 오래된 차감은 자동 환불하지 않는다.
- * 외부 호출은 재실행하지 않으며, 회수 불가능한 provider 비용은 서비스가 부담한다.
- */
-export const recoverTokenWorks = <ThrowOnError extends boolean = false>(options?: Options<RecoverTokenWorksData, ThrowOnError>): RequestResult<RecoverTokenWorksResponses, unknown, ThrowOnError> => (options?.client ?? client).post<RecoverTokenWorksResponses, unknown, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/batch/recover-token-works',
     ...options
 });
 
@@ -1301,108 +1064,6 @@ export const completeDesignReferenceUpload = <ThrowOnError extends boolean = fal
 export const listDesignExamples = <ThrowOnError extends boolean = false>(options?: Options<ListDesignExamplesData, ThrowOnError>): RequestResult<ListDesignExamplesResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListDesignExamplesResponses, unknown, ThrowOnError>({ url: '/design/examples', ...options });
 
 /**
- * Export Design
- *
- * 디자인 SVG를 PNG/TIFF로 변환해 바이너리로 반환 (워커 /export 프록시, 과금 없음).
- */
-export const exportDesign = <ThrowOnError extends boolean = false>(options: Options<ExportDesignData, ThrowOnError>): RequestResult<ExportDesignResponses, ExportDesignErrors, ThrowOnError> => (options.client ?? client).post<ExportDesignResponses, ExportDesignErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/design/export',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Generate Design
- */
-export const generateDesign = <ThrowOnError extends boolean = false>(options: Options<GenerateDesignData, ThrowOnError>): RequestResult<GenerateDesignResponses, GenerateDesignErrors, ThrowOnError> => (options.client ?? client).post<GenerateDesignResponses, GenerateDesignErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/design/generate',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Create Design Ideas
- *
- * 현재 작성 문맥만 전송하는 무과금 helper. 세션 턴과 토큰 원장에는 기록하지 않는다.
- */
-export const createDesignIdeas = <ThrowOnError extends boolean = false>(options: Options<CreateDesignIdeasData, ThrowOnError>): RequestResult<CreateDesignIdeasResponses, CreateDesignIdeasErrors, ThrowOnError> => (options.client ?? client).post<CreateDesignIdeasResponses, CreateDesignIdeasErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/design/ideas',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * List Generation Jobs
- */
-export const listGenerationJobs = <ThrowOnError extends boolean = false>(options?: Options<ListGenerationJobsData, ThrowOnError>): RequestResult<ListGenerationJobsResponses, ListGenerationJobsErrors, ThrowOnError> => (options?.client ?? client).get<ListGenerationJobsResponses, ListGenerationJobsErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/design/jobs',
-    ...options
-});
-
-/**
- * Delete Generation Job
- *
- * 완성본을 삭제한다 — 동기 전환 후 잡은 항상 종결 상태다(성공만 기록).
- *
- * 주문은 산출물을 복사본(Image)으로 참조하므로 삭제와 무관하다. 토큰은 이미
- * 소모된 것 — 삭제해도 환불하지 않는다(결과물은 이미 제공됐다).
- */
-export const deleteGenerationJob = <ThrowOnError extends boolean = false>(options: Options<DeleteGenerationJobData, ThrowOnError>): RequestResult<DeleteGenerationJobResponses, DeleteGenerationJobErrors, ThrowOnError> => (options.client ?? client).delete<DeleteGenerationJobResponses, DeleteGenerationJobErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/design/jobs/{job_id}',
-    ...options
-});
-
-/**
- * Create Design Order Reference
- *
- * 소유한 finalize 결과를 주문 첨부용 비공개 객체로 가져온다.
- *
- * finalize 1건은 파일 2개(넥타이 실사 + 정본 타일)를 남긴다 — 화면은 여전히 카드
- * 1개로 본다(DesignOrderReferenceOut 주석).
- */
-export const createDesignOrderReference = <ThrowOnError extends boolean = false>(options: Options<CreateDesignOrderReferenceData, ThrowOnError>): RequestResult<CreateDesignOrderReferenceResponses, CreateDesignOrderReferenceErrors, ThrowOnError> => (options.client ?? client).post<CreateDesignOrderReferenceResponses, CreateDesignOrderReferenceErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/design/jobs/{job_id}/order-reference',
-    ...options
-});
-
-/**
- * List User Motifs
- */
-export const listUserMotifs = <ThrowOnError extends boolean = false>(options?: Options<ListUserMotifsData, ThrowOnError>): RequestResult<ListUserMotifsResponses, ListUserMotifsErrors, ThrowOnError> => (options?.client ?? client).get<ListUserMotifsResponses, ListUserMotifsErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/design/motifs',
-    ...options
-});
-
-/**
- * Import User Motif
- */
-export const importUserMotif = <ThrowOnError extends boolean = false>(options: Options<ImportUserMotifData, ThrowOnError>): RequestResult<ImportUserMotifResponses, ImportUserMotifErrors, ThrowOnError> => (options.client ?? client).post<ImportUserMotifResponses, ImportUserMotifErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/design/motifs',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
  * Preview Photo Motif
  */
 export const previewPhotoMotif = <ThrowOnError extends boolean = false>(options: Options<PreviewPhotoMotifData, ThrowOnError>): RequestResult<PreviewPhotoMotifResponses, PreviewPhotoMotifErrors, ThrowOnError> => (options.client ?? client).post<PreviewPhotoMotifResponses, PreviewPhotoMotifErrors, ThrowOnError>({
@@ -1413,46 +1074,6 @@ export const previewPhotoMotif = <ThrowOnError extends boolean = false>(options:
         'Content-Type': 'application/json',
         ...options.headers
     }
-});
-
-/**
- * Preview Text Motif
- */
-export const previewTextMotif = <ThrowOnError extends boolean = false>(options: Options<PreviewTextMotifData, ThrowOnError>): RequestResult<PreviewTextMotifResponses, PreviewTextMotifErrors, ThrowOnError> => (options.client ?? client).post<PreviewTextMotifResponses, PreviewTextMotifErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/design/motifs/text-preview',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Delete User Motif
- */
-export const deleteUserMotif = <ThrowOnError extends boolean = false>(options: Options<DeleteUserMotifData, ThrowOnError>): RequestResult<DeleteUserMotifResponses, DeleteUserMotifErrors, ThrowOnError> => (options.client ?? client).delete<DeleteUserMotifResponses, DeleteUserMotifErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/design/motifs/{user_motif_id}',
-    ...options
-});
-
-/**
- * List Design Sessions
- */
-export const listDesignSessions = <ThrowOnError extends boolean = false>(options?: Options<ListDesignSessionsData, ThrowOnError>): RequestResult<ListDesignSessionsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListDesignSessionsResponses, unknown, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/design/sessions',
-    ...options
-});
-
-/**
- * Create Design Session
- */
-export const createDesignSession = <ThrowOnError extends boolean = false>(options?: Options<CreateDesignSessionData, ThrowOnError>): RequestResult<CreateDesignSessionResponses, unknown, ThrowOnError> => (options?.client ?? client).post<CreateDesignSessionResponses, unknown, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/design/sessions',
-    ...options
 });
 
 /**
@@ -1471,54 +1092,12 @@ export const createDesignSessionFromExample = <ThrowOnError extends boolean = fa
 });
 
 /**
- * Delete Design Session
- *
- * 세션과 턴 이력을 삭제한다. finalize 결과물은 독립 소유라 남긴다.
- */
-export const deleteDesignSession = <ThrowOnError extends boolean = false>(options: Options<DeleteDesignSessionData, ThrowOnError>): RequestResult<DeleteDesignSessionResponses, DeleteDesignSessionErrors, ThrowOnError> => (options.client ?? client).delete<DeleteDesignSessionResponses, DeleteDesignSessionErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/design/sessions/{session_id}',
-    ...options
-});
-
-/**
  * Get Design Session
  */
 export const getDesignSession = <ThrowOnError extends boolean = false>(options: Options<GetDesignSessionData, ThrowOnError>): RequestResult<GetDesignSessionResponses, GetDesignSessionErrors, ThrowOnError> => (options.client ?? client).get<GetDesignSessionResponses, GetDesignSessionErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/design/sessions/{session_id}',
     ...options
-});
-
-/**
- * Apply Colorway
- *
- * 부위별 색 적용 — 지금 colorway에 고른 색을 덮은 새 colorway로 결정론 재렌더. 무과금.
- *
- * 고를 수 있는 부위는 intent 팔레트에서 `name`이 붙은 슬롯(시드가 정한다). 그 밖의 슬롯은 422.
- * 새 colorway id는 mapping 해시(같은 색 → 같은 디자인 id). intent에는 `default`와 이것만 남긴다.
- */
-export const applyColorway = <ThrowOnError extends boolean = false>(options: Options<ApplyColorwayData, ThrowOnError>): RequestResult<ApplyColorwayResponses, ApplyColorwayErrors, ThrowOnError> => (options.client ?? client).post<ApplyColorwayResponses, ApplyColorwayErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/design/sessions/{session_id}/color',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Create Finalize Job
- */
-export const createFinalizeJob = <ThrowOnError extends boolean = false>(options: Options<CreateFinalizeJobData, ThrowOnError>): RequestResult<CreateFinalizeJobResponses, CreateFinalizeJobErrors, ThrowOnError> => (options.client ?? client).post<CreateFinalizeJobResponses, CreateFinalizeJobErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/design/sessions/{session_id}/finalize',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
 });
 
 /**
@@ -1533,84 +1112,6 @@ export const createFinalizeJob = <ThrowOnError extends boolean = false>(options:
 export const placeDesignLogo = <ThrowOnError extends boolean = false>(options: Options<PlaceDesignLogoData, ThrowOnError>): RequestResult<PlaceDesignLogoResponses, PlaceDesignLogoErrors, ThrowOnError> => (options.client ?? client).post<PlaceDesignLogoResponses, PlaceDesignLogoErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/design/sessions/{session_id}/logo',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Activate Motif
- *
- * 모티프 슬롯 교체 — 모티프 id만 바뀐 결정론 재렌더라 모델 호출도 과금도 없다.
- */
-export const activateMotif = <ThrowOnError extends boolean = false>(options: Options<ActivateMotifData, ThrowOnError>): RequestResult<ActivateMotifResponses, ActivateMotifErrors, ThrowOnError> => (options.client ?? client).post<ActivateMotifResponses, ActivateMotifErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/design/sessions/{session_id}/motifs/activate',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Generate Motif
- */
-export const generateMotif = <ThrowOnError extends boolean = false>(options: Options<GenerateMotifData, ThrowOnError>): RequestResult<GenerateMotifResponses, GenerateMotifErrors, ThrowOnError> => (options.client ?? client).post<GenerateMotifResponses, GenerateMotifErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/design/sessions/{session_id}/motifs/generate',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Search Motifs
- *
- * 문장으로 카탈로그를 찾는다 — 워커가 이미지를 생성하지 않으므로 무과금.
- */
-export const searchMotifs = <ThrowOnError extends boolean = false>(options: Options<SearchMotifsData, ThrowOnError>): RequestResult<SearchMotifsResponses, SearchMotifsErrors, ThrowOnError> => (options.client ?? client).post<SearchMotifsResponses, SearchMotifsErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/design/sessions/{session_id}/motifs/search',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Activate Design Step
- */
-export const activateDesignStep = <ThrowOnError extends boolean = false>(options: Options<ActivateDesignStepData, ThrowOnError>): RequestResult<ActivateDesignStepResponses, ActivateDesignStepErrors, ThrowOnError> => (options.client ?? client).post<ActivateDesignStepResponses, ActivateDesignStepErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/design/sessions/{session_id}/steps/activate',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * List Design Turns
- */
-export const listDesignTurns = <ThrowOnError extends boolean = false>(options: Options<ListDesignTurnsData, ThrowOnError>): RequestResult<ListDesignTurnsResponses, ListDesignTurnsErrors, ThrowOnError> => (options.client ?? client).get<ListDesignTurnsResponses, ListDesignTurnsErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/design/sessions/{session_id}/turns',
-    ...options
-});
-
-/**
- * Append Design Turn
- */
-export const appendDesignTurn = <ThrowOnError extends boolean = false>(options: Options<AppendDesignTurnData, ThrowOnError>): RequestResult<AppendDesignTurnResponses, AppendDesignTurnErrors, ThrowOnError> => (options.client ?? client).post<AppendDesignTurnResponses, AppendDesignTurnErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/design/sessions/{session_id}/turns',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -2089,73 +1590,6 @@ export const updateReview = <ThrowOnError extends boolean = false>(options: Opti
         'Content-Type': 'application/json',
         ...options.headers
     }
-});
-
-/**
- * Get Token Balance
- */
-export const getTokenBalance = <ThrowOnError extends boolean = false>(options?: Options<GetTokenBalanceData, ThrowOnError>): RequestResult<GetTokenBalanceResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetTokenBalanceResponses, unknown, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/tokens/balance',
-    ...options
-});
-
-/**
- * List Token History
- */
-export const listTokenHistory = <ThrowOnError extends boolean = false>(options?: Options<ListTokenHistoryData, ThrowOnError>): RequestResult<ListTokenHistoryResponses, ListTokenHistoryErrors, ThrowOnError> => (options?.client ?? client).get<ListTokenHistoryResponses, ListTokenHistoryErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/tokens/history',
-    ...options
-});
-
-/**
- * Create Token Order
- */
-export const createTokenOrder = <ThrowOnError extends boolean = false>(options: Options<CreateTokenOrderData, ThrowOnError>): RequestResult<CreateTokenOrderResponses, CreateTokenOrderErrors, ThrowOnError> => (options.client ?? client).post<CreateTokenOrderResponses, CreateTokenOrderErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/tokens/orders',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Get Token Plans
- */
-export const getTokenPlans = <ThrowOnError extends boolean = false>(options?: Options<GetTokenPlansData, ThrowOnError>): RequestResult<GetTokenPlansResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetTokenPlansResponses, unknown, ThrowOnError>({ url: '/tokens/plans', ...options });
-
-/**
- * Request Token Refund
- */
-export const requestTokenRefund = <ThrowOnError extends boolean = false>(options: Options<RequestTokenRefundData, ThrowOnError>): RequestResult<RequestTokenRefundResponses, RequestTokenRefundErrors, ThrowOnError> => (options.client ?? client).post<RequestTokenRefundResponses, RequestTokenRefundErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/tokens/refund-requests',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Cancel Token Refund
- */
-export const cancelTokenRefund = <ThrowOnError extends boolean = false>(options: Options<CancelTokenRefundData, ThrowOnError>): RequestResult<CancelTokenRefundResponses, CancelTokenRefundErrors, ThrowOnError> => (options.client ?? client).post<CancelTokenRefundResponses, CancelTokenRefundErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/tokens/refund-requests/{claim_id}/cancel',
-    ...options
-});
-
-/**
- * List Refundable Token Orders
- */
-export const listRefundableTokenOrders = <ThrowOnError extends boolean = false>(options?: Options<ListRefundableTokenOrdersData, ThrowOnError>): RequestResult<ListRefundableTokenOrdersResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListRefundableTokenOrdersResponses, unknown, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/tokens/refundable-orders',
-    ...options
 });
 
 /**

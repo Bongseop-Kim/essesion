@@ -48,7 +48,6 @@ async def admin_list_claims_v2(
 ) -> Page[AdminClaimSummaryOut]:
     return await claim_operations.list_claims(
         session,
-        actor_role=admin.role,
         claim_type=claim_type,
         status=status,
         start_date=start_date,
@@ -65,7 +64,7 @@ async def admin_list_claims_v2(
 async def admin_get_claim(
     claim_id: uuid.UUID, session: SessionDep, admin: AdminUser
 ) -> AdminClaimDetailOut:
-    return await claim_operations.get_claim_detail(session, claim_id, actor_role=admin.role)
+    return await claim_operations.get_claim_detail(session, claim_id)
 
 
 @router.patch("/claims/{claim_id}/tracking", response_model=AdminClaimDetailOut)
@@ -82,7 +81,7 @@ async def admin_update_claim_tracking(
         actor_id=admin.id,
         request_id=request_id_var.get(),
     )
-    return await claim_operations.get_claim_detail(session, claim_id, actor_role=admin.role)
+    return await claim_operations.get_claim_detail(session, claim_id)
 
 
 @router.post(

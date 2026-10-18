@@ -20,7 +20,6 @@ from api.domains.design.router import (
     DesignLogoSlotOut,
     DesignSessionOut,
     DesignStepActivateTurnPayload,
-    _all_intent_motif_ids,
     _append_turn,
     _design_session_out,
     _ensure_intent_motif_access,
@@ -80,13 +79,6 @@ class AdminDesignExampleOut(DesignExampleOut):
 
 class DesignExampleStartRequest(StrictModel):
     example_id: uuid.UUID
-
-
-class AdminDesignExampleCreateRequest(StrictModel):
-    run_id: uuid.UUID
-    name: str = Field(min_length=1, max_length=100)
-    caption: str | None = Field(default=None, max_length=MAX_CAPTION_LENGTH)
-    ordinal: int = Field(default=0, ge=0)
 
 
 class AdminDesignExampleUpdateRequest(StrictModel):
@@ -216,12 +208,11 @@ async def create_design_session_from_example(
     if example is None:
         raise NotFoundError("예시를 찾을 수 없습니다")
     resolved = await _resolve_design_run(session, run_id=example.run_id)
-    # 등록 시점에 비공개 모티프를 막지만, 워커가 실제로 해석할 지점에서 한 번 더 본다.
+    # 시드 템플릿은 공개 모티프만 쓰지만, 워커가 실제로 해석할 지점에서 한 번 더 본다.
     await _ensure_intent_motif_access(
         resolved.intent,
         session=session,
         user_id=user.id,
-        design_session_id=None,
     )
 
     design_session = DesignSession(
@@ -281,44 +272,6 @@ async def list_admin_design_examples(
             session, published_only=False
         )
     ]
-
-
-@admin_router.post("", response_model=AdminDesignExampleOut, status_code=201)
-async def create_admin_design_example(
-    body: AdminDesignExampleCreateRequest,
-    session: SessionDep,
-    admin: AdminUser,
-) -> AdminDesignExampleOut:
-    """run 하나를 예시로 등록한다 — 비공개 모티프를 쓰는 run은 공개할 수 없다."""
-    resolved = await _resolve_design_run(session, run_id=body.run_id)
-    duplicate = await session.scalar(
-        select(DesignExample.id).where(DesignExample.run_id == body.run_id).limit(1)
-    )
-    if duplicate is not None:
-        raise ConflictError(
-            "이미 같은 run으로 등록된 예시가 있습니다",
-            code="duplicate_example_run",
-        )
-    motif_ids = _all_intent_motif_ids(resolved.intent)
-    if motif_ids:
-        private = await session.scalar(
-            select(Motif.id).where(Motif.id.in_(motif_ids), Motif.source == "user_upload").limit(1)
-        )
-        if private is not None:
-            raise ConflictError(
-                "사용자가 올린 모티프를 쓰는 디자인은 예시로 등록할 수 없습니다",
-                code="private_motif_example",
-            )
-    example = DesignExample(
-        run_id=body.run_id,
-        name=body.name,
-        caption=(body.caption or "").strip() or None,
-        ordinal=body.ordinal,
-    )
-    session.add(example)
-    await session.commit()
-    await session.refresh(example)
-    return _admin_out(example, resolved.log.design)
 
 
 async def _example_or_404(session: SessionDep, example_id: uuid.UUID) -> DesignExample:

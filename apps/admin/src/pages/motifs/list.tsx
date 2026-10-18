@@ -105,8 +105,6 @@ export function MotifsPage() {
   const query = useQuery({
     ...listAdminMotifsOptions({
       query: {
-        // 검토 기능이 없어 상태로 거르지 않는다 — api 기본값(pending)을 피해 명시한다.
-        status: "all",
         scope,
         q: search,
         start_date: parsed.from,

@@ -249,12 +249,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         max_keys=settings.public_rate_limit_max_keys,
         detail="전화번호 인증 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
     )
-    app.state.design_ideas_rate_limiter = AuthRateLimiter(
-        attempts=settings.design_ideas_rate_limit_attempts,
-        window_seconds=settings.design_ideas_rate_limit_window_seconds,
-        max_keys=settings.public_rate_limit_max_keys,
-        detail="아이디어 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
-    )
     app.state.toss_webhook_rate_limiter = AuthRateLimiter(
         attempts=settings.toss_webhook_rate_limit_attempts,
         window_seconds=settings.toss_webhook_rate_limit_window_seconds,
@@ -327,7 +321,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 
 def _include_routers(app: FastAPI) -> None:
-    from api.domains.admin.authoring import router as admin_authoring_router
     from api.domains.admin.claims_router import router as admin_claims_router
     from api.domains.admin.configuration import router as admin_configuration_router
     from api.domains.admin.coupons import router as admin_coupons_router
@@ -358,7 +351,6 @@ def _include_routers(app: FastAPI) -> None:
     from api.domains.quotes.router import router as quotes_router
     from api.domains.reform.router import router as reform_router
     from api.domains.reviews.router import router as reviews_router
-    from api.domains.tokens.router import router as tokens_router
     from api.domains.users.router import router as users_router
 
     app.include_router(auth_router)
@@ -368,7 +360,6 @@ def _include_routers(app: FastAPI) -> None:
     app.include_router(coupons_router)
     app.include_router(orders_router)
     app.include_router(payments_router)
-    app.include_router(tokens_router)
     app.include_router(claims_router)
     app.include_router(quotes_router)
     app.include_router(inquiries_router)
@@ -381,7 +372,6 @@ def _include_routers(app: FastAPI) -> None:
     app.include_router(admin_router)
     app.include_router(admin_popups_router)
     app.include_router(admin_design_examples_router)
-    app.include_router(admin_authoring_router)
     app.include_router(admin_customers_router)
     app.include_router(admin_coupons_router)
     app.include_router(admin_products_router)
