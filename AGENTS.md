@@ -54,31 +54,13 @@ uv run python apps/api/scripts/seed.py
 uv run python apps/worker/scripts/seed_motifs.py
 ```
 
-스토어 첫 진입 갤러리 시드 — `seed_motifs.py` 이후에 실행 (외부 API 없이 결정론 엔진으로 생성)
+스토어 `/design` 템플릿 시드 — `seed_motifs.py` 이후에 실행 (외부 API 없이 결정론 엔진으로 생성)
 
 ```bash
 uv run python apps/worker/scripts/seed_design_examples.py
 ```
 
-기존 모티프 메타데이터 백필 — 설명 없는 기존 행만 대상이라 신규 셋업은 건너뜀 (`seed_motifs.py`가 시드 행 메타데이터를 기록). `OPENAI_API_KEY` 필요 (유료 호출, `user_upload` 제외)
-
-```bash
-uv run python apps/worker/scripts/backfill_motif_tags.py --confirm-live
-```
-
-모티프 벡터 검색 인덱스 — `OPENAI_API_KEY` 필요 (유료 호출)
-
-```bash
-uv run python apps/worker/scripts/index_motif_embeddings.py --confirm-live
-```
-
-오소링 예시 시드 — 모티프 임베딩 이후 실행, `OPENAI_API_KEY` 필요 (유료 호출)
-
-```bash
-uv run python apps/worker/scripts/seed_authoring_examples.py --confirm-live
-```
-
-시드는 전부 멱등. 로그인·가격·설정이 `missing_configuration`(503)이면 시드 미실행을 의심하고 다시 돌릴 것.
+시드는 `seed.py → seed_motifs.py → seed_design_examples.py` 순서이고 전부 멱등·무과금이다. 로그인·가격·설정이 `missing_configuration`(503)이면 시드 미실행을 의심하고 다시 돌릴 것.
 
 설정 시드 확인
 
@@ -92,7 +74,7 @@ docker compose exec -T db psql -U essesion -d essesion -c "select key, value fro
 docker compose exec -T db psql -U essesion -d essesion -c "select source, count(*) from motifs group by source"
 ```
 
-갤러리 시드 확인
+템플릿 시드 확인
 
 ```bash
 docker compose exec -T db psql -U essesion -d essesion -c "select ordinal, name from design_examples where published order by ordinal"
@@ -112,7 +94,7 @@ admin :3001
 pnpm --filter admin dev
 ```
 
-api :8000 — Toss/Solapi 키가 없으면 로컬 DryRun. GCS와 finalize는 별도 설정 없이 fake-gcs-server와 로컬 worker 사용
+api :8000 — Toss/Solapi 키가 없으면 로컬 DryRun. GCS와 worker는 별도 설정 없이 fake-gcs-server와 로컬 worker(:8001) 사용
 
 ```bash
 uv run uvicorn api.main:app --reload
@@ -173,7 +155,7 @@ uv run pyright
 ## 도메인 규칙
 
 - 인가: 상품·찜/좋아요는 공개 조회, 그 외 리소스는 소유자 본인만, 관리자는 별도 역할. 인가 테스트는 mock 금지 — testcontainers(실제 Postgres)로.
-- 결제(Toss)·토큰 과금 로직은 api에만 둔다. 워커는 이미지 생성만.
+- 결제(Toss)·주문 로직은 api에만 둔다. 워커는 결정론 렌더·사진→SVG 변환만.
 - id/pw 로그인은 테스트용 — 공개 회원가입 없음, 계정은 시드/관리자로만 생성.
 
 <!-- envide-guard begin -->

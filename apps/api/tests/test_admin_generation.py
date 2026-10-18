@@ -434,7 +434,7 @@ async def test_motif_detail_returns_concrete_symbol_without_slot_metadata(
     response = await client.get("/admin/motifs/motif-fixed-colors", headers=headers)
     assert response.status_code == 200
     body = response.json()
-    # GPT Image 유입 출처는 admin에서 세션 상관을 볼 수 있는 유일한 경로다.
+    # 처음 올린 고객은 admin에서 업로더를 볼 수 있는 유일한 경로다.
     assert body["ingested_user_id"] == str(admin.id)
     assert body["ingested_session_id"] is None
     assert body["svg_status"] == "safe"

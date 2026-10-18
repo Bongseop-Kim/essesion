@@ -15,9 +15,9 @@ ESSE SION은 기존 커머스 프론트엔드 **YeongSeon**과 독립 이미지 
 기존 구조에서는 프론트엔드가 Supabase Auth·DB·Storage·Edge Functions에 직접 결합되어 있었고, 이미지 서비스의 장시간 생성 작업과 세션 상태는 단일 프로세스에 묶여 있었습니다. 새 구조는 다음 경계를 명확히 했습니다.
 
 - 프론트엔드는 DB를 알지 못하며 OpenAPI에서 생성한 `packages/api-client`로만 통신합니다.
-- 인증·인가·주문·결제·토큰 과금은 FastAPI `api`가 단일 소유합니다.
-- OpenAI LLM이 자연어를 typed design plan으로 구조화하고, 사용자가 명시적으로 요청한 새 모티프만 GPT Image 2 low와 로컬 VTracer로 생성합니다. concrete motif ID가 확정된 뒤의 배치·합성·seam은 결정론적 Python 엔진이 담당합니다.
-- 즉시 응답이 필요한 generate와 무거운 fabric finalize를 별도 Cloud Run 서비스로 분리합니다.
+- 인증·인가·주문·결제는 FastAPI `api`가 단일 소유합니다.
+- 넥타이 디자인은 시드 코드로 관리하는 템플릿(typed design plan)에서 시작하고, 배치·합성·seam은 결정론적 Python 엔진이 담당합니다. 고객 로고는 SVG 업로드 또는 사진→SVG(로컬 VTracer) 변환으로 넣으며, 외부 AI provider를 호출하지 않습니다.
+- 꾸민 디자인은 맞춤 주문의 참고 이미지로 넘어가 사람이 생산 사양을 확정합니다.
 - Supabase 런타임 의존성을 제거하고 PostgreSQL·GCS·GCP IAM 경계로 재설계했습니다.
 
 코드는 기존 저장소에서 이식하지 않고 새로 작성했으며, 도메인 의미와 핵심 동작 계약은 테스트와 매핑 문서로 보존했습니다.
@@ -26,11 +26,11 @@ ESSE SION은 기존 커머스 프론트엔드 **YeongSeon**과 독립 이미지 
 
 | 영역 | 구현 결과 |
 |---|---|
-| 계약 | OpenAPI **163 paths / 196 operations**, TypeScript SDK·TanStack Query 옵션·Zod 스키마 자동 생성, CI drift 차단 |
+| 계약 | OpenAPI **130 paths / 156 operations**(2026-10-19 기준), TypeScript SDK·TanStack Query 옵션·Zod 스키마 자동 생성, CI drift 차단 |
 | 품질 | Python **1,238** + Vitest **518** 테스트, Ruff·Pyright·Biome·빌드·타입 검사·모듈 경계 gate (전체 실행은 CI가 정본, 2026-08-14 기준) |
-| 이미지 엔진 | 25개 intent 골든, 대표 seed 변형, 대표 compose의 `PYTHONHASHSEED=0/1/12345` 교차 검증으로 byte-identical SVG 계약 보호 |
+| 이미지 엔진 | 25개 intent 골든과 25개 템플릿 플랜 컴파일러 골든, 대표 seed 변형, 대표 compose의 `PYTHONHASHSEED=0/1/12345` 교차 검증으로 byte-identical SVG 계약 보호 |
 | 데이터 | SQLAlchemy 모델을 정본으로 두고 모든 스키마 변경을 Alembic으로 관리, 실제 PostgreSQL 기반 인가·동시성 테스트 |
-| 운영 경계 | Cloudflare exact-secret, Cloud Run OIDC, Cloud Tasks 멱등 잡, 공개/비공개 GCS 버킷 분리, WIF 배포 파이프라인 구현 |
+| 운영 경계 | Cloudflare exact-secret, Cloud Run OIDC, 공개/비공개 GCS 버킷 분리, WIF 배포 파이프라인 구현 |
 
 보안·동시성·공급망 감사 기록은 [2026-07 리팩터링 감사](./docs/reviews/repo-refactor-2026-07.md)에 있습니다.
 
@@ -38,45 +38,41 @@ ESSE SION은 기존 커머스 프론트엔드 **YeongSeon**과 독립 이미지 
 
 ```mermaid
 flowchart LR
-    A[자연어로 패턴 요청] --> B[SVG 디자인 1개]
-    B --> C[문장으로 구성 수정·모티프 교체]
-    C --> D[PNG/TIFF 내보내기]
-    C --> E[원단 질감 finalize]
-    E --> F[맞춤 주문에 첨부]
-    F --> G[Toss 결제·주문 관리]
+    A[템플릿 고르기] --> B[색 바꾸기]
+    B --> C[로고 넣기<br/>SVG·사진]
+    C --> D[바로 주문하기<br/>참고 이미지 첨부]
+    D --> E[Toss 결제·주문 관리]
 ```
 
-### 왜 채팅으로 먼저 잡고, 이미지는 마지막에 만드는가 (고객 관점의 핵심)
+### 왜 템플릿에서 시작하고, 마무리는 사람이 하는가 (고객 관점의 핵심)
 
-기술적으로 새로운 부분은 아니지만 이 서비스가 고객에게 합리적인 이유가 여기에 있다. 처음부터 이미지 생성 모델로 넥타이 그림을 만들고 매 턴 다시 그리게 하면 세 가지가 무너진다.
+넥타이 디자인을 처음부터 그리게 하면 고객은 무엇을 원하는지 말로 풀어야 하고, 결과는 생산에 그대로 쓸 수 없다. 2026-10-19까지 운영한 AI 디자인 생성(문장 → 디자인, 원단 실사화)을 걷어내고 흐름을 줄인 이유다.
 
-- **화질** — 생성 이미지 위에 수정 이미지를 겹쳐 쌓는 방식은 턴마다 해상도와 선명도가 나빠진다. 결정론 SVG 엔진은 몇 번을 고쳐도 벡터 그대로라 화질이 변하지 않는다.
-- **세밀한 조절** — 범용 이미지 모델은 넥타이 패턴만 그리지 않는다. 줄무늬 폭·간격·각도, 모티프 크기·밀도·회전 같은 값을 "줄만 버건디로"처럼 한 항목씩 정확히 바꾸는 일은 typed design plan 위에서만 가능하다.
-- **비용** — 이미지 생성은 턴마다 비싸다. 느낌을 잡는 반복은 저렴한 채팅·결정론 엔진으로 하고, 이미지 생성(원단 질감 실사화)은 디자인이 정해진 뒤 한 번만 한다.
-
-그래서 디자인 페이지의 흐름은 "채팅으로 원하는 느낌을 먼저 잡고 → 정해지면 실사화"로 고정돼 있고, 첫 진입 코치마크의 마지막 스텝이 이 이유를 고객에게 한 번 설명한다.
+- **고르기가 말하기보다 쉽다** — 검수된 템플릿 중 하나를 고르고 색과 로고만 바꾸면 된다. 줄무늬 폭·간격·로고 자리 같은 값은 템플릿이 이미 넥타이 비율에 맞춰 정해 둔다.
+- **화질과 재현성** — 결정론 SVG 엔진은 몇 번을 바꿔도 벡터 그대로라 화질이 변하지 않고, 같은 입력이면 같은 결과가 나온다.
+- **생산은 사람이 확정한다** — 꾸민 디자인은 맞춤 주문의 참고 이미지로 넘어가고, 원단·직조 사양은 디자이너가 주문을 보고 정한다. 외부 생성 비용도 사라진다.
 
 ### Store
 
 - 상품 탐색·상세, 게스트/회원 장바구니, 쿠폰, 배송지
 - 일반·수선·맞춤·샘플 주문과 Toss 결제
-- 토큰 구매·원장·환불, 주문·클레임·문의·견적·마이페이지
-- 자연어 패턴 생성, 문장 기반 구성 수정, 이력 되돌리기, PNG/TIFF export, 원단 finalize
+- 주문·클레임·문의·견적·마이페이지
+- 디자인 템플릿 목록, 색·로고 편집(SVG 업로드·사진→SVG), 꾸민 디자인으로 바로 맞춤 주문
 - 반응형 UI, 접근성·200% zoom·reduced motion 검증
 
 ### Admin
 
 - 대시보드, 주문·상품·쿠폰·견적·클레임·고객·문의 관리
-- 맞춤 단가·설정 관리, 생성 작업·로그·모티프 운영
+- 맞춤 단가·설정 관리, 디자인 렌더 로그·무늬·로고·템플릿 운영
 - 결제 인시던트 대사와 관리자 복구 흐름
 - 관리자/매니저 역할 게이트와 감사 가능한 mutation 경계
 
 ### Design engine
 
-- `prompt → intent → motif resolution → deterministic SVG` 파이프라인
+- `템플릿 플랜(DesignPlan v3) → compiler → intent → deterministic SVG` 파이프라인
 - lattice·path-following·scatter·point-set 배치와 torus 좌표계
-- exact token·pgvector 유사도 검색으로 승인된 catalog를 재사용하고, 모티프 모달의 명시적 요청만 GPT Image 2 low → 로컬 VTracer medium으로 생성
-- Pillow + librsvg 기반 preview·PNG/TIFF export·직조 질감 합성
+- 로고 교체는 intent의 로고 자리 모티프만 바꾼 결정론 재렌더, 사진 로고는 로컬 VTracer로 SVG 변환
+- Pillow + librsvg 기반 preview
 - content hash와 create-only 업로드를 통한 재시도 안전성
 
 ## 아키텍처
@@ -90,32 +86,25 @@ flowchart TB
     Edge --> API[api · FastAPI<br/>Cloud Run]
 
     API -->|동기 HTTP + OIDC| Generate[worker-generate<br/>Cloud Run]
-    API -->|잡 생성| Tasks[Cloud Tasks]
-    Tasks -->|OIDC push| Finalize[worker-finalize<br/>Cloud Run]
-    API -->|동기 export + OIDC| Finalize
 
-    API --> SQL[(Cloud SQL<br/>PostgreSQL 17 + pgvector)]
+    API --> SQL[(Cloud SQL<br/>PostgreSQL 17)]
     Generate --> SQL
-    Finalize --> SQL
     API --> Private[(GCS private uploads)]
     API --> Public[(GCS public assets)]
     Generate --> Public
-    Finalize --> Public
 
-    Generate -.-> AI[OpenAI LLM·임베딩 · GPT Image]
     API -.-> External[Toss Payments · Solapi]
 ```
 
-프론트는 Vite로 빌드한 정적 자산을 Wrangler로 Cloudflare Workers에 배포합니다. API와 두 worker는 Cloud Run, DB는 Cloud SQL PostgreSQL, finalize 전달은 Cloud Tasks가 담당합니다. 별도 staging 프로젝트 없이 단일 production GCP 프로젝트만 운영합니다.
+프론트는 Vite로 빌드한 정적 자산을 Wrangler로 Cloudflare Workers에 배포합니다. API와 worker는 Cloud Run, DB는 Cloud SQL PostgreSQL이 담당합니다. 별도 staging 프로젝트 없이 단일 production GCP 프로젝트만 운영합니다.
 
-핵심 설계 결정 여섯 가지입니다.
+핵심 설계 결정 다섯 가지입니다.
 
 - **API 계약이 단일 정본** — FastAPI OpenAPI에서 프론트 SDK·쿼리 옵션·런타임 스키마를 생성하고, CI가 drift를 차단합니다.
-- **AI 판단과 출력 보장을 분리** — prompt authoring은 탐색적이어도 resolved intent 이후에는 seeded RNG·정렬·canonical hash만 사용합니다.
-- **부하 성격에 따라 worker를 분리** — 대기가 긴 generate는 동기 UX, CPU·메모리를 쓰는 finalize는 Cloud Tasks 비동기. 같은 코드베이스에 라우트·IAM·리소스만 다릅니다.
-- **돈 경로는 API가 단독 소유** — 주문·쿠폰·Toss 대사·토큰 원장을 DB 트랜잭션과 advisory lock 아래 처리하고 provider key·금액·상태를 재검증합니다.
-- **재시도를 정상 흐름으로 설계** — finalize task 이름을 job UUID로 고정하고 lease·attempt 조건부 갱신과 `if_generation_match=0` 생성을 씁니다.
-- **공개 결과와 고객 첨부를 물리적으로 분리** — public assets / private uploads 두 버킷을 두고, 완성 디자인을 주문에 쓸 때만 create-only 복사합니다.
+- **출력 보장은 엔진이 진다** — 템플릿 플랜을 compiler가 intent로 확정한 뒤에는 seeded RNG·정렬·canonical hash만 사용해 byte-identical SVG를 냅니다.
+- **돈 경로는 API가 단독 소유** — 주문·쿠폰·Toss 대사를 DB 트랜잭션과 advisory lock 아래 처리하고 provider key·금액·상태를 재검증합니다.
+- **재시도를 정상 흐름으로 설계** — 렌더 결과는 content hash 키에 `if_generation_match=0`으로 생성하고, 로고 교체는 세션당 lease로 하나만 진행합니다.
+- **공개 결과와 고객 첨부를 물리적으로 분리** — public assets / private uploads 두 버킷을 두고, 고객이 올린 사진·주문 참고 이미지는 private에만 둡니다.
 
 각 결정의 근거와 기각한 대안, 신뢰 경계와 장애 복구 방식은 [ARCHITECTURE.md](./ARCHITECTURE.md)에 있습니다.
 
@@ -126,9 +115,9 @@ flowchart TB
 | Frontend | React 19, TypeScript 6, Vite 8, React Router 8, TanStack Query 5, Zod, Tailwind CSS 4 |
 | Design system | `packages/shared`, semantic tokens, dependency-free primitives/components, Vitest drift guards |
 | API | Python 3.13, FastAPI, Pydantic, SQLAlchemy 2 async, asyncpg, Authlib, JWT/Argon2 |
-| Image pipeline | Deterministic Python engine, Pillow, librsvg, pgvector, OpenAI LLM/embeddings, GPT Image |
-| Data | PostgreSQL 17 + pgvector, Alembic, testcontainers |
-| Cloud | Cloudflare Workers, Cloud Run, Cloud Tasks, Cloud Scheduler, Cloud SQL, GCS, Secret Manager |
+| Image pipeline | Deterministic Python engine, Pillow, librsvg, VTracer |
+| Data | PostgreSQL 17, Alembic, testcontainers |
+| Cloud | Cloudflare Workers, Cloud Run, Cloud Scheduler, Cloud SQL, GCS, Secret Manager |
 | Tooling | pnpm 10 workspaces, uv, mise, Biome, Ruff, Pyright, Playwright, Schemathesis |
 | Delivery | GitHub Actions, OpenTofu, Workload Identity Federation, Artifact Registry |
 
@@ -139,8 +128,8 @@ essesion/
 ├── apps/
 │   ├── store/          # 고객용 커머스·디자인 React 앱
 │   ├── admin/          # 운영자 React 앱
-│   ├── api/            # 인증·도메인·결제·과금 FastAPI
-│   └── worker/         # generate/finalize 공용 이미지 엔진
+│   ├── api/            # 인증·도메인·결제 FastAPI
+│   └── worker/         # 결정론 이미지 엔진·사진→SVG
 ├── packages/
 │   ├── api-client/     # OpenAPI 생성 SDK·Query·Zod
 │   ├── shared/         # 디자인 토큰·공용 UI
@@ -182,10 +171,10 @@ docker compose up -d --wait
 uv run alembic -c db/alembic.ini upgrade head
 uv run python apps/api/scripts/seed.py                      # 계정·가격·설정
 uv run python apps/worker/scripts/seed_motifs.py            # 모티프 카탈로그
-uv run python apps/worker/scripts/seed_design_examples.py   # 디자인 첫 진입 갤러리
+uv run python apps/worker/scripts/seed_design_examples.py   # 디자인 템플릿
 ```
 
-시드는 전부 멱등이며 순서대로 실행해야 합니다. 뒤 두 개를 건너뛰면 `/design` 첫 진입이 빈 상태로 폴백합니다.
+시드는 전부 멱등이며 순서대로 실행해야 합니다. 뒤 두 개를 건너뛰면 `/design` 템플릿 목록이 비어 있습니다.
 
 ### 3. 개발 서버
 
@@ -198,7 +187,7 @@ pnpm --filter store dev
 pnpm --filter admin dev
 ```
 
-로컬에서 Toss·Solapi 자격증명이 없으면 API는 해당 연동을 DryRun으로 실행합니다. 파일 스토리지는 별도 설정 없이 `docker compose up -d`의 fake-gcs-server(`localhost:4443`, `dev-uploads`/`dev-assets`)를 사용하고, finalize는 Cloud Tasks 대신 로컬 worker 호출이 끝날 때까지 기다립니다. 자연어 authoring, 벡터 검색과 명시적 GPT Image 모티프 생성에는 `OPENAI_API_KEY`가 필요합니다(비우면 해당 경로 503/스킵). 결정론 엔진과 골든 테스트는 외부 호출 없이 검증할 수 있습니다. 배포 환경은 GCS 버킷이나 Cloud Tasks 설정이 빠지면 기동하지 않습니다.
+로컬에서 Toss·Solapi 자격증명이 없으면 API는 해당 연동을 DryRun으로 실행합니다. 파일 스토리지는 별도 설정 없이 `docker compose up -d`의 fake-gcs-server(`localhost:4443`, `dev-uploads`/`dev-assets`)를 사용합니다. 디자인 경로는 외부 provider를 호출하지 않으므로 결정론 엔진과 골든 테스트를 그대로 검증할 수 있습니다. 배포 환경은 GCS 버킷 설정이 빠지면 기동하지 않습니다.
 
 ## 검증
 

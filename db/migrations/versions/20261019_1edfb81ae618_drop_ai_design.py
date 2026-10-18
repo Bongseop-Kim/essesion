@@ -4,7 +4,7 @@ Revision ID: 1edfb81ae618
 Revises: 3d8a51c7e2f4
 Create Date: 2026-10-19 00:25:01.283108
 
-2026-10-19 AI 디자인 생성·디자인 토큰 서비스 종료(docs/plans/ai-design-removal.md Phase 4).
+2026-10-19 AI 디자인 생성·디자인 토큰 서비스 종료(실행 기록: docs/reviews/ai-design-removal-2026-10-19.md).
 토큰 주문은 0건이라 주문·클레임 행은 지우지 않는다 — token 행이 있으면 CHECK 추가가 실패해
 마이그레이션이 멈춘다(조용히 지우지 않는다). 렌더 로그는 AI 경로가 남긴 행(prompt·patch)만 지우되
 템플릿(design_examples.run_id, ON DELETE RESTRICT)이 가리키는 행은 남긴다.

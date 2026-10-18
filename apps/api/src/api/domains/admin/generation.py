@@ -205,8 +205,7 @@ class MotifSummaryOut(BaseModel):
 
 class MotifDetailOut(MotifSummaryOut):
     anchor: list[float]
-    # 첫 GPT Image 유입 시점의 요청자·세션 — motif 생성은 별도 generation log를 남기지 않으므로
-    # 이 두 값이 admin에서 세션 상관을 볼 수 있는 유일한 경로다.
+    # 처음 올린 고객(로고 업로드) — 모티프 행에서 업로더를 볼 수 있는 유일한 경로다.
     ingested_user_id: uuid.UUID | None
     ingested_session_id: uuid.UUID | None
 

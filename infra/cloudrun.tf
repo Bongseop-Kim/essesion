@@ -200,7 +200,7 @@ resource "google_cloud_run_v2_service" "worker_generate" {
 
   template {
     service_account = google_service_account.worker_generate.email
-    timeout         = "300s" # GPT Image 생성·재시도와 로컬 벡터화 상한
+    timeout         = "300s" # 사진→SVG 로컬 벡터화·재렌더 상한(api worker_timeout 180s보다 길게)
     # 각 request가 preview raster를 최대 2개 병렬 실행하므로 1Gi 인스턴스의 총량도 제한.
     max_instance_request_concurrency = 2
 

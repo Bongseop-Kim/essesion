@@ -492,6 +492,8 @@ async def import_user_motif(
             subject="user upload",
             scope="whole",
             style=None,
+            # 처음 올린 고객 — 같은 SVG의 재업로드(content-hash 충돌)는 덮지 않는다.
+            ingested_user_id=user.id,
             source="user_upload",
             # 지문 풀(approved_motif_ids)은 source='user_upload'를 따로 거른다 — 상태만 맞춘다.
             status="approved",

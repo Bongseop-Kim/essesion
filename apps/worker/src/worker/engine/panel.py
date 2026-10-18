@@ -1,7 +1,7 @@
 """배치형(panel) 합성 — 블레이드에 한 번만 놓이는 요소의 SVG (worker-engine.md §2b).
 
 타일(`<pattern>`)과 별개의 문서다. seamless 클론·불변식을 적용하지 않고, 배경은 투명이다.
-소비자(store TieCanvas, finalize 참고 렌더)가 실루엣마다 블레이드 프레임을 아트 박스에
+소비자(store TieCanvas)가 실루엣마다 블레이드 프레임을 아트 박스에
 사상해 무늬 위·명암 아래에 한 번 얹는다.
 """
 

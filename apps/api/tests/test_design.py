@@ -244,6 +244,7 @@ async def test_logo_saves_motif_once_and_activates_server_chosen_slot(
     assert len(links) == 1 and links[0].name == "acme"
     stored = await db_session.get(Motif, "upload-a1b2c3d4e5f6")
     assert stored is not None and stored.source == "user_upload"
+    assert stored.ingested_user_id == user.id
 
     # 진행 중이면 저장도 하지 않고 409.
     persisted = await db_session.get(DesignSession, design_session.id)

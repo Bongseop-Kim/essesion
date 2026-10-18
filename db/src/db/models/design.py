@@ -48,7 +48,7 @@ class DesignSession(TimestampMixin, Base):
 
 
 class DesignSessionTurn(CreatedAtMixin, Base):
-    """검증된 생성 요청·결과·선택·finalize 이벤트의 선형 턴 이력."""
+    """템플릿 시작·로고 교체 결과의 선형 턴 이력."""
 
     __tablename__ = "design_session_turns"
 
