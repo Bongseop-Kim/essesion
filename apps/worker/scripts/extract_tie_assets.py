@@ -26,6 +26,7 @@ tie-knot-closeup-* 셋은 store public/images/에만 복사한다.
 """
 
 import sys
+from collections.abc import Sequence
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
@@ -288,103 +289,114 @@ print(
 
 # --- 매듭 확대 컷: 사진이 있는 구간이라 몸통도 합성 단면 대신 사진 명암을 쓴다.
 # 실사 컷처럼 확대하면 794px로 줄인 에셋을 다시 키우는 셈이라 흐리다 — 사진 해상도로 따로 뽑는다.
-KX0 = round(C) - 300
-KBOX = (KX0, 0, KX0 + 600, 750)  # 4:5 — 깃 끝·매듭·몸통 윗부분
-KW, KH_ = KBOX[2] - KBOX[0], KBOX[3] - KBOX[1]
-SS = 4  # 확대하면 1px 계단이 보인다 — 외곽은 4배로 그려 줄인다
-
-
-def closeup_poly(polys: list[list[tuple[float, float]]]) -> np.ndarray:
-    """확대 컷 좌표의 다각형 마스크(0~1). 외곽선 두께로 사진 넥타이 테두리(회색)를 1px 더 덮는다."""
-    im = Image.new("L", (KW * SS, KH_ * SS), 0)
-    d = ImageDraw.Draw(im)
-    for poly in polys:
-        pts = [((x - KBOX[0]) * SS, (y - KBOX[1]) * SS) for x, y in poly]
-        d.polygon(pts, fill=255, outline=255, width=2 * SS)
-    return np.asarray(im.resize((KW, KH_), Image.Resampling.BOX), np.float32) / 255
-
-
-def crop_k(a: np.ndarray) -> np.ndarray:
-    return a[KBOX[1] : KBOX[3], KBOX[0] : KBOX[2]]
-
-
 # 매듭 양 어깨는 깃 안쪽 선을 따라 딴 것이라 깃과 매듭 사이 그늘이 회색 쐐기로 남는다 —
 # 어깨 점만 깃 밑으로 밀어 그리고, 사진에서 밝은 깃이 그 위를 덮게 한다.
 # 가운데 윗변은 그대로 — 올리면 깃 사이 목 그늘까지 넥타이가 된다.
 KNOT_UP = [(x, y - 40) if y < 140 and not 430 <= x <= 620 else (x, y) for x, y in KNOT]
 
 
-def chaikin(poly: list[tuple[float, float]], n: int = 2) -> list[tuple[float, float]]:
+def chaikin(poly: Sequence[tuple[float, float]], n: int = 2) -> list[tuple[float, float]]:
     """닫힌 다각형 모서리 깎기 — 손으로 찍은 점 사이 꺾임이 확대 컷에서 각진 모서리로 보인다."""
+    pts = list(poly)
     for _ in range(n):
         out = []
-        for (x0, y0), (x1, y1) in zip(poly, poly[1:] + poly[:1], strict=True):
+        for (x0, y0), (x1, y1) in zip(pts, pts[1:] + pts[:1], strict=True):
             out += [(0.75 * x0 + 0.25 * x1, 0.75 * y0 + 0.25 * y1)]
             out += [(0.25 * x0 + 0.75 * x1, 0.25 * y0 + 0.75 * y1)]
-        poly = out
-    return poly
+        pts = out
+    return pts
 
 
 KNOT_UP = chaikin(KNOT_UP)
-Lc = crop_k(np.asarray(photo.filter(ImageFilter.GaussianBlur(1.5)), np.float32))
-_yc = np.arange(KH_, dtype=np.float32)[:, None]
-collar = np.clip((Lc - 150) / 40, 0, 1) * (_yc < 200)
-knot_k = closeup_poly([KNOT_UP]) * (1 - collar)
-m_k = np.maximum(closeup_poly([blade_poly]), knot_k)
-rim_k = (
-    1
-    - np.asarray(
-        Image.fromarray((m_k * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(5)),
-        np.float32,
+
+
+def closeup(prefix: str, KW: int, KH_: int) -> None:
+    """매듭 확대 컷 한 벌 — 사진 위쪽을 넥타이 중심선 기준 KW×KH_로 자른다.
+
+    셔츠가 사라지는 타원은 칸 크기에 비례해 키운다(4:5 600×750이 기준).
+    """
+    KX0 = round(C) - KW // 2
+    KBOX = (KX0, 0, KX0 + KW, KH_)
+    SS = 4  # 확대하면 1px 계단이 보인다 — 외곽은 4배로 그려 줄인다
+
+    def closeup_poly(polys: Sequence[Sequence[tuple[float, float]]]) -> np.ndarray:
+        """확대 컷 좌표의 다각형 마스크(0~1).
+
+        외곽선 두께로 사진 넥타이 테두리(회색)를 1px 더 덮는다.
+        """
+        im = Image.new("L", (KW * SS, KH_ * SS), 0)
+        d = ImageDraw.Draw(im)
+        for poly in polys:
+            pts = [((x - KBOX[0]) * SS, (y - KBOX[1]) * SS) for x, y in poly]
+            d.polygon(pts, fill=255, outline=255, width=2 * SS)
+        return np.asarray(im.resize((KW, KH_), Image.Resampling.BOX), np.float32) / 255
+
+    def crop_k(a: np.ndarray) -> np.ndarray:
+        return a[KBOX[1] : KBOX[3], KBOX[0] : KBOX[2]]
+
+    Lc = crop_k(np.asarray(photo.filter(ImageFilter.GaussianBlur(1.5)), np.float32))
+    _yc = np.arange(KH_, dtype=np.float32)[:, None]
+    collar = np.clip((Lc - 150) / 40, 0, 1) * (_yc < 200)
+    knot_k = closeup_poly([KNOT_UP]) * (1 - collar)
+    m_k = np.maximum(closeup_poly([blade_poly]), knot_k)
+    rim_k = (
+        1
+        - np.asarray(
+            Image.fromarray((m_k * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(5)),
+            np.float32,
+        )
+        / 255
     )
-    / 255
-)
-# 결(주기 7.5px)이 남게 몸통 블러(2.4)보다 약하게
-Lk = crop_k(np.minimum(np.asarray(photo.filter(ImageFilter.GaussianBlur(1.0)), np.float32), 160))
-kr = Lk / ref
-kr = np.minimum(kr, 1) - rim_k * 0.3 + np.maximum(kr - 1, 0) * (1 - rim_k * 2).clip(0, 1)
-tie_k = np.zeros((KH_, KW, 2), np.float32)
-tie_k[..., 0] = np.where(kr < 1, 0, 255)
-tie_k[..., 1] = np.where(kr < 1, ((1 - kr) * 1.5).clip(0, 0.65), ((kr - 1) * 0.7).clip(0, 0.3))
-tie_k[..., 1] *= m_k
-# 셔츠·깃은 실사 컷처럼 매듭 둘레 타원 밖으로 사라진다 — 칸 배경에 녹아 사진 테두리가 없다.
-# 타원 경계에서 셔츠 그늘이 반투명 회색 띠로 남지 않게 smoothstep으로 안쪽에서 일찍 사라진다.
-_xc = np.arange(KW, dtype=np.float32)[None, :] + KBOX[0]
-ell_k = ((_xc - C) / 290) ** 2 + ((_yc - 200) / 600) ** 2
-_t = np.clip((1 - ell_k) / 0.45, 0, 1)
-fade_k = _t * _t * (3 - 2 * _t) * np.clip(_yc / 40, 0, 1)
-shirt_k = np.stack([crop_k(L), fade_k * (1 - m_k)], -1)
-layer_k = over(shirt_k, tie_k)
-closeup = Image.merge(
-    "LA",
-    (
-        Image.fromarray(layer_k[..., 0].clip(0, 255).astype(np.uint8)),
-        Image.fromarray((layer_k[..., 1] * 255).clip(0, 255).astype(np.uint8)),
-    ),
-)
-closeup.convert("RGBA").save(
-    f"{out_dir}/tie-knot-closeup-shadow.webp", quality=80, alpha_quality=90, method=6
-)
-for name, mm in (("tie-knot-closeup-mask.png", m_k), ("tie-knot-closeup-knot-mask.png", knot_k)):
-    am = Image.fromarray((mm * 255).clip(0, 255).astype(np.uint8))
-    Image.merge("LA", (Image.new("L", am.size, 0), am)).save(f"{out_dir}/{name}", optimize=True)
+    # 결(주기 7.5px)이 남게 몸통 블러(2.4)보다 약하게
+    Lk = crop_k(
+        np.minimum(np.asarray(photo.filter(ImageFilter.GaussianBlur(1.0)), np.float32), 160)
+    )
+    kr = Lk / ref
+    kr = np.minimum(kr, 1) - rim_k * 0.3 + np.maximum(kr - 1, 0) * (1 - rim_k * 2).clip(0, 1)
+    tie_k = np.zeros((KH_, KW, 2), np.float32)
+    tie_k[..., 0] = np.where(kr < 1, 0, 255)
+    tie_k[..., 1] = np.where(kr < 1, ((1 - kr) * 1.5).clip(0, 0.65), ((kr - 1) * 0.7).clip(0, 0.3))
+    tie_k[..., 1] *= m_k
+    # 셔츠·깃은 실사 컷처럼 매듭 둘레 타원 밖으로 사라진다 — 칸 배경에 녹아 사진 테두리가 없다.
+    # 타원 경계에서 셔츠 그늘이 반투명 회색 띠로 남지 않게 smoothstep으로 안쪽에서 일찍 사라진다.
+    _xc = np.arange(KW, dtype=np.float32)[None, :] + KBOX[0]
+    ell_k = ((_xc - C) / (290 * KW / 600)) ** 2 + ((_yc - 200) / (600 * KH_ / 750)) ** 2
+    _t = np.clip((1 - ell_k) / 0.45, 0, 1)
+    fade_k = _t * _t * (3 - 2 * _t) * np.clip(_yc / 40, 0, 1)
+    shirt_k = np.stack([crop_k(L), fade_k * (1 - m_k)], -1)
+    layer_k = over(shirt_k, tie_k)
+    closeup = Image.merge(
+        "LA",
+        (
+            Image.fromarray(layer_k[..., 0].clip(0, 255).astype(np.uint8)),
+            Image.fromarray((layer_k[..., 1] * 255).clip(0, 255).astype(np.uint8)),
+        ),
+    )
+    closeup.convert("RGBA").save(
+        f"{out_dir}/{prefix}-shadow.webp", quality=80, alpha_quality=90, method=6
+    )
+    for name, mm in ((f"{prefix}-mask.png", m_k), (f"{prefix}-knot-mask.png", knot_k)):
+        am = Image.fromarray((mm * 255).clip(0, 255).astype(np.uint8))
+        Image.merge("LA", (Image.new("L", am.size, 0), am)).save(f"{out_dir}/{name}", optimize=True)
 
-# TieCanvas `knot` 실루엣 상수 — 실사 컷(아트 박스 ART_PW×H) 비율을 확대 컷 비율로 옮긴다.
+    # TieCanvas `knot` 실루엣 상수 — 실사 컷(아트 박스 ART_PW×H) 비율을 확대 컷 비율로 옮긴다.
+
+    def kx(frac_of_art: float) -> float:
+        return (frac_of_art * ART_PW - pad - KBOX[0]) / KW
+
+    def ky(frac_of_art: float) -> float:
+        return (frac_of_art * H - KBOX[1]) / KH_
+
+    print(f"{prefix} {KW}x{KH_} tile {0.16 * ART_PW / KW:.4f}")
+    print(f"{prefix} blade left {kx(0.305):.4f} right {kx(0.694):.4f} shoulder {ky(0.918):.4f}")
+    print(
+        f"{prefix} emblem knot x {kx(0.5):.4f} y {ky(0.06):.4f} size {0.13 * ART_PW / KW:.4f}",
+        f"max {0.2 * ART_PW / KW:.4f}",
+        f"tip x {kx(0.66):.4f} y {ky(0.86):.4f} size {0.06 * ART_PW / KW:.4f}",
+        f"maxW {0.12 * ART_PW / KW:.4f} maxH {0.09 * ART_PW / KW:.4f}",
+    )
 
 
-def kx(frac_of_art: float) -> float:
-    return (frac_of_art * ART_PW - pad - KBOX[0]) / KW
-
-
-def ky(frac_of_art: float) -> float:
-    return (frac_of_art * H - KBOX[1]) / KH_
-
-
-print(f"closeup {KW}x{KH_} tile {0.16 * ART_PW / KW:.4f}")
-print(f"closeup blade left {kx(0.305):.4f} right {kx(0.694):.4f} shoulder {ky(0.918):.4f}")
-print(
-    f"closeup emblem knot x {kx(0.5):.4f} y {ky(0.06):.4f} size {0.13 * ART_PW / KW:.4f}",
-    f"max {0.2 * ART_PW / KW:.4f}",
-    f"tip x {kx(0.66):.4f} y {ky(0.86):.4f} size {0.06 * ART_PW / KW:.4f}",
-    f"maxW {0.12 * ART_PW / KW:.4f} maxH {0.09 * ART_PW / KW:.4f}",
-)
+closeup("tie-knot-closeup", 600, 750)
+# 모바일 색·로고의 "매듭" 보기 — 세로로 긴 칸(9:16)에 맞춰 덜 확대하고 몸통을 더 길게 담는다.
+closeup("tie-knot-closeup-tall", 864, 1536)  # 사진 높이(1536) 전부

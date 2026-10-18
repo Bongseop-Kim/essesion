@@ -157,6 +157,34 @@ export function TemplateKnotShot({
   );
 }
 
+/** 모바일 매듭 한 장(9:16) — 세로로 긴 모바일 캔버스용으로 덜 확대해 몸통을 길게 담은 컷(`knotTall`). */
+export function TemplateKnotTallShot({
+  shot,
+  layout,
+}: {
+  shot: TemplateShot;
+  layout: TemplateLayout;
+}) {
+  return (
+    <Box
+      position="relative"
+      width="full"
+      overflow="hidden"
+      bg="bg.neutral-weak"
+      style={{ aspectRatio: "9 / 16" }}
+    >
+      <Box position="absolute" inset={0}>
+        <TieCanvas
+          {...shot}
+          mode="tie"
+          silhouette="knotTall"
+          emblem={templateEmblem(layout)}
+        />
+      </Box>
+    </Box>
+  );
+}
+
 /** 착용 모습 한 장(4:5) — 색 고르기의 "착용" 보기. 확대 샷 없이 전체 샷만. */
 export function TemplateWornShot({
   shot,
