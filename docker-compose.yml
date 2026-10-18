@@ -2,8 +2,9 @@
 services:
   db:
     image: pgvector/pgvector:pg17
+    # 이 Mac 안에서만 — 0.0.0.0이면 외부 스캐너가 붙는다(계정·비밀번호가 개발용 고정값).
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_USER: essesion
       POSTGRES_PASSWORD: essesion
@@ -16,7 +17,7 @@ services:
   gcs:
     image: fsouza/fake-gcs-server:1.55.1
     ports:
-      - "4443:4443"
+      - "127.0.0.1:4443:4443"
     entrypoint:
       - /bin/sh
       - -c
