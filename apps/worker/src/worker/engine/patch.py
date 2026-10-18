@@ -805,7 +805,8 @@ def _first_motif_layer(raw: dict[str, Any], tile: float, motif_id: str) -> dict[
 def set_motif_slot(
     intent: dict[str, Any], *, slot: int | Literal["logo"], motif_id: str
 ) -> dict[str, Any]:
-    """슬롯(1..2)의 모티프 id만 바꾼 새 intent — 없는 슬롯은 레이어를 파생해 만든다.
+    """슬롯(1..2)의 모티프 id만 바꾼 새 intent — 그 슬롯의 레이어 전부를 바꾸고, 없는 슬롯은
+    레이어를 파생해 만든다. 슬롯은 `motif_layer_slots`(같은 모티프 레이어 묶음)다.
 
     모티프가 하나도 없는 디자인은 어느 슬롯을 요청해도 첫 레이어를 만든다 — 빈 슬롯 2만
     따로 만들면 슬롯 1이 영구히 비어 UI가 채울 방법이 없다. `"logo"`는 배치형(panel) 포인트
@@ -838,16 +839,23 @@ def set_motif_slot(
         raw["layers"].append(_first_motif_layer(raw, tile, motif_id))
         _renumber(raw)
         return raw
-    source = motifs[min(slot, len(motifs)) - 1]
-    if not isinstance(source.get("params"), dict):
+    if any(not isinstance(layer.get("params"), dict) for layer in motifs):
         raise ConstraintInvalid(["motif layer is missing params"])
-    if slot <= len(motifs):
-        source["params"]["motif_id"] = motif_id
+    # 슬롯을 레이어에 박아 둔다 — 이후 교체가 같은 모티프를 넣어도 슬롯 번호가 그대로다.
+    slots = motif_layer_slots(raw)
+    for layer, layer_slot in zip(motifs, slots, strict=True):
+        layer["slot"] = layer_slot
+    targets = [layer for layer, layer_slot in zip(motifs, slots, strict=True) if layer_slot == slot]
+    if targets:
+        for layer in targets:
+            layer["params"]["motif_id"] = motif_id
         return raw
 
+    source = motifs[-1]
     placement = source.get("placement")
     derived = copy.deepcopy(source)
     derived["id"] = _free_layer_id(raw, f"motif_slot_{slot}")
+    derived["slot"] = slot
     derived["params"]["motif_id"] = motif_id
     derived["placement"] = _derived_placement(
         placement if isinstance(placement, dict) else {}, tile
@@ -855,6 +863,27 @@ def set_motif_slot(
     raw["layers"].append(derived)
     _renumber(raw)
     return raw
+
+
+def motif_layer_slots(raw: dict[str, Any]) -> list[int]:
+    """모티프 레이어마다의 슬롯 — 박힌 `slot`이 우선, 없으면 고유 motif_id가 처음 나오는 순서
+    (박힌 슬롯 뒤 번호부터). api `_intent_slot_motif_ids`와 같은 규칙."""
+    motifs = _layers(raw, "motif")
+    pinned = [layer.get("slot") for layer in motifs]
+    next_slot = max((s for s in pinned if isinstance(s, int)), default=0)
+    by_motif: dict[object, int] = {}
+    slots: list[int] = []
+    for layer, layer_slot in zip(motifs, pinned, strict=True):
+        if isinstance(layer_slot, int):
+            slots.append(layer_slot)
+            continue
+        params = layer.get("params")
+        key = params.get("motif_id") if isinstance(params, dict) else None
+        if key not in by_motif:
+            next_slot += 1
+            by_motif[key] = next_slot
+        slots.append(by_motif[key])
+    return slots
 
 
 def _free_layer_id(raw: dict[str, Any], base: str) -> str:

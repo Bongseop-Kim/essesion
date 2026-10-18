@@ -124,7 +124,7 @@ async def test_public_gallery_lists_published_examples_only(client, db_session):
         "logo_in_panel": False,
         "category": None,
         "point": "none",
-        "logo_slot": None,
+        "logo_slots": [{"slot": 1, "label": None}],
         "photo_full_url": None,
         "photo_detail_url": None,
         "logo_preview_svg": None,
@@ -142,18 +142,22 @@ async def test_public_gallery_exposes_template_data_and_logo_slot_preview(client
         ordinal=0,
         category="격자",
         point="bottom",
-        logo_slot=1,
+        logo_slots=[{"slot": 1, "label": "로고"}, {"slot": 2, "label": "작은 무늬"}],
         photo_full_url="/templates/a/full.jpg",
     )
     empty_slot = await _make_example(
-        db_session, await _make_run(db_session), name="올패턴", ordinal=1, logo_slot=2
+        db_session, await _make_run(db_session), name="올패턴", ordinal=1, logo_slots=[{"slot": 2}]
     )
 
     listed = (await client.get("/design/examples")).json()
 
     assert [item["id"] for item in listed] == [str(with_logo.id), str(empty_slot.id)]
     first, second = listed
-    assert (first["category"], first["point"], first["logo_slot"]) == ("격자", "bottom", 1)
+    assert (first["category"], first["point"]) == ("격자", "bottom")
+    assert first["logo_slots"] == [
+        {"slot": 1, "label": "로고"},
+        {"slot": 2, "label": "작은 무늬"},
+    ]
     assert (first["photo_full_url"], first["photo_detail_url"]) == ("/templates/a/full.jpg", None)
     assert (
         first["logo_preview_svg"].startswith("<svg ")
@@ -355,7 +359,7 @@ async def test_public_gallery_exposes_panel_svg_and_panel_logo(client, db_sessio
         name="대각 분할",
         ordinal=0,
         point="bottom",
-        logo_slot=1,
+        logo_slots=[{"slot": "logo", "label": "포인트 로고"}],
     )
     repeated = await _make_example(db_session, await _make_run(db_session), name="반복", ordinal=1)
 
@@ -363,6 +367,6 @@ async def test_public_gallery_exposes_panel_svg_and_panel_logo(client, db_sessio
 
     assert (first["id"], second["id"]) == (str(placed.id), str(repeated.id))
     assert first["panel_svg"] == _SVG and first["logo_in_panel"] is True
-    # panel 로고가 레이어 로고 슬롯보다 우선한다.
+    # 첫 로고 자리가 panel 로고면 그 모티프를 미리보기로 쓴다.
     assert "motif-seed-crest" in first["logo_preview_svg"]
     assert (second["panel_svg"], second["logo_in_panel"]) == (None, False)

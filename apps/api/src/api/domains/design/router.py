@@ -130,7 +130,7 @@ class DesignSessionOut(ORMModel):
     preview_svg: str | None = None
     # 같은 런의 배치형(panel) SVG — 블레이드에 한 번 얹는 요소. 없으면 null.
     preview_panel_svg: str | None = None
-    # 단건 GET·스텝 이동 전용 — current_intent의 모티프 슬롯(최대 2). 목록은 빈 배열.
+    # 단건 GET·스텝 이동 전용 — current_intent의 모티프 슬롯(최대 2, 슬롯 순서). 목록은 빈 배열.
     current_motifs: list[CurrentMotifOut] = Field(default_factory=list)
 
 
@@ -158,6 +158,22 @@ class UserMotifImportRequest(BaseModel):
         if len(value.encode("utf-8")) > MAX_MOTIF_SVG_BYTES:
             raise ValueError(f"SVG exceeds {MAX_MOTIF_SVG_BYTES} bytes")
         return value
+
+
+LogoSlot = Literal[1, 2, "logo"]
+
+
+class DesignLogoSlotOut(BaseModel):
+    """템플릿의 로고 자리 하나 — 1|2는 intent 모티프 레이어 순서, "logo"는 배치형 포인트 로고."""
+
+    slot: LogoSlot
+    # 업로드 칸 이름(예: "포인트 로고") — 없으면 store가 순번으로 부른다.
+    label: str | None = None
+
+
+class DesignLogoPlaceRequest(UserMotifImportRequest):
+    # 템플릿 로고 자리 중 하나 — 생략하면 첫 자리.
+    slot: LogoSlot | None = None
 
 
 class WorkerMotifImportOut(BaseModel):
@@ -626,7 +642,7 @@ async def _design_session_out(
             ),
         }
     )
-    motif_ids = _intent_motif_ids(design_session.current_intent)[:MAX_DESIGN_MOTIFS]
+    motif_ids = _intent_slot_motif_ids(design_session.current_intent)[:MAX_DESIGN_MOTIFS]
     if not motif_ids:
         return out
     rows = await session.execute(
@@ -1797,6 +1813,21 @@ def _panel_logo_motif_id(intent: object) -> str | None:
     return next((e["motif_id"] for e in _panel_motifs(intent) if e.get("role") == "logo"), None)
 
 
+def _logo_slots(logo_slots: object, intent: object) -> list[DesignLogoSlotOut]:
+    """로고를 받을 자리 — 템플릿 `logo_slots`가 있으면 그대로, 없으면 서버 규칙 한 자리
+    (배치형 포인트 로고 → 모티프 레이어가 둘이면 2(큰 무늬) → 1)."""
+    if isinstance(logo_slots, list) and logo_slots:
+        return [DesignLogoSlotOut.model_validate(item) for item in logo_slots]
+    slot: LogoSlot = (
+        "logo"
+        if _panel_logo_motif_id(intent) is not None
+        else 2
+        if len(_intent_slot_motif_ids(intent)) >= 2
+        else 1
+    )
+    return [DesignLogoSlotOut(slot=slot)]
+
+
 def _all_intent_motif_ids(intent: object) -> list[str]:
     """워커가 해석할 모티프 전부 — 레이어 + 배치형(panel). 접근 검사는 이 범위로 한다."""
     ids = dict.fromkeys(_intent_motif_ids(intent))
@@ -1820,6 +1851,34 @@ def _intent_motif_ids(intent: object) -> list[str]:
         if isinstance(motif_id, str) and motif_id:
             motif_ids[motif_id] = None
     return list(motif_ids)
+
+
+def _intent_slot_motif_ids(intent: object) -> list[str]:
+    """슬롯 순서(1, 2, …)의 모티프 id — 슬롯 번호는 worker `patch.motif_layer_slots`와 같은 규칙:
+    레이어에 박힌 `slot`이 우선, 없으면 고유 motif_id가 처음 나오는 순서. 두 슬롯이 같은 모티프면
+    같은 id가 두 번 나온다."""
+    layers = intent.get("layers") if isinstance(intent, dict) else None
+    motifs = [
+        layer
+        for layer in layers or []
+        if isinstance(layer, dict)
+        and layer.get("type") == "motif"
+        and isinstance(layer.get("params"), dict)
+    ]
+    next_slot = max((m["slot"] for m in motifs if isinstance(m.get("slot"), int)), default=0)
+    by_motif: dict[object, int] = {}
+    by_slot: dict[int, str] = {}
+    for layer in motifs:
+        motif_id = layer["params"].get("motif_id")
+        slot = layer.get("slot")
+        if not isinstance(slot, int):
+            if motif_id not in by_motif:
+                next_slot += 1
+                by_motif[motif_id] = next_slot
+            slot = by_motif[motif_id]
+        if isinstance(motif_id, str) and motif_id:
+            by_slot.setdefault(slot, motif_id)
+    return [by_slot[slot] for slot in sorted(by_slot)]
 
 
 async def _ensure_intent_motif_access(
@@ -2772,15 +2831,16 @@ async def apply_colorway(
 @router.post("/design/sessions/{session_id}/logo", response_model=DesignGenerateOut)
 async def place_design_logo(
     session_id: uuid.UUID,
-    body: UserMotifImportRequest,
+    body: DesignLogoPlaceRequest,
     request: Request,
     session: SessionDep,
     user: CurrentUser,
 ) -> DesignGenerateOut:
     """로고 한 번에 넣기 — 내 모티프 저장(멱등) + 로고 슬롯 교체 재렌더. 무과금.
 
-    슬롯은 서버가 정한다: 배치형(panel) 포인트 로고가 있으면 그 자리(`"logo"`), 다음은 템플릿의
-    `logo_slot`, 없으면 모티프 레이어가 둘일 때 2(큰 무늬), 아니면 1.
+    자리는 템플릿의 `logo_slots` 중 하나(`slot`, 생략하면 첫 자리)다. 템플릿이 자리를
+    정하지 않았으면 서버 규칙 한 자리: 배치형(panel) 포인트 로고가 있으면 `"logo"`, 모티프
+    레이어가 둘이면 2, 아니면 1.
     """
     design_session = await session.get(DesignSession, session_id)
     ensure_owner(design_session, user)
@@ -2794,15 +2854,15 @@ async def place_design_logo(
         if design_session.example_id is not None
         else None
     )
-    slot: Literal[1, 2, "logo"] = (
-        "logo"
-        if _panel_logo_motif_id(design_session.current_intent) is not None
-        else example.logo_slot  # type: ignore[assignment]  # CHECK 제약이 1|2를 보장한다
-        if example is not None and example.logo_slot is not None
-        else 2
-        if len(_intent_motif_ids(design_session.current_intent)) >= 2
-        else 1
-    )
+    slots: list[LogoSlot] = [
+        item.slot
+        for item in _logo_slots(
+            example.logo_slots if example is not None else None, design_session.current_intent
+        )
+    ]
+    slot = slots[0] if body.slot is None else body.slot
+    if slot not in slots:
+        raise DomainError("이 템플릿에 없는 로고 자리입니다", code="invalid_logo_slot", status=422)
     saved = await import_user_motif(body, request, session, user)
     return await _activate_motif_slot(
         session_id, slot, saved.motif_id, request=request, session=session, user=user

@@ -60,7 +60,9 @@ class CuratedExample:
     # 템플릿 데이터 — 여기가 정본이고 design_examples 컬럼은 store 전달용(DB로 관리하지 않는다).
     category: str = "그림"  # 목록 필터 칩 라벨 그대로
     point: str = "none"  # 포인트 로고 자리: none(올패턴)|top(매듭)|bottom(끝)
-    logo_slot: int | None = None  # 로고가 들어갈 모티프 슬롯(1|2), None이면 서버 규칙
+    # 로고를 받을 자리 (슬롯, 업로드 칸 이름) — 순서대로 색·로고 화면의 업로드 칸이 된다. 슬롯 1|2는
+    # 레이어 순서(플랜 input 순서 아님), "logo"는 panel 포인트 로고. 비우면 서버 규칙 한 자리.
+    logo_slots: tuple[tuple[int | str, str], ...] = field(default=())
     # 사용자가 준비할 실사 사진 — store public/ 경로. None이면 결정론 샷을 그린다.
     photo_full_url: str | None = None
     photo_detail_url: str | None = None
@@ -876,7 +878,7 @@ CURATED: tuple[CuratedExample, ...] = (
         caption="가는 세 줄 사선 사이에 놓인 작은 고리 엠블럼",
         motif_subjects=("ringtrio",),
         category="스트라이프",
-        logo_slot=1,
+        logo_slots=((1, "로고"),),
         color_names=("바탕", "가는 세 줄"),
         plan=PIN_STRIPE_RINGS_PLAN,
         tile_scale=2.0,
@@ -887,7 +889,10 @@ CURATED: tuple[CuratedExample, ...] = (
         caption="네이비 바탕에 엇갈려 놓인 로고와 그 사이의 작은 점",
         motif_subjects=("monogram", "diamond"),
         category="로고",
-        logo_slot=1,
+        logo_slots=(
+            (1, "로고"),
+            (2, "작은 무늬"),
+        ),
         color_names=("바탕",),
         plan=LOGO_DOTS_PLAN,
         tile_scale=2.0,
@@ -898,6 +903,7 @@ CURATED: tuple[CuratedExample, ...] = (
         caption="네이비 바탕에 아이보리 줄이 감싼 크림슨 띠가 촘촘히 반복되는 사선과 방패 문장",
         category="스트라이프",
         point="bottom",
+        logo_slots=(("logo", "포인트 로고"),),
         color_names=("바탕", "흰 줄", "빨간 줄"),
         plan=ALTIS_STRIPE_PLAN,
         panel=({**PANEL_LOGO, "subject": "crest"},),
@@ -909,7 +915,7 @@ CURATED: tuple[CuratedExample, ...] = (
         motif_subjects=("sprig",),
         category="스트라이프",
         point="bottom",
-        logo_slot=1,
+        logo_slots=((1, "로고"),),
         color_names=("바탕", "은색 두 줄", "초록 줄"),
         plan=SPRIG_STRIPE_PLAN,
     ),
@@ -920,7 +926,10 @@ CURATED: tuple[CuratedExample, ...] = (
         motif_subjects=("hexagon", "fleur"),
         category="패턴",
         point="bottom",
-        logo_slot=2,  # 장식 레이어가 먼저 그려져 로고가 레이어 순서상 두 번째
+        logo_slots=(
+            (2, "로고"),
+            (1, "작은 무늬"),
+        ),  # 장식 레이어가 먼저 그려져 로고가 레이어 순서상 두 번째
         color_names=("바탕", "잔 격자"),
         plan=EMBLEM_FLEUR_PLAN,
     ),
@@ -931,7 +940,7 @@ CURATED: tuple[CuratedExample, ...] = (
         motif_subjects=("wave",),
         category="스트라이프",
         point="bottom",
-        logo_slot=1,
+        logo_slots=((1, "로고"),),
         color_names=("바탕", "굵은 띠", "가는 줄"),
         plan=WAVE_REGIMENTAL_PLAN,
     ),
@@ -942,7 +951,10 @@ CURATED: tuple[CuratedExample, ...] = (
         motif_subjects=("tree", "medallion"),
         category="패턴",
         point="bottom",
-        logo_slot=2,  # 장식 레이어가 먼저 그려져 로고가 레이어 순서상 두 번째
+        logo_slots=(
+            (2, "로고"),
+            (1, "작은 무늬"),
+        ),  # 장식 레이어가 먼저 그려져 로고가 레이어 순서상 두 번째
         color_names=("바탕",),
         plan=TREE_MEDALLION_PLAN,
     ),
@@ -953,7 +965,10 @@ CURATED: tuple[CuratedExample, ...] = (
         motif_subjects=("cube", "cluster"),
         category="패턴",
         point="bottom",
-        logo_slot=2,  # 장식 레이어가 먼저 그려져 로고가 레이어 순서상 두 번째
+        logo_slots=(
+            (2, "로고"),
+            (1, "작은 무늬"),
+        ),  # 장식 레이어가 먼저 그려져 로고가 레이어 순서상 두 번째
         color_names=("바탕",),
         plan=CUBE_DIAMOND_CLUSTER_PLAN,
     ),
@@ -964,7 +979,10 @@ CURATED: tuple[CuratedExample, ...] = (
         motif_subjects=("serif", "harlequin"),
         category="체크",
         point="bottom",
-        logo_slot=2,  # 장식 레이어가 먼저 그려져 로고가 레이어 순서상 두 번째
+        logo_slots=(
+            (2, "로고"),
+            (1, "작은 무늬"),
+        ),  # 장식 레이어가 먼저 그려져 로고가 레이어 순서상 두 번째
         color_names=("바탕", "체크 줄"),
         plan=CHECK_R_PLAN,
     ),
@@ -975,7 +993,7 @@ CURATED: tuple[CuratedExample, ...] = (
         motif_subjects=("wings",),
         category="스트라이프",
         point="bottom",
-        logo_slot=1,
+        logo_slots=((1, "로고"),),
         color_names=("바탕", "은색 두 줄", "금색 줄"),
         plan=SKYLINE_WINGS_PLAN,
         tile_scale=1.5,
@@ -987,7 +1005,10 @@ CURATED: tuple[CuratedExample, ...] = (
         motif_subjects=("quatrefoil", "blossom"),
         category="패턴",
         point="bottom",
-        logo_slot=1,
+        logo_slots=(
+            (1, "로고"),
+            (2, "작은 무늬"),
+        ),
         color_names=("바탕", "격자선"),
         plan=MONETA_GRID_PLAN,
     ),
@@ -998,7 +1019,10 @@ CURATED: tuple[CuratedExample, ...] = (
         motif_subjects=("emblem", "dash"),
         category="모노그램",
         point="bottom",
-        logo_slot=2,  # 장식 레이어가 먼저 그려져 로고가 레이어 순서상 두 번째
+        logo_slots=(
+            (2, "로고"),
+            (1, "작은 무늬"),
+        ),  # 장식 레이어가 먼저 그려져 로고가 레이어 순서상 두 번째
         color_names=("바탕",),
         plan=MONOGRAM_DASH_PLAN,
     ),
@@ -1012,12 +1036,15 @@ CURATED: tuple[CuratedExample, ...] = (
         motif_subjects=("initialr", "rhombdot"),
         category="도트",
         point="bottom",
-        logo_slot=1,
+        logo_slots=(
+            (1, "로고"),
+            (2, "작은 무늬"),
+        ),
         color_names=("바탕",),
         plan=INITIAL_R_DOTS_PLAN,
         tile_scale=2.0,
         # 끝 엠블럼(큰 R) 뒤 바탕색 받침 — 흩어진 작은 R·점이 로고 밑에 비치지 않게. 색은 "ground"
-        # 슬롯이라 바탕색을 바꾸면 같이 바뀐다. 로고는 panel이 아니라 엠블럼(logo_slot)이라 사용자
+        # 슬롯이라 바탕색을 바꾸면 같이 바뀐다. 로고는 panel이 아니라 엠블럼(logo_slots)이라 사용자
         # 로고는 여전히 무늬 속 R 자리에도 들어간다.
         panel=(_disc(PANEL_LOGO, radius=85, dy=10, color="ground"),),
     ),
@@ -1027,6 +1054,7 @@ CURATED: tuple[CuratedExample, ...] = (
         caption="버건디 바탕에 회색·아이보리·검정 세로 줄 묶음과 아이보리 세리프 V 이니셜",
         category="스트라이프",
         point="bottom",
+        logo_slots=(("logo", "포인트 로고"),),
         color_names=("바탕", "회색 줄", "아이보리 줄", "검정 줄"),
         plan=VALMONT_VERTICAL_PLAN,
         panel=({**PANEL_LOGO, "subject": "initialv"},),
@@ -1038,7 +1066,7 @@ CURATED: tuple[CuratedExample, ...] = (
         motif_subjects=("crosslet",),
         category="체크",
         point="bottom",
-        logo_slot=1,
+        logo_slots=((1, "로고"),),
         color_names=("바탕", "체크 줄"),
         plan=WINDOWPANE_CROSSLET_PLAN,
     ),
@@ -1049,7 +1077,10 @@ CURATED: tuple[CuratedExample, ...] = (
         motif_subjects=("undulation", "wave"),
         category="패턴",
         point="bottom",
-        logo_slot=2,  # 물결선 레이어가 먼저 그려져 로고는 레이어 순서상 두 번째
+        logo_slots=(
+            (2, "로고"),
+            (1, "작은 무늬"),
+        ),  # 물결선 레이어가 먼저 그려져 로고는 레이어 순서상 두 번째
         color_names=("바탕",),
         plan=MAREN_WAVE_PLAN,
     ),
@@ -1059,6 +1090,7 @@ CURATED: tuple[CuratedExample, ...] = (
         caption="네이비 바탕을 아이보리 사선 한 줄이 가르고 아래 면은 한 톤 밝게",
         category="포인트",
         point="bottom",
+        logo_slots=(("logo", "포인트 로고"),),
         color_names=("바탕", "결", "아래 면", "사선"),
         plan=_textured_plan("#1b2a52", "#223463", "#2a3f74", "#e6dcc3"),
         panel=(
@@ -1078,6 +1110,7 @@ CURATED: tuple[CuratedExample, ...] = (
         caption="짙은 초록 바탕 왼쪽에 길이가 다른 금선이 내려와 점으로 끝난다",
         category="포인트",
         point="bottom",
+        logo_slots=(("logo", "포인트 로고"),),
         color_names=("바탕", "결", "금선"),
         plan=_textured_plan("#1d3a2c", "#21412f", "#c9a96a"),
         panel=(
@@ -1100,6 +1133,7 @@ CURATED: tuple[CuratedExample, ...] = (
         caption="와인 바탕에 아이보리·검정 겹띠가 S자로 흘러 어깨 왼쪽으로 빠진다",
         category="포인트",
         point="bottom",
+        logo_slots=(("logo", "포인트 로고"),),
         color_names=("바탕", "결", "띠", "띠 안쪽"),
         plan=_textured_plan("#6b1a26", "#731e2b", "#ece3cf", "#1e1a1c"),
         panel=(
@@ -1115,6 +1149,7 @@ CURATED: tuple[CuratedExample, ...] = (
         caption="차콜 다이아 결 위에 V자로 면을 나누고 왼팔을 와인 띠가 따라간다",
         category="포인트",
         point="bottom",
+        logo_slots=(("logo", "포인트 로고"),),
         color_names=("바탕", "결", "왼쪽 면", "띠", "선"),
         plan=TRENZ_PLAN,
         panel=(
@@ -1146,6 +1181,7 @@ CURATED: tuple[CuratedExample, ...] = (
         caption="짙은 초록 바탕 왼쪽을 따라 금색 넝쿨 가지가 한 줄기 올라간다",
         category="포인트",
         point="bottom",
+        logo_slots=(("logo", "포인트 로고"),),
         color_names=("바탕", "결"),
         plan=_textured_plan("#1d3a2c", "#21412f"),
         panel=(
@@ -1159,6 +1195,7 @@ CURATED: tuple[CuratedExample, ...] = (
         caption="네이비 바탕 위 오른쪽 위와 왼쪽 아래에 회백·블루 붓 자국이 한 번씩",
         category="포인트",
         point="bottom",
+        logo_slots=(("logo", "포인트 로고"),),
         color_names=("바탕", "결"),
         plan=_textured_plan("#1b2a52", "#203060"),
         panel=(
@@ -1310,7 +1347,8 @@ async def _upsert(
         "published": True,
         "category": curated.category,
         "point": curated.point,
-        "logo_slot": curated.logo_slot,
+        "logo_slots": [{"slot": slot, "label": label} for slot, label in curated.logo_slots]
+        or None,
         "photo_full_url": curated.photo_full_url,
         "photo_detail_url": curated.photo_detail_url,
     }

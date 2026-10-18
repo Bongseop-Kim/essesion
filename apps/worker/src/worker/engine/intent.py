@@ -178,6 +178,10 @@ class MotifLayer(BaseModel):
     type: Literal["motif"]
     params: MotifParams
     placement: Placement | None = None
+    # 모티프 슬롯(1..) — 같은 슬롯의 레이어는 한 모티프로 같이 바뀐다. 없으면 고유 motif_id가
+    # 처음 나오는 순서로 매긴다(`patch.motif_layer_slots`). 첫 교체가 전부 박아 두므로 두 슬롯에
+    # 같은 모티프를 넣어도 슬롯이 합쳐지지 않는다.
+    slot: int | None = Field(default=None, ge=1)
     z_order: int
     opacity: float = Field(default=1.0, ge=0.0, le=1.0)
     clip: str | None = None

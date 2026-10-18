@@ -54,14 +54,15 @@ export function sessionLayout(
   session: DesignSessionOut,
   template: DesignExampleOut | undefined,
 ): TemplateLayout {
-  // 서버의 로고 슬롯 규칙과 같다(router `place_design_logo`).
+  // 첫 로고 자리 — 템플릿이 없으면 서버 규칙과 같다(router `_logo_slots`).
   const motifs = session.current_motifs ?? [];
-  const slot = template?.logo_slot ?? (motifs.length >= 2 ? 2 : 1);
+  const slot = template?.logo_slots[0]?.slot ?? (motifs.length >= 2 ? 2 : 1);
   return {
     point: template?.point ?? "none",
-    emblemSvg: hasPanelLogo(session.current_intent)
-      ? null
-      : emblemSymbol(motifs[slot - 1]?.preview_svg),
+    emblemSvg:
+      slot === "logo" || hasPanelLogo(session.current_intent)
+        ? null
+        : emblemSymbol(motifs[slot - 1]?.preview_svg),
   };
 }
 

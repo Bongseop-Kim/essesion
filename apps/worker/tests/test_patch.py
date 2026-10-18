@@ -825,3 +825,42 @@ def test_null_motif_size_entry_keeps_that_motif_untouched():
     assert after["motif_slot_2"] == before["motif_slot_2"]
     # 전부 null이면 만든 것이 없다 — 라우트가 no_change로 되돌리는 입력이다.
     assert patch_left_intent_unchanged(base, apply_patch(base, _patch(motif_size_mm=[None, None])))
+
+
+def _motif_ids(intent: dict) -> list[str]:
+    return [layer["params"]["motif_id"] for layer in intent["layers"] if layer["type"] == "motif"]
+
+
+def test_motif_slot_replaces_every_layer_of_that_motif():
+    """같은 모티프를 여러 레이어로 그린 템플릿(엇갈림 등)은 슬롯 하나로 전부 바뀐다."""
+    base = _lattice_intent()
+    repeat = {**base["layers"][1], "id": "motif_1", "z_order": 2}
+    dots = {
+        **base["layers"][1],
+        "id": "dots",
+        "z_order": 3,
+        "params": {"motif_id": "dot", "size_mm": 2.0},
+    }
+    base["layers"] += [repeat, dots]
+
+    assert _motif_ids(set_motif_slot(base, slot=1, motif_id="logo")) == ["logo", "logo", "dot"]
+    assert _motif_ids(set_motif_slot(base, slot=2, motif_id="logo")) == ["circle", "circle", "logo"]
+
+
+def test_same_motif_in_both_slots_keeps_the_slots_apart():
+    """두 슬롯에 같은 로고를 넣어도 슬롯이 합쳐지지 않는다 — 다시 한 슬롯만 바꿀 수 있다."""
+    base = _lattice_intent()
+    base["layers"].append(
+        {
+            **base["layers"][1],
+            "id": "dots",
+            "z_order": 2,
+            "params": {"motif_id": "dot", "size_mm": 2.0},
+        }
+    )
+    both = set_motif_slot(set_motif_slot(base, slot=1, motif_id="acme"), slot=2, motif_id="acme")
+    assert _motif_ids(both) == ["acme", "acme"]
+
+    again = set_motif_slot(both, slot=2, motif_id="star")
+    assert _motif_ids(again) == ["acme", "star"]
+    assert len(again["layers"]) == len(base["layers"])

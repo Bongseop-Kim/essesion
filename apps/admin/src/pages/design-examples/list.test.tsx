@@ -39,7 +39,7 @@ const example: AdminDesignExampleOut = {
   preview_svg: "<svg/>",
   category: null,
   point: "none",
-  logo_slot: null,
+  logo_slots: [{ slot: 1 }],
   photo_full_url: null,
   photo_detail_url: null,
   logo_preview_svg: null,

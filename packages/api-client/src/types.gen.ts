@@ -831,9 +831,9 @@ export type AdminDesignExampleOut = {
      */
     logo_preview_svg: string | null;
     /**
-     * Logo Slot
+     * Logo Slots
      */
-    logo_slot: 1 | 2 | null;
+    logo_slots: Array<DesignLogoSlotOut>;
     /**
      * Name
      */
@@ -3972,9 +3972,9 @@ export type DesignExampleOut = {
      */
     logo_preview_svg: string | null;
     /**
-     * Logo Slot
+     * Logo Slots
      */
-    logo_slot: 1 | 2 | null;
+    logo_slots: Array<DesignLogoSlotOut>;
     /**
      * Name
      */
@@ -4169,6 +4169,40 @@ export type DesignIdeasRequest = {
      * User Motif Ids
      */
     user_motif_ids?: Array<string>;
+};
+
+/**
+ * DesignLogoPlaceRequest
+ */
+export type DesignLogoPlaceRequest = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Slot
+     */
+    slot?: 1 | 2 | 'logo' | null;
+    /**
+     * Svg
+     */
+    svg: string;
+};
+
+/**
+ * DesignLogoSlotOut
+ *
+ * 템플릿의 로고 자리 하나 — 1|2는 intent 모티프 레이어 순서, "logo"는 배치형 포인트 로고.
+ */
+export type DesignLogoSlotOut = {
+    /**
+     * Label
+     */
+    label?: string | null;
+    /**
+     * Slot
+     */
+    slot: 1 | 2 | 'logo';
 };
 
 /**
@@ -13272,7 +13306,7 @@ export type CreateFinalizeJobResponses = {
 export type CreateFinalizeJobResponse = CreateFinalizeJobResponses[keyof CreateFinalizeJobResponses];
 
 export type PlaceDesignLogoData = {
-    body: UserMotifImportRequest;
+    body: DesignLogoPlaceRequest;
     path: {
         /**
          * Session Id

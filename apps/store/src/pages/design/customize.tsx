@@ -1,11 +1,10 @@
-import type { DesignSessionOut } from "@essesion/api-client";
+import type { DesignLogoSlotOut, DesignSessionOut } from "@essesion/api-client";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
   ActionButton,
-  AttachmentDisplayField,
   Box,
   Chip,
   ContentPlaceholder,
@@ -13,6 +12,8 @@ import {
   HStack,
   Icon,
   ImageFrame,
+  List,
+  ListItem,
   Modal,
   ScrollFog,
   Skeleton,
@@ -78,14 +79,21 @@ const CRUMBS = [
   { label: "색·로고" },
 ];
 
+type LogoSlot = DesignLogoSlotOut["slot"];
+
 type Logo = {
-  id: string;
   name: string;
   /** 원본 미리보기(objectURL) — 화면에는 항상 올린 그대로를 보여준다 */
   sourceUrl: string;
-  /** 서버가 정리한 SVG — 통과 표시. 없으면 확인 중이거나 미통과 */
-  svg: string | null;
+  /** checking: 배경 확인 → placing: 디자인에 넣는 중 → placed: 미리보기에 반영됨 */
+  status: "checking" | "placing" | "placed" | "failed";
+  error: string | null;
 };
+
+/** 템플릿이 없는 세션은 자리를 모른다 — slot 없이 보내면 서버 규칙 한 자리. */
+const DEFAULT_LOGO_SLOTS: { slot?: LogoSlot; label?: string | null }[] = [{}];
+
+const slotKey = (slot: LogoSlot | undefined) => String(slot ?? "default");
 
 const HEX = /^#?[0-9a-f]{6}$/i;
 
@@ -268,14 +276,16 @@ export function DesignCustomizePage() {
   const [ink, setInk] = useState(0);
   const [view, setView] = useState("worn");
   const swipeRef = useRef<HTMLDivElement>(null);
-  const [logo, setLogo] = useState<Logo | null>(null);
-  const [preparing, setPreparing] = useState(false);
-  const [logoError, setLogoError] = useState<string | null>(null);
-  const [placing, setPlacing] = useState(false);
-  // 모바일 전용 — 색 시트 열림, 시트에서 고르는 부위, 숨긴 파일 입력
+  // 로고 자리마다 마지막으로 올린 로고 — 통과하면 바로 그 자리에 넣어 미리보기가 바뀐다.
+  const [logos, setLogos] = useState<Record<string, Logo>>({});
+  const [uploading, setUploading] = useState(false);
+  const [applying, setApplying] = useState(false);
+  // 모바일 전용 — 색 시트 열림, 시트에서 고르는 부위
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetSlot, setSheetSlot] = useState<string | null>(null);
+  // 숨긴 파일 입력 하나를 자리들이 같이 쓴다 — 고른 자리를 기억해 둔다.
   const fileRef = useRef<HTMLInputElement>(null);
+  const targetSlot = useRef<LogoSlot | undefined>(undefined);
   const bp = useBreakpoint();
   const isDesktop = bp === "lg" || bp === "xl";
 
@@ -312,57 +322,81 @@ export function DesignCustomizePage() {
     session?.preview_panel_svg &&
     recolorSvg(session.preview_panel_svg, current, picked);
 
-  const busy = preparing || placing || finalize.loading;
+  const busy = uploading || applying || finalize.loading;
   const cost = balanceQuery.data?.finalize_cost ?? null;
+  const template = examplesQuery.data?.find(
+    (t) => t.id === session?.example_id,
+  );
+  const logoSlots = template?.logo_slots ?? DEFAULT_LOGO_SLOTS;
+  const placedAny = Object.values(logos).some((l) => l.status === "placed");
 
-  const addFile = async (file: File) => {
+  const openPicker = (slot: LogoSlot | undefined) => {
+    targetSlot.current = slot;
+    fileRef.current?.click();
+  };
+
+  /** 올리면 바로 그 자리에 넣는다 — 같은 자리에 다시 올리면 덮어쓴다(서버도 슬롯 교체). */
+  const addFile = async (slot: LogoSlot | undefined, file: File) => {
+    if (!session) return;
+    const key = slotKey(slot);
+    const previous = logos[key];
+    if (previous) URL.revokeObjectURL(previous.sourceUrl);
     const sourceUrl = URL.createObjectURL(file);
     const name = file.name.replace(/\.[^.]+$/, "") || "로고";
-    setLogo({ id: sourceUrl, name, sourceUrl, svg: null });
-    setLogoError(null);
-    setPreparing(true);
+    const update = (patch: Partial<Logo>) =>
+      setLogos((current) => {
+        const logo = current[key];
+        return logo?.sourceUrl === sourceUrl
+          ? { ...current, [key]: { ...logo, ...patch } }
+          : current;
+      });
+    setLogos((current) => ({
+      ...current,
+      [key]: { name, sourceUrl, status: "checking", error: null },
+    }));
+    setUploading(true);
+    let checked = false;
     try {
       const isSvg =
         file.type === "image/svg+xml" ||
         file.name.toLocaleLowerCase().endsWith(".svg");
-      const nextSvg = isSvg
+      const svg = isSvg
         ? await readDesignMotifSvg(file)
         : (await previewPhotoMotif({ uploadId: await uploadDesignPhoto(file) }))
             .svg;
-      setLogo((current) =>
-        current?.id === sourceUrl ? { ...current, svg: nextSvg } : current,
-      );
+      checked = true;
+      update({ status: "placing" });
+      await place.mutateAsync({ sessionId: session.id, slot, name, svg });
+      update({ status: "placed" });
     } catch (cause) {
-      setLogoError(
-        `미통과 · ${designErrorMessage(cause, "로고를 읽지 못했습니다.")}`,
-      );
+      update({
+        status: "failed",
+        error: checked
+          ? designErrorMessage(cause, "디자인에 넣지 못했습니다.")
+          : `미통과 · ${designErrorMessage(cause, "로고를 읽지 못했습니다.")}`,
+      });
     } finally {
-      setPreparing(false);
+      setUploading(false);
     }
   };
 
   const generate = async () => {
-    if (!session || !logo?.svg || busy) return;
-    setPlacing(true);
-    try {
-      if (changed.length > 0) {
+    if (!session || !placedAny || busy) return;
+    if (changed.length > 0) {
+      setApplying(true);
+      try {
         await apply.mutateAsync({
           sessionId: session.id,
           colors: Object.fromEntries(changed),
         });
         pick({});
+      } catch (cause) {
+        snackbar(designErrorMessage(cause, "디자인을 반영하지 못했습니다."));
+        return;
+      } finally {
+        setApplying(false);
       }
-      await place.mutateAsync({
-        sessionId: session.id,
-        name: logo.name,
-        svg: logo.svg,
-      });
-    } catch (cause) {
-      snackbar(designErrorMessage(cause, "디자인을 반영하지 못했습니다."));
-      setPlacing(false);
-      return;
     }
-    setPlacing(false);
     finalize.submit({ productionMethod: "print", weave: "twill-45", dpi: 300 });
   };
 
@@ -411,10 +445,7 @@ export function DesignCustomizePage() {
     tileScale: svgTileScale(svg),
     surface: "none",
   };
-  const layout = sessionLayout(
-    session,
-    examplesQuery.data?.find((t) => t.id === session.example_id),
-  );
+  const layout = sessionLayout(session, template);
 
   const choosePreset = (preset: Colorway) =>
     pick(
@@ -533,23 +564,88 @@ export function DesignCustomizePage() {
       variant="brandSolid"
       size="large"
       className="w-full"
-      loading={placing || finalize.loading}
-      disabled={!logo?.svg || busy}
+      loading={applying || finalize.loading}
+      disabled={!placedAny || busy}
       onClick={() => void generate()}
     >
       {cost !== null ? `생성 · ${cost}토큰` : "생성"}
     </ActionButton>
   );
 
-  const logoStatus = preparing ? (
-    <Text textStyle="caption" color="fg.neutral-muted" aria-live="polite">
-      배경을 확인하고 있어요 · 10초쯤 걸려요
-    </Text>
-  ) : logo?.svg ? (
-    <Text textStyle="caption" color="fg.positive" aria-live="polite">
-      통과 · 배경 없는 로고로 확인했어요
-    </Text>
-  ) : null;
+  const logoStatus = (logo: Logo | undefined) =>
+    logo?.error ? (
+      <Text as="span" textStyle="caption" color="fg.critical">
+        {logo.error}
+      </Text>
+    ) : logo?.status === "checking" ? (
+      "배경을 확인하고 있어요 · 10초쯤 걸려요"
+    ) : logo?.status === "placing" ? (
+      "미리보기에 넣고 있어요"
+    ) : logo?.status === "placed" ? (
+      <Text as="span" textStyle="caption" color="fg.positive">
+        통과 · 미리보기에 넣었어요
+      </Text>
+    ) : (
+      "올리면 바로 바뀌어요"
+    );
+
+  const fileInput = (
+    <Box
+      as="input"
+      ref={fileRef}
+      type="file"
+      accept={`${DESIGN_PHOTO_ACCEPT},${DESIGN_SVG_ACCEPT}`}
+      aria-label="로고 파일"
+      hidden
+      onChange={(event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        event.target.value = "";
+        if (file) void addFile(targetSlot.current, file);
+      }}
+    />
+  );
+
+  // 자리마다 한 줄 — 누르면 파일을 고르고, 올린 로고는 바로 그 자리에 들어간다.
+  const motifs = session.current_motifs ?? [];
+  const logoRows = (
+    <List aria-live="polite">
+      {logoSlots.map(({ slot, label }, index) => {
+        const logo = logos[slotKey(slot)];
+        // 올리기 전에는 그 자리에 지금 들어 있는 템플릿 무늬를 보여준다.
+        const placeholder =
+          slot === "logo"
+            ? template?.logo_preview_svg
+            : motifs[(slot ?? (motifs.length >= 2 ? 2 : 1)) - 1]?.preview_svg;
+        const title =
+          label ?? (logoSlots.length > 1 ? `로고 ${index + 1}` : "로고");
+        return (
+          <ListItem
+            key={slotKey(slot)}
+            prefix={
+              <Box width={40}>
+                <ImageFrame
+                  src={
+                    logo?.sourceUrl ??
+                    (placeholder ? svgToDataUri(placeholder) : undefined)
+                  }
+                  // 줄 제목이 이미 자리를 말한다 — 썸네일은 장식.
+                  alt=""
+                  ratio={1}
+                  fit="contain"
+                  borderRadius="r2"
+                />
+              </Box>
+            }
+            title={logo ? `${title} · ${logo.name}` : title}
+            description={logoStatus(logo)}
+            suffix={logo ? "바꾸기" : "올리기"}
+            disabled={busy}
+            onClick={() => openPicker(slot)}
+          />
+        );
+      })}
+    </List>
+  );
 
   if (!isDesktop) {
     return (
@@ -714,54 +810,19 @@ export function DesignCustomizePage() {
           }
           panel={
             <VStack alignItems="stretch" gap="x3">
-              {logo ? (
-                <HStack gap="x3" p="x2" borderRadius="r3" bg="bg.neutral-weak">
-                  <Box width={40} flex="none">
-                    <ImageFrame
-                      src={logo.sourceUrl}
-                      alt={logo.name}
-                      ratio={1}
-                      fit="contain"
-                      borderRadius="r2"
-                    />
-                  </Box>
-                  <VStack alignItems="start" gap="x0_5" flex={1} minWidth={0}>
-                    <Text as="span" textStyle="labelSm" maxLines={1}>
-                      {logo.name}
-                    </Text>
-                    {logoError ? (
-                      <Text
-                        textStyle="caption"
-                        color="fg.critical"
-                        aria-live="polite"
-                      >
-                        {logoError}
-                      </Text>
-                    ) : (
-                      logoStatus
-                    )}
-                  </VStack>
-                  <ActionButton
-                    variant="neutralOutline"
-                    size="small"
-                    disabled={busy}
-                    onClick={() => fileRef.current?.click()}
-                  >
-                    바꾸기
-                  </ActionButton>
-                </HStack>
-              ) : null}
-              {!logo || logoError ? (
+              {logoRows}
+              {placedAny ? (
+                generateButton
+              ) : (
                 <ActionButton
                   variant="brandSolid"
                   size="large"
                   className="w-full"
-                  onClick={() => fileRef.current?.click()}
+                  disabled={busy}
+                  onClick={() => openPicker(logoSlots[0]?.slot)}
                 >
-                  {logo ? "다른 로고 올리기" : "로고 올리기"}
+                  로고 올리기
                 </ActionButton>
-              ) : (
-                generateButton
               )}
             </VStack>
           }
@@ -784,19 +845,7 @@ export function DesignCustomizePage() {
             disabled={busy}
           />
         </Modal>
-        <Box
-          as="input"
-          ref={fileRef}
-          type="file"
-          accept={`${DESIGN_PHOTO_ACCEPT},${DESIGN_SVG_ACCEPT}`}
-          aria-label="로고 파일"
-          hidden
-          onChange={(event: ChangeEvent<HTMLInputElement>) => {
-            const file = event.target.files?.[0];
-            event.target.value = "";
-            if (file) void addFile(file);
-          }}
-        />
+        {fileInput}
       </>
     );
   }
@@ -813,24 +862,12 @@ export function DesignCustomizePage() {
             <Text as="h1" textStyle="title1" className="sr-only">
               색·로고
             </Text>
-            <AttachmentDisplayField
-              label="로고 파일"
-              errorMessage={logoError}
-              items={
-                logo
-                  ? [{ id: logo.id, alt: logo.name, src: logo.sourceUrl }]
-                  : []
-              }
-              max={1}
-              accept={`${DESIGN_PHOTO_ACCEPT},${DESIGN_SVG_ACCEPT}`}
-              addLabel="로고 선택"
-              onAddFiles={(files) => files[0] && void addFile(files[0])}
-              onRemove={() => {
-                setLogo(null);
-                setLogoError(null);
-              }}
-            />
-            {logoStatus}
+            <VStack alignItems="stretch" gap="x2">
+              <Text as="span" textStyle="labelSm">
+                로고 파일
+              </Text>
+              {logoRows}
+            </VStack>
             {presets.length > 0 ? (
               <VStack alignItems="stretch" gap="x2">
                 <Text as="span" textStyle="labelSm">
@@ -903,6 +940,7 @@ export function DesignCustomizePage() {
           </Box>
         </Grid>
       </ContentLayout>
+      {fileInput}
     </>
   );
 }

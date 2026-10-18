@@ -78,6 +78,7 @@ Placement: `type ∈ {lattice, point_set, path_following, scatter}` + type별 sp
   `iter_motif_ids`(카탈로그 범위)와 팔레트 정리(`ordered_slot_refs`)는 panel을 포함한다 — 빠지면
   모티프가 카탈로그에서 빠지거나 panel 전용 슬롯이 지워진다.
 - **로고 교체**: `set_motif_slot(slot="logo")`가 panel 로고의 motif_id만 바꾼다(없으면 `ConstraintInvalid`).
+- **모티프 슬롯**: motif 레이어의 선택 필드 `slot`(1..) — 같은 슬롯 레이어는 한 모티프로 같이 바뀐다. 없으면 고유 motif_id 순서로 매기고(`patch.motif_layer_slots`), `set_motif_slot(1|2)`가 처음 바꿀 때 전부 박는다. None은 dump에서 빠져 기존 intent·layout_id가 그대로다.
   레이어 슬롯(1|2) 교체·구성 patch는 panel을 그대로 둔다. 저작 모델은 panel을 만들지 않는다(시드 템플릿만).
 
 ## 3. placement 4종

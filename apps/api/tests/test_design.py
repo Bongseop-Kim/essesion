@@ -19,6 +19,7 @@ from api.domains.design.router import (
     MOTIF_SEARCH_LIMIT,
     SIGNED_INT64_MIN,
     STALE_GENERATION_JOB_AFTER,
+    _intent_slot_motif_ids,
 )
 from api.domains.tokens import ledger
 from api.errors import UpstreamError, WorkerRequestError
@@ -3088,7 +3089,7 @@ async def test_logo_saves_motif_once_and_activates_server_chosen_slot(
     assert res.status_code == 200, res.text
     assert worker.generate_payloads[-1]["motif_slot"]["slot"] == 1
 
-    # 템플릿에서 시작한 세션은 템플릿의 logo_slot이 레이어 수 규칙보다 우선한다.
+    # 템플릿에서 시작한 세션은 템플릿의 logo_slots를 따른다 — 생략하면 첫 자리, 고르면 그 자리.
     log = SeamlessGenerationLog(
         input_type="intent",
         registry_version="0.1.0",
@@ -3099,7 +3100,12 @@ async def test_logo_saves_motif_once_and_activates_server_chosen_slot(
     )
     db_session.add(log)
     await db_session.flush()
-    example = DesignExample(run_id=log.id, name="템플릿", logo_slot=1, published=True)
+    example = DesignExample(
+        run_id=log.id,
+        name="템플릿",
+        logo_slots=[{"slot": 1, "label": "로고"}, {"slot": 2, "label": "작은 무늬"}],
+        published=True,
+    )
     db_session.add(example)
     await db_session.flush()
     templated = DesignSession(user_id=user.id, example_id=example.id)
@@ -3109,9 +3115,21 @@ async def test_logo_saves_motif_once_and_activates_server_chosen_slot(
     res = await client.post(f"/design/sessions/{templated.id}/logo", json=body, headers=headers)
     assert res.status_code == 200, res.text
     assert worker.generate_payloads[-1]["motif_slot"]["slot"] == 1
+    res = await client.post(
+        f"/design/sessions/{templated.id}/logo", json={**body, "slot": 2}, headers=headers
+    )
+    assert res.status_code == 200, res.text
+    assert worker.generate_payloads[-1]["motif_slot"]["slot"] == 2
+    # 템플릿에 없는 자리는 저장도 하지 않고 422.
+    imports_before = len(worker.motif_import_payloads)
+    res = await client.post(
+        f"/design/sessions/{templated.id}/logo", json={**body, "slot": "logo"}, headers=headers
+    )
+    assert res.status_code == 422 and res.json()["code"] == "invalid_logo_slot"
+    assert len(worker.motif_import_payloads) == imports_before
 
-    # 배치형(panel) 포인트 로고가 있으면 템플릿 logo_slot보다 그 자리가 우선한다.
-    placed = DesignSession(user_id=user.id, example_id=example.id)
+    # 템플릿이 자리를 안 정했고 배치형(panel) 포인트 로고가 있으면 그 자리.
+    placed = DesignSession(user_id=user.id)
     placed.current_intent = {
         **design_session.current_intent,
         "panel": [
@@ -3532,3 +3550,22 @@ async def test_worker_client_export_maps_statuses(settings):
         await wc.export({"svg": "<svg/>"})
     assert rejected.value.code == "worker_rejected"
     await wc.aclose()
+
+
+def test_slot_motif_ids_follow_worker_slot_rule():
+    """슬롯 = 같은 모티프 레이어 묶음(박힌 slot 우선) — worker `motif_layer_slots`와 같은 규칙."""
+
+    def layer(motif_id: str, slot: int | None = None) -> dict:
+        return {"type": "motif", "params": {"motif_id": motif_id}} | (
+            {"slot": slot} if slot is not None else {}
+        )
+
+    # 엇갈림처럼 같은 모티프를 여러 레이어로 그려도 한 슬롯이다.
+    assert _intent_slot_motif_ids(
+        {"layers": [layer("wing"), layer("wing"), layer("dot"), layer("wing")]}
+    ) == ["wing", "dot"]
+    # 두 슬롯에 같은 로고를 넣은 뒤(worker가 slot을 박아 둠)에도 슬롯은 둘이다.
+    assert _intent_slot_motif_ids({"layers": [layer("acme", 1), layer("acme", 2)]}) == [
+        "acme",
+        "acme",
+    ]

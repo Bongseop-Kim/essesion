@@ -1431,20 +1431,12 @@
             ],
             "title": "Logo Preview Svg"
           },
-          "logo_slot": {
-            "anyOf": [
-              {
-                "enum": [
-                  1,
-                  2
-                ],
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Logo Slot"
+          "logo_slots": {
+            "items": {
+              "$ref": "#/components/schemas/DesignLogoSlotOut"
+            },
+            "title": "Logo Slots",
+            "type": "array"
           },
           "name": {
             "title": "Name",
@@ -1517,7 +1509,7 @@
           "preview_svg",
           "category",
           "point",
-          "logo_slot",
+          "logo_slots",
           "photo_full_url",
           "photo_detail_url",
           "logo_preview_svg",
@@ -7376,20 +7368,12 @@
             ],
             "title": "Logo Preview Svg"
           },
-          "logo_slot": {
-            "anyOf": [
-              {
-                "enum": [
-                  1,
-                  2
-                ],
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Logo Slot"
+          "logo_slots": {
+            "items": {
+              "$ref": "#/components/schemas/DesignLogoSlotOut"
+            },
+            "title": "Logo Slots",
+            "type": "array"
           },
           "name": {
             "title": "Name",
@@ -7449,7 +7433,7 @@
           "preview_svg",
           "category",
           "point",
-          "logo_slot",
+          "logo_slots",
           "photo_full_url",
           "photo_detail_url",
           "logo_preview_svg",
@@ -7782,6 +7766,71 @@
           }
         },
         "title": "DesignIdeasRequest",
+        "type": "object"
+      },
+      "DesignLogoPlaceRequest": {
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "slot": {
+            "anyOf": [
+              {
+                "enum": [
+                  1,
+                  2,
+                  "logo"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot"
+          },
+          "svg": {
+            "maxLength": 2000000,
+            "title": "Svg",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "svg"
+        ],
+        "title": "DesignLogoPlaceRequest",
+        "type": "object"
+      },
+      "DesignLogoSlotOut": {
+        "description": "템플릿의 로고 자리 하나 — 1|2는 intent 모티프 레이어 순서, \"logo\"는 배치형 포인트 로고.",
+        "properties": {
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "slot": {
+            "enum": [
+              1,
+              2,
+              "logo"
+            ],
+            "title": "Slot"
+          }
+        },
+        "required": [
+          "slot"
+        ],
+        "title": "DesignLogoSlotOut",
         "type": "object"
       },
       "DesignOrderReferenceItem": {
@@ -24965,7 +25014,7 @@
     },
     "/design/sessions/{session_id}/logo": {
       "post": {
-        "description": "로고 한 번에 넣기 — 내 모티프 저장(멱등) + 로고 슬롯 교체 재렌더. 무과금.\n\n슬롯은 서버가 정한다: 배치형(panel) 포인트 로고가 있으면 그 자리(`\"logo\"`), 다음은 템플릿의\n`logo_slot`, 없으면 모티프 레이어가 둘일 때 2(큰 무늬), 아니면 1.",
+        "description": "로고 한 번에 넣기 — 내 모티프 저장(멱등) + 로고 슬롯 교체 재렌더. 무과금.\n\n자리는 템플릿의 `logo_slots` 중 하나(`slot`, 생략하면 첫 자리)다. 템플릿이 자리를\n정하지 않았으면 서버 규칙 한 자리: 배치형(panel) 포인트 로고가 있으면 `\"logo\"`, 모티프\n레이어가 둘이면 2, 아니면 1.",
         "operationId": "place_design_logo",
         "parameters": [
           {
@@ -24983,7 +25032,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UserMotifImportRequest"
+                "$ref": "#/components/schemas/DesignLogoPlaceRequest"
               }
             }
           },

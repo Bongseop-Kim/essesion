@@ -33,7 +33,7 @@ main에 공개된 리비전은 운영 배포 전이라도 스쿼시·재작성�
 - **부분 unique·부분 인덱스는 전부 의도된 것** — claims 2종(아이템·타입당 활성 1건 / 주문당 진행중 1건), images(2단계 삭제 + `expires_at`, 미귀속 업로드는 24시간 후 정리), orders 3종(`/batch/*` 스케줄러의 스캔 대상). 전체 unique로 바꾸면 정상 재접수가 막힌다.
 - **users 삭제 시 이력 테이블은 NO ACTION** — 주문·클레임·견적·토큰 원장은 CASCADE 대상이 아니다. 탈퇴는 이력이 있으면 `is_active=false` + 개인정보 익명화, 없으면 하드 삭제 (api users).
 - **design_tokens.work_id는 FK 없는 text** — 생성 작업 멱등 키로만 쓴다.
-- **design_examples의 템플릿 컬럼(category·point·logo_slot·photo_*_url)은 전달용** — 정본은 `apps/worker/scripts/seed_design_examples.py`(코드)이고 admin은 쓰지 않는다. `design_sessions.example_id`는 `use_alter` FK — 세션→예시→run→세션 순환을 끊기 위해서다.
+- **design_examples의 템플릿 컬럼(category·point·logo_slots·photo_*_url)은 전달용** — 정본은 `apps/worker/scripts/seed_design_examples.py`(코드)이고 admin은 쓰지 않는다. `design_sessions.example_id`는 `use_alter` FK — 세션→예시→run→세션 순환을 끊기 위해서다.
 
 ## 초기화 정책
 

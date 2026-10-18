@@ -22,6 +22,8 @@ const api = vi.hoisted(() => ({
 const ui = vi.hoisted(() => ({ snackbar: vi.fn() }));
 // useBreakpoint는 matchMedia 결과를 모듈에 캐시한다 — 폭은 이 값을 읽는 getter로 바꾼다.
 const screenSize = { desktop: true };
+// 세션이 시작한 템플릿 목록 — 로고 자리(logo_slots)를 여기서 읽는다.
+const gallery: { list: unknown[] } = { list: [] };
 
 const SESSION = {
   id: "session-1",
@@ -49,6 +51,7 @@ const SESSION = {
       },
     ],
   },
+  example_id: "tpl-1",
   current_motifs: [{ motif_id: "m-dots" }, { motif_id: "m-bee" }],
 };
 const JOB = {
@@ -75,7 +78,7 @@ vi.mock("@essesion/api-client", async (importOriginal) => ({
 vi.mock("@/shared/lib/live-queries", () => ({
   designExamplesQueryOptions: () => ({
     queryKey: ["examples"],
-    queryFn: async () => [],
+    queryFn: async () => gallery.list,
   }),
   tokenBalanceQueryOptions: () => ({
     queryKey: ["balance"],
@@ -119,19 +122,19 @@ function renderPage() {
   );
 }
 
-async function uploadLogo() {
+/** 로고 자리 줄을 눌러 파일을 고른다 — 통과하면 바로 그 자리에 들어가 미리보기가 바뀐다. */
+async function uploadLogo(
+  row: RegExp = /^로고.*바뀌어요/,
+  filename = "acme.svg",
+) {
+  fireEvent.click(await screen.findByRole("button", { name: row }));
   const input = document.querySelector('input[type="file"]');
   if (!(input instanceof HTMLInputElement)) throw new Error("no file input");
-  const file = new File(["<svg id='logo'/>"], "acme.svg", {
+  const file = new File(["<svg id='logo'/>"], filename, {
     type: "image/svg+xml",
   });
   fireEvent.change(input, { target: { files: [file] } });
-  await waitFor(() =>
-    expect(
-      (screen.getByRole("button", { name: /^생성/ }) as HTMLButtonElement)
-        .disabled,
-    ).toBe(false),
-  );
+  await screen.findByText("통과 · 미리보기에 넣었어요");
 }
 
 describe("DesignCustomizePage", () => {
@@ -155,6 +158,7 @@ describe("DesignCustomizePage", () => {
       };
     }
     screenSize.desktop = true;
+    gallery.list = [];
     // 모바일 색상 편집 시트(Modal)가 쓴다 — jsdom의 dialog에는 없다.
     Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
       configurable: true,
@@ -220,7 +224,7 @@ describe("DesignCustomizePage", () => {
     screen.getByRole("button", { name: "생성 · 200토큰" });
   });
 
-  it("로고를 올리고 생성하면 바꾼 색 → 로고 → 실사화 순서로 돌려 결과로 간다", async () => {
+  it("로고는 올리면 바로 넣고, 생성하면 바꾼 색 → 실사화 순서로 돌려 결과로 간다", async () => {
     renderPage();
     // 색 코드로 견본에 없는 색도 고른다.
     fireEvent.change(
@@ -228,18 +232,19 @@ describe("DesignCustomizePage", () => {
       { target: { value: "123abc" } },
     );
     await uploadLogo();
+    // 템플릿이 자리를 안 알려주면 slot 없이 보낸다 — 서버가 첫 자리를 고른다.
+    expect(api.placeLogo).toHaveBeenCalledWith({
+      path: { session_id: "session-1" },
+      body: { name: "acme", svg: "<svg id='logo'/>" },
+      throwOnError: true,
+    });
+    expect(api.finalize).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /^생성/ }));
 
     await screen.findByText("결과 job-1");
     expect(api.applyColorway).toHaveBeenCalledWith({
       path: { session_id: "session-1" },
       body: { colors: { ground: "#123ABC" } },
-      throwOnError: true,
-    });
-    // 슬롯은 서버가 정한다 — 화면은 이름·SVG만 보낸다.
-    expect(api.placeLogo).toHaveBeenCalledWith({
-      path: { session_id: "session-1" },
-      body: { name: "acme", svg: "<svg id='logo'/>" },
       throwOnError: true,
     });
     expect(api.finalize).toHaveBeenCalledWith({
@@ -249,8 +254,41 @@ describe("DesignCustomizePage", () => {
     });
     const order = (fn: { mock: { invocationCallOrder: number[] } }) =>
       fn.mock.invocationCallOrder[0] ?? 0;
-    expect(order(api.applyColorway)).toBeLessThan(order(api.placeLogo));
-    expect(order(api.placeLogo)).toBeLessThan(order(api.finalize));
+    expect(order(api.placeLogo)).toBeLessThan(order(api.applyColorway));
+    expect(order(api.applyColorway)).toBeLessThan(order(api.finalize));
+  });
+
+  it("템플릿 로고 자리마다 업로드 줄이 있고, 같은 자리에 다시 올리면 그 자리만 바뀐다", async () => {
+    gallery.list = [
+      {
+        id: "tpl-1",
+        point: "none",
+        logo_slots: [
+          { slot: 2, label: "로고" },
+          { slot: 1, label: "작은 무늬" },
+        ],
+        logo_preview_svg: null,
+      },
+    ];
+    renderPage();
+
+    await uploadLogo(/^작은 무늬/);
+    expect(api.placeLogo).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        body: expect.objectContaining({ slot: 1 }),
+      }),
+    );
+    // 다시 올리면 같은 자리를 덮는다 — 줄이 늘지 않는다.
+    await uploadLogo(/^작은 무늬/, "acme2.svg");
+    expect(api.placeLogo).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        body: expect.objectContaining({ name: "acme2", slot: 1 }),
+      }),
+    );
+    expect(screen.getAllByRole("button", { name: /^작은 무늬/ })).toHaveLength(
+      1,
+    );
+    screen.getByRole("button", { name: /^로고.*올리기$/ });
   });
 
   it("추천 배색을 누르면 이름 붙은 부위 색을 한 번에 바꾼다", async () => {

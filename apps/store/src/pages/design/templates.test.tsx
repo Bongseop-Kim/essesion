@@ -104,7 +104,7 @@ describe("DesignTemplatesPage", () => {
         preview_svg: "<svg id='e1'/>",
         category: null,
         point: "none",
-        logo_slot: null,
+        logo_slots: [{ slot: 1 }],
         photo_full_url: null,
         photo_detail_url: null,
         logo_preview_svg: null,
@@ -149,7 +149,7 @@ describe("DesignTemplatesPage", () => {
     const base = {
       caption: null,
       preview_svg: "<svg id='e1'/>",
-      logo_slot: 1,
+      logo_slots: [{ slot: 1 }],
       photo_full_url: null,
       photo_detail_url: null,
       logo_preview_svg: null,

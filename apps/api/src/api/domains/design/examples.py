@@ -17,13 +17,15 @@ from api.db import SessionDep
 from api.deps import AdminUser, CurrentUser
 from api.domains.design.router import (
     DesignAssistantGenerationPayload,
+    DesignLogoSlotOut,
     DesignSessionOut,
     DesignStepActivateTurnPayload,
     _all_intent_motif_ids,
     _append_turn,
     _design_session_out,
     _ensure_intent_motif_access,
-    _intent_motif_ids,
+    _intent_slot_motif_ids,
+    _logo_slots,
     _motif_preview_svg,
     _panel_logo_motif_id,
     _resolve_design_run,
@@ -59,7 +61,8 @@ class DesignExampleOut(BaseModel):
     # 템플릿 데이터 — 정본은 시드 코드, 컬럼은 전달용(플랜 design-template-first 2026-10-14).
     category: str | None
     point: Literal["none", "top", "bottom"]
-    logo_slot: Literal[1, 2] | None
+    # 로고를 받을 자리 — 순서대로 색·로고 화면의 업로드 칸. 템플릿이 안 정했으면 서버 규칙 한 자리.
+    logo_slots: list[DesignLogoSlotOut]
     photo_full_url: str | None
     photo_detail_url: str | None
     # 로고 슬롯 모티프의 미리보기(세션 `current_motifs[].preview_svg`와 같은 형식) — 포인트
@@ -110,14 +113,16 @@ def _colorways(design: Any) -> list[DesignExampleColorway]:
 
 
 def _logo_slot_motif_id(example: DesignExample, design: Any) -> str | None:
-    """로고 자리에 지금 들어 있는 모티프 id — 배치형(panel) 로고가 우선, 다음은 로고 슬롯(1|2)
-    (run 디자인의 intent 레이어 순서)."""
-    if (panel_logo := _panel_logo_motif_id(_design_intent(design))) is not None:
-        return panel_logo
-    if example.logo_slot is None or not isinstance(design, dict):
-        return None
-    motif_ids = _intent_motif_ids(design.get("intent"))
-    return motif_ids[example.logo_slot - 1] if len(motif_ids) >= example.logo_slot else None
+    """첫 로고 자리에 지금 들어 있는 모티프 id — "logo"는 배치형(panel) 로고, 1|2는 run 디자인의
+    intent 레이어 순서. 템플릿이 자리를 안 정했으면 panel 로고만 본다."""
+    intent = _design_intent(design)
+    if not example.logo_slots:
+        return _panel_logo_motif_id(intent)
+    slot = _logo_slots(example.logo_slots, intent)[0].slot
+    if slot == "logo":
+        return _panel_logo_motif_id(intent)
+    motif_ids = _intent_slot_motif_ids(intent)
+    return motif_ids[slot - 1] if len(motif_ids) >= slot else None
 
 
 def _example_out(
@@ -135,7 +140,7 @@ def _example_out(
         logo_in_panel=_panel_logo_motif_id(_design_intent(design)) is not None,
         category=example.category,
         point=example.point,  # type: ignore[arg-type]  # CHECK 제약이 값을 보장한다
-        logo_slot=example.logo_slot,  # type: ignore[arg-type]
+        logo_slots=_logo_slots(example.logo_slots, _design_intent(design)),
         photo_full_url=example.photo_full_url,
         photo_detail_url=example.photo_detail_url,
         logo_preview_svg=logo_preview_svg,
