@@ -88,3 +88,24 @@
 
 /* Tailwind는 node_modules를 스캔하지 않으므로 공용 컴포넌트의 클래스는 명시 등록 */
 @source "../../../packages/shared/src";
+
+/* 색·로고 미리보기 잉크 번짐 — 칸 가운데에서 원이 퍼진다. 71%면 모서리까지 덮는다(원 반지름 %의 기준이 대각선/√2).
+   clip-path라 레이아웃을 건드리지 않는다. 번지는 모습이 보이도록 토큰(최대 300ms)보다 길게 둔다. */
+.shot-ink {
+  animation: shot-ink 700ms var(--ease-standard) both;
+}
+
+@keyframes shot-ink {
+  from {
+    clip-path: circle(0 at 50% 50%);
+  }
+  to {
+    clip-path: circle(71% at 50% 50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shot-ink {
+    animation: none;
+  }
+}

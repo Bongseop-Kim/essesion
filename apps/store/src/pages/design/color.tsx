@@ -27,6 +27,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   type ChangeEvent,
   type ReactNode,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -263,6 +264,8 @@ export function DesignColorPage() {
   });
   const examplesQuery = useQuery(designExamplesQueryOptions());
   const [picked, setPicked] = useState<Record<string, string>>({});
+  // 잉크 번짐 — 견본·추천 배색을 누를 때마다 오른다.
+  const [ink, setInk] = useState(0);
   const [view, setView] = useState("worn");
   const swipeRef = useRef<HTMLDivElement>(null);
   const [logo, setLogo] = useState<Logo | null>(null);
@@ -288,6 +291,17 @@ export function DesignColorPage() {
     [intent, session?.colorway],
   );
   const value = (slot: string) => picked[slot] ?? current[slot];
+
+  /** 색 바꾸기 — `animate`면(견본·추천 배색처럼 한 번에 고를 때) 잉크로 번진다. 드래그·입력은 즉시. */
+  const pick = (next: Record<string, string>, animate = false) => {
+    setPicked(next);
+    if (
+      !animate ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    )
+      return;
+    setInk((n) => n + 1);
+  };
   const changed = Object.entries(picked).filter(
     ([slot, hex]) => !sameHex(current[slot], hex),
   );
@@ -336,7 +350,7 @@ export function DesignColorPage() {
           sessionId: session.id,
           colors: Object.fromEntries(changed),
         });
-        setPicked({});
+        pick({});
       }
       await place.mutateAsync({
         sessionId: session.id,
@@ -403,14 +417,18 @@ export function DesignColorPage() {
   );
 
   const choosePreset = (preset: Colorway) =>
-    setPicked(
+    pick(
       Object.fromEntries(
         parts.flatMap((part) => {
           const hex = preset.mapping[part.slot];
           return hex ? [[part.slot, hex] as const] : [];
         }),
       ),
+      true,
     );
+  const swap = (render: (shot: TemplateShot) => ReactNode) => (
+    <ShotSwap shot={shot} ink={ink} render={render} />
+  );
   const presetChips = presets.map((preset) => (
     <Chip
       key={preset.id}
@@ -588,15 +606,17 @@ export function DesignColorPage() {
                                     : "min(100cqw, 80cqh)",
                             }}
                           >
-                            {v === "flat" ? (
-                              <TemplateTieShot shot={shot} layout={layout} />
-                            ) : v === "knot" ? (
-                              <TemplateKnotTallShot
-                                shot={shot}
-                                layout={layout}
-                              />
-                            ) : (
-                              <TemplateWornShot shot={shot} layout={layout} />
+                            {swap((s) =>
+                              v === "flat" ? (
+                                <TemplateTieShot shot={s} layout={layout} />
+                              ) : v === "knot" ? (
+                                <TemplateKnotTallShot
+                                  shot={s}
+                                  layout={layout}
+                                />
+                              ) : (
+                                <TemplateWornShot shot={s} layout={layout} />
+                              ),
                             )}
                           </Box>
                         </Box>
@@ -758,8 +778,8 @@ export function DesignColorPage() {
             slot={sheetSlot ?? parts[0]?.slot}
             onSlotChange={setSheetSlot}
             value={value}
-            onChange={(slot, hex) =>
-              setPicked((prev) => ({ ...prev, [slot]: hex }))
+            onChange={(slot, hex, animate) =>
+              pick({ ...picked, [slot]: hex }, animate)
             }
             disabled={busy}
           />
@@ -827,8 +847,8 @@ export function DesignColorPage() {
                   key={part.slot}
                   part={part}
                   value={value(part.slot)}
-                  onChange={(hex) =>
-                    setPicked((prev) => ({ ...prev, [part.slot]: hex }))
+                  onChange={(hex, animate) =>
+                    pick({ ...picked, [part.slot]: hex }, animate)
                   }
                   disabled={busy}
                 />
@@ -857,7 +877,7 @@ export function DesignColorPage() {
                   {view === "knot" ? (
                     <Box aria-hidden style={{ aspectRatio: "4 / 5" }} />
                   ) : (
-                    <TemplateTieShot shot={shot} layout={layout} />
+                    swap((s) => <TemplateTieShot shot={s} layout={layout} />)
                   )}
                 </Box>
                 {view === "knot" ? (
@@ -871,17 +891,63 @@ export function DesignColorPage() {
                       aspectRatio: "4 / 5",
                     }}
                   >
-                    <TemplateKnotShot shot={shot} layout={layout} />
+                    {swap((s) => (
+                      <TemplateKnotShot shot={s} layout={layout} />
+                    ))}
                   </Box>
                 ) : null}
               </Box>
             ) : (
-              <TemplateWornShot shot={shot} layout={layout} />
+              swap((s) => <TemplateWornShot shot={s} layout={layout} />)
             )}
           </Box>
         </Grid>
       </ContentLayout>
     </>
+  );
+}
+
+/**
+ * 색이 바뀌면 옛 미리보기를 아래에 깔고 새 미리보기를 잉크 번짐(index.css `shot-ink`)으로 드러낸다.
+ * 효과는 `ink`가 바뀔 때만 — 드래그·입력처럼 key가 그대로면 즉시 바꾼다.
+ */
+function ShotSwap({
+  shot,
+  ink,
+  render,
+}: {
+  shot: TemplateShot;
+  ink: number;
+  render: (shot: TemplateShot) => ReactNode;
+}) {
+  const last = useRef(shot);
+  const seen = useRef(ink);
+  const [prev, setPrev] = useState<TemplateShot | null>(null);
+  useLayoutEffect(() => {
+    if (ink !== seen.current) {
+      seen.current = ink;
+      setPrev(last.current);
+    }
+    last.current = shot;
+  });
+  return (
+    <Box position="relative">
+      {prev ? (
+        <Box position="absolute" inset={0} aria-hidden>
+          {render(prev)}
+        </Box>
+      ) : null}
+      <Box
+        key={ink}
+        position="relative"
+        className={prev ? "shot-ink" : undefined}
+        onAnimationEnd={(e) => {
+          if (e.target === e.currentTarget) setPrev(null);
+        }}
+      >
+        {render(shot)}
+      </Box>
+    </Box>
   );
 }
 
@@ -947,7 +1013,7 @@ function ColorSheet({
   slot: string | undefined;
   onSlotChange: (slot: string) => void;
   value: (slot: string) => string | undefined;
-  onChange: (slot: string, hex: string) => void;
+  onChange: (slot: string, hex: string, animate?: boolean) => void;
   disabled: boolean;
 }) {
   const part = parts.find((item) => item.slot === slot) ?? parts[0];
@@ -990,7 +1056,7 @@ function ColorSheet({
           key={part.slot}
           part={part}
           value={value(part.slot)}
-          onChange={(hex) => onChange(part.slot, hex)}
+          onChange={(hex, animate) => onChange(part.slot, hex, animate)}
           disabled={disabled}
           familyRow
         />
@@ -1008,7 +1074,7 @@ function ColorPicker({
 }: {
   part: Part;
   value: string | undefined;
-  onChange: (hex: string) => void;
+  onChange: (hex: string, animate?: boolean) => void;
   disabled: boolean;
 }) {
   const display = value?.toUpperCase() ?? "";
@@ -1058,7 +1124,7 @@ function ColorPickerBody({
 }: {
   part: Part;
   value: string | undefined;
-  onChange: (hex: string) => void;
+  onChange: (hex: string, animate?: boolean) => void;
   disabled: boolean;
   familyRow?: boolean;
 }) {
@@ -1114,7 +1180,7 @@ function ColorPickerBody({
               aria-checked={checked}
               aria-label={hex}
               disabled={disabled}
-              onClick={() => onChange(hex)}
+              onClick={() => onChange(hex, true)}
               width="full"
               borderRadius="r2"
               borderWidth={checked ? 2 : 1}
