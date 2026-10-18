@@ -79,6 +79,8 @@ export type TemplateShot = {
   alt: string;
   tileScale: number;
   surface: "none";
+  /** 로고 확인·반영 대기 — 넥타이 안에 스캔 라인(TieCanvas `scanning`). */
+  scanning?: boolean;
 };
 
 /** 셀을 꽉 채우는 TieCanvas — TieCanvas는 정사각을 강제하므로 절대 배치로 덮는다. */

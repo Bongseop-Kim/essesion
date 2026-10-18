@@ -8,6 +8,7 @@ import {
   Box,
   Chip,
   ContentPlaceholder,
+  Flex,
   Grid,
   HStack,
   Icon,
@@ -15,6 +16,7 @@ import {
   List,
   ListItem,
   Modal,
+  ProgressCircle,
   ScrollFog,
   Skeleton,
   snackbar,
@@ -23,7 +25,7 @@ import {
   useBreakpoint,
   VStack,
 } from "@essesion/shared";
-import { EyeDropperIcon } from "@heroicons/react/24/outline";
+import { EyeDropperIcon, PencilSquareIcon } from "@heroicons/react/24/outline";
 import { useQuery } from "@tanstack/react-query";
 import {
   type ChangeEvent,
@@ -458,7 +460,13 @@ export function DesignCustomizePage() {
       true,
     );
   const swap = (render: (shot: TemplateShot) => ReactNode) => (
-    <ShotSwap shot={shot} ink={ink} render={render} />
+    <ShotSwap
+      shot={shot}
+      ink={ink}
+      weave={baseSvg}
+      waiting={uploading}
+      render={render}
+    />
   );
   const presetChips = presets.map((preset) => (
     <Chip
@@ -516,14 +524,15 @@ export function DesignCustomizePage() {
           gap="x1_5"
           className="cursor-pointer rounded-r2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
         >
+          {/* 선택은 흐림·글자색으로만 — 테두리 두께나 글자 크기를 바꾸면 칸이 흔들린다. */}
           <Box
             borderRadius="r2"
             overflow="hidden"
             bg="bg.layer-default"
-            borderWidth={view === value ? 2 : 1}
-            borderColor={
-              view === value ? "stroke.neutral" : "stroke.neutral-weak"
-            }
+            borderWidth={1}
+            borderColor="stroke.neutral-weak"
+            className="transition-opacity duration-200 ease-standard"
+            style={{ opacity: view === value ? 1 : 0.5 }}
           >
             {/* TieCanvas 안쪽 여백(x6)은 고정 px라 작은 칸에선 넥타이가 작아진다 — 4배로 그려
                 줄이고, 전체는 깃·매듭 쪽을 더 키운다. */}
@@ -548,7 +557,7 @@ export function DesignCustomizePage() {
           </Box>
           <Text
             as="span"
-            textStyle={view === value ? "labelSm" : "caption"}
+            textStyle="labelSm"
             color={view === value ? "fg.neutral" : "fg.neutral-muted"}
             align="center"
           >
@@ -578,16 +587,14 @@ export function DesignCustomizePage() {
         {logo.error}
       </Text>
     ) : logo?.status === "checking" ? (
-      "배경을 확인하고 있어요 · 10초쯤 걸려요"
+      "1/2 · 배경을 확인하고 있어요 · 10초쯤 걸려요"
     ) : logo?.status === "placing" ? (
-      "미리보기에 넣고 있어요"
+      "2/2 · 미리보기에 넣고 있어요"
     ) : logo?.status === "placed" ? (
       <Text as="span" textStyle="caption" color="fg.positive">
         통과 · 미리보기에 넣었어요
       </Text>
-    ) : (
-      "올리면 바로 바뀌어요"
-    );
+    ) : undefined;
 
   const fileInput = (
     <Box
@@ -618,11 +625,22 @@ export function DesignCustomizePage() {
             : motifs[(slot ?? (motifs.length >= 2 ? 2 : 1)) - 1]?.preview_svg;
         const title =
           label ?? (logoSlots.length > 1 ? `로고 ${index + 1}` : "로고");
+        const working =
+          logo?.status === "checking" || logo?.status === "placing";
         return (
           <ListItem
             key={slotKey(slot)}
             prefix={
-              <Box width={40}>
+              // 로고는 대개 배경이 없다 — 테두리 칸이 있어야 썸네일 왼쪽 끝이 줄마다 같아 보인다.
+              <Box
+                width={40}
+                p="x1"
+                borderRadius="r2"
+                borderWidth={1}
+                borderColor="stroke.neutral-weak"
+                position="relative"
+                overflow="hidden"
+              >
                 <ImageFrame
                   src={
                     logo?.sourceUrl ??
@@ -632,15 +650,31 @@ export function DesignCustomizePage() {
                   alt=""
                   ratio={1}
                   fit="contain"
-                  borderRadius="r2"
+                  borderRadius={0}
                 />
+                {working ? (
+                  <Flex
+                    position="absolute"
+                    inset={0}
+                    align="center"
+                    justify="center"
+                    bg="bg.image-scrim"
+                  >
+                    <ProgressCircle size={24} tone="contrast" />
+                  </Flex>
+                ) : null}
               </Box>
             }
             title={logo ? `${title} · ${logo.name}` : title}
             description={logoStatus(logo)}
-            suffix={logo ? "바꾸기" : "올리기"}
-            disabled={busy}
-            onClick={() => openPicker(slot)}
+            suffix={
+              working ? undefined : (
+                <Icon svg={<PencilSquareIcon />} size={20} />
+              )
+            }
+            // 진행 중인 줄은 흐리지 않는다 — 어느 자리 차례인지 보여야 한다.
+            disabled={busy && !working}
+            onClick={working ? undefined : () => openPicker(slot)}
           />
         );
       })}
@@ -862,12 +896,7 @@ export function DesignCustomizePage() {
             <Text as="h1" textStyle="title1" className="sr-only">
               색·로고
             </Text>
-            <VStack alignItems="stretch" gap="x2">
-              <Text as="span" textStyle="labelSm">
-                로고 파일
-              </Text>
-              {logoRows}
-            </VStack>
+            {logoRows}
             {presets.length > 0 ? (
               <VStack alignItems="stretch" gap="x2">
                 <Text as="span" textStyle="labelSm">
@@ -946,28 +975,49 @@ export function DesignCustomizePage() {
 }
 
 /**
- * 색이 바뀌면 옛 미리보기를 아래에 깔고 새 미리보기를 잉크 번짐(index.css `shot-ink`)으로 드러낸다.
- * 효과는 `ink`가 바뀔 때만 — 드래그·입력처럼 key가 그대로면 즉시 바꾼다.
+ * 미리보기가 바뀌면 옛 것을 아래에 깔고 새 것을 드러낸다(index.css) — 색은 `ink`가 바뀔 때 가운데서
+ * 번지고(`shot-ink`), 로고는 서버 디자인(`weave`)이 바뀔 때 위에서 짜여 내려온다(`shot-weave`).
+ * 드래그·입력처럼 둘 다 그대로면 즉시 바꾼다. `waiting`이면 넥타이 안에 스캔 라인이 돈다.
  */
 function ShotSwap({
   shot,
   ink,
+  weave,
+  waiting,
   render,
 }: {
   shot: TemplateShot;
   ink: number;
+  weave: string | null;
+  waiting: boolean;
   render: (shot: TemplateShot) => ReactNode;
 }) {
   const last = useRef(shot);
-  const seen = useRef(ink);
-  const [prev, setPrev] = useState<TemplateShot | null>(null);
+  const seen = useRef({ ink, weave });
+  const [swap, setSwap] = useState<{
+    n: number;
+    prev: TemplateShot | null;
+    effect: "shot-ink" | "shot-weave";
+  }>({ n: 0, prev: null, effect: "shot-ink" });
   useLayoutEffect(() => {
-    if (ink !== seen.current) {
-      seen.current = ink;
-      setPrev(last.current);
+    const inked = ink !== seen.current.ink;
+    const woven = weave !== seen.current.weave;
+    seen.current = { ink, weave };
+    // 줄인 움직임이면 애니메이션이 없어 끝 이벤트도 없다 — 옛 미리보기를 깔지 않고 바로 바꾼다.
+    if (
+      (inked || woven) &&
+      !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      const prev = last.current;
+      setSwap((s) => ({
+        n: s.n + 1,
+        prev,
+        effect: woven ? "shot-weave" : "shot-ink",
+      }));
     }
     last.current = shot;
   });
+  const { prev } = swap;
   return (
     <Box position="relative">
       {prev ? (
@@ -976,14 +1026,15 @@ function ShotSwap({
         </Box>
       ) : null}
       <Box
-        key={ink}
+        key={swap.n}
         position="relative"
-        className={prev ? "shot-ink" : undefined}
+        className={prev ? swap.effect : undefined}
         onAnimationEnd={(e) => {
-          if (e.target === e.currentTarget) setPrev(null);
+          if (e.target === e.currentTarget)
+            setSwap((s) => ({ ...s, prev: null }));
         }}
       >
-        {render(shot)}
+        {render(waiting ? { ...shot, scanning: true } : shot)}
       </Box>
     </Box>
   );

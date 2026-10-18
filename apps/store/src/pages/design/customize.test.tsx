@@ -123,11 +123,10 @@ function renderPage() {
 }
 
 /** 로고 자리 줄을 눌러 파일을 고른다 — 통과하면 바로 그 자리에 들어가 미리보기가 바뀐다. */
-async function uploadLogo(
-  row: RegExp = /^로고.*바뀌어요/,
-  filename = "acme.svg",
-) {
-  fireEvent.click(await screen.findByRole("button", { name: row }));
+async function uploadLogo(row: RegExp = /^로고/, filename = "acme.svg") {
+  // 모바일의 "로고 올리기" CTA와 구분하려고 자리 목록 안에서 찾는다.
+  const list = await screen.findByRole("list");
+  fireEvent.click(within(list).getByRole("button", { name: row }));
   const input = document.querySelector('input[type="file"]');
   if (!(input instanceof HTMLInputElement)) throw new Error("no file input");
   const file = new File(["<svg id='logo'/>"], filename, {
@@ -288,7 +287,7 @@ describe("DesignCustomizePage", () => {
     expect(screen.getAllByRole("button", { name: /^작은 무늬/ })).toHaveLength(
       1,
     );
-    screen.getByRole("button", { name: /^로고.*올리기$/ });
+    screen.getByRole("button", { name: "로고" });
   });
 
   it("추천 배색을 누르면 이름 붙은 부위 색을 한 번에 바꾼다", async () => {

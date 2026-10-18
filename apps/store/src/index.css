@@ -104,8 +104,32 @@
   }
 }
 
+/* 로고 반영 — 새 미리보기가 매듭(위)에서 끝(아래)으로 짜여 내려온다. 경계가 부드럽도록 clip-path 대신
+   세로 그라디언트 마스크(높이 250%: 위 40% 불투명 → 60%부터 투명)를 아래에서 위로 민다. */
+.shot-weave {
+  -webkit-mask-image: linear-gradient(to bottom, #000 40%, transparent 60%);
+  mask-image: linear-gradient(to bottom, #000 40%, transparent 60%);
+  -webkit-mask-size: 100% 250%;
+  mask-size: 100% 250%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  animation: shot-weave 900ms var(--ease-standard) both;
+}
+
+@keyframes shot-weave {
+  from {
+    -webkit-mask-position: 0 100%;
+    mask-position: 0 100%;
+  }
+  to {
+    -webkit-mask-position: 0 0;
+    mask-position: 0 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .shot-ink {
+  .shot-ink,
+  .shot-weave {
     animation: none;
   }
 }

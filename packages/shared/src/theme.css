@@ -250,6 +250,18 @@
       transform: translateX(100%);
     }
   }
+
+  /* ── 애니메이션 — TieCanvas 스캔 라인(`scanning`): shimmer와 같은 기능성 대기 표시. 넥타이 위에서
+     아래로 빛줄기(높이 15%)가 지나간다. 줄인 움직임에서는 motion-safe로 빠진다. ── */
+  --animate-tie-scan: tie-scan 1.8s var(--ease-standard) infinite;
+  @keyframes tie-scan {
+    from {
+      top: -15%;
+    }
+    to {
+      top: 100%;
+    }
+  }
 }
 
 /* duration — v4에 @theme 네임스페이스가 없어 일반 변수로 (항상 방출됨) */

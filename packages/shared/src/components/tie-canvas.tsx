@@ -46,6 +46,8 @@ export type TieCanvasProps = {
    * `knotTall` = 같은 매듭 컷을 9:16으로 덜 확대해 몸통을 길게 담은 모바일용.
    */
   silhouette?: "photo" | "flat" | "knot" | "knotTall";
+  /** 대기 표시 — 넥타이 실루엣 안에서만 빛줄기가 위→아래로 훑는다(셔츠·배경은 그대로). */
+  scanning?: boolean;
   className?: string;
 };
 
@@ -259,6 +261,7 @@ export function TieCanvas({
   emblem,
   panelSrc,
   silhouette = "photo",
+  scanning = false,
   className,
 }: TieCanvasProps) {
   const geom = SILHOUETTES[silhouette];
@@ -366,6 +369,14 @@ export function TieCanvas({
               backgroundSize: "100% 100%",
               backgroundRepeat: "no-repeat",
             }}
+          />
+        ) : null}
+        {scanning ? (
+          <Box
+            position="absolute"
+            aria-hidden
+            className="motion-safe:animate-tie-scan bg-linear-to-b from-transparent via-bg-shimmer-highlight to-transparent"
+            style={{ left: 0, right: 0, top: "-15%", height: "15%" }}
           />
         ) : null}
       </Box>
