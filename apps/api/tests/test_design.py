@@ -239,6 +239,7 @@ async def test_logo_saves_motif_once_and_activates_server_chosen_slot(
     for payload in worker.generate_payloads[-2:]:
         assert payload["motif_slot"] == {"slot": 2, "motif_id": "upload-a1b2c3d4e5f6"}
         assert payload["seed"] == 7
+        assert payload["session_id"] == sid and payload["user_id"] == str(user.id)
     links = list(await db_session.scalars(select(UserMotif).where(UserMotif.user_id == user.id)))
     assert len(links) == 1 and links[0].name == "acme"
     stored = await db_session.get(Motif, "upload-a1b2c3d4e5f6")

@@ -1,7 +1,5 @@
 import base64
-import hashlib
 import io
-from pathlib import Path
 
 import pytest
 from PIL import Image
@@ -15,7 +13,6 @@ from worker.motifs.photo_svg import (
     quantize_intermediate_colors,
     threshold_alpha,
 )
-from worker.motifs.text_svg import normalize_text_motif_input, text_to_svg
 
 
 def _simple_photo(*, flat: bool = False) -> bytes:
@@ -48,63 +45,6 @@ def _multicolor_photo() -> bytes:
     output = io.BytesIO()
     image.save(output, "PNG")
     return output.getvalue()
-
-
-def test_text_to_svg_is_path_only_nfc_normalized_and_deterministic():
-    kwargs = {"font_id": "nanum-gothic", "font_weight": 400, "letter_spacing": 0.1}
-    composed = text_to_svg("가A1", **kwargs)
-    decomposed = text_to_svg("가A1", **kwargs)
-
-    assert composed == decomposed
-    assert "<path" in composed
-    assert "<text" not in composed
-    assert text_to_svg("가A1", **kwargs) == composed
-    assert text_to_svg("가A1", **{**kwargs, "font_weight": 700}) != composed
-
-    first = normalize_motif_svg(composed, id_prefix="upload", render_check=False)
-    second = normalize_motif_svg(
-        text_to_svg("가A1", **kwargs), id_prefix="upload", render_check=False
-    )
-    assert (first.id, first.symbol) == (second.id, second.symbol)
-    reimported = normalize_motif_svg(first.preview_svg, id_prefix="upload", render_check=False)
-    assert (reimported.id, reimported.symbol) == (first.id, first.symbol)
-    assert reimported.preview_svg == first.preview_svg
-
-
-def test_text_motif_character_boundary_is_explicit():
-    assert normalize_text_motif_input("ABC 123 가 ㄱ") == "ABC 123 가 ㄱ"
-    with pytest.raises(ValueError, match=r"U\+002D"):
-        normalize_text_motif_input("A-B")
-    with pytest.raises(ValueError, match=r"U\+1F642"):
-        normalize_text_motif_input("🙂")
-
-
-def test_text_motif_length_and_path_complexity_fail_closed(monkeypatch):
-    with pytest.raises(ValueError, match="at most 20"):
-        normalize_text_motif_input("가" * 21)
-
-    monkeypatch.setattr("worker.motifs.text_svg.MAX_TEXT_PATH_COMMANDS", 1)
-    with pytest.raises(ValueError, match="path complexity"):
-        text_to_svg("가", font_id="nanum-gothic", font_weight=400)
-
-
-def test_bundled_font_assets_match_documented_hashes():
-    font_dir = Path(__file__).parents[1] / "src/worker/motifs/fonts"
-    expected = {
-        "NanumGothic-Regular.ttf": (
-            "76f45ef4a6bcff344c837c95a7dcc26e017e38b5846d5ae0cdcb5b86be2e2d31"
-        ),
-        "NanumGothic-Bold.ttf": "f96298f9fb18e364d2370f4c3ce948ac67a2b61af992d7234bc15c42b033c674",
-        "NanumMyeongjo-Regular.ttf": (
-            "7ed9e8653a8ed04285d51dc343ffea6eb3d9c73afc27383ea8929ee4ffd03205"
-        ),
-        "NanumMyeongjo-Bold.ttf": (
-            "bc9ed8e60d93fe6db054b8fb988481b625f2eef8cb2317ad0e9834681b8fe3f3"
-        ),
-    }
-    assert {
-        name: hashlib.sha256((font_dir / name).read_bytes()).hexdigest() for name in expected
-    } == expected
 
 
 def test_photo_vectorization_removes_flat_border_and_returns_png_preview():

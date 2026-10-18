@@ -34,4 +34,5 @@ for example in examples:
             text=True,
             check=True,
         ).stdout.strip()
-    print(f"{example['point']:6} slot={example['logo_slot']} {subject:12} {example['name']}")
+    slots = ",".join(str(item["slot"]) for item in example.get("logo_slots") or [])
+    print(f"{example['point']:6} slots={slots:8} {subject:12} {example['name']}")

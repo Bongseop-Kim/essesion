@@ -7,8 +7,7 @@ from obs import RequestIdMiddleware, init_observability
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from worker.adapters import build_adapters
-from worker.api import finalize_router, generate_router, router
+from worker.api import router
 from worker.config import Settings, get_settings
 from worker.db import build_engine
 from worker.integrations import build_object_store
@@ -25,20 +24,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.engine = engine
         app.state.sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
         app.state.object_store = build_object_store(settings)
-        app.state.adapters = build_adapters(settings)
         yield
-        await app.state.adapters.aclose()
         await engine.dispose()
 
     application = FastAPI(title="essesion worker", lifespan=lifespan)
     application.state.settings = settings
     application.add_middleware(RequestIdMiddleware)
-    if settings.service_mode == "generate":
-        application.include_router(generate_router)
-    elif settings.service_mode == "finalize":
-        application.include_router(finalize_router)
-    else:
-        application.include_router(router)
+    application.include_router(router)
 
     @application.get("/healthz")
     def healthz() -> dict[str, str]:

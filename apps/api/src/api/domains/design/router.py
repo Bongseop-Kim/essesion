@@ -997,6 +997,9 @@ async def _activate_motif_slot(
         "run_id": str(run_id),
         "intent": design_session.current_intent,
         "motif_slot": {"slot": slot, "motif_id": motif.id},
+        # 렌더 로그가 고객·세션을 잇는다(admin 렌더 로그의 고객 링크).
+        "session_id": str(design_session.id),
+        "user_id": str(user.id),
     }
     if design_session.seed is not None:
         payload["seed"] = design_session.seed

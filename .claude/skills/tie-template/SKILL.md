@@ -31,7 +31,6 @@ description: 스토어 /design 넥타이 템플릿을 추가·수정한다 — �
 |---|---|
 | 템플릿 표(`CURATED`)·플랜 상수 | `apps/worker/scripts/seed_design_examples.py` |
 | 손그림 모티프(`_SEEDS`) | `apps/worker/scripts/seed_motifs.py` |
-| 모티프 한글 태그·카테고리 | `apps/worker/src/worker/motifs/categories.py` |
 | 플랜 스키마(레이어·배치) | `apps/worker/src/worker/authoring/schema.py` |
 | 비율→mm, point_template 좌표 | `apps/worker/src/worker/authoring/compiler.py` |
 | 카드 넥타이·포인트 로고 배치 | `packages/shared/src/components/tie-canvas.tsx` (`SILHOUETTES`, `emblemBox`) |
@@ -142,22 +141,22 @@ description: 스토어 /design 넥타이 템플릿을 추가·수정한다 — �
   굽이를 하나로 줄여 매끄럽게 만들지는 말 것 — 두 번 꺾이는 S자가 더 매력 있다는 사용자 판단
   (2026-10-17, `_bellen_band` 참고).
 - **포인트 로고는 `{**PANEL_LOGO, "subject": …}`**(어깨선 위 오른쪽, 면적 기준). `point="bottom"`,
-  `logo_slot=None` — 로고 넣기는 서버가 panel 로고 자리(`slot="logo"`)로 보내고, 카드 엠블럼 오버레이는
+  `logo_slots=(("logo", "포인트 로고"),)` — 로고 넣기는 panel 로고 자리(`slot="logo"`)로 가고, 카드 엠블럼 오버레이는
   `logo_in_panel`이라 그리지 않는다.
 - 색은 슬롯 id(`ground`·`color_<i>`, 플랜 colors 순서)로 적는다. panel 모티프는 `subject`로 적고 시드가
-  motif_id로 푼다. 후보 렌더는 scratchpad에 평면 카드 + `photoreal.tie_mockup_png(panel_svg=…)` 실사
-  목업을 나란히 그려 두 실루엣의 위치가 같은지 본다(`render.py`는 panel을 모른다).
+  motif_id로 푼다. `render.py`는 panel을 모르므로 panel 위치는 시드 후 store 화면(목록 flat·상세 photo
+  실루엣, 5단계)에서 두 실루엣의 위치가 같은지 본다.
 
 ## 로고 (포인트 로고 + 무늬 속 로고)
 
 - 참조의 큰 로고 하나는 `point="bottom"`(카드가 블레이드 아래쪽에 엠블럼을 얹는다)이고, 엠블럼은
-  `logo_slot` 모티프다. 엔진상 로고 슬롯 모티프는 **무늬 레이어에도 반드시 있어야** 해서 작고 성기게
+  `logo_slots` 자리의 모티프다. 엔진상 로고 슬롯 모티프는 **무늬 레이어에도 반드시 있어야** 해서 작고 성기게
   반복시킨다(2026-10-16 사용자 결정).
   단, 작은 로고 반복이 큰 로고와 붙어 산만하면 반복형이라도 무늬 모티프를 빼고 panel 로고 하나만
-  둔다(`motifs: []`, `logo_slot` 없음) — 그리고 무늬 위상을 밀어 로고 자리를 바탕으로 비운다
+  둔다(`motifs: []`, 자리는 `"logo"` 하나) — 그리고 무늬 위상을 밀어 로고 자리를 바탕으로 비운다
   (2026-10-17 세로 스트라이프와 세리프 V). 테스트의 배치형 개수(`len(placed)`)도 함께 고친다.
-- **`logo_slot`은 레이어 순서다.** 플랜 input 순서가 아니라 intent 모티프 레이어를 그리는 순서의
-  고유 id 인덱스(api `_intent_motif_ids`). 장식 레이어를 먼저 그리면 `logo_slot=2`.
+- **`logo_slots`의 숫자 자리는 레이어 순서다.** 플랜 input 순서가 아니라 intent 모티프 레이어를 그리는 순서의
+  고유 id 인덱스(api `_intent_motif_ids`). 장식 레이어를 먼저 그리면 로고 자리는 `2`.
   병합 후 `check_emblems.py`로 모든 행의 subject가 로고인지 확인한다.
 - 로고 자리 모티프는 참조 로고의 심볼을 손으로 그린 path(`<text>` 금지). 바탕 위에서 보이는
   아이보리·실버·금 계열. subject는 영문 한 단어, **기존 seed subject와 겹치면 안 된다** — 시드는
@@ -186,21 +185,20 @@ uv run python .claude/skills/tie-template/scripts/render.py <cand.py> <out_prefi
 
 템플릿 하나당 서브에이전트 하나. 공통 브리프 파일을 scratchpad에 쓰고 각자에게 번호와 묘사만 준다.
 브리프에 넣을 것: 이 문서의 "엔진 제약"·"로고" 절, **레포 파일·DB 수정 금지(시드 실행 금지)**,
-결과는 코드 조각으로 반환(PLAN 상수·CuratedExample·`_SEEDS` 튜플·KO_TAGS·카테고리 그룹·
+결과는 코드 조각으로 반환(PLAN 상수·CuratedExample·`_SEEDS` 튜플·
 최종 렌더 경로·참조와 다른 점). 병합은 메인이 한 번에 한다 — 같은 파일 동시 편집·시드 충돌 방지.
 
 ### 3. 병합
 
 - 플랜 상수는 `# 스토어 템플릿 목록` 앞에, `CuratedExample`은 `CURATED` 끝에, 모티프는 `_SEEDS` 끝에.
 - 주석은 기존처럼 한두 줄 한글. ruff 줄 길이 100(한글 주석이 자주 넘는다).
-- 카테고리 그룹: 상징류는 `symbol`, 식물은 `plant`, 바다는 `sea` — subject 튜플은 알파벳순.
 - 템플릿 이름·설명은 한글 서술형, 브랜드명 금지. `category`는 목록 필터 칩 라벨 그대로.
 
 ### 4. 검사·시드
 
 ```bash
 uv run ruff check apps/worker && uv run ruff format apps/worker/scripts apps/worker/src/worker/motifs
-uv run pytest apps/worker/tests/test_seed_design_examples.py apps/worker/tests/test_motif_tagging.py
+uv run pytest apps/worker/tests/test_seed_design_examples.py
 uv run python apps/worker/scripts/seed_motifs.py
 uv run python apps/worker/scripts/seed_design_examples.py
 uv run python .claude/skills/tie-template/scripts/check_emblems.py
@@ -217,12 +215,12 @@ uv run python .claude/skills/tie-template/scripts/check_emblems.py
 - 상세(실사 컷)는 로그인 필요: `/login`에서 h1 "로그인"을 5번 클릭하면 id/pw 폼이 열린다.
   `type_text`로 `customer@local` / `customer-local-password`를 넣고
   `form.requestSubmit()`으로 제출(버튼 클릭·fill_input은 잘 안 먹는다). 그 뒤 템플릿 카드를 누르면
-  `/design/sessions/<id>/color`로 간다.
+  `/design/sessions/<id>/customize`로 간다.
 
 ### 6. 보고
 
 스크린샷 기준으로: 추가된 템플릿 표(이름·카테고리·바꿀 수 있는 색), 참조와 다른 점, 검증 결과,
-안 한 것(유료 임베딩 `index_motif_embeddings.py --confirm-live`, 커밋). 커밋은 사람이 한다.
+안 한 것(커밋). 커밋은 사람이 한다.
 
 ## 배운 것 (사용자 피드백·함정)
 
@@ -274,7 +272,7 @@ uv run python .claude/skills/tie-template/scripts/check_emblems.py
 - **포인트 로고**: 가운데 하단·큰 크기는 틀렸다 → 블레이드 오른쪽, 끝이 좁아지기 직전, 블레이드 폭의
   ~15%. 그리고 **한 점·한 폭으로 일괄 통일하지 말 것** — 로고 비율·크기에 따라 자리가 달라야 한다
   (면적 기준 + 오른쪽 아래 모서리 고정으로 해결, 2026-10-16).
-- **logo_slot 함정**: 장식 레이어가 먼저면 끝 로고에 장식이 뜬다(위 "로고" 절).
+- **로고 자리 순서 함정**: 장식 레이어가 먼저면 끝 로고에 장식이 뜬다(위 "로고" 절).
 - 서브에이전트 10개 병렬은 잘 됐다 — 레포를 안 건드리게 하고 코드 조각만 받는 게 핵심.
 - **방향**: 다양성을 내려고 사선을 좌상향(\\)으로 뒤집었다가 틀렸다 — 사선은 항상 우상향,
   다양성은 구조(굵기·묶음·행·가로 바)로 낸다(2026-10-16).

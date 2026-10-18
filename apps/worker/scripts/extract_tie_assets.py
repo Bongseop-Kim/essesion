@@ -19,10 +19,9 @@
     uv run python apps/worker/scripts/extract_tie_assets.py \
         apps/worker/src/worker/render/assets/photo/tie-base.png <out_dir>
 
-PNG 셋은 worker assets/photo/에,
 tie-mask·tie-knot-mask PNG와 tie-shadow.webp는 store·admin public/images/에,
 tie-knot-closeup-* 셋은 store public/images/에만 복사한다.
-기하(TIE_EMBLEM·TIE_FOCUS·photoreal 상수)는 아트 박스 비율이라 OUT 크기가 바뀌면 함께 손볼 것.
+기하(TIE_EMBLEM·TIE_FOCUS 상수)는 아트 박스 비율이라 OUT 크기가 바뀌면 함께 손볼 것.
 """
 
 import sys

@@ -7,7 +7,6 @@ import json
 from pathlib import Path
 from types import ModuleType
 
-from worker.authoring.examples import load_example_set
 from worker.motifs.registry import MotifDef
 
 GOLDEN = Path(__file__).parent / "golden"
@@ -37,14 +36,10 @@ def _catalog() -> dict[str, MotifDef]:
 
 def test_every_curated_example_supplies_one_motif_subject_per_plan_input():
     seed = _seed_module()
-    examples = {example.example_id: example for example in load_example_set()}
 
     assert len(seed.CURATED) == len({item.example_id for item in seed.CURATED})
     for curated in seed.CURATED:
-        assert curated.plan is not None or curated.example_id in examples
-        inputs = [
-            source for source in seed.plan_for(curated, examples).motifs if source.source == "input"
-        ]
+        inputs = [source for source in curated.plan.motifs if source.source == "input"]
         assert len(curated.motif_subjects) == len(inputs), curated.example_id
 
 
@@ -52,13 +47,12 @@ def test_seeded_runs_are_deterministic_and_carry_what_the_api_restores():
     # api `_resolve_design_run`은 로그의 design.intent/seed/colorway_id만 보고 세션을
     # 되살린다 — 시드가 그 셋을 빠뜨리면 갤러리 카드가 열리지 않는다.
     seed = _seed_module()
-    examples = {example.example_id: example for example in load_example_set()}
     catalog = _catalog()
     motif_pool = sorted(catalog)
 
     for curated in seed.CURATED:
         motif_ids = motif_pool[: len(curated.motif_subjects)]
-        plan = seed.plan_for(curated, examples)
+        plan = curated.plan
         kwargs = {"catalog": catalog, "color_names": (), "tile_scale": curated.tile_scale}
         first = seed._compose_run(plan, motif_ids=motif_ids, **kwargs)
         second = seed._compose_run(plan, motif_ids=motif_ids, **kwargs)

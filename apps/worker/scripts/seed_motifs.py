@@ -16,12 +16,11 @@ import pathlib
 from typing import cast
 
 from db.models.seamless import Motif
-from sqlalchemy import CursorResult, or_, update
+from sqlalchemy import CursorResult, update
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from worker.config import get_settings
 from worker.db import build_engine
 from worker.motifs import store
-from worker.motifs.categories import VOCAB_BY_SUBJECT
 from worker.motifs.normalize import normalize_motif_svg
 
 # 단색(single fill) 벡터 도형 — 각기 다른 geometry라 content-hash id가 서로 다르다.
@@ -466,14 +465,14 @@ _ASSET_DIR = pathlib.Path(__file__).parent / "motif_assets"
 
 
 def _tags_for(subject: str, *extra: str) -> list[str]:
-    """subject + 파일명 토큰 + 한글 동의어 + 카테고리 — 순서 보존 중복 제거."""
-    return list(dict.fromkeys([subject, *extra, *VOCAB_BY_SUBJECT.get(subject, [])]))
+    """subject + 파일명 토큰 — 순서 보존 중복 제거."""
+    return list(dict.fromkeys([subject, *extra]))
 
 
 def _all_seeds() -> list[tuple[str, str, str, list[str], str]]:
     """(subject, style, description, tags, raw_svg) — 인라인 데모 + 에셋 글리프.
 
-    에셋 subject = 파일명 첫 토큰 — `cat-head`·`cat-space`가 검색에서 `cat`으로 잡힌다.
+    에셋 subject = 파일명 첫 토큰(`cat-head`·`cat-space` → `cat`).
     """
     seeds = [(subject, "flat", desc, _tags_for(subject), svg) for subject, desc, svg in _SEEDS]
     seeds += [
@@ -494,7 +493,7 @@ async def seed_motifs() -> tuple[int, int, int]:
     engine = build_engine(settings)
     sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
     inserted = 0
-    retagged = 0
+    renamed = 0
     seeded_ids: list[str] = []
     async with sessionmaker() as session:
         for subject, style, description, tags, svg in _all_seeds():
@@ -512,37 +511,25 @@ async def seed_motifs() -> tuple[int, int, int]:
                 source="seed",
                 status="approved",
             )
-            # upsert는 ON CONFLICT DO NOTHING이라 기존 행 tags·subject를 갱신하지 않는다.
-            # 한글·카테고리 tag 백필과 subject 개명(id는 SVG로 정해져 그대로다)을 위해 시드 행은
-            # 의도값으로 명시 재기록한다(멱등).
-            # 실제로 값이 바뀐 행만 임베딩을 무효화한다 — embedding_document가 tags를 포함하므로
-            # 태그를 고치면 grounding 벡터가 낡는다. NULL은 index_motif_embeddings.py가 채운다.
+            # upsert는 ON CONFLICT DO NOTHING이라 기존 행 subject를 갱신하지 않는다.
+            # subject 개명(id는 SVG로 정해져 그대로다)을 위해 시드 행은 의도값으로 재기록한다(멱등).
             result = cast(
                 CursorResult,
                 await session.execute(
                     update(Motif)
-                    .where(
-                        Motif.id == normalized.id,
-                        or_(
-                            Motif.tags.is_distinct_from(tags),
-                            Motif.subject.is_distinct_from(subject),
-                        ),
-                    )
-                    .values(tags=tags, subject=subject, embedding_openai=None)
+                    .where(Motif.id == normalized.id, Motif.subject.is_distinct_from(subject))
+                    .values(subject=subject)
                 ),
             )
-            retagged += result.rowcount
+            renamed += result.rowcount
             seeded_ids.append(normalized.id)
             inserted += 1
         pruned = await store.prune_stale_seeds(session, seeded_ids)
         await session.commit()
     await engine.dispose()
-    return inserted, retagged, pruned
+    return inserted, renamed, pruned
 
 
 if __name__ == "__main__":
-    count, retagged, pruned = asyncio.run(seed_motifs())
-    print(f"seeded {count} motifs, retagged {retagged}, pruned {pruned} stale (idempotent)")
-    # 재기록된 행은 임베딩이 지워졌다 — 다시 인덱싱하지 않으면 grounding 벡터가 빈다.
-    if retagged:
-        print("→ run: uv run python apps/worker/scripts/index_motif_embeddings.py --confirm-live")
+    count, renamed, pruned = asyncio.run(seed_motifs())
+    print(f"seeded {count} motifs, renamed {renamed}, pruned {pruned} stale (idempotent)")

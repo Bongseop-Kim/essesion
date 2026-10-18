@@ -76,7 +76,6 @@ jobs:
         run: |
           gcloud run deploy api --region "$REGION" --image "$IMAGE_BASE/api:$DEPLOY_SHA"
           gcloud run deploy worker-generate --region "$REGION" --image "$IMAGE_BASE/worker:$DEPLOY_SHA"
-          gcloud run deploy worker-finalize --region "$REGION" --image "$IMAGE_BASE/worker:$DEPLOY_SHA"
       - name: Resolve and validate API origin
         id: api-origin
         run: |

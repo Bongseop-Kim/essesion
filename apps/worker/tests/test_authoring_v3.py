@@ -1,14 +1,15 @@
-"""Plan v3 contract, compiler golden, and starter-manifest tests."""
+"""Plan v3 contract and compiler golden tests (worker-engine.md §10)."""
 
 from __future__ import annotations
 
 import json
+from functools import cache
 from pathlib import Path
+from typing import NamedTuple
 
 import pytest
 from pydantic import ValidationError
 from worker.authoring.compiler import PlanCompileError, compile_design_plan_v3
-from worker.authoring.examples import _validate_example_set, load_example_set
 from worker.authoring.schema import (
     DesignPlanV3,
     LatticePlacementPlan,
@@ -21,6 +22,21 @@ from worker.engine.placement import scatter_target_count
 from worker.engine.validate import validate_intent
 
 GOLDEN_DIR = Path(__file__).parent / "golden/json"
+# 컴파일러 회귀 입력 — 옛 저작 starter(gallery-v1)의 플랜만 남긴 것. 기대값은 GOLDEN_DIR.
+PLANS_PATH = Path(__file__).parent / "golden/plans.json"
+
+
+class _Example(NamedTuple):
+    example_id: str
+    plan: DesignPlanV3
+
+
+@cache
+def load_example_set() -> tuple[_Example, ...]:
+    raw = json.loads(PLANS_PATH.read_text(encoding="utf-8"))
+    return tuple(
+        _Example(item["example_id"], DesignPlanV3.model_validate(item["plan"])) for item in raw
+    )
 
 
 def _golden(example) -> dict:  # noqa: ANN001
@@ -97,32 +113,13 @@ def _input_plan() -> DesignPlanV3:
     )
 
 
-def test_gallery_v1_is_reviewable_and_golden_filenames_follow_the_id_convention():
+def test_golden_filenames_follow_the_id_convention():
     examples = load_example_set()
 
     assert examples
-    assert {example.family for example in examples} == {
-        "solid",
-        "stripe",
-        "lattice",
-        "scatter",
-        "path",
-        "point_set",
-        "stripe_motif",
-        "multi_motif",
-    }
     for example in examples:
         golden_path = GOLDEN_DIR / f"{example.example_id.removeprefix('gallery_')}.json"
         assert golden_path.is_file()
-        assert example.prompt_example()["plan"] == example.plan.model_dump(mode="json")
-
-
-def test_starter_loader_accepts_a_smaller_curated_set():
-    raw = [example.model_dump(mode="json") for example in load_example_set()[:2]]
-
-    assert [example.example_id for example in _validate_example_set(raw)] == [
-        item["example_id"] for item in raw
-    ]
 
 
 def test_all_gallery_plans_compile_deterministically_to_valid_engine_intents():

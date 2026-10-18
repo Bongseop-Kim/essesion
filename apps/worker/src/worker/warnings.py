@@ -1,6 +1,6 @@
 """엔진 경고 → 고객 문구.
 
-엔진·리졸버·렌더는 진단용 영문 문자열을 남긴다(로그·admin의 정본). 응답에는 코드와 한글
+엔진·렌더는 진단용 영문 문자열을 남긴다(로그·admin의 정본). 응답에는 코드와 한글
 한 줄만 함께 내려, 프론트가 그대로 노출할 수 있게 한다. 매핑에 없는 코드는 내려보내지
 않는다 — 고객이 읽을 문구가 없는 경고는 로그에만 남는다.
 
@@ -12,24 +12,17 @@
 from __future__ import annotations
 
 # ponytail: 경계에서 문자열을 분류한다. 엔진이 (코드, 상세)를 직접 내도록 바꾸는 편이
-# 정공법이지만 validate·constraints·resolver·render 전부를 건드려야 한다 — 경고 종류가
+# 정공법이지만 validate·constraints·render 전부를 건드려야 한다 — 경고 종류가
 # 늘어 이 표가 흔들리면 그때 옮긴다.
 _CODES: tuple[tuple[str, str], ...] = (
     ("outside CMYK gamut", "color_out_of_gamut"),
     (" dropped", "motif_dropped"),
-    ("has no visible slot", "named_color_unplaced"),
-    ("grounded only approximately", "motif_approximate_match"),
     ("staggered axis count", "stagger_density_adjusted"),
 )
 
 WARNING_MESSAGES: dict[str, str] = {
     "color_out_of_gamut": "이 색은 실제 인쇄에서 조금 다르게 보일 수 있어요.",
     "motif_dropped": "쓸 수 없는 무늬가 있어 그 부분은 빼고 만들었어요.",
-    "named_color_unplaced": "요청한 색 중 일부는 넣을 자리가 없어 빼고 만들었어요.",
-    "motif_approximate_match": (
-        "요청하신 그림과 꼭 맞는 무늬가 없어 비슷한 그림으로 만들었어요. "
-        "왼쪽 모티프에서 바꿀 수 있어요."
-    ),
     "stagger_density_adjusted": (
         "엇갈림 배치는 줄 수가 짝수여야 이어져서 무늬 간격을 조금 촘촘하게 맞췄어요."
     ),

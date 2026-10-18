@@ -1,8 +1,7 @@
-"""모티프 영속 계층 — async SQLAlchemy over `motifs` (pgvector) (worker-motifs.md §1·§5).
+"""모티프 영속 계층 — async SQLAlchemy over `motifs` (worker-motifs.md §1).
 
 프로세스-로컬 in-memory 레지스트리는 두지 않는다(ARCHITECTURE §6): 요청 세션이 진실의
-원천이고, content-hash PK + ON CONFLICT DO NOTHING이 곧 멱등성이다. 검색·저장 양쪽에서
-facet 정규화(NFC+strip+casefold)를 동일하게 적용한다.
+원천이고, content-hash PK + ON CONFLICT DO NOTHING이 곧 멱등성이다.
 """
 
 from __future__ import annotations
@@ -10,8 +9,7 @@ from __future__ import annotations
 import unicodedata
 import uuid
 from collections.abc import Iterable
-from dataclasses import dataclass
-from typing import Any, cast
+from typing import cast
 
 from db.models.design import (
     DesignSession,
@@ -19,8 +17,8 @@ from db.models.design import (
     DesignTurnAttachment,
     UserMotif,
 )
-from db.models.seamless import EMBEDDING_DIM, Motif
-from sqlalchemy import CursorResult, Text, delete, exists, func, or_, select, update
+from db.models.seamless import Motif
+from sqlalchemy import CursorResult, Text, delete, exists, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,48 +36,6 @@ def normalize_facet(value: str | None) -> str:
     return unicodedata.normalize("NFC", value).strip().casefold()
 
 
-def embedding_document(
-    *,
-    subject: str | None = None,
-    description: str | None = None,
-    style: str | None = None,
-    tags: Iterable[str] = (),
-) -> str:
-    """검색·초기 인덱싱이 공유하는 임베딩 문서. scope는 의미 검색에서 제외한다."""
-    segments = [subject, description, style, *tags]
-    return ", ".join(value.strip() for value in segments if value and value.strip())
-
-
-@dataclass(frozen=True)
-class MotifMeta:
-    """symbol/embedding 없는 공개 검색 후보."""
-
-    id: str
-    subject: str | None
-    scope: str | None
-    style: str | None
-    description: str | None
-    tags: tuple[str, ...] = ()
-    source: str | None = None
-
-
-@dataclass(frozen=True)
-class MotifMatch:
-    """임베딩 코사인 최근접 결과."""
-
-    id: str
-    similarity: float
-
-
-@dataclass(frozen=True)
-class MotifEmbeddingDocument:
-    id: str
-    subject: str | None
-    description: str | None
-    style: str | None
-    tags: tuple[str, ...]
-
-
 def _bbox_tuple(value: object) -> BBox:
     seq = list(value) if isinstance(value, (list, tuple)) else [-0.5, -0.5, 0.5, 0.5]
     return (float(seq[0]), float(seq[1]), float(seq[2]), float(seq[3]))
@@ -95,7 +51,6 @@ async def upsert_motif(
     normalized: NormalizedMotif,
     *,
     facets: dict,
-    embedding: list[float] | None = None,
     source: str,
     status: str = "pending",
     ingested_user_id: uuid.UUID | None = None,
@@ -108,12 +63,6 @@ async def upsert_motif(
     geometry/facet/provenance/status는 절대 덮지 않는다.
     """
     scope = normalize_facet(facets.get("scope")) or None
-    if embedding is not None and len(embedding) != EMBEDDING_DIM:
-        raise ValueError(f"embedding dimension must be {EMBEDDING_DIM}, got {len(embedding)}")
-    # 승인 전 행에 embedding을 남기면 승인 후 인덱서(missing_embedding_documents)가 건너뛰어
-    # RETRIEVAL_DOCUMENT 임베딩을 영영 못 받는다 — embedding은 approved 행만 가진다.
-    if status != APPROVED_STATUS:
-        embedding = None
     values = {
         "id": normalized.id,
         "symbol": normalized.symbol,
@@ -128,7 +77,6 @@ async def upsert_motif(
         "tags": list(facets.get("tags") or []),
         "source": source,
         "status": status,
-        "embedding_openai": embedding,
     }
     await session.execute(
         pg_insert(Motif).values(**values).on_conflict_do_nothing(index_elements=["id"])
@@ -150,201 +98,6 @@ async def get_motifs(session: AsyncSession, ids: Iterable[str]) -> dict[str, Mot
         )
         for row in rows
     }
-
-
-async def get_motif_meta(session: AsyncSession, ids: Iterable[str]) -> dict[str, MotifMeta]:
-    """id 집합 → {id: MotifMeta} — subject/description만, symbol/embedding 없이.
-
-    patch 저작이 모티프에 "이름"으로만 접근하도록 넘기는 읽기 전용 맥락용이라
-    `get_motifs`(symbol 포함)와 별도다. source·status로 거르지 않는다 — user_upload를
-    포함해 현재 intent가 실제로 참조하는 모티프라면 전부 대상이다.
-    """
-    id_list = list(dict.fromkeys(ids))
-    if not id_list:
-        return {}
-    rows = (
-        await session.execute(
-            select(
-                Motif.id,
-                Motif.subject,
-                Motif.scope,
-                Motif.style,
-                Motif.description,
-                Motif.tags,
-                Motif.source,
-            ).where(Motif.id.in_(id_list))
-        )
-    ).all()
-    return {
-        row[0]: MotifMeta(
-            id=row[0],
-            subject=row[1],
-            scope=row[2],
-            style=row[3],
-            description=row[4],
-            tags=tuple(row[5] or ()),
-            source=row[6],
-        )
-        for row in rows
-    }
-
-
-async def find_catalog(session: AsyncSession) -> list[MotifMeta]:
-    """공개 카탈로그 전체를 ID 순으로 반환한다. scope는 검색 필터가 아니다."""
-    rows = (
-        await session.execute(
-            select(
-                Motif.id,
-                Motif.subject,
-                Motif.scope,
-                Motif.style,
-                Motif.description,
-                Motif.tags,
-                Motif.source,
-            )
-            .where(
-                Motif.source != USER_UPLOAD_SOURCE,
-                Motif.status == APPROVED_STATUS,
-            )
-            .order_by(Motif.id)
-        )
-    ).all()
-    return [
-        MotifMeta(
-            id=row[0],
-            subject=row[1],
-            scope=row[2],
-            style=row[3],
-            description=row[4],
-            tags=tuple(row[5] or ()),
-            source=row[6],
-        )
-        for row in rows
-    ]
-
-
-async def nearest_by_embedding(
-    session: AsyncSession, vec: list[float], *, top_k: int = 1
-) -> list[MotifMatch]:
-    """공개 카탈로그 코사인 최근접 top-k. 동점은 lowest ID, NULL은 제외한다."""
-    if len(vec) != EMBEDDING_DIM:
-        raise ValueError(f"embedding dimension must be {EMBEDDING_DIM}, got {len(vec)}")
-    column = Motif.embedding_openai
-    distance = column.cosine_distance(vec)
-    rows = (
-        await session.execute(
-            select(Motif.id, distance.label("distance"))
-            .where(
-                column.is_not(None),
-                Motif.source != USER_UPLOAD_SOURCE,
-                Motif.status == APPROVED_STATUS,
-            )
-            .order_by(distance.asc(), Motif.id.asc())
-            .limit(top_k)
-        )
-    ).all()
-    return [MotifMatch(id=row[0], similarity=1.0 - float(row[1])) for row in rows]
-
-
-async def missing_embedding_documents(session: AsyncSession) -> list[MotifEmbeddingDocument]:
-    """인덱싱되지 않은 공개 모티프를 안정 순서로 읽는다."""
-    rows = (
-        await session.execute(
-            select(
-                Motif.id,
-                Motif.subject,
-                Motif.description,
-                Motif.style,
-                Motif.tags,
-            )
-            .where(
-                Motif.source != USER_UPLOAD_SOURCE,
-                Motif.status == APPROVED_STATUS,
-                Motif.embedding_openai.is_(None),
-            )
-            .order_by(Motif.id)
-        )
-    ).all()
-    return [
-        MotifEmbeddingDocument(
-            id=row[0],
-            subject=row[1],
-            description=row[2],
-            style=row[3],
-            tags=tuple(row[4] or ()),
-        )
-        for row in rows
-    ]
-
-
-async def missing_tagging_documents(session: AsyncSession) -> list[Motif]:
-    """설명이 없는 공개 계열 모티프를 안정 순서로 읽는다(user_upload 제외)."""
-    return list(
-        await session.scalars(
-            select(Motif)
-            .where(Motif.source != USER_UPLOAD_SOURCE, Motif.description.is_(None))
-            .order_by(Motif.id)
-        )
-    )
-
-
-async def update_tags_if_missing(
-    session: AsyncSession,
-    motif_id: str,
-    *,
-    description: str,
-    tags: Iterable[str],
-    style: str,
-) -> bool:
-    """태깅 미완료 공개 계열 행만 갱신하고 기존 검색 임베딩을 무효화한다."""
-    result = await session.execute(
-        update(Motif)
-        .where(
-            Motif.id == motif_id,
-            Motif.source != USER_UPLOAD_SOURCE,
-            Motif.description.is_(None),
-        )
-        .values(
-            description=description,
-            tags=list(tags),
-            style=style,
-            embedding_openai=None,
-        )
-    )
-    return bool(cast("CursorResult[Any]", result).rowcount)
-
-
-async def update_embedding_if_missing(
-    session: AsyncSession, motif_id: str, embedding: list[float]
-) -> bool:
-    """공개 NULL 행만 갱신한다. 재실행과 동시 인덱싱 모두 멱등이다."""
-    result = await session.execute(
-        update(Motif)
-        .where(
-            Motif.id == motif_id,
-            Motif.source != USER_UPLOAD_SOURCE,
-            Motif.status == APPROVED_STATUS,
-            Motif.embedding_openai.is_(None),
-        )
-        .values(embedding_openai=embedding)
-    )
-    return bool(cast("CursorResult[Any]", result).rowcount)
-
-
-async def public_embedding_counts(session: AsyncSession) -> tuple[int, int]:
-    """(embedded, total) 공개 카탈로그 적재 상태."""
-    embedded, total = (
-        await session.execute(
-            select(
-                func.count().filter(Motif.embedding_openai.is_not(None)),
-                func.count(),
-            ).where(
-                Motif.source != USER_UPLOAD_SOURCE,
-                Motif.status == APPROVED_STATUS,
-            )
-        )
-    ).one()
-    return int(embedded), int(total)
 
 
 async def approved_motif_ids(session: AsyncSession) -> list[str]:
@@ -399,14 +152,3 @@ async def prune_stale_seeds(session: AsyncSession, seeded_ids: Iterable[str]) ->
         ),
     )
     return result.rowcount
-
-
-def facets_from_spec(spec: dict) -> dict:
-    """spec dict → upsert용 facet dict (subject/scope 정규화, 나머지는 원문)."""
-    return {
-        "subject": normalize_facet(spec.get("subject")) or None,
-        "scope": normalize_facet(spec.get("scope")) or None,
-        "style": spec.get("style"),
-        "description": spec.get("description"),
-        "tags": spec.get("tags") or [],
-    }

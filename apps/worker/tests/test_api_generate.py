@@ -12,7 +12,6 @@ import asyncio
 import base64
 import hashlib
 import io
-import json
 import random
 from contextlib import asynccontextmanager
 
@@ -21,14 +20,9 @@ import pytest
 import respx
 from fastapi.testclient import TestClient
 from PIL import Image
-from worker.adapters import Adapters
-from worker.adapters.llm import AuthoredDesign
 from worker.api import routes
-from worker.authoring.retrieval import RetrievalOutcome
 from worker.db import get_session
-from worker.engine.patch import DesignPatchV1
 from worker.main import create_app
-from worker.motifs.registry import get_motif
 from worker.render.raster import RasterError
 from worker.warnings import WARNING_MESSAGES, customer_warnings
 
@@ -90,7 +84,6 @@ class _FakeSession:
 def _configure_app(monkeypatch, *, raster_ok: bool = True):
     app = create_app()
     app.state.object_store = FakeObjectStore()  # lifespan 미실행 — 직접 주입
-    app.state.adapters = Adapters()  # 외부 어댑터 미구성
 
     def _raster(svg, **kwargs):
         if not raster_ok:
@@ -169,8 +162,6 @@ def test_customer_warnings_maps_every_code_once_in_diagnostic_order():
         "widths reduced to keep the background visible",
         "motif size 9.0mm (lattice cell 8.0mm)",
         "another color is outside CMYK gamut",  # 중복 코드는 첫 건만
-        "named color ivory has no visible slot",
-        "motif flower grounded only approximately (similarity 0.4652 < 0.55)",
         "engine did something unmapped",  # 문구 없는 진단은 내려보내지 않는다
     ]
 
@@ -179,8 +170,6 @@ def test_customer_warnings_maps_every_code_once_in_diagnostic_order():
     assert [item["code"] for item in warnings] == [
         "color_out_of_gamut",
         "motif_dropped",
-        "named_color_unplaced",
-        "motif_approximate_match",
     ]
     assert [item["message"] for item in warnings] == [
         WARNING_MESSAGES[item["code"]] for item in warnings
@@ -295,97 +284,6 @@ def test_intent_path_compose_failure_returns_design_invalid(client):
     }
 
 
-def test_prompt_path_compose_failure_returns_design_invalid(monkeypatch):
-    # LLM이 _validate를 통과하는 intent를 반환해도 compose_design이 거부하면 design_invalid.
-    async def fake_candidates(*_args, **_kwargs):
-        return []
-
-    class GroundedLLM:
-        async def author_design(self, _prompt, **_kwargs):
-            return AuthoredDesign(intent=mvp_intent())
-
-    def broken_compose(*_args, **_kwargs):
-        raise ValueError("composition rejected")
-
-    monkeypatch.setattr(routes, "prompt_catalog_candidates", fake_candidates)
-    app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(llm=GroundedLLM())
-    monkeypatch.setattr(routes, "compose_design", broken_compose)
-
-    resp = TestClient(app).post("/generate", json={"run_id": _RUN_ID, "prompt": "chess pattern"})
-    assert resp.status_code == 422
-    assert resp.json()["detail"] == {
-        "code": "design_invalid",
-        "stage": "design",
-        "message": "the design could not be composed",
-    }
-
-
-def test_unplaceable_named_color_becomes_a_customer_warning(monkeypatch):
-    # 마지막 시도까지 자리를 못 찾은 지명색은 조용히 사라지지 않고 노랑 경고 1건이 된다.
-    async def fake_candidates(*_args, **_kwargs):
-        return []
-
-    class PartialLLM:
-        async def author_design(self, _prompt, **_kwargs):
-            return AuthoredDesign(intent=mvp_intent(), unassigned_named_colors=["ivory"])
-
-    monkeypatch.setattr(routes, "prompt_catalog_candidates", fake_candidates)
-    app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(llm=PartialLLM())
-
-    resp = TestClient(app).post(
-        "/generate", json={"run_id": _RUN_ID, "prompt": "네이비와 아이보리"}
-    )
-
-    assert resp.status_code == 200, resp.text
-    assert [w for w in resp.json()["warnings"] if w["code"] == "named_color_unplaced"]
-
-
-def _prompt_app_with_resolution(monkeypatch, resolution: dict):
-    async def fake_candidates(*_args, **_kwargs):
-        return []
-
-    class GroundedLLM:
-        async def author_design(self, _prompt, **_kwargs):
-            return AuthoredDesign(intent=mvp_intent(), motif_resolutions=[resolution])
-
-    monkeypatch.setattr(routes, "prompt_catalog_candidates", fake_candidates)
-    app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(llm=GroundedLLM())
-    return app
-
-
-def test_approximate_catalog_grounding_becomes_a_customer_warning(monkeypatch):
-    # 카탈로그에 없는 소재("동백꽃")가 이웃(flower)으로 대체된 실제 로그값 — grounding은
-    # 성공으로 끝나 조용히 넘어가던 자리다. 거절하지 않고 경고 1건과 함께 디자인을 준다.
-    app = _prompt_app_with_resolution(
-        monkeypatch,
-        {
-            "layer_id": "motif_0",
-            "scope": "whole",
-            "outcome": "prompt_catalog",
-            "motif_id": "fixture-d78441294bd9",
-            "subject": "flower",
-            "similarity": 0.4652039545088913,
-            "match_type": "embedding",
-        },
-    )
-
-    resp = TestClient(app).post(
-        "/generate",
-        json={"run_id": _RUN_ID, "prompt": "크림색 배경에 동백꽃을 듬성듬성 배치"},
-    )
-
-    assert resp.status_code == 200, resp.text
-    body = resp.json()
-    assert [w["message"] for w in body["warnings"] if w["code"] == "motif_approximate_match"] == [
-        WARNING_MESSAGES["motif_approximate_match"]
-    ]
-    # 경고는 안내다 — 디자인은 그대로 나오고 과금(토큰 차감)도 유지된다.
-    assert body["design"]["svg"]
-
-
 def test_error_response_echoes_request_id_header(client):
     # 의미 오류(422)여도 미들웨어는 X-Request-ID를 응답 헤더로 에코한다.
     intent = mvp_intent()
@@ -435,318 +333,6 @@ def test_request_schema_rejects_unknown_fields(client):
     assert "extra_forbidden" in response.text
 
 
-def test_prompt_only_without_llm_returns_503(client):
-    # prompt 경로는 구현됐지만 LLM 미구성이면 503 — intent 직접 경로는 계속 동작.
-    resp = client.post("/generate", json={"run_id": _RUN_ID, "prompt": "navy paisley tie"})
-    assert resp.status_code == 503
-
-
-def test_prompt_uses_raw_text_catalog_candidates_for_llm_grounding(monkeypatch):
-    captured = {}
-    catalog = [
-        {
-            "catalog_ref": "catalog_1",
-            "motif_id": "seed-chess-king",
-            "subject": "chess",
-            "description": "chess king outline",
-            "style": "outline",
-            "similarity": 1.0,
-            "match_type": "exact_token",
-        }
-    ]
-
-    async def fake_candidates(_session, prompt, *, embedding_client, tau, top_k):
-        captured.update(
-            prompt=prompt,
-            embedding_client=embedding_client,
-            tau=tau,
-            top_k=top_k,
-        )
-        return catalog
-
-    class GroundedLLM:
-        async def author_design(self, _prompt, *, catalog_candidates, **_kwargs):
-            assert catalog_candidates == catalog
-            return AuthoredDesign(intent=mvp_intent())
-
-    monkeypatch.setattr(routes, "prompt_catalog_candidates", fake_candidates)
-    app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(llm=GroundedLLM())
-
-    response = TestClient(app).post(
-        "/generate",
-        json={"run_id": _RUN_ID, "prompt": "chess 패턴 디자인해주세요"},
-    )
-
-    assert response.status_code == 200, response.text
-    assert captured["prompt"] == "chess 패턴 디자인해주세요"
-    assert captured["tau"] == app.state.settings.motif_similarity_tau
-    assert captured["top_k"] == 5
-
-
-def test_prompt_retrieval_error_uses_isolated_session_and_falls_back(monkeypatch):
-    calls: list[str] = []
-    retrieval_session = _FakeSession()
-
-    async def fake_retrieve(session, prompt, **kwargs):
-        assert session is retrieval_session
-        calls.append("retrieve")
-        assert prompt == "대각 스트라이프"
-        assert kwargs["available_motif_count"] == 0
-        return RetrievalOutcome(status="retrieval_error", reason="ProgrammingError")
-
-    class LLM:
-        async def author_design(self, _prompt, *, validate, examples, diagnostics, **_kwargs):
-            calls.append("author")
-            assert examples == []
-            assert diagnostics["example_retrieval_status"] == "retrieval_error"
-            assert diagnostics["example_retrieval_reason"] == "ProgrammingError"
-            intent = mvp_intent()
-            assert validate(intent) is None
-            diagnostics.update(
-                plan_contract_version=3,
-                compiler_revision="design-plan-v3.1",
-                prompt_revision="design-plan-v3-rag-generated-motif-colors",
-            )
-            return AuthoredDesign(
-                intent=intent,
-                structural_fingerprint="layout-v3",
-            )
-
-    monkeypatch.setattr(routes, "retrieve_examples", fake_retrieve)
-    app = _configure_app(monkeypatch)
-
-    app.state.adapters = Adapters(llm=LLM())
-
-    @asynccontextmanager
-    async def _retrieval_sessionmaker():
-        yield retrieval_session
-
-    app.state.sessionmaker = _retrieval_sessionmaker
-
-    response = TestClient(app).post(
-        "/generate", json={"run_id": _RUN_ID, "prompt": "대각 스트라이프"}
-    )
-
-    assert response.status_code == 200, response.text
-    assert calls == ["retrieve", "author"]
-
-
-class _PatchLLM:
-    """author_patch만 구현 — 구성 수정은 모티프 해석·예시 검색을 전혀 타지 않는다."""
-
-    def __init__(self, patch: dict) -> None:
-        self._patch = patch
-        self.snapshots: list[dict] = []
-        self.histories: list[list[dict]] = []
-
-    async def author_patch(self, prompt, *, snapshot, conversation_history=None, diagnostics):
-        self.snapshots.append(snapshot)
-        self.histories.append(list(conversation_history or []))
-        diagnostics["authoring_mode"] = "patch"
-        return DesignPatchV1.model_validate(self._patch)
-
-    async def author_design(self, *_args, **_kwargs):  # pragma: no cover - 호출되면 계약 위반
-        raise AssertionError("composition edits must not re-author a plan")
-
-
-def _patch_request(prompt: str, intent: dict) -> dict:
-    return {
-        "run_id": _RUN_ID,
-        "prompt": prompt,
-        "conversation_context": {
-            "current_intent": intent,
-            "history": [
-                {
-                    "user_prompt": "네이비 스트라이프로 만들어줘",
-                    "assistant_summary": "3색 · 스트라이프",
-                    "attachments": [],
-                }
-            ],
-        },
-    }
-
-
-def test_composition_patch_edits_only_the_requested_axis(monkeypatch):
-    llm = _PatchLLM({"background": {"color": "#F5F0E6"}, "note": "바탕을 밝게 했어요."})
-    app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(llm=llm)
-    intent = mvp_intent()
-
-    response = TestClient(app).post("/generate", json=_patch_request("바탕을 밝게", intent))
-
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["note"] == "바탕을 밝게 했어요."
-    assert body["plan"] is None  # patch 경로는 plan을 다시 저작하지 않는다
-    slots = {slot["id"]: slot["hex"] for slot in body["intent"]["palette"]["slots"]}
-    assert slots["ground"] == "#F5F0E6"
-    # 모티프는 타입상 바뀔 수 없다.
-    assert [
-        layer["params"]["motif_id"]
-        for layer in body["intent"]["layers"]
-        if layer["type"] == "motif"
-    ] == ["circle", "bee"]
-    # 모델에게는 모티프 정체성이 아니라 구성 스냅샷만 간다.
-    assert "circle" not in json.dumps(llm.snapshots[0])
-    assert llm.histories[0][0]["user_prompt"] == "네이비 스트라이프로 만들어줘"
-
-
-def test_out_of_scope_patch_returns_scope_rejected_without_a_design(monkeypatch):
-    llm = _PatchLLM(
-        {
-            "out_of_scope": True,
-            "out_of_scope_reason": "motif_change",
-            "note": "무늬는 여기서 바꿀 수 없어요.",
-        }
-    )
-    app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(llm=llm)
-
-    response = TestClient(app).post(
-        "/generate", json=_patch_request("벌을 나비로 바꿔줘", mvp_intent())
-    )
-
-    assert response.status_code == 200, response.text
-    assert response.json() == {
-        "status": "scope_rejected",
-        "reason": "motif_change",
-        "motif_intent": {
-            "detected": True,
-            "subject": "나비",
-            "reason": "motif_change",
-        },
-    }
-
-
-def test_position_reject_returns_the_reason_code_without_opening_the_picker(monkeypatch):
-    """모티프-줄무늬 상대 위치 요청은 피커로 안내할 게 없다 — 이유 코드만 내려간다."""
-    llm = _PatchLLM(
-        {
-            "out_of_scope": True,
-            "out_of_scope_reason": "motif_position",
-            "note": "무늬 위치는 줄무늬 사이로 옮길 수 없어요.",
-        }
-    )
-    app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(llm=llm)
-
-    response = TestClient(app).post(
-        "/generate", json=_patch_request("벌을 줄무늬 사이로 옮겨줘", mvp_intent())
-    )
-
-    assert response.status_code == 200, response.text
-    assert response.json() == {
-        "status": "scope_rejected",
-        "reason": "motif_position",
-        "motif_intent": None,
-    }
-
-
-def test_patch_that_changes_nothing_is_rejected_as_no_change(monkeypatch):
-    """이미 최소 밀도인데 더 성기게 — 적용 결과가 현재 intent와 같으면 무과금 거절이다."""
-    intent = mvp_intent()
-    # 슬롯 2(bee)의 spacing 24 = tile/2 → count_per_axis 2(최소). 같은 2를 다시 내면 그대로다.
-    llm = _PatchLLM(
-        {
-            "placement": {"slot": 2, "count_per_axis": 2},
-            "note": "이미 가장 드문 간격이라 바꾸지 않았어요.",
-        }
-    )
-    app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(llm=llm)
-
-    response = TestClient(app).post(
-        "/generate", json=_patch_request("모티프를 더 드문드문", intent)
-    )
-
-    assert response.status_code == 200, response.text
-    assert response.json() == {
-        "status": "scope_rejected",
-        "reason": "no_change",
-        "motif_intent": None,
-    }
-
-
-def test_motif_patch_applies_supported_axes_and_returns_picker_signal(monkeypatch):
-    llm = _PatchLLM(
-        {
-            "background": {"color": "#F5F0E6"},
-            "out_of_scope": True,
-            "note": "바탕만 밝게 했어요.",
-        }
-    )
-    app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(llm=llm)
-
-    response = TestClient(app).post(
-        "/generate",
-        json=_patch_request("바탕을 밝게 하고 벌을 나비로 바꿔줘", mvp_intent()),
-    )
-
-    assert response.status_code == 200, response.text
-    body = response.json()
-    slots = {slot["id"]: slot["hex"] for slot in body["intent"]["palette"]["slots"]}
-    assert slots["ground"] == "#F5F0E6"
-    assert body["motif_intent"] == {
-        "detected": True,
-        "subject": "나비",
-        "reason": "motif_change",
-    }
-
-
-def test_composition_patch_rejects_motif_inputs_in_the_contract(monkeypatch):
-    app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(llm=_PatchLLM({"note": "x"}))
-    payload = _patch_request("이 사진처럼", mvp_intent())
-    payload["motif_ids"] = ["circle"]
-
-    response = TestClient(app).post("/generate", json=payload)
-
-    assert response.status_code == 422
-    assert "cannot include motif ids" in response.text
-
-
-def test_generate_accepts_at_most_two_explicit_motifs(monkeypatch):
-    async def render_catalog(_session, _ids):
-        return {"circle": get_motif("circle"), "bee": get_motif("bee")}
-
-    class ExactMotifLLM:
-        async def author_design(
-            self,
-            _prompt,
-            *,
-            validate,
-            motif_ids,
-            **_kwargs,
-        ):
-            assert motif_ids == ["circle", "bee"]
-            intent = mvp_intent()
-            assert validate(intent) is None
-            return AuthoredDesign(intent=intent)
-
-    monkeypatch.setattr(routes, "get_motifs", render_catalog)
-    app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(llm=ExactMotifLLM())
-    client = TestClient(app)
-
-    accepted = client.post("/generate", json={"run_id": _RUN_ID, "motif_ids": ["circle", "bee"]})
-    assert accepted.status_code == 200, accepted.text
-
-    rejected = client.post(
-        "/generate",
-        json={
-            "run_id": _RUN_ID,
-            "motif_ids": [
-                "upload-111111111111",
-                "upload-222222222222",
-                "upload-333333333333",
-            ],
-        },
-    )
-    assert rejected.status_code == 422
-
-
 def test_user_svg_import_is_pure_normalization_response(monkeypatch):
     app = _configure_app(monkeypatch)
     response = TestClient(app).post(
@@ -780,41 +366,6 @@ def test_user_svg_import_maps_defensive_recursion_failure_to_422(monkeypatch):
     )
     assert response.status_code == 422
     assert "nested SVG" in response.text
-
-
-def test_text_preview_import_preserves_normalized_identity(monkeypatch):
-    client = TestClient(_configure_app(monkeypatch))
-    preview = client.post(
-        "/motifs/text-preview",
-        json={
-            "text": "가A1",
-            "font_id": "nanum-gothic",
-            "font_weight": 700,
-            "letter_spacing": 0.1,
-        },
-    )
-    assert preview.status_code == 200, preview.text
-    imported = client.post("/motifs/import", json={"svg": preview.json()["svg"]})
-    repeated = client.post("/motifs/import", json={"svg": preview.json()["svg"]})
-    assert imported.status_code == 200, imported.text
-    assert imported.json()["motif_id"] == repeated.json()["motif_id"]
-    assert imported.json()["preview_svg"] == preview.json()["svg"]
-
-
-def test_text_motif_preview_returns_importable_path_only_svg(monkeypatch):
-    response = TestClient(_configure_app(monkeypatch)).post(
-        "/motifs/text-preview",
-        json={
-            "text": "가A1",
-            "font_id": "nanum-gothic",
-            "font_weight": 700,
-            "letter_spacing": 0.1,
-        },
-    )
-    assert response.status_code == 200, response.text
-    svg = response.json()["svg"]
-    assert "<path" in svg
-    assert "<text" not in svg
 
 
 @respx.mock
@@ -892,57 +443,3 @@ def test_photo_preview_rejection_carries_a_code_for_the_api(monkeypatch):
 
     assert response.status_code == 422, response.text
     assert response.json()["detail"]["code"] == "photo_background_unclear"
-
-
-def test_ideas_endpoint_passes_exact_motif_names_without_starting_generation(monkeypatch):
-    class FakeLLM:
-        def __init__(self):
-            self.calls = []
-
-        async def suggest_ideas(self, prompt, **context):
-            self.calls.append((prompt, context))
-            return ["아이디어 하나", "아이디어 둘", "아이디어 셋"]
-
-    llm = FakeLLM()
-    app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(llm=llm)
-    response = TestClient(app).post(
-        "/ideas",
-        json={
-            "prompt": "차분한 패턴",
-            "motif_ids": ["upload-a1b2c3d4e5f6"],
-            "motifs": [{"motif_id": "upload-a1b2c3d4e5f6", "name": "동백"}],
-            "count": 3,
-        },
-    )
-    assert response.status_code == 200, response.text
-    assert response.json() == {"ideas": ["아이디어 하나", "아이디어 둘", "아이디어 셋"]}
-    prompt, context = llm.calls[0]
-    assert prompt == "차분한 패턴"
-    assert context["motifs"] == [{"motif_id": "upload-a1b2c3d4e5f6", "name": "동백"}]
-
-
-def test_ideas_endpoint_rejects_motif_context_order_mismatch(monkeypatch):
-    response = TestClient(_configure_app(monkeypatch)).post(
-        "/ideas",
-        json={
-            "motif_ids": ["upload-a1b2c3d4e5f6"],
-            "motifs": [{"motif_id": "upload-000000000000", "name": "다른 모티프"}],
-        },
-    )
-    assert response.status_code == 422
-    assert "same order" in response.text
-
-
-def test_generate_rejects_mixing_intent_and_prompt(client):
-    resp = client.post(
-        "/generate",
-        json={
-            "run_id": _RUN_ID,
-            "intent": mvp_intent(),
-            "prompt": "줄무늬를 더 굵게 바꿔줘",
-        },
-    )
-
-    assert resp.status_code == 422
-    assert "intent variation cannot include prompt" in resp.text

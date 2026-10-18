@@ -1,9 +1,9 @@
 """디자인 예시 갤러리 시드 — 스토어 첫 진입 큐레이션(design_examples).
 
 예시는 run(seamless_generation_logs) 포인터만 들고 있으므로(db/models/design.py
-DesignExample) 시드가 할 일은 "run 한 벌을 만들어 두는 것"이다. 여기서는 저작 모델을
-부르지 않고, 이미 레포에 있는 gallery-v1 플랜을 결정론 컴파일러·엔진에 직접 통과시켜
-run을 만든다 — 같은 플랜+모티프+seed면 언제나 같은 SVG라 외부 API도 과금도 없다.
+DesignExample) 시드가 할 일은 "run 한 벌을 만들어 두는 것"이다. 아래 `CURATED`의 템플릿
+플랜(DesignPlanV3)을 결정론 컴파일러·엔진에 통과시켜 run을 만든다 — 같은 플랜+모티프+seed면
+언제나 같은 SVG라 외부 API도 과금도 없다.
 
 모티프는 subject로 카탈로그에서 고른다(content-hash id는 에셋이 바뀌면 달라지므로
 하드코딩하지 않는다). 먼저 `seed_motifs.py`를 돌려야 한다.
@@ -32,7 +32,6 @@ from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from worker.authoring.compiler import DEFAULT_TILE_MM, compile_design_plan_v3
-from worker.authoring.examples import load_example_set
 from worker.authoring.schema import DesignPlanV3, snapshot_resolved_plan
 from worker.config import get_settings
 from worker.db import build_engine
@@ -48,9 +47,9 @@ RUN_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "https://essesion.local/design-ex
 SEED = 20240
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class CuratedExample:
-    """gallery-v1 플랜 하나 + 카탈로그 모티프 선택 + 카드 문구."""
+    """템플릿 플랜 하나 + 카탈로그 모티프 선택 + 카드 문구."""
 
     example_id: str
     name: str
@@ -69,8 +68,7 @@ class CuratedExample:
     # 사용자가 고를 수 있는 부위 이름 — 플랜 `colors` 순서대로(인덱스가 같으면 같은 슬롯).
     # 이름이 붙은 슬롯만 색 고르기 화면에 나온다. 비우면 색을 바꿀 수 없는 템플릿.
     color_names: tuple[str, ...] = field(default=())
-    # gallery-v1에 없는 템플릿 전용 플랜 — 있으면 example_id로 찾지 않는다(저작 few-shot 제외).
-    plan: DesignPlanV3 | None = None
+    plan: DesignPlanV3
     # 배치형(panel) 요소 — intent `panel` 형식(블레이드 프레임, worker-engine.md §2b). 색은 팔레트
     # 슬롯 id(`ground`·`color_<i>`), 모티프는 motif_id 대신 카탈로그 `subject`로 적는다.
     panel: tuple[dict[str, Any], ...] = field(default=())
@@ -1213,10 +1211,6 @@ CURATED: tuple[CuratedExample, ...] = (
 )
 
 
-def plan_for(curated: CuratedExample, examples: dict[str, Any]) -> DesignPlanV3:
-    return curated.plan or examples[curated.example_id].plan
-
-
 async def _resolve_panel(
     session: AsyncSession, panel: tuple[dict[str, Any], ...]
 ) -> list[dict[str, Any]]:
@@ -1318,7 +1312,6 @@ async def _upsert(
     run_id = _run_id(curated.example_id)
     log_values = {
         "id": run_id,
-        # 프롬프트 없는 intent 실행 — 승격 스캔(authoring/promotion.py)의 대상이 아니다.
         "input_type": "intent",
         "prompt": None,
         "colorway": design_log["colorway_id"],
@@ -1366,21 +1359,12 @@ async def _run() -> list[str]:
     settings = get_settings()
     engine = build_engine(settings)
     try:
-        examples = {example.example_id: example for example in load_example_set()}
-        missing = [
-            item.example_id
-            for item in CURATED
-            if item.plan is None and item.example_id not in examples
-        ]
-        if missing:
-            raise SystemExit(f"gallery-v1에 없는 예시입니다: {', '.join(missing)}")
-
         sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
         async with sessionmaker() as session:
             registry_version = await registry_version_for(session)
             seeded: list[str] = []
             for ordinal, curated in enumerate(CURATED):
-                plan = plan_for(curated, examples)
+                plan = curated.plan
                 motif_ids = [
                     await _catalog_motif_id(session, subject) for subject in curated.motif_subjects
                 ]
