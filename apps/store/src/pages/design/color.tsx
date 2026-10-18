@@ -264,6 +264,7 @@ export function DesignColorPage() {
   const examplesQuery = useQuery(designExamplesQueryOptions());
   const [picked, setPicked] = useState<Record<string, string>>({});
   const [view, setView] = useState("worn");
+  const swipeRef = useRef<HTMLDivElement>(null);
   const [logo, setLogo] = useState<Logo | null>(null);
   const [preparing, setPreparing] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
@@ -271,8 +272,6 @@ export function DesignColorPage() {
   // 모바일 전용 — 색 시트 열림, 시트에서 고르는 부위, 숨긴 파일 입력
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetSlot, setSheetSlot] = useState<string | null>(null);
-  // 시트를 열 때의 색 — 취소하면 여기로 되돌린다.
-  const [sheetBase, setSheetBase] = useState<Record<string, string>>({});
   const fileRef = useRef<HTMLInputElement>(null);
   const bp = useBreakpoint();
   const isDesktop = bp === "lg" || bp === "xl";
@@ -443,13 +442,13 @@ export function DesignColorPage() {
     </Chip>
   ));
 
-  // 보기 전환 — 세 보기를 작은 그림으로 세로로 둔다(PC는 미리보기 왼쪽 칸, 모바일은 캔버스 위).
+  // PC 보기 전환 — 세 보기를 작은 그림으로 미리보기 왼쪽 칸에 세로로 둔다(모바일은 캔버스 스와이프).
   const viewThumbs = (
     <VStack
       role="group"
       aria-label="미리보기 방식"
       alignItems="stretch"
-      gap={isDesktop ? "x3" : "x2"}
+      gap="x3"
     >
       {(
         [
@@ -465,7 +464,7 @@ export function DesignColorPage() {
           aria-pressed={view === value}
           onClick={() => setView(value)}
           alignItems="stretch"
-          gap={isDesktop ? "x1_5" : "x0_5"}
+          gap="x1_5"
           className="cursor-pointer rounded-r2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
         >
           <Box
@@ -500,15 +499,7 @@ export function DesignColorPage() {
           </Box>
           <Text
             as="span"
-            textStyle={
-              view === value
-                ? isDesktop
-                  ? "labelSm"
-                  : "captionSm"
-                : isDesktop
-                  ? "caption"
-                  : "captionSm"
-            }
+            textStyle={view === value ? "labelSm" : "caption"}
             color={view === value ? "fg.neutral" : "fg.neutral-muted"}
             align="center"
           >
@@ -550,41 +541,114 @@ export function DesignColorPage() {
         <MobileEditor
           canvas={
             <>
-              {/* 넥타이를 남는 칸에 맞춰 최대로 — 대검(4:5)·매듭(모바일 9:16)은 폭과 높이 중 좁은 쪽에
-                  맞춘다. 전체 보기는 넥타이가 좁아 칸 높이에 맞춰 키운다(양옆 셔츠는 잘림).
-                  전체·매듭은 깃이 캔버스 위에 붙는다(위 여백 없음). */}
-              <Box
-                position="absolute"
-                inset={0}
-                overflow="hidden"
-                display="flex"
-                alignItems={view === "flat" ? "center" : "flex-start"}
-                justifyContent="center"
-                style={{ containerType: "size" }}
-              >
-                <Box
-                  flex="none"
-                  style={{
-                    width:
-                      view === "worn"
-                        ? "80cqh"
-                        : view === "knot"
-                          ? "min(100cqw, 56.25cqh)"
-                          : "min(100cqw, 80cqh)",
+              {/* 보기 전환 — 캔버스를 옆으로 밀어 전체 → 대검 → 매듭(상품 사진 넘기기처럼 캔버스를 가리지 않는다).
+                  넥타이는 칸에 맞춰 최대로 — 대검(4:5)·매듭(9:16)은 폭과 높이 중 좁은 쪽에 맞추고, 전체는
+                  넥타이가 좁아 칸 높이에 맞춰 키운다(양옆 셔츠는 잘림). 전체·매듭은 깃이 캔버스 위에 붙는다. */}
+              <Box position="absolute" inset={0}>
+                <ScrollFog
+                  ref={swipeRef}
+                  size={0}
+                  aria-label="미리보기 — 옆으로 밀어 전체·대검·매듭 보기"
+                  className="snap-x snap-mandatory"
+                  style={{ height: "100%" }}
+                  onScroll={(e) => {
+                    const el = e.currentTarget;
+                    const i = Math.round(el.scrollLeft / el.clientWidth);
+                    const next = MOBILE_VIEWS[i]?.[0];
+                    if (next && next !== view) setView(next);
                   }}
                 >
-                  {view === "flat" ? (
-                    <TemplateTieShot shot={shot} layout={layout} />
-                  ) : view === "knot" ? (
-                    <TemplateKnotTallShot shot={shot} layout={layout} />
-                  ) : (
-                    <TemplateWornShot shot={shot} layout={layout} />
-                  )}
-                </Box>
+                  <HStack gap={0} height="full" alignItems="stretch">
+                    {MOBILE_VIEWS.map(([v, label]) => (
+                      <Box
+                        key={v}
+                        role="group"
+                        aria-label={label}
+                        position="relative"
+                        flex="0 0 100%"
+                        className="snap-center"
+                      >
+                        <Box
+                          position="absolute"
+                          inset={0}
+                          overflow="hidden"
+                          display="flex"
+                          alignItems={v === "flat" ? "center" : "flex-start"}
+                          justifyContent="center"
+                          style={{ containerType: "size" }}
+                        >
+                          <Box
+                            flex="none"
+                            style={{
+                              width:
+                                v === "worn"
+                                  ? "80cqh"
+                                  : v === "knot"
+                                    ? "min(100cqw, 56.25cqh)"
+                                    : "min(100cqw, 80cqh)",
+                            }}
+                          >
+                            {v === "flat" ? (
+                              <TemplateTieShot shot={shot} layout={layout} />
+                            ) : v === "knot" ? (
+                              <TemplateKnotTallShot
+                                shot={shot}
+                                layout={layout}
+                              />
+                            ) : (
+                              <TemplateWornShot shot={shot} layout={layout} />
+                            )}
+                          </Box>
+                        </Box>
+                      </Box>
+                    ))}
+                  </HStack>
+                </ScrollFog>
               </Box>
-              <Box position="absolute" top={0} left={0} p="x3" width={72}>
-                {viewThumbs}
-              </Box>
+              {/* 점 표시 + 지금 보기 이름 — 점을 눌러도 넘어간다. */}
+              <HStack
+                position="absolute"
+                bottom={0}
+                left="50%"
+                gap="x2"
+                px="x2_5"
+                py="x1"
+                mb="x3"
+                borderRadius="full"
+                bg="bg.image-scrim"
+                style={{ transform: "translateX(-50%)" }}
+              >
+                {MOBILE_VIEWS.map(([v, label], i) => (
+                  <Box
+                    key={v}
+                    as="button"
+                    type="button"
+                    aria-label={`${label} 보기`}
+                    aria-pressed={view === v}
+                    onClick={() => {
+                      const el = swipeRef.current;
+                      el?.scrollTo({
+                        left: i * el.clientWidth,
+                        behavior: "smooth",
+                      });
+                    }}
+                    width={view === v ? 16 : 6}
+                    height={6}
+                    borderRadius="full"
+                    bg="bg.layer-default"
+                    className="cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
+                    style={{ opacity: view === v ? 1 : 0.5 }}
+                  />
+                ))}
+                <Text
+                  as="span"
+                  textStyle="captionSm"
+                  color="fg.contrast"
+                  aria-live="polite"
+                >
+                  {MOBILE_VIEWS.find(([v]) => v === view)?.[1]}
+                </Text>
+              </HStack>
               {parts.length > 0 ? (
                 <Box position="absolute" bottom={0} right={0} p="x3">
                   {/* 지금 색을 칠한 동그라미 + 색 계열 링 — Canva의 색 타일·무지개 타일처럼 "색을 바꾸는 곳"으로 읽힌다. */}
@@ -592,10 +656,7 @@ export function DesignColorPage() {
                     as="button"
                     type="button"
                     disabled={busy}
-                    onClick={() => {
-                      setSheetBase(picked);
-                      setSheetOpen(true);
-                    }}
+                    onClick={() => setSheetOpen(true)}
                     gap="x1"
                     className="cursor-pointer rounded-r2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none disabled:opacity-50"
                   >
@@ -687,38 +748,9 @@ export function DesignColorPage() {
         />
         <Modal
           open={sheetOpen}
-          // 닫기·바깥 누르기·취소는 열기 전 색으로 되돌린다. 확인으로 닫은 뒤에도 dialog가
-          // onOpenChange(false)를 다시 부르므로 열려 있을 때만 되돌린다.
-          onOpenChange={(open) => {
-            if (open || !sheetOpen) return;
-            setPicked(sheetBase);
-            setSheetOpen(false);
-          }}
+          // 고른 색은 바로 적용된다 — 닫기·바깥 누르기는 시트만 닫는다.
+          onOpenChange={setSheetOpen}
           title="색상 편집"
-          footer={
-            <HStack gap="x2">
-              <Box
-                as={ActionButton}
-                type="button"
-                variant="neutralOutline"
-                width="full"
-                onClick={() => {
-                  setPicked(sheetBase);
-                  setSheetOpen(false);
-                }}
-              >
-                취소
-              </Box>
-              <Box
-                as={ActionButton}
-                type="button"
-                width="full"
-                onClick={() => setSheetOpen(false)}
-              >
-                확인
-              </Box>
-            </HStack>
-          }
         >
           <ColorSheet
             presets={presetChips}
@@ -852,6 +884,13 @@ export function DesignColorPage() {
     </>
   );
 }
+
+/** 모바일 캔버스 스와이프 순서 — 보기 값과 이름. */
+const MOBILE_VIEWS = [
+  ["worn", "전체"],
+  ["flat", "대검"],
+  ["knot", "매듭"],
+] as const;
 
 /**
  * 모바일 편집 화면 — 넥타이 캔버스가 남는 높이를 다 쓰고, 아래 패널(로고·CTA)이 제 높이만 차지한다.

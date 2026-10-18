@@ -297,21 +297,22 @@ describe("DesignColorPage", () => {
     ).toHaveProperty("value", "#1B2A49");
     // 부위가 하나면 부위 칩 없이 그 부위 견본만.
     expect(within(ground).getAllByRole("radio").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "확인" }));
+    fireEvent.click(screen.getByRole("button", { name: "닫기" }));
 
-    // 다시 열어 바꾼 색은 취소하면 열기 전(네이비 · 골드)으로 돌아간다.
+    // 다시 열어 바꾼 색은 닫아도 그대로 남는다(확인·취소 없음).
     fireEvent.click(screen.getByRole("button", { name: "색상 편집" }));
+    expect(screen.queryByRole("button", { name: "취소" })).toBeNull();
     fireEvent.change(screen.getByRole("textbox", { name: "바탕 색 코드" }), {
       target: { value: "123abc" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "취소" }));
+    fireEvent.click(screen.getByRole("button", { name: "닫기" }));
 
     await uploadLogo();
     fireEvent.click(screen.getByRole("button", { name: /^생성/ }));
     await screen.findByText("결과 job-1");
     expect(api.applyColorway).toHaveBeenCalledWith({
       path: { session_id: "session-1" },
-      body: { colors: { ground: "#1B2A49", color_1: "#C9A24B" } },
+      body: { colors: { ground: "#123ABC", color_1: "#C9A24B" } },
       throwOnError: true,
     });
   });
