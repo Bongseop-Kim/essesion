@@ -87,8 +87,8 @@ export function CustomOrderServiceGuide() {
 
       <Callout
         tone="informative"
-        title="AI 디자인을 주문에 활용할 수 있어요"
-        description="디자인 도구에서 완성한 패턴을 참고 자료로 연결해 제작 의도를 더 정확히 전달해 보세요. 맞춤 제작은 접수 후 원부자재와 공정이 배정되므로 취소·환불이 제한될 수 있습니다."
+        title="꾸민 디자인을 주문에 활용할 수 있어요"
+        description="디자인 도구에서 색·로고를 고르고 바로 주문하면 그 디자인이 참고 이미지로 첨부돼요. 맞춤 제작은 접수 후 원부자재와 공정이 배정되므로 취소·환불이 제한될 수 있습니다."
       />
     </VStack>
   );

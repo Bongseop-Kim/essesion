@@ -57,3 +57,29 @@ export function svgTileStyle(svg: string): CSSProperties {
     backgroundPosition: "0 0",
   };
 }
+
+/** SVG를 PNG 파일로 — 긴 변 `size`px. 주문 참고 이미지로 넘길 때 쓴다(서버 PNG만 받는다). */
+export async function svgToPngFile(
+  svg: string,
+  name: string,
+  size = 2048,
+): Promise<File> {
+  const image = new Image();
+  image.src = svgToDataUri(svg);
+  await image.decode();
+  const ratio =
+    image.naturalWidth > 0 && image.naturalHeight > 0
+      ? image.naturalWidth / image.naturalHeight
+      : 1;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(ratio >= 1 ? size : size * ratio);
+  canvas.height = Math.round(ratio >= 1 ? size / ratio : size);
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("canvas를 쓸 수 없습니다");
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, "image/png"),
+  );
+  if (!blob) throw new Error("PNG로 바꾸지 못했습니다");
+  return new File([blob], name, { type: "image/png" });
+}

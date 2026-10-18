@@ -49,12 +49,9 @@ import { designSessionQueryOptions } from "@/features/design/model/queries";
 import {
   svgTileScale,
   svgToDataUri,
+  svgToPngFile,
 } from "@/features/design/model/svg-preview";
-import { useFinalizeFlow } from "@/features/design/model/use-design-output";
-import {
-  useApplyColorway,
-  usePlaceLogo,
-} from "@/features/design/model/use-steps";
+import { usePlaceLogo } from "@/features/design/model/use-steps";
 import {
   sessionLayout,
   TemplateKnotShot,
@@ -63,11 +60,7 @@ import {
   TemplateTieShot,
   TemplateWornShot,
 } from "@/features/design/ui/template-shots";
-import { resultPath } from "@/pages/design/result";
-import {
-  designExamplesQueryOptions,
-  tokenBalanceQueryOptions,
-} from "@/shared/lib/live-queries";
+import { designExamplesQueryOptions } from "@/shared/lib/live-queries";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
 
@@ -229,7 +222,7 @@ function readPresets(intent: DesignSessionOut["current_intent"]) {
 
 /**
  * 화면 미리보기용 색 치환 — 지금 색의 hex를 고른 hex로 한 번에 바꾼다.
- * 정본은 서버 재렌더(생성 버튼)가 만든다. 같은 hex를 두 슬롯이 쓰면 둘 다 바뀐다(미리보기 한계).
+ * 주문에는 이 결과를 PNG로 넘긴다. 같은 hex를 두 슬롯이 쓰면 둘 다 바뀐다(미리보기 한계).
  */
 function recolorSvg(
   svg: string,
@@ -256,7 +249,7 @@ function sameHex(a: string | undefined, b: string | undefined) {
 /**
  * 색·로고 — 템플릿이 정한 부위마다 색을 고르고(화면은 즉시) 로고를 올린다. 로고는 사진이면 배경을
  * 지우고 벡터로 바꾸고, SVG면 그대로 쓴다. 썸네일은 올린 원본을 그대로 두고 통과/미통과만 알린다.
- * "생성"은 바꾼 색 적용(무료) → 로고를 템플릿 슬롯에 넣기(무료) → 실사화(토큰) 순서로 돌려 결과로 간다.
+ * "바로 주문하기"는 지금 미리보기 디자인을 PNG로 만들어 맞춤 주문의 참고 이미지로 넘긴다.
  */
 export function DesignCustomizePage() {
   const { id = "" } = useParams<{ id: string }>();
@@ -265,13 +258,7 @@ export function DesignCustomizePage() {
   const sessionQuery = useQuery(
     designSessionQueryOptions({ sessionId: id, authenticated }),
   );
-  const apply = useApplyColorway();
   const place = usePlaceLogo();
-  const balanceQuery = useQuery(tokenBalanceQueryOptions(authenticated));
-  const finalize = useFinalizeFlow({
-    sessionId: id,
-    onDone: (job) => navigate(resultPath(id), { state: { job } }),
-  });
   const examplesQuery = useQuery(designExamplesQueryOptions());
   const [picked, setPicked] = useState<Record<string, string>>({});
   // 잉크 번짐 — 견본·추천 배색을 누를 때마다 오른다.
@@ -281,7 +268,7 @@ export function DesignCustomizePage() {
   // 로고 자리마다 마지막으로 올린 로고 — 통과하면 바로 그 자리에 넣어 미리보기가 바뀐다.
   const [logos, setLogos] = useState<Record<string, Logo>>({});
   const [uploading, setUploading] = useState(false);
-  const [applying, setApplying] = useState(false);
+  const [ordering, setOrdering] = useState(false);
   // 모바일 전용 — 색 시트 열림, 시트에서 고르는 부위
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetSlot, setSheetSlot] = useState<string | null>(null);
@@ -314,9 +301,6 @@ export function DesignCustomizePage() {
       return;
     setInk((n) => n + 1);
   };
-  const changed = Object.entries(picked).filter(
-    ([slot, hex]) => !sameHex(current[slot], hex),
-  );
   const baseSvg = session?.preview_svg ?? null;
   const svg = baseSvg && recolorSvg(baseSvg, current, picked);
   // 배치형(panel)도 같은 슬롯 색을 쓴다 — 고른 색을 같이 입힌다.
@@ -324,8 +308,7 @@ export function DesignCustomizePage() {
     session?.preview_panel_svg &&
     recolorSvg(session.preview_panel_svg, current, picked);
 
-  const busy = uploading || applying || finalize.loading;
-  const cost = balanceQuery.data?.finalize_cost ?? null;
+  const busy = uploading || ordering;
   const template = examplesQuery.data?.find(
     (t) => t.id === session?.example_id,
   );
@@ -382,24 +365,20 @@ export function DesignCustomizePage() {
     }
   };
 
-  const generate = async () => {
-    if (!session || !placedAny || busy) return;
-    if (changed.length > 0) {
-      setApplying(true);
-      try {
-        await apply.mutateAsync({
-          sessionId: session.id,
-          colors: Object.fromEntries(changed),
-        });
-        pick({});
-      } catch (cause) {
-        snackbar(designErrorMessage(cause, "디자인을 반영하지 못했습니다."));
-        return;
-      } finally {
-        setApplying(false);
-      }
+  /** 지금 화면 디자인(고른 색 + 넣은 로고)을 PNG로 만들어 맞춤 주문 참고 이미지로 넘긴다. */
+  const order = async () => {
+    if (!svg || !placedAny || busy) return;
+    setOrdering(true);
+    try {
+      const designFiles = await Promise.all([
+        svgToPngFile(svg, "design.png"),
+        ...(panelSvg ? [svgToPngFile(panelSvg, "design-panel.png")] : []),
+      ]);
+      navigate("/custom-order", { state: { designFiles } });
+    } catch {
+      snackbar("디자인을 준비하지 못했습니다.");
+      setOrdering(false);
     }
-    finalize.submit({ productionMethod: "print", weave: "twill-45", dpi: 300 });
   };
 
   if (sessionQuery.isPending) {
@@ -568,16 +547,16 @@ export function DesignCustomizePage() {
     </VStack>
   );
 
-  const generateButton = (
+  const orderButton = (
     <ActionButton
       variant="brandSolid"
       size="large"
       className="w-full"
-      loading={applying || finalize.loading}
+      loading={ordering}
       disabled={!placedAny || busy}
-      onClick={() => void generate()}
+      onClick={() => void order()}
     >
-      {cost !== null ? `생성 · ${cost}토큰` : "생성"}
+      바로 주문하기
     </ActionButton>
   );
 
@@ -846,7 +825,7 @@ export function DesignCustomizePage() {
             <VStack alignItems="stretch" gap="x3">
               {logoRows}
               {placedAny ? (
-                generateButton
+                orderButton
               ) : (
                 <ActionButton
                   variant="brandSolid"
@@ -922,7 +901,7 @@ export function DesignCustomizePage() {
             </Accordion>
           </VStack>
         }
-        actionBar={generateButton}
+        actionBar={orderButton}
       >
         <Grid templateColumns="72px minmax(0, 1fr)" gap="x3" alignItems="start">
           {viewThumbs}

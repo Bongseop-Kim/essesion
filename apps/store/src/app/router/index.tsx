@@ -123,11 +123,10 @@ export const storeRouteObjects = [
             }),
           },
           {
+            // 실사화 결과 화면은 없어졌다 — 옛 링크는 색·로고로
             path: "design/sessions/:id/result",
-            lazy: async () => ({
-              Component: (await import("@/pages/design/result"))
-                .DesignResultPage,
-            }),
+            loader: ({ params }) =>
+              redirect(`/design/sessions/${params.id}/customize`),
           },
           {
             path: "order/order-form",

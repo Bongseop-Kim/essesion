@@ -1,8 +1,4 @@
-import {
-  applyColorway,
-  type DesignLogoSlotOut,
-  placeDesignLogo,
-} from "@essesion/api-client";
+import { type DesignLogoSlotOut, placeDesignLogo } from "@essesion/api-client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { designSessionQueryKey } from "./queries";
@@ -31,30 +27,6 @@ export function usePlaceLogo() {
       await queryClient.invalidateQueries({
         queryKey: designSessionQueryKey(input.sessionId),
       });
-      return data;
-    },
-  });
-}
-
-/** 부위별 색 적용 — 슬롯→hex. colorway만 바꾼 재렌더라 토큰이 들지 않는다. */
-export function useApplyColorway() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (input: {
-      sessionId: string;
-      colors: Record<string, string>;
-    }) => {
-      const { data } = await applyColorway({
-        path: { session_id: input.sessionId },
-        body: { colors: input.colors },
-        throwOnError: true,
-      });
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: designSessionQueryKey(input.sessionId),
-        }),
-      ]);
       return data;
     },
   });

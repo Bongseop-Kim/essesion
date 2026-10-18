@@ -1,8 +1,4 @@
-import {
-  createDesignOrderReference,
-  type GenerationJobOut,
-  type ShippingAddressOut,
-} from "@essesion/api-client";
+import type { ShippingAddressOut } from "@essesion/api-client";
 import {
   createQuoteMutation,
   listAddressesOptions,
@@ -67,7 +63,6 @@ import {
 } from "@/features/custom-order/model/options";
 import { useCustomQuote } from "@/features/custom-order/model/use-custom-quote";
 import { CustomOrderServiceGuide } from "@/features/custom-order/ui/custom-order-service-guide";
-import { DesignPicker } from "@/features/design/ui/design-picker";
 import { InquirySection } from "@/features/inquiry/ui/inquiry-section";
 import { ReviewListSection } from "@/features/reviews/ui/review-list-section";
 import { AddressSelectModal } from "@/features/shipping/ui/address-select-modal";
@@ -123,10 +118,6 @@ function CustomOrderPageContent({
         : restoreCustomOrderFormDraft(draftOwnerId),
     [draftOwnerId],
   );
-  const initialDesigns = useMemo(
-    () => readDesignJobs(location.state),
-    [location.state],
-  );
   const [options, setOptions] = useState<CustomOrderOptions>(
     restored?.draft.options ?? DEFAULT_CUSTOM_ORDER_OPTIONS,
   );
@@ -139,9 +130,11 @@ function CustomOrderPageContent({
     removeFile: removePreviewFile,
   } = useFilePreviews(MAX_IMAGES);
   const files = previewUrls.map(({ file }) => file);
-  const [selectedDesigns, setSelectedDesigns] = useState<GenerationJobOut[]>(
-    () => initialDesigns.slice(0, 1),
-  );
+  // 색·로고 화면의 "바로 주문하기" — 꾸민 디자인 PNG가 참고 이미지로 들어온다.
+  const [designFiles] = useState(() => readDesignFiles(location.state));
+  useEffect(() => {
+    addPreviewFiles(designFiles);
+  }, [designFiles]);
   const [address, setAddress] = useState<ShippingAddressOut | null>(null);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [quoteConfirmOpen, setQuoteConfirmOpen] = useState(false);
@@ -160,21 +153,13 @@ function CustomOrderPageContent({
   const attachmentHintShown = useRef(false);
   const wasQuoteMode = useRef(options.quantity >= 100);
   const attachmentItems = useMemo(
-    () => [
-      ...selectedDesigns.map((job, index) => ({
-        id: `design:${job.id}`,
-        // 썸네일은 넥타이 실사 — 레거시 finalize 행은 result_url로 폴백.
-        // 둘 다 없으면 undefined — ImageFrame 실루엣 폴백(빈 src는 페이지 URL 요청을 유발).
-        src: job.tie_url ?? job.result_url ?? undefined,
-        alt: `AI 완성 디자인 ${index + 1}`,
-      })),
-      ...previewUrls.map(({ id, file, url }) => ({
-        id: `file:${id}`,
+    () =>
+      previewUrls.map(({ id, file, url }) => ({
+        id,
         src: url,
         alt: file.name,
       })),
-    ],
-    [previewUrls, selectedDesigns],
+    [previewUrls],
   );
   const isQuoteMode = options.quantity >= 100;
   const addressesQuery = useQuery({
@@ -283,7 +268,7 @@ function CustomOrderPageContent({
     return true;
   };
 
-  const hasAttachments = files.length > 0 || selectedDesigns.length > 0;
+  const hasAttachments = files.length > 0;
 
   // 로그인으로 흐름이 끊기기 전에 현재 입력을 익명 키에 남긴다 — 로그인 뒤 어느 경로로
   // 돌아와도 /custom-order 진입 시 계정 키로 이관된다. 파일 선택이 차단된 경우
@@ -317,48 +302,11 @@ function CustomOrderPageContent({
     else void submitOrderDraft();
   };
 
-  const uploadOrderImages = async () => {
-    const [uploads, imported] = await Promise.all([
-      Promise.all(files.map((file) => uploadOrderImage(file, "custom_order"))),
-      // 디자인 1개 = 서버 파일 2개(넥타이 실사 + 정본 타일). 첨부 카드는 1개로 유지된다.
-      Promise.all(
-        selectedDesigns.map(async (job) => {
-          const response = await createDesignOrderReference({
-            path: { job_id: job.id },
-            query: { kind: "custom_order" },
-            throwOnError: true,
-          });
-          return response.data.items.map((item) => {
-            if (!item.upload_id)
-              throw new Error(
-                "완성 디자인의 주문 업로드를 확인하지 못했습니다.",
-              );
-            return { upload_id: item.upload_id };
-          });
-        }),
-      ),
-    ]);
-    return [...uploads, ...imported.flat()];
-  };
+  const uploadOrderImages = () =>
+    Promise.all(files.map((file) => uploadOrderImage(file, "custom_order")));
 
-  const uploadQuoteImages = async () => {
-    const [uploads, imported] = await Promise.all([
-      Promise.all(files.map((file) => uploadOrderImage(file, "quote_request"))),
-      Promise.all(
-        selectedDesigns.map(async (job) => {
-          const response = await createDesignOrderReference({
-            path: { job_id: job.id },
-            query: { kind: "quote_request" },
-            throwOnError: true,
-          });
-          return response.data.items.map((item) => ({
-            object_key: item.object_key,
-          }));
-        }),
-      ),
-    ]);
-    return [...uploads, ...imported.flat()];
-  };
+  const uploadQuoteImages = () =>
+    Promise.all(files.map((file) => uploadOrderImage(file, "quote_request")));
 
   const submitOrderDraft = async () => {
     if (!amount || !calculation.isCurrent || submitting) return;
@@ -989,17 +937,6 @@ function CustomOrderPageContent({
               <AttachmentDisplayField
                 label="참고 이미지"
                 description="JPG, PNG, WebP · 파일당 10MB 이하"
-                pickerSlot={
-                  <DesignPicker
-                    selected={selectedDesigns[0] ?? null}
-                    onChange={(job) => setSelectedDesigns(job ? [job] : [])}
-                    disabled={
-                      submitting ||
-                      (selectedDesigns.length === 0 &&
-                        files.length >= MAX_IMAGES)
-                    }
-                  />
-                }
                 items={attachmentItems}
                 previewable
                 max={MAX_IMAGES}
@@ -1009,19 +946,9 @@ function CustomOrderPageContent({
                     saveDraftBeforeLogin(selected.length > 0);
                     return;
                   }
-                  addPreviewFiles(selected, selectedDesigns.length);
+                  addPreviewFiles(selected);
                 }}
-                onRemove={(id) => {
-                  if (id.startsWith("design:")) {
-                    const jobId = id.slice("design:".length);
-                    setSelectedDesigns((current) =>
-                      current.filter((job) => job.id !== jobId),
-                    );
-                    return;
-                  }
-                  const fileId = id.slice("file:".length);
-                  removePreviewFile(fileId);
-                }}
+                onRemove={removePreviewFile}
               />
               <TextAreaField
                 label="추가 요청사항"
@@ -1108,21 +1035,12 @@ function focusSection(section: CustomOrderSectionId) {
     ?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function readDesignJobs(state: unknown): GenerationJobOut[] {
-  if (!hasStateKey(state, "designJobs")) return [];
-  const jobs = state.designJobs;
-  if (!Array.isArray(jobs)) return [];
-  return jobs.filter((job): job is GenerationJobOut => {
-    if (!job || typeof job !== "object") return false;
-    const value = job as Record<string, unknown>;
-    return (
-      typeof value.id === "string" &&
-      value.kind === "finalize" &&
-      value.status === "succeeded" &&
-      typeof value.created_at === "string" &&
-      (value.result_url === null || typeof value.result_url === "string")
-    );
-  });
+function readDesignFiles(state: unknown): File[] {
+  if (!hasStateKey(state, "designFiles")) return [];
+  const files = state.designFiles;
+  return Array.isArray(files)
+    ? files.filter((file): file is File => file instanceof File)
+    : [];
 }
 
 function productionPeriod(options: CustomOrderOptions) {
