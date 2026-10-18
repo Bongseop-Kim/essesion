@@ -20,6 +20,8 @@ const api = vi.hoisted(() => ({
   finalize: vi.fn(),
 }));
 const ui = vi.hoisted(() => ({ snackbar: vi.fn() }));
+// useBreakpoint는 matchMedia 결과를 모듈에 캐시한다 — 폭은 이 값을 읽는 getter로 바꾼다.
+const screenSize = { desktop: true };
 
 const SESSION = {
   id: "session-1",
@@ -152,8 +154,36 @@ describe("DesignColorPage", () => {
         });
       };
     }
+    screenSize.desktop = true;
+    // 모바일 색상 편집 시트(Modal)가 쓴다 — jsdom의 dialog에는 없다.
+    Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
+      configurable: true,
+      value(this: HTMLDialogElement) {
+        this.setAttribute("open", "");
+      },
+    });
+    Object.defineProperty(HTMLDialogElement.prototype, "close", {
+      configurable: true,
+      value(this: HTMLDialogElement) {
+        this.removeAttribute("open");
+      },
+    });
+    // 모바일 배색·계열 줄의 ScrollFog가 쓴다 — jsdom에는 없다.
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
     vi.stubGlobal("matchMedia", (query: string) => ({
-      matches: query.includes("prefers-reduced-motion"),
+      get matches() {
+        return (
+          query.includes("prefers-reduced-motion") ||
+          (screenSize.desktop && query.includes("min-width"))
+        );
+      },
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
     }));
@@ -247,5 +277,42 @@ describe("DesignColorPage", () => {
     await screen.findByText("결과 job-1");
     expect(api.applyColorway).not.toHaveBeenCalled();
     expect(api.placeLogo).toHaveBeenCalled();
+  });
+
+  it("모바일은 로고 올리기가 주 버튼이고, 통과하면 같은 자리에서 생성한다", async () => {
+    screenSize.desktop = false;
+    renderPage();
+
+    // 로고 전에는 생성 버튼 대신 로고 올리기, 색 견본은 시트를 열어야 보인다.
+    await screen.findByRole("button", { name: "로고 올리기" });
+    expect(screen.queryByRole("button", { name: /^생성/ })).toBeNull();
+    expect(screen.queryByRole("radiogroup", { name: "바탕 색" })).toBeNull();
+
+    // 추천 배색과 견본은 색상 편집 시트 안에 있다.
+    fireEvent.click(screen.getByRole("button", { name: "색상 편집" }));
+    fireEvent.click(screen.getByRole("button", { name: "네이비 · 골드" }));
+    const ground = screen.getByRole("radiogroup", { name: "바탕 색" });
+    expect(
+      screen.getByRole("textbox", { name: "바탕 색 코드" }),
+    ).toHaveProperty("value", "#1B2A49");
+    // 부위가 하나면 부위 칩 없이 그 부위 견본만.
+    expect(within(ground).getAllByRole("radio").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "확인" }));
+
+    // 다시 열어 바꾼 색은 취소하면 열기 전(네이비 · 골드)으로 돌아간다.
+    fireEvent.click(screen.getByRole("button", { name: "색상 편집" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "바탕 색 코드" }), {
+      target: { value: "123abc" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "취소" }));
+
+    await uploadLogo();
+    fireEvent.click(screen.getByRole("button", { name: /^생성/ }));
+    await screen.findByText("결과 job-1");
+    expect(api.applyColorway).toHaveBeenCalledWith({
+      path: { session_id: "session-1" },
+      body: { colors: { ground: "#1B2A49", color_1: "#C9A24B" } },
+      throwOnError: true,
+    });
   });
 });

@@ -12,15 +12,25 @@ import {
   Grid,
   HStack,
   Icon,
+  ImageFrame,
+  Modal,
+  ScrollFog,
   Skeleton,
   snackbar,
   Text,
   TextField,
+  useBreakpoint,
   VStack,
 } from "@essesion/shared";
 import { EyeDropperIcon } from "@heroicons/react/24/outline";
 import { useQuery } from "@tanstack/react-query";
-import { type ChangeEvent, useMemo, useState } from "react";
+import {
+  type ChangeEvent,
+  type ReactNode,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate, useParams } from "react-router";
 
 import {
@@ -44,6 +54,7 @@ import {
 import {
   sessionLayout,
   TemplateKnotShot,
+  TemplateKnotTallShot,
   type TemplateShot,
   TemplateTieShot,
   TemplateWornShot,
@@ -140,6 +151,11 @@ const FAMILIES = FAMILY_HUES.map(({ name, hues }) => ({
     [14, 24, 34, 46, 58, 70, 82, 92].map((l) => hslHex(h, s, l)),
   ),
 }));
+
+/** 색상 편집 버튼의 링 — 계열 대표색을 한 바퀴 두른다(색을 바꾸는 곳이라는 표시). */
+const FAMILY_RING = `conic-gradient(${[...FAMILIES.slice(1), FAMILIES[1]]
+  .map((family) => family?.swatches[4])
+  .join(", ")})`;
 
 function rgb(hex: string) {
   const n = Number.parseInt(hex.slice(1), 16);
@@ -252,6 +268,14 @@ export function DesignColorPage() {
   const [preparing, setPreparing] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
+  // 모바일 전용 — 색 시트 열림, 시트에서 고르는 부위, 숨긴 파일 입력
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetSlot, setSheetSlot] = useState<string | null>(null);
+  // 시트를 열 때의 색 — 취소하면 여기로 되돌린다.
+  const [sheetBase, setSheetBase] = useState<Record<string, string>>({});
+  const fileRef = useRef<HTMLInputElement>(null);
+  const bp = useBreakpoint();
+  const isDesktop = bp === "lg" || bp === "xl";
 
   const session = sessionQuery.data;
   const intent = session?.current_intent ?? null;
@@ -379,6 +403,352 @@ export function DesignColorPage() {
     examplesQuery.data?.find((t) => t.id === session.example_id),
   );
 
+  const choosePreset = (preset: Colorway) =>
+    setPicked(
+      Object.fromEntries(
+        parts.flatMap((part) => {
+          const hex = preset.mapping[part.slot];
+          return hex ? [[part.slot, hex] as const] : [];
+        }),
+      ),
+    );
+  const presetChips = presets.map((preset) => (
+    <Chip
+      key={preset.id}
+      size="small"
+      variant="outline"
+      disabled={busy}
+      selected={parts.every((part) =>
+        sameHex(value(part.slot), preset.mapping[part.slot]),
+      )}
+      onClick={() => choosePreset(preset)}
+      className="shrink-0"
+      prefix={
+        <HStack gap="x0_5" aria-hidden>
+          {parts.map((part) => (
+            <Box
+              key={part.slot}
+              width={14}
+              height={14}
+              borderRadius="full"
+              borderWidth={1}
+              borderColor="stroke.neutral-weak"
+              style={{ background: preset.mapping[part.slot] }}
+            />
+          ))}
+        </HStack>
+      }
+    >
+      {preset.name}
+    </Chip>
+  ));
+
+  // 보기 전환 — 세 보기를 작은 그림으로 세로로 둔다(PC는 미리보기 왼쪽 칸, 모바일은 캔버스 위).
+  const viewThumbs = (
+    <VStack
+      role="group"
+      aria-label="미리보기 방식"
+      alignItems="stretch"
+      gap={isDesktop ? "x3" : "x2"}
+    >
+      {(
+        [
+          ["worn", "전체", TemplateWornShot, 1.8],
+          ["flat", "대검", TemplateTieShot, 1],
+          ["knot", "매듭", TemplateKnotShot, 1],
+        ] as const
+      ).map(([value, label, Thumb, zoom]) => (
+        <VStack
+          key={value}
+          as="button"
+          type="button"
+          aria-pressed={view === value}
+          onClick={() => setView(value)}
+          alignItems="stretch"
+          gap={isDesktop ? "x1_5" : "x0_5"}
+          className="cursor-pointer rounded-r2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
+        >
+          <Box
+            borderRadius="r2"
+            overflow="hidden"
+            bg="bg.layer-default"
+            borderWidth={view === value ? 2 : 1}
+            borderColor={
+              view === value ? "stroke.neutral" : "stroke.neutral-weak"
+            }
+          >
+            {/* TieCanvas 안쪽 여백(x6)은 고정 px라 작은 칸에선 넥타이가 작아진다 — 4배로 그려
+                줄이고, 전체는 깃·매듭 쪽을 더 키운다. */}
+            <Box
+              position="relative"
+              overflow="hidden"
+              style={{ aspectRatio: "4 / 5" }}
+            >
+              <Box
+                position="absolute"
+                top={0}
+                style={{
+                  left: "-150%",
+                  width: "400%",
+                  transform: `scale(${0.25 * zoom})`,
+                  transformOrigin: "50% 0",
+                }}
+              >
+                <Thumb shot={shot} layout={layout} />
+              </Box>
+            </Box>
+          </Box>
+          <Text
+            as="span"
+            textStyle={
+              view === value
+                ? isDesktop
+                  ? "labelSm"
+                  : "captionSm"
+                : isDesktop
+                  ? "caption"
+                  : "captionSm"
+            }
+            color={view === value ? "fg.neutral" : "fg.neutral-muted"}
+            align="center"
+          >
+            {label}
+          </Text>
+        </VStack>
+      ))}
+    </VStack>
+  );
+
+  const generateButton = (
+    <ActionButton
+      variant="brandSolid"
+      size="large"
+      className="w-full"
+      loading={placing || finalize.loading}
+      disabled={!logo?.svg || busy}
+      onClick={() => void generate()}
+    >
+      {cost !== null ? `생성 · ${cost}토큰` : "생성"}
+    </ActionButton>
+  );
+
+  const logoStatus = preparing ? (
+    <Text textStyle="caption" color="fg.neutral-muted" aria-live="polite">
+      배경을 확인하고 있어요 · 10초쯤 걸려요
+    </Text>
+  ) : logo?.svg ? (
+    <Text textStyle="caption" color="fg.positive" aria-live="polite">
+      통과 · 배경 없는 로고로 확인했어요
+    </Text>
+  ) : null;
+
+  if (!isDesktop) {
+    return (
+      <>
+        <title>색·로고 | 영선산업</title>
+        <meta name="robots" content="noindex, nofollow" />
+        <MobileEditor
+          canvas={
+            <>
+              {/* 넥타이를 남는 칸에 맞춰 최대로 — 대검(4:5)·매듭(모바일 9:16)은 폭과 높이 중 좁은 쪽에
+                  맞춘다. 전체 보기는 넥타이가 좁아 칸 높이에 맞춰 키운다(양옆 셔츠는 잘림).
+                  전체·매듭은 깃이 캔버스 위에 붙는다(위 여백 없음). */}
+              <Box
+                position="absolute"
+                inset={0}
+                overflow="hidden"
+                display="flex"
+                alignItems={view === "flat" ? "center" : "flex-start"}
+                justifyContent="center"
+                style={{ containerType: "size" }}
+              >
+                <Box
+                  flex="none"
+                  style={{
+                    width:
+                      view === "worn"
+                        ? "80cqh"
+                        : view === "knot"
+                          ? "min(100cqw, 56.25cqh)"
+                          : "min(100cqw, 80cqh)",
+                  }}
+                >
+                  {view === "flat" ? (
+                    <TemplateTieShot shot={shot} layout={layout} />
+                  ) : view === "knot" ? (
+                    <TemplateKnotTallShot shot={shot} layout={layout} />
+                  ) : (
+                    <TemplateWornShot shot={shot} layout={layout} />
+                  )}
+                </Box>
+              </Box>
+              <Box position="absolute" top={0} left={0} p="x3" width={72}>
+                {viewThumbs}
+              </Box>
+              {parts.length > 0 ? (
+                <Box position="absolute" bottom={0} right={0} p="x3">
+                  {/* 지금 색을 칠한 동그라미 + 색 계열 링 — Canva의 색 타일·무지개 타일처럼 "색을 바꾸는 곳"으로 읽힌다. */}
+                  <VStack
+                    as="button"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => {
+                      setSheetBase(picked);
+                      setSheetOpen(true);
+                    }}
+                    gap="x1"
+                    className="cursor-pointer rounded-r2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none disabled:opacity-50"
+                  >
+                    <Box
+                      width={52}
+                      height={52}
+                      p="x1"
+                      borderRadius="full"
+                      boxShadow="s2"
+                      style={{ background: FAMILY_RING }}
+                    >
+                      <Box
+                        width="full"
+                        height="full"
+                        p="x0_5"
+                        borderRadius="full"
+                        bg="bg.layer-default"
+                      >
+                        <Box
+                          width="full"
+                          height="full"
+                          borderRadius="full"
+                          aria-hidden
+                          style={{ background: value(parts[0]?.slot ?? "") }}
+                        />
+                      </Box>
+                    </Box>
+                    <Text as="span" textStyle="captionSm" color="fg.neutral">
+                      색상 편집
+                    </Text>
+                  </VStack>
+                </Box>
+              ) : null}
+            </>
+          }
+          panel={
+            <VStack alignItems="stretch" gap="x3">
+              {logo ? (
+                <HStack gap="x3" p="x2" borderRadius="r3" bg="bg.neutral-weak">
+                  <Box width={40} flex="none">
+                    <ImageFrame
+                      src={logo.sourceUrl}
+                      alt={logo.name}
+                      ratio={1}
+                      fit="contain"
+                      borderRadius="r2"
+                    />
+                  </Box>
+                  <VStack alignItems="start" gap="x0_5" flex={1} minWidth={0}>
+                    <Text as="span" textStyle="labelSm" maxLines={1}>
+                      {logo.name}
+                    </Text>
+                    {logoError ? (
+                      <Text
+                        textStyle="caption"
+                        color="fg.critical"
+                        aria-live="polite"
+                      >
+                        {logoError}
+                      </Text>
+                    ) : (
+                      logoStatus
+                    )}
+                  </VStack>
+                  <ActionButton
+                    variant="neutralOutline"
+                    size="small"
+                    disabled={busy}
+                    onClick={() => fileRef.current?.click()}
+                  >
+                    바꾸기
+                  </ActionButton>
+                </HStack>
+              ) : null}
+              {!logo || logoError ? (
+                <ActionButton
+                  variant="brandSolid"
+                  size="large"
+                  className="w-full"
+                  onClick={() => fileRef.current?.click()}
+                >
+                  {logo ? "다른 로고 올리기" : "로고 올리기"}
+                </ActionButton>
+              ) : (
+                generateButton
+              )}
+            </VStack>
+          }
+        />
+        <Modal
+          open={sheetOpen}
+          // 닫기·바깥 누르기·취소는 열기 전 색으로 되돌린다. 확인으로 닫은 뒤에도 dialog가
+          // onOpenChange(false)를 다시 부르므로 열려 있을 때만 되돌린다.
+          onOpenChange={(open) => {
+            if (open || !sheetOpen) return;
+            setPicked(sheetBase);
+            setSheetOpen(false);
+          }}
+          title="색상 편집"
+          footer={
+            <HStack gap="x2">
+              <Box
+                as={ActionButton}
+                type="button"
+                variant="neutralOutline"
+                width="full"
+                onClick={() => {
+                  setPicked(sheetBase);
+                  setSheetOpen(false);
+                }}
+              >
+                취소
+              </Box>
+              <Box
+                as={ActionButton}
+                type="button"
+                width="full"
+                onClick={() => setSheetOpen(false)}
+              >
+                확인
+              </Box>
+            </HStack>
+          }
+        >
+          <ColorSheet
+            presets={presetChips}
+            parts={parts}
+            slot={sheetSlot ?? parts[0]?.slot}
+            onSlotChange={setSheetSlot}
+            value={value}
+            onChange={(slot, hex) =>
+              setPicked((prev) => ({ ...prev, [slot]: hex }))
+            }
+            disabled={busy}
+          />
+        </Modal>
+        <Box
+          as="input"
+          ref={fileRef}
+          type="file"
+          accept={`${DESIGN_PHOTO_ACCEPT},${DESIGN_SVG_ACCEPT}`}
+          aria-label="로고 파일"
+          hidden
+          onChange={(event: ChangeEvent<HTMLInputElement>) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (file) void addFile(file);
+          }}
+        />
+      </>
+    );
+  }
+
   return (
     <>
       <title>색·로고 | 영선산업</title>
@@ -393,7 +763,6 @@ export function DesignColorPage() {
             </Text>
             <AttachmentDisplayField
               label="로고 파일"
-              description="투명 배경(PNG·SVG)이나 한 가지 색 배경만 돼요. 사진·그라데이션 배경은 미통과예요."
               errorMessage={logoError}
               items={
                 logo
@@ -409,65 +778,14 @@ export function DesignColorPage() {
                 setLogoError(null);
               }}
             />
-            {preparing ? (
-              <Text
-                textStyle="caption"
-                color="fg.neutral-muted"
-                aria-live="polite"
-              >
-                배경을 확인하고 있어요 · 10초쯤 걸려요
-              </Text>
-            ) : logo?.svg ? (
-              <Text textStyle="caption" color="fg.positive" aria-live="polite">
-                통과 · 배경 없는 로고로 확인했어요
-              </Text>
-            ) : null}
+            {logoStatus}
             {presets.length > 0 ? (
               <VStack alignItems="stretch" gap="x2">
                 <Text as="span" textStyle="labelSm">
                   추천 배색
                 </Text>
                 <HStack gap="x2" flexWrap="wrap">
-                  {presets.map((preset) => (
-                    <Chip
-                      key={preset.id}
-                      size="small"
-                      variant="outline"
-                      disabled={busy}
-                      selected={parts.every((part) =>
-                        sameHex(value(part.slot), preset.mapping[part.slot]),
-                      )}
-                      onClick={() =>
-                        setPicked(
-                          Object.fromEntries(
-                            parts.flatMap((part) => {
-                              const hex = preset.mapping[part.slot];
-                              return hex ? [[part.slot, hex] as const] : [];
-                            }),
-                          ),
-                        )
-                      }
-                      prefix={
-                        <HStack gap="x0_5" aria-hidden>
-                          {parts.map((part) => (
-                            <Box
-                              key={part.slot}
-                              width={14}
-                              height={14}
-                              borderRadius="full"
-                              borderWidth={1}
-                              borderColor="stroke.neutral-weak"
-                              style={{
-                                background: preset.mapping[part.slot],
-                              }}
-                            />
-                          ))}
-                        </HStack>
-                      }
-                    >
-                      {preset.name}
-                    </Chip>
-                  ))}
+                  {presetChips}
                 </HStack>
               </VStack>
             ) : null}
@@ -486,83 +804,10 @@ export function DesignColorPage() {
             </Accordion>
           </VStack>
         }
-        actionBar={
-          <ActionButton
-            variant="brandSolid"
-            size="large"
-            className="w-full"
-            loading={placing || finalize.loading}
-            disabled={!logo?.svg || busy}
-            onClick={() => void generate()}
-          >
-            {cost !== null ? `생성 · ${cost}토큰` : "생성"}
-          </ActionButton>
-        }
+        actionBar={generateButton}
       >
         <Grid templateColumns="72px minmax(0, 1fr)" gap="x3" alignItems="start">
-          {/* 보기 전환 — 세 보기를 작은 그림으로 미리보기 왼쪽에 세로로 둔다. */}
-          <VStack
-            role="group"
-            aria-label="미리보기 방식"
-            alignItems="stretch"
-            gap="x3"
-          >
-            {(
-              [
-                ["worn", "전체", TemplateWornShot, 1.8],
-                ["flat", "대검", TemplateTieShot, 1],
-                ["knot", "매듭", TemplateKnotShot, 1],
-              ] as const
-            ).map(([value, label, Thumb, zoom]) => (
-              <VStack
-                key={value}
-                as="button"
-                type="button"
-                aria-pressed={view === value}
-                onClick={() => setView(value)}
-                alignItems="stretch"
-                gap="x1_5"
-                className="cursor-pointer rounded-r2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
-              >
-                <Box
-                  borderRadius="r2"
-                  overflow="hidden"
-                  borderWidth={view === value ? 2 : 1}
-                  borderColor={
-                    view === value ? "stroke.neutral" : "stroke.neutral-weak"
-                  }
-                >
-                  {/* TieCanvas 안쪽 여백(x6)은 고정 px라 72px 칸에선 넥타이가 작아진다 — 4배로 그려
-                      줄이고, 전체는 깃·매듭 쪽을 더 키운다. */}
-                  <Box
-                    position="relative"
-                    overflow="hidden"
-                    style={{ aspectRatio: "4 / 5" }}
-                  >
-                    <Box
-                      position="absolute"
-                      top={0}
-                      style={{
-                        left: "-150%",
-                        width: "400%",
-                        transform: `scale(${0.25 * zoom})`,
-                        transformOrigin: "50% 0",
-                      }}
-                    >
-                      <Thumb shot={shot} layout={layout} />
-                    </Box>
-                  </Box>
-                </Box>
-                <Text
-                  as="span"
-                  textStyle={view === value ? "labelSm" : "caption"}
-                  color={view === value ? "fg.neutral" : "fg.neutral-muted"}
-                >
-                  {label}
-                </Text>
-              </VStack>
-            ))}
-          </VStack>
+          {viewThumbs}
           <Box minWidth={0}>
             {view === "flat" || view === "knot" ? (
               // 플랫·매듭은 칸을 꽉 채우면 PC에서 과하게 커진다 — 최대 폭을 두고 칸 높이는 플랫 넥타이에 맞춘다.
@@ -608,6 +853,113 @@ export function DesignColorPage() {
   );
 }
 
+/**
+ * 모바일 편집 화면 — 넥타이 캔버스가 남는 높이를 다 쓰고, 아래 패널(로고·CTA)이 제 높이만 차지한다.
+ * 높이는 화면에서 헤더(모바일 56·태블릿 64 + 테두리 1)를 뺀 값.
+ */
+function MobileEditor({
+  canvas,
+  panel,
+}: {
+  canvas: ReactNode;
+  panel: ReactNode;
+}) {
+  return (
+    <VStack
+      alignItems="stretch"
+      gap={0}
+      height={{ base: "calc(100dvh - 57px)", md: "calc(100dvh - 65px)" }}
+    >
+      <Text as="h1" textStyle="title1" className="sr-only">
+        색·로고
+      </Text>
+      <Box position="relative" flex={1} minHeight={0} bg="bg.neutral-weak">
+        {canvas}
+      </Box>
+      <Box
+        flex="none"
+        bg="bg.layer-default"
+        px="x4"
+        pt="x3"
+        className="border-t border-stroke-neutral-weak"
+        style={{
+          paddingBottom:
+            "calc(var(--spacing-x3) + env(safe-area-inset-bottom, 0px))",
+        }}
+      >
+        {panel}
+      </Box>
+    </VStack>
+  );
+}
+
+/** 모바일 색상 편집 시트 본문 — 추천 배색, 부위가 여럿이면 부위 칩, 그 부위의 계열·견본·색 코드. */
+function ColorSheet({
+  presets,
+  parts,
+  slot,
+  onSlotChange,
+  value,
+  onChange,
+  disabled,
+}: {
+  presets: ReactNode[];
+  parts: Part[];
+  slot: string | undefined;
+  onSlotChange: (slot: string) => void;
+  value: (slot: string) => string | undefined;
+  onChange: (slot: string, hex: string) => void;
+  disabled: boolean;
+}) {
+  const part = parts.find((item) => item.slot === slot) ?? parts[0];
+  if (!part) return null;
+  return (
+    <VStack alignItems="stretch" gap="x5">
+      {presets.length > 0 ? (
+        <VStack alignItems="stretch" gap="x2">
+          <Text as="span" textStyle="labelSm">
+            추천 배색
+          </Text>
+          <ScrollFog>
+            <HStack gap="x2">{presets}</HStack>
+          </ScrollFog>
+        </VStack>
+      ) : null}
+      <VStack alignItems="stretch" gap="x3">
+        {parts.length > 1 ? (
+          <ScrollFog>
+            <HStack gap="x2">
+              {parts.map((item) => (
+                <Chip
+                  key={item.slot}
+                  size="small"
+                  selected={item.slot === part.slot}
+                  onClick={() => onSlotChange(item.slot)}
+                  className="shrink-0"
+                >
+                  {item.name}
+                </Chip>
+              ))}
+            </HStack>
+          </ScrollFog>
+        ) : (
+          <Text as="span" textStyle="labelSm">
+            {part.name}
+          </Text>
+        )}
+        <ColorPickerBody
+          key={part.slot}
+          part={part}
+          value={value(part.slot)}
+          onChange={(hex) => onChange(part.slot, hex)}
+          disabled={disabled}
+          familyRow
+        />
+      </VStack>
+    </VStack>
+  );
+}
+
 /** 부위 하나 — 펼치면 색 계열 칩, 계열 견본, 직접 고르기·색 코드 입력. */
 function ColorPicker({
   part,
@@ -620,8 +972,6 @@ function ColorPicker({
   onChange: (hex: string) => void;
   disabled: boolean;
 }) {
-  const [family, setFamily] = useState(() => nearestFamily(value));
-  const [draft, setDraft] = useState<string | null>(null);
   const display = value?.toUpperCase() ?? "";
 
   return (
@@ -648,122 +998,154 @@ function ColorPicker({
         </HStack>
       </AccordionTrigger>
       <AccordionContent>
-        <VStack alignItems="stretch" gap="x3">
-          <Grid columns={3} gap="x1_5">
-            {FAMILIES.map((item, index) => (
-              <Chip
-                key={item.name}
-                size="small"
-                selected={index === family}
-                onClick={() => setFamily(index)}
-                className="justify-center"
-                prefix={
-                  <Box
-                    width={10}
-                    height={10}
-                    borderRadius="full"
-                    aria-hidden
-                    style={{ background: item.swatches[3] }}
-                  />
-                }
-              >
-                {item.name}
-              </Chip>
-            ))}
-          </Grid>
-          <Grid
-            role="radiogroup"
-            aria-label={`${part.name} 색`}
-            columns={8}
-            gap="x1_5"
-          >
-            {FAMILIES[family]?.swatches.map((hex) => {
-              const checked = sameHex(hex, value);
-              return (
-                <Box
-                  key={hex}
-                  as="button"
-                  type="button"
-                  role="radio"
-                  aria-checked={checked}
-                  aria-label={hex}
-                  disabled={disabled}
-                  onClick={() => onChange(hex)}
-                  width="full"
-                  borderRadius="r2"
-                  borderWidth={checked ? 2 : 1}
-                  borderColor={
-                    checked ? "stroke.neutral" : "stroke.neutral-weak"
-                  }
-                  className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none disabled:opacity-50"
-                  style={{
-                    aspectRatio: "1 / 1",
-                    background: hex,
-                    boxShadow: checked
-                      ? "inset 0 0 0 2px var(--color-bg-layer-default)"
-                      : undefined,
-                  }}
-                />
-              );
-            })}
-          </Grid>
-          <HStack gap="x2">
-            <Box
-              as="label"
-              position="relative"
-              width={44}
-              height={44}
-              borderRadius="r2"
-              borderWidth={1}
-              borderColor="stroke.neutral-weak"
-              display="flex"
-              alignItems="center"
-              justifyContent="center"
-              className="cursor-pointer"
-            >
-              <Icon svg={<EyeDropperIcon />} size={20} />
-              <Box
-                as="input"
-                type="color"
-                aria-label={`${part.name} 색 직접 고르기`}
-                disabled={disabled}
-                value={value?.toLowerCase()}
-                onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                  onChange(event.target.value.toUpperCase())
-                }
-                position="absolute"
-                inset={0}
-                width="full"
-                height="full"
-                className="cursor-pointer"
-                style={{ opacity: 0 }}
-              />
-            </Box>
-            <Box flex={1}>
-              <TextField
-                aria-label={`${part.name} 색 코드`}
-                prefix="색 코드"
-                placeholder="#RRGGBB"
-                maxLength={7}
-                disabled={disabled}
-                value={draft ?? display}
-                onChange={(event) => {
-                  const next = event.target.value.trim();
-                  if (HEX.test(next)) {
-                    onChange(
-                      (next.startsWith("#") ? next : `#${next}`).toUpperCase(),
-                    );
-                    setDraft(null);
-                  } else {
-                    setDraft(next);
-                  }
-                }}
-                onBlur={() => setDraft(null)}
-              />
-            </Box>
-          </HStack>
-        </VStack>
+        <ColorPickerBody
+          part={part}
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+        />
       </AccordionContent>
     </AccordionItem>
+  );
+}
+
+/** 부위 하나의 고르기 본문 — 색 계열 칩, 계열 견본, 직접 고르기·색 코드 입력. 모바일 시트는 계열을 한 줄로. */
+function ColorPickerBody({
+  part,
+  value,
+  onChange,
+  disabled,
+  familyRow = false,
+}: {
+  part: Part;
+  value: string | undefined;
+  onChange: (hex: string) => void;
+  disabled: boolean;
+  familyRow?: boolean;
+}) {
+  const [family, setFamily] = useState(() => nearestFamily(value));
+  const [draft, setDraft] = useState<string | null>(null);
+  const display = value?.toUpperCase() ?? "";
+  const familyChips = FAMILIES.map((item, index) => (
+    <Chip
+      key={item.name}
+      size="small"
+      selected={index === family}
+      onClick={() => setFamily(index)}
+      className={familyRow ? "shrink-0" : "justify-center"}
+      prefix={
+        <Box
+          width={10}
+          height={10}
+          borderRadius="full"
+          aria-hidden
+          style={{ background: item.swatches[3] }}
+        />
+      }
+    >
+      {item.name}
+    </Chip>
+  ));
+
+  return (
+    <VStack alignItems="stretch" gap="x3">
+      {familyRow ? (
+        <ScrollFog>
+          <HStack gap="x1_5">{familyChips}</HStack>
+        </ScrollFog>
+      ) : (
+        <Grid columns={3} gap="x1_5">
+          {familyChips}
+        </Grid>
+      )}
+      <Grid
+        role="radiogroup"
+        aria-label={`${part.name} 색`}
+        columns={8}
+        gap="x1_5"
+      >
+        {FAMILIES[family]?.swatches.map((hex) => {
+          const checked = sameHex(hex, value);
+          return (
+            <Box
+              key={hex}
+              as="button"
+              type="button"
+              role="radio"
+              aria-checked={checked}
+              aria-label={hex}
+              disabled={disabled}
+              onClick={() => onChange(hex)}
+              width="full"
+              borderRadius="r2"
+              borderWidth={checked ? 2 : 1}
+              borderColor={checked ? "stroke.neutral" : "stroke.neutral-weak"}
+              className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none disabled:opacity-50"
+              style={{
+                aspectRatio: "1 / 1",
+                background: hex,
+                boxShadow: checked
+                  ? "inset 0 0 0 2px var(--color-bg-layer-default)"
+                  : undefined,
+              }}
+            />
+          );
+        })}
+      </Grid>
+      <HStack gap="x2">
+        <Box
+          as="label"
+          position="relative"
+          width={44}
+          height={44}
+          borderRadius="r2"
+          borderWidth={1}
+          borderColor="stroke.neutral-weak"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          className="cursor-pointer"
+        >
+          <Icon svg={<EyeDropperIcon />} size={20} />
+          <Box
+            as="input"
+            type="color"
+            aria-label={`${part.name} 색 직접 고르기`}
+            disabled={disabled}
+            value={value?.toLowerCase()}
+            onChange={(event: ChangeEvent<HTMLInputElement>) =>
+              onChange(event.target.value.toUpperCase())
+            }
+            position="absolute"
+            inset={0}
+            width="full"
+            height="full"
+            className="cursor-pointer"
+            style={{ opacity: 0 }}
+          />
+        </Box>
+        <Box flex={1}>
+          <TextField
+            aria-label={`${part.name} 색 코드`}
+            placeholder="#RRGGBB"
+            maxLength={7}
+            disabled={disabled}
+            value={draft ?? display}
+            onChange={(event) => {
+              const next = event.target.value.trim();
+              if (HEX.test(next)) {
+                onChange(
+                  (next.startsWith("#") ? next : `#${next}`).toUpperCase(),
+                );
+                setDraft(null);
+              } else {
+                setDraft(next);
+              }
+            }}
+            onBlur={() => setDraft(null)}
+          />
+        </Box>
+      </HStack>
+    </VStack>
   );
 }
