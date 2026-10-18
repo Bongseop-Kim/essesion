@@ -135,8 +135,6 @@ async def test_seamless_detail_projects_intent_without_leaking_unsafe_payloads(
         anchor=[0.5, 0.5],
         subject="flower",
         scope="whole",
-        description="customer-secret@test.local",
-        tags=["botanical", "010-1234-5678"],
         source="seed",
     )
     unsafe_motif = Motif(
@@ -271,7 +269,7 @@ async def test_seamless_identifier_filter_matches_request_log_session_and_user(
         request_id="identifier-request",
         session_id=owner_session.id,
         user_id=owner.id,
-        input_type="prompt",
+        input_type="intent",
         warnings=[],
         status="success",
     )
@@ -279,7 +277,7 @@ async def test_seamless_identifier_filter_matches_request_log_session_and_user(
         request_id="other-request",
         session_id=other_session.id,
         user_id=other_owner.id,
-        input_type="prompt",
+        input_type="intent",
         warnings=[],
         status="success",
     )

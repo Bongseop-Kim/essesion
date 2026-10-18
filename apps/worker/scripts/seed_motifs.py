@@ -464,25 +464,14 @@ _SEEDS: list[tuple[str, str, str]] = [
 _ASSET_DIR = pathlib.Path(__file__).parent / "motif_assets"
 
 
-def _tags_for(subject: str, *extra: str) -> list[str]:
-    """subject + 파일명 토큰 — 순서 보존 중복 제거."""
-    return list(dict.fromkeys([subject, *extra]))
-
-
-def _all_seeds() -> list[tuple[str, str, str, list[str], str]]:
-    """(subject, style, description, tags, raw_svg) — 인라인 데모 + 에셋 글리프.
+def _all_seeds() -> list[tuple[str, str, str]]:
+    """(subject, style, raw_svg) — 인라인 데모 + 에셋 글리프. `_SEEDS` 설명은 읽는 사람용이다.
 
     에셋 subject = 파일명 첫 토큰(`cat-head`·`cat-space` → `cat`).
     """
-    seeds = [(subject, "flat", desc, _tags_for(subject), svg) for subject, desc, svg in _SEEDS]
+    seeds = [(subject, "flat", svg) for subject, _desc, svg in _SEEDS]
     seeds += [
-        (
-            subject := path.stem.split("-")[0],
-            "outline",
-            f"{path.stem.replace('-', ' ')} outline icon",
-            _tags_for(subject, path.stem, *path.stem.split("-")),
-            path.read_text(),
-        )
+        (path.stem.split("-")[0], "outline", path.read_text())
         for path in sorted(_ASSET_DIR.glob("*.svg"))
     ]
     return seeds
@@ -496,7 +485,7 @@ async def seed_motifs() -> tuple[int, int, int]:
     renamed = 0
     seeded_ids: list[str] = []
     async with sessionmaker() as session:
-        for subject, style, description, tags, svg in _all_seeds():
+        for subject, style, svg in _all_seeds():
             normalized = normalize_motif_svg(svg, id_prefix="seed", render_check=False)
             await store.upsert_motif(
                 session,
@@ -505,8 +494,6 @@ async def seed_motifs() -> tuple[int, int, int]:
                     "subject": subject,
                     "scope": "whole",
                     "style": style,
-                    "description": description,
-                    "tags": tags,
                 },
                 source="seed",
                 status="approved",

@@ -492,10 +492,8 @@ async def import_user_motif(
             subject="user upload",
             scope="whole",
             style=None,
-            description=None,
-            tags=[],
             source="user_upload",
-            # ponytail: 비공개(user_upload)라 게이트 무관 — pending 큐 오염 방지용 approved.
+            # 지문 풀(approved_motif_ids)은 source='user_upload'를 따로 거른다 — 상태만 맞춘다.
             status="approved",
         )
         .on_conflict_do_nothing(index_elements=["id"])

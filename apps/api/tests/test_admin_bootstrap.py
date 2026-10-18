@@ -153,10 +153,9 @@ async def test_seed_config_fills_gaps_without_clobbering_operator_values(db_sess
     assert tuned_price.amount == PRICING["REFORM_SHIPPING_COST"][0]
 
 
-async def test_seed_config_removes_retired_token_keys(db_session):
-    """토큰 종료(2026-10-19)로 은퇴한 설정·가격 행은 seed-config 재실행이 지운다."""
+async def test_seed_config_removes_retired_design_setting_keys(db_session):
+    """토큰 종료(2026-10-19)로 은퇴한 설정 행은 seed-config 재실행이 지운다."""
     db_session.add(AdminSetting(key="design_edit_cost", value="12"))
-    db_session.add(PricingConstant(key="token_plan_pro_price", amount=18000, category="token"))
     await db_session.flush()
 
     await apply_config_defaults(db_session, overwrite=False)
@@ -164,7 +163,6 @@ async def test_seed_config_removes_retired_token_keys(db_session):
     db_session.expire_all()
 
     assert await db_session.get(AdminSetting, "design_edit_cost") is None
-    assert await db_session.get(PricingConstant, "token_plan_pro_price") is None
 
 
 async def test_seed_config_covers_every_key_the_admin_screen_requires(db_session):

@@ -1313,7 +1313,6 @@ async def _upsert(
     log_values = {
         "id": run_id,
         "input_type": "intent",
-        "prompt": None,
         "colorway": design_log["colorway_id"],
         "seed": design_log["seed"],
         "engine_version": engine_version,

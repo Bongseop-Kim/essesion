@@ -1,10 +1,8 @@
-"""디자인 세션·잡 — LangGraph checkpoint 대체, api 소유 (ARCHITECTURE §1).
+"""디자인 세션 — 템플릿에서 시작해 로고를 바꾸는 편집 상태, api 소유 (ARCHITECTURE §1).
 
-- 세션 상태(턴 이력·선택·게이트)는 api가 일반 테이블로 소유, 워커는 stateless.
-- finalize는 동기 요청-응답 + 토큰 과금(design_finalize_cost) — generation_jobs는
-  완성본 레코드(성공만 INSERT)로, 보관함·order-reference·삭제의 키다.
-- current_intent/current_plan = 마지막 선택의 렌더/대화 정본.
-- active_generation_id = 외부 호출 동안 세션당 생성 1개를 보장하는 짧은 lease.
+- 세션 상태(턴 이력·포인터)는 api가 일반 테이블로 소유, 워커는 stateless.
+- current_intent/current_plan = 마지막 선택의 렌더 정본.
+- active_generation_id = 로고 교체 재렌더 동안 세션당 1개를 보장하는 짧은 lease.
 """
 
 import uuid
@@ -28,8 +26,7 @@ class DesignSession(TimestampMixin, Base):
     colorway: Mapped[str | None]
     registry_version: Mapped[str | None]  # 커밋 시점 모티프 풀 핑거프린트
     current_intent: Mapped[dict[str, Any] | None]  # 마지막 커밋된 resolved intent
-    # 대화 의미 정본. motifs는 선택 시 concrete motif_id로 freeze되며 worker가
-    # provider 전송 직전에 request-local alias로 치환한다.
+    # 템플릿 플랜(DesignPlan v3) — 템플릿 시작·로고 교체가 갱신한다.
     current_plan: Mapped[dict[str, Any] | None]
     context_version: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
     active_generation_id: Mapped[uuid.UUID | None]
@@ -41,7 +38,7 @@ class DesignSession(TimestampMixin, Base):
     )
 
     __table_args__ = (
-        CheckConstraint("status IN ('active', 'finalized')", name="status"),
+        CheckConstraint("status IN ('active')", name="status"),
         CheckConstraint("context_version >= 0", name="context_version"),
         CheckConstraint(
             "(active_generation_id IS NULL) = (active_generation_started_at IS NULL)",
@@ -86,22 +83,6 @@ class UserMotif(CreatedAtMixin, Base):
     __table_args__ = (UniqueConstraint("user_id", "motif_id"),)
 
 
-class DesignTurnAttachment(CreatedAtMixin, Base):
-    """생성 요청 턴에 사용한 정규화 모티프."""
-
-    __tablename__ = "design_turn_attachments"
-
-    id: Mapped[uuid.UUID] = uuid_pk()
-    turn_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("design_session_turns.id", ondelete="CASCADE"), index=True
-    )
-    motif_id: Mapped[str] = mapped_column(ForeignKey("motifs.id"))
-    filename: Mapped[str]
-    ordinal: Mapped[int]
-
-    __table_args__ = (UniqueConstraint("turn_id", "ordinal"),)
-
-
 class DesignExample(TimestampMixin, Base):
     """첫 진입 갤러리에 노출하는 큐레이션 예시.
 
@@ -131,36 +112,4 @@ class DesignExample(TimestampMixin, Base):
     __table_args__ = (
         Index("ix_design_examples_published_ordinal", "published", "ordinal"),
         CheckConstraint("point IN ('none', 'top', 'bottom')", name="point"),
-    )
-
-
-class GenerationJob(TimestampMixin, Base):
-    __tablename__ = "generation_jobs"
-
-    id: Mapped[uuid.UUID] = uuid_pk()
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
-    session_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("design_sessions.id", ondelete="SET NULL")
-    )
-    kind: Mapped[str]
-    status: Mapped[str] = mapped_column(server_default="queued")
-    params: Mapped[dict[str, Any]]
-    result: Mapped[dict[str, Any] | None]  # 산출물 object_key 등
-    error_message: Mapped[str | None]
-    request_id: Mapped[str | None]  # obs request_id — 전 구간 추적
-    attempts: Mapped[int] = mapped_column(server_default=text("0"))
-    # 소요 시간 측정용 — 각 상태 전이가 직접 기록한다(updated_at 근사 대입 금지).
-    # NULL = 아직 그 단계에 도달하지 않음. 재시도는 started_at을 현재 attempt로 덮어쓴다.
-    started_at: Mapped[datetime | None]
-    finished_at: Mapped[datetime | None]
-
-    __table_args__ = (
-        CheckConstraint("kind IN ('finalize', 'export')", name="kind"),
-        CheckConstraint(
-            "status IN ('queued', 'processing', 'succeeded', 'failed', 'canceled')",
-            name="status",
-        ),
-        Index("ix_generation_jobs_status_created", "status", "created_at"),
-        # finalize 계정 쿼터의 24시간 윈도우 카운트용 — POST finalize·GET 세션마다 돈다
-        Index("ix_generation_jobs_user_kind_created", "user_id", "kind", "status", "created_at"),
     )

@@ -79,13 +79,6 @@ _RETIRED_PRICING_KEYS = (
     "SAMPLE_FABRIC_AND_SEWING_YARN_DYED_COST",
     "sample_discount_fabric_and_sewing_printing",
     "sample_discount_fabric_and_sewing_yarn_dyed",
-    # 2026-10-19 디자인 토큰 판매 종료
-    "token_plan_starter_price",
-    "token_plan_starter_amount",
-    "token_plan_popular_price",
-    "token_plan_popular_amount",
-    "token_plan_pro_price",
-    "token_plan_pro_amount",
 )
 
 

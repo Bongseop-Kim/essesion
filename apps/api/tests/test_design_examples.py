@@ -38,8 +38,7 @@ async def _make_run(
             {"type": "motif", "motif_id": panel_logo, "at": [890, 980], "size": 140, "role": "logo"}
         ]
     log = SeamlessGenerationLog(
-        input_type="prompt",
-        prompt="네이비 도트",
+        input_type="intent",
         registry_version="0.1.0",
         engine_version="0.1.0",
         intent={"design": intent, "resolved_plan": {"colors": ["#10243A"], "layers": []}},

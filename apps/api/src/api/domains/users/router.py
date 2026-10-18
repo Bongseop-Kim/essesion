@@ -12,8 +12,7 @@ from db.models.commerce import (
     QuoteRequest,
     ShippingAddress,
 )
-from db.models.design import DesignSession, GenerationJob
-from db.models.tokens import DesignToken
+from db.models.design import DesignSession
 from fastapi import APIRouter
 from pydantic import BaseModel, field_validator
 from sqlalchemy import delete, exists, func, or_, select, update
@@ -129,10 +128,8 @@ async def _has_history(session: AsyncSession, user_id: uuid.UUID) -> bool:
                     exists().where(Claim.user_id == user_id),
                     exists().where(QuoteRequest.user_id == user_id),
                     exists().where(Inquiry.user_id == user_id),
-                    # 디자인 세션·잡은 FK가 NO ACTION이라 이력으로 취급한다.
-                    # (generation_jobs는 Phase 4 DROP 때 이 줄과 함께 사라진다.)
+                    # 디자인 세션은 FK가 NO ACTION이라 이력으로 취급한다.
                     exists().where(DesignSession.user_id == user_id),
-                    exists().where(GenerationJob.user_id == user_id),
                 )
             )
         )
@@ -167,9 +164,6 @@ async def delete_account(session: SessionDep, user: CurrentUser) -> None:
         )
         await session.commit()
     else:
-        # 무료 토큰 원장은 금전 가치가 없다(2026-10-19 토큰 종료). design_tokens.user_id가
-        # NO ACTION이라 user보다 먼저 지운다 — Phase 4에서 테이블 DROP과 함께 이 줄도 지운다.
-        await session.execute(delete(DesignToken).where(DesignToken.user_id == user.id))
         await session.delete(user)
         await session.commit()
 

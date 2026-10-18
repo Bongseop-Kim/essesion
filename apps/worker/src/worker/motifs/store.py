@@ -14,7 +14,6 @@ from typing import cast
 from db.models.design import (
     DesignSession,
     DesignSessionTurn,
-    DesignTurnAttachment,
     UserMotif,
 )
 from db.models.seamless import Motif
@@ -73,8 +72,6 @@ async def upsert_motif(
         "subject": facets.get("subject"),
         "scope": scope,
         "style": facets.get("style"),
-        "description": facets.get("description"),
-        "tags": list(facets.get("tags") or []),
         "source": source,
         "status": status,
     }
@@ -140,7 +137,6 @@ async def prune_stale_seeds(session: AsyncSession, seeded_ids: Iterable[str]) ->
                 Motif.source == "seed",
                 Motif.id.notin_(ids),
                 ~exists().where(UserMotif.motif_id == Motif.id),
-                ~exists().where(DesignTurnAttachment.motif_id == Motif.id),
                 ~exists().where(
                     or_(
                         DesignSession.current_intent.cast(Text).contains(Motif.id),

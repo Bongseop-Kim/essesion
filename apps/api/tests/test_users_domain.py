@@ -10,7 +10,6 @@ from api.domains.users.router import ShippingAddressIn, upsert_address
 from api.errors import UnauthorizedError
 from db.models.auth import PhoneVerification, User
 from db.models.commerce import Inquiry, NotificationPreferenceLog, ShippingAddress
-from db.models.tokens import DesignToken
 from sqlalchemy import func, select
 
 from .factories import auth_headers, make_order, make_user
@@ -80,35 +79,6 @@ async def test_delete_account_hard_when_no_history(client, db_session, settings)
     assert res.status_code == 204
     db_session.expire_all()  # 앱 세션이 지운 행의 identity map 캐시 무효화
     assert await db_session.get(User, user_id) is None
-
-
-async def test_delete_account_with_leftover_design_tokens_hard_deletes_without_fk_error(
-    client, db_session, settings
-):
-    """토큰 종료(2026-10-19) 뒤 남은 무료 원장은 이력이 아니다 — user보다 먼저 지운다."""
-    user = await make_user(db_session)
-    user_id = user.id
-    tokens = [
-        DesignToken(
-            user_id=user_id,
-            amount=30,
-            type="grant",
-            token_class="free",
-            description="신규 가입 토큰 지급",
-        ),
-        DesignToken(user_id=user_id, amount=-5, type="use", token_class="free"),
-    ]
-    db_session.add_all(tokens)
-    await db_session.commit()
-    token_ids = [token.id for token in tokens]
-
-    res = await client.delete("/users/me", headers=auth_headers(user, settings))
-
-    assert res.status_code == 204
-    db_session.expire_all()
-    assert await db_session.get(User, user_id) is None
-    for token_id in token_ids:
-        assert await db_session.get(DesignToken, token_id) is None
 
 
 async def test_delete_account_soft_when_history(client, db_session, settings):

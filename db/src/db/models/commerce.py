@@ -205,9 +205,7 @@ class Order(TimestampMixin, Base):
     company_shipped_at: Mapped[datetime | None]
 
     __table_args__ = (
-        CheckConstraint(
-            "order_type IN ('sale', 'custom', 'repair', 'token', 'sample')", name="order_type"
-        ),
+        CheckConstraint("order_type IN ('sale', 'custom', 'repair', 'sample')", name="order_type"),
         CheckConstraint(
             "status IN ('대기중', '결제중', '진행중', '배송중', '배송완료', '완료', '취소', "
             "'실패', '접수', '제작중', '제작완료', '수선중', '수선완료', '발송대기', '발송중', "
@@ -261,9 +259,7 @@ class OrderItem(CreatedAtMixin, Base):
     )
 
     __table_args__ = (
-        CheckConstraint(
-            "item_type IN ('product', 'reform', 'custom', 'token', 'sample')", name="item_type"
-        ),
+        CheckConstraint("item_type IN ('product', 'reform', 'custom', 'sample')", name="item_type"),
         CheckConstraint("quantity > 0", name="quantity"),
         CheckConstraint("unit_price >= 0", name="unit_price"),
         CheckConstraint("discount_amount >= 0", name="discount_amount"),
@@ -342,9 +338,7 @@ class Claim(TimestampMixin, Base):
     refund_data: Mapped[dict[str, Any] | None]
 
     __table_args__ = (
-        CheckConstraint("type IN ('cancel', 'return', 'exchange', 'token_refund')", name="type"),
-        # '취소'는 고객이 스스로 접은 요청 — 일반 클레임은 행을 지우지만 token_refund는
-        # 결제 감사 추적 때문에 행을 남겨야 해서 관리자 '거부'와 상태로 구분한다.
+        CheckConstraint("type IN ('cancel', 'return', 'exchange')", name="type"),
         CheckConstraint(
             "status IN ('접수', '처리중', '수거요청', '수거완료', '재발송', "
             "'완료', '거부', '취소')",
@@ -601,7 +595,7 @@ class PricingConstant(Base):
     __table_args__ = (
         CheckConstraint("amount >= 0", name="amount"),
         CheckConstraint(
-            "category IN ('custom_order', 'fabric', 'reform', 'token', 'sample_discount')",
+            "category IN ('custom_order', 'fabric', 'reform', 'sample_discount')",
             name="category",
         ),
     )

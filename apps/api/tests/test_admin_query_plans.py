@@ -180,7 +180,7 @@ async def test_seamless_log_session_lookup_uses_session_index(db_session) -> Non
             INSERT INTO seamless_generation_logs (id, input_type, status, session_id, user_id)
             SELECT
                 gen_random_uuid(),
-                'prompt',
+                'intent',
                 'success',
                 CASE WHEN value <= 25 THEN CAST(:session_id AS uuid) END,
                 CASE WHEN value <= 25 THEN CAST(:user_id AS uuid) END
