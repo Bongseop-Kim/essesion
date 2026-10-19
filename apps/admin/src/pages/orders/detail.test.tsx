@@ -132,7 +132,7 @@ const order: AdminOrderDetailOut = {
   admin_actions: [
     {
       kind: "advance",
-      label: "배송 시작",
+      label: "출고 배송 중 상태로 진행",
       target_status: "배송중",
       enabled: true,
       requires_memo: true,
@@ -186,7 +186,9 @@ describe("OrderDetailPage", () => {
       screen.getByRole("tab", { name: "개요" }).getAttribute("aria-selected"),
     ).toBe("true");
     expect(screen.getByRole("tabpanel", { name: "개요" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "배송 시작" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "출고 배송 중 상태로 진행" }),
+    ).toBeTruthy();
     // 작업지시서 캡처가 한 화면에서 끝나야 하므로 품목 카드는 개요에 있다.
     expect(screen.getByRole("heading", { name: "주문 품목" })).toBeTruthy();
 
@@ -204,7 +206,9 @@ describe("OrderDetailPage", () => {
 
     await user.click(screen.getByRole("tab", { name: "개요" }));
     expect(screen.getByTestId("location-search").textContent).toBe("");
-    expect(screen.getByRole("button", { name: "배송 시작" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "출고 배송 중 상태로 진행" }),
+    ).toBeTruthy();
   });
 
   it("활동 이력 딥링크를 복원한다", async () => {
@@ -317,7 +321,9 @@ describe("OrderDetailPage", () => {
     expect(
       await screen.findByRole("heading", { name: "주문 ORDER-001", level: 1 }),
     ).toBeTruthy();
-    expect(screen.getByRole("button", { name: "배송 시작" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "출고 배송 중 상태로 진행" }),
+    ).toBeTruthy();
     expect(screen.getByRole("heading", { name: "주문 품목" })).toBeTruthy();
     // 품목 카드가 수량·단가·클레임까지 안는다 — 같은 값을 표로 한 번 더 그리지 않는다.
     expect(screen.getByText("단가")).toBeTruthy();
@@ -359,7 +365,7 @@ describe("OrderDetailPage", () => {
     expect(
       (
         screen.getByRole("button", {
-          name: "배송중 상태로 진행",
+          name: "출고 배송 중 상태로 진행",
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
@@ -372,7 +378,7 @@ describe("OrderDetailPage", () => {
     ).toBe(true);
     expect(
       screen.getByText(
-        "배송중 상태로 진행: 취소 클레임이 완료되어 주문 상태를 변경할 수 없습니다",
+        "출고 배송 중 상태로 진행: 취소 클레임이 완료되어 주문 상태를 변경할 수 없습니다",
       ),
     ).toBeTruthy();
   });
@@ -398,7 +404,9 @@ describe("OrderDetailPage", () => {
     );
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "배송 시작" }));
+    await user.click(
+      await screen.findByRole("button", { name: "출고 배송 중 상태로 진행" }),
+    );
     expect(
       (screen.getByRole("tab", { name: "결제·클레임" }) as HTMLButtonElement)
         .disabled,
@@ -414,7 +422,9 @@ describe("OrderDetailPage", () => {
       ).disabled,
     ).toBe(true);
     expect((memo as HTMLTextAreaElement).value).toBe("출고 검수 완료");
-    await user.click(screen.getByRole("button", { name: "배송 시작 실행" }));
+    await user.click(
+      screen.getByRole("button", { name: "출고 배송 중 상태로 진행 실행" }),
+    );
 
     await waitFor(() => expect(api.updateStatus).toHaveBeenCalledTimes(1));
     expect(
@@ -422,8 +432,11 @@ describe("OrderDetailPage", () => {
         .disabled,
     ).toBe(true);
     expect(
-      (screen.getByRole("button", { name: "배송 시작" }) as HTMLButtonElement)
-        .disabled,
+      (
+        screen.getByRole("button", {
+          name: "출고 배송 중 상태로 진행",
+        }) as HTMLButtonElement
+      ).disabled,
     ).toBe(true);
 
     await act(async () => rejectMutation?.(new Error("상태 충돌")));
@@ -443,12 +456,16 @@ describe("OrderDetailPage", () => {
     const queryClient = renderPage();
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
 
-    await user.click(await screen.findByRole("button", { name: "배송 시작" }));
+    await user.click(
+      await screen.findByRole("button", { name: "출고 배송 중 상태로 진행" }),
+    );
     await user.type(
       screen.getByLabelText("변경 사유 (필수)"),
       "출고 검수 완료",
     );
-    await user.click(screen.getByRole("button", { name: "배송 시작 실행" }));
+    await user.click(
+      screen.getByRole("button", { name: "출고 배송 중 상태로 진행 실행" }),
+    );
 
     await waitFor(() => {
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ["order"] });
@@ -465,7 +482,9 @@ describe("OrderDetailPage", () => {
     });
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "배송 시작" }));
+    await user.click(
+      await screen.findByRole("button", { name: "출고 배송 중 상태로 진행" }),
+    );
     const memo = screen.getByLabelText("변경 사유 (필수)");
     await user.type(memo, "출고 검수");
     blocker.state = "blocked";

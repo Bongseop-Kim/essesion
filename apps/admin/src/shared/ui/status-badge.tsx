@@ -37,9 +37,10 @@ const warning = new Set([
   "partial",
   "hold",
   "duplicate",
-  "발송중",
   "발송확인중",
 ]);
+// 입고(고객→우리)는 무채색, 출고(배송중)는 기본 informative — 방향을 색으로도 가른다.
+const inbound = new Set(["발송대기", "발송중"]);
 const statusLabels: Readonly<Record<string, string>> = {
   active: "활성",
   inactive: "비활성",
@@ -96,7 +97,9 @@ export function StatusBadge({ status }: { status: string }) {
       ? "critical"
       : warning.has(status)
         ? "warning"
-        : "informative";
+        : inbound.has(status)
+          ? "brand"
+          : "informative";
   return <Badge tone={tone}>{formatStatus(status)}</Badge>;
 }
 

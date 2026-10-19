@@ -86,6 +86,17 @@ function orderTabFrom(
   return value as OrderTab;
 }
 
+// API 라벨은 원문 상태명("발송중 상태로 진행")이라 입고·출고 방향이 안 보인다 — 화면 라벨로 다시 짓는다.
+function withDisplayLabel(action: AdminAction): AdminAction {
+  if (action.target_status == null) return action;
+  const target = formatStatus(action.target_status);
+  if (action.kind === "advance")
+    return { ...action, label: `${target} 상태로 진행` };
+  if (action.kind === "rollback")
+    return { ...action, label: `${target} 상태로 되돌리기` };
+  return action;
+}
+
 function snapshotLabel(item: OrderItemOut) {
   const data = record(item.item_data);
   const product = record(data?.product_snapshot ?? data?.product);
@@ -549,11 +560,12 @@ export function OrderDetailPage() {
     ({ image }) =>
       image.order_item_id == null || !itemIds.has(image.order_item_id),
   );
+  const adminActions = (data.admin_actions ?? []).map(withDisplayLabel);
   const actionPanel = (
     <AdminCard title="운영 액션">
       <VStack gap="x4" alignItems="stretch">
         <HStack gap="x2" wrap>
-          {(data.admin_actions ?? []).map((action) => (
+          {adminActions.map((action) => (
             <ActionButton
               key={`${action.kind}-${action.target_status ?? ""}`}
               variant={action.destructive ? "criticalSolid" : "neutralOutline"}
@@ -565,7 +577,7 @@ export function OrderDetailPage() {
             </ActionButton>
           ))}
         </HStack>
-        {(data.admin_actions ?? [])
+        {adminActions
           .filter((action) => !action.enabled && action.blocking_reason)
           .map((action) => (
             <Text
