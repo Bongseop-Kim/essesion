@@ -13,7 +13,7 @@ function isApiResponse(response: Response, method: string, pathname: string) {
 
 async function restoreSeedOrderToPending(page: Page) {
   const rollbackButton = page.getByRole("button", {
-    name: "대기중 상태로 롤백",
+    name: "대기 중 상태로 되돌리기",
   });
   if (!(await rollbackButton.isVisible())) return;
 
@@ -21,7 +21,7 @@ async function restoreSeedOrderToPending(page: Page) {
   await page.getByLabel("변경 사유 (필수)").fill("E2E 재시도 전 상태 복구");
   // 롤백은 destructive → "검토"로 확인 다이얼로그를 연 뒤 다이얼로그에서 실행
   await page
-    .getByRole("button", { name: "대기중 상태로 롤백 검토", exact: true })
+    .getByRole("button", { name: "대기 중 상태로 되돌리기 검토", exact: true })
     .click();
   const [statusResponse] = await Promise.all([
     page.waitForResponse((response) => {
@@ -34,11 +34,13 @@ async function restoreSeedOrderToPending(page: Page) {
     }),
     page
       .getByRole("alertdialog")
-      .getByRole("button", { name: "대기중 상태로 롤백", exact: true })
+      .getByRole("button", { name: "대기 중 상태로 되돌리기", exact: true })
       .click(),
   ]);
   expect(statusResponse.status()).toBe(200);
-  await expect(page.getByText("대기중", { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByText("대기 중", { exact: true }).first(),
+  ).toBeVisible();
 }
 
 test("seed 관리자가 보호 목록·상세의 상태 변경을 실행하고 로그아웃한다", async ({
@@ -94,7 +96,7 @@ test("seed 관리자가 보호 목록·상세의 상태 변경을 실행하고 �
   ).toBeVisible();
 
   await restoreSeedOrderToPending(page);
-  await page.getByRole("button", { name: "진행중 상태로 진행" }).click();
+  await page.getByRole("button", { name: "진행 중 상태로 진행" }).click();
   const [statusResponse] = await Promise.all([
     page.waitForResponse((response) => {
       const pathname = new URL(response.url()).pathname;
@@ -105,11 +107,13 @@ test("seed 관리자가 보호 목록·상세의 상태 변경을 실행하고 �
       );
     }),
     page
-      .getByRole("button", { name: "진행중 상태로 진행 적용", exact: true })
+      .getByRole("button", { name: "진행 중 상태로 진행 실행", exact: true })
       .click(),
   ]);
   expect(statusResponse.status()).toBe(200);
-  await expect(page.getByText("진행중", { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByText("진행 중", { exact: true }).first(),
+  ).toBeVisible();
   await restoreSeedOrderToPending(page);
 
   const logoutResponsePromise = page.waitForResponse((response) =>

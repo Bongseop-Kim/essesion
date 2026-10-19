@@ -65,7 +65,7 @@ surf = sum(c * t for c, t in zip(coef, (1, gx, gy, gx * gx, gx * gy, gy * gy), s
 # 2차 곡면은 끝 쪽에서 과하게 꺾인다 — 사진에서 보이는 정도(±10%)로 제한.
 # float로 키워 계단을 막는다.
 ratio = np.asarray(
-    up(Image.fromarray((surf / fill).clip(0.9, 1.1).astype(np.float32), "F")), np.float32
+    up(Image.fromarray(np.clip(surf / fill, 0.9, 1.1).astype(np.float32), "F")), np.float32
 )
 
 
