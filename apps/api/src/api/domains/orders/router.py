@@ -106,7 +106,7 @@ async def calculate_sample_order(
 async def list_my_orders(
     session: SessionDep,
     user: CurrentUser,
-    order_type: Literal["sale", "custom", "repair", "token", "sample"] | None = None,
+    order_type: Literal["sale", "custom", "repair", "sample"] | None = None,
 ) -> list[OrderOut]:
     query = select(Order).where(Order.user_id == user.id).order_by(Order.created_at.desc())
     if order_type:

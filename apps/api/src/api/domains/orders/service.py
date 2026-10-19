@@ -1137,7 +1137,7 @@ SHIPPING_STARTED_FALLBACK = (
     "[ESSE SION] 접수하신 {kind} 상품의 배송이 시작되었습니다.\n"
     "주문번호 {order_number}\n{courier} {tracking}\nhttps://essesion.shop/my-page/orders"
 )
-# 템플릿 본문 "접수하신 #{처리유형} 상품" 자리에 들어가는 명사구. token은 배송중 전이가 없다.
+# 템플릿 본문 "접수하신 #{처리유형} 상품" 자리에 들어가는 명사구.
 SHIPPING_KIND_LABEL = {
     "sale": "주문",
     "custom": "주문 제작",

@@ -30,10 +30,7 @@ export function CouponNewPage() {
   return (
     <VStack gap="x6" alignItems="stretch">
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title="쿠폰 등록"
-          description="할인 조건과 KST 기준 만료일을 검증해 새 쿠폰을 등록합니다."
-        />
+        <RouteHeading title="쿠폰 등록" />
         <ActionButton variant="ghost" onClick={() => navigate("/coupons")}>
           목록으로
         </ActionButton>

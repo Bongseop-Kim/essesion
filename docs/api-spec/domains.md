@@ -26,7 +26,7 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 - **네이버페이 배송지 연계**: 네이버 OAuth callback에서 `GET openapi.naver.com/v1/nid/payaddress`(방금 발급된 access token)로 대표 배송지를 1회 조회해, **저장 배송지가 0건인 사용자에게만** 기본 배송지로 수입한다(매핑: receiverName→recipient_name, zipCode→postal_code, baseAddress→address, detailAddress→address_detail, telNo→recipient_phone 정규화). 0건 확인과 INSERT는 사용자 advisory lock 안에서 직렬화한다. 미동의(403)·네이버페이 비회원(404)·유선번호·기타 실패는 전부 조용히 건너뛴다 — **배송지 실패가 로그인을 막으면 안 된다**. 네이버 토큰은 저장하지 않는다.
 - **네이버앱 자동로그인**(개발가이드 §5.1): `GET /auth/naver/login?auth_type=autologin` — authorize URL에 `auth_type=autologin`을 붙인다(네이버 전용, 타 provider는 무시). 시도 조건은 store가 판단: 네이버앱 UA(`NAVER(inapp; search;`) + 과거 네이버 로그인 이력(localStorage) + 브라우저 세션당 1회(sessionStorage). provider가 오류(동의 취소·자동로그인 실패)로 콜백하면 `?provider=naver&error=access_denied`(아래 콜백 계약) — store는 자동로그인 시도였으면 조용히 홈으로, 수동 취소였으면 안내 후 로그인 페이지로.
 - **소셜 콜백 계약**: OAuth 콜백은 브라우저 최상위 내비게이션의 종착지라 성공은 `{frontend_origin}/auth/callback?provider=<provider>`, 실패는 `{frontend_origin}/auth/callback?provider=<provider>&error=<code>`로 303하며 **어떤 실패도 JSON을 반환하지 않는다**(반환하면 API 콜백 URL에 응답 본문이 그대로 화면에 뜬다). code는 `access_denied`(provider 단계 — 동의 취소·자동로그인 실패·토큰 교환 실패) / `account_unavailable`(계정 단계 — 비활성·비고객 계정 거부) / `server_error`(그 외 전부; 상세는 서버 로그에만). store는 code로 문구를 고르고, Naver 자동로그인 pending은 provider가 `naver`인 콜백만 소진한다.
-- 유저 생성 시 name 우선순위: 소셜 `name` → `full_name` → `nickname` → 이메일 로컬파트 → `'사용자'`. role은 항상 customer. 초기 토큰 지급(money.md §6, 실가입자만).
+- 유저 생성 시 name 우선순위: 소셜 `name` → `full_name` → `nickname` → 이메일 로컬파트 → `'사용자'`. role은 항상 customer.
 - 관리자 로그인: **이메일/비밀번호 전용**, role ∈ {admin, manager} 아니면 거부(`관리자 권한이 없습니다.`).
 - 프로필 본인 수정 허용 필드: name, phone, birth, marketing_kakao_sms_consent만. phone_verified/notification_*/role은 전용 엔드포인트·관리자만.
 - 알림 설정: notification_consent/enabled 부분 갱신, **변경 시에만** notification_preference_logs 기록. marketing 동의는 로그 없음.
@@ -34,17 +34,17 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 ## 3. 탈퇴 (delete-account)
 
 - 원문: auth.users 하드 삭제 + FK CASCADE. images.uploaded_by는 SET NULL(레코드·스토리지 잔존 → 정리 배치 소관).
-- 새 스키마: users 삭제 시 CASCADE는 배송지·장바구니·찜·인증·알림로그·identity·refresh. **주문·클레임·견적·토큰 등 이력은 NO ACTION** — 탈퇴 시 이력이 있으면: is_active=false 소프트 비활성 + 개인정보 필드 익명화, 이력 없으면 하드 삭제.
+- 새 스키마: users 삭제 시 CASCADE는 배송지·장바구니·찜·인증·알림로그·identity·refresh. **주문·클레임·견적 등 이력은 NO ACTION** — 탈퇴 시 이력이 있으면: is_active=false 소프트 비활성 + 개인정보 필드 익명화, 이력 없으면 하드 삭제.
 
 ## 4. 클레임
 
-- create: type ∈ {cancel, return, exchange}(token_refund는 토큰 환불 플로우 전용). reason ∈ {motif_change,motif_recolor,motif_position,target_missing,no_change}.
-  - cancel 허용 주문 상태: sale{대기중,결제중,진행중} / custom{대기중,결제중,접수} / repair{대기중,결제중} / sample{대기중,결제중,접수} / token{대기중}
+- create: type ∈ {cancel, return, exchange}. reason ∈ {motif_change,motif_recolor,motif_position,target_missing,no_change}.
+  - cancel 허용 주문 상태: sale{대기중,결제중,진행중} / custom{대기중,결제중,접수} / repair{대기중,결제중} / sample{대기중,결제중,접수}
   - return/exchange: 주문 상태 {배송중,배송완료} AND order_type ∈ {sale,repair,custom}
   - 수량: 기본 = 아이템 수량, 0 < qty ≤ 아이템 수량.
   - 중복 방지: 주문당 활성({접수,처리중,수거요청,수거완료,재발송}) 1건 + 아이템·타입당 1건(완료 포함) — 부분 unique 2종이 최후 방어(IntegrityError→한국어 메시지).
 - cancel(고객): '접수' 상태만, **DELETE**(로그 CASCADE).
-- admin 전이: cancel(접수→처리중→완료), return(접수→수거요청→수거완료→완료), exchange(접수→수거요청→수거완료→재발송→완료), 거부는 각 단계에서 가능(exchange는 재발송에서도). token_refund는 접수→거부만(완료는 승인 플로우 전용). 롤백: `거부→접수`(전 타입) + cancel 처리중→접수, return/exchange 수거요청→접수. 롤백 memo 필수. 비활성→활성 재진입 시 주문당 단일 활성 가드 재검사.
+- admin 전이: cancel(접수→처리중→완료), return(접수→수거요청→수거완료→완료), exchange(접수→수거요청→수거완료→재발송→완료), 거부는 각 단계에서 가능(exchange는 재발송에서도). 롤백: `거부→접수`(전 타입) + cancel 처리중→접수, return/exchange 수거요청→접수. 롤백 memo 필수. 비활성→활성 재진입 시 주문당 단일 활성 가드 재검사.
 - 알림(notify): 상태 {완료, 거부}만, 수신 조건 4종(notification_consent && phone_verified && notification_enabled && phone) 전부 충족 시 알림톡. claim_notification_logs UNIQUE(claim_id,status)로 1회 발송. 롤백 변경은 알림 안 함. fallback 문구:
   - 완료: `[ESSE SION] 클레임이 처리 완료되었습니다.\nhttps://essesion.shop/order/claim-list`
   - 거부: `[ESSE SION] 클레임 요청이 거부되었습니다. 자세한 내용은 아래 링크에서 확인해주세요.\n(동일 링크)`
@@ -84,27 +84,27 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 
 - 송장 갱신: 일반(courier/tracking/shipped_at)·기업(company_*) 2종 부분 갱신. tracking 신규 입력 시 `shipped_at = coalesce(기존, now())`, 비우면 NULL. status ∈ {배송완료, 완료, 취소}면 거부.
 - 쿠폰 일괄 발급: user_coupons upsert(ON CONFLICT (user,coupon) DO UPDATE status='active' — 재활성화). 회수: **active만** revoked로 (id 목록 / 쿠폰×유저 목록 2종).
-- 통계: 오늘(주문 수·매출 합, 타입 필터 all|sale|custom|repair|token|sample), 기간(start≤end, created_at 범위).
+- 통계: 오늘(주문 수·매출 합, 타입 필터 all|sale|custom|repair|sample), 기간(start≤end, created_at 범위).
 - **대시보드 집계 기준** (`/admin/dashboard/overview`, `/admin/dashboard/recent-orders`):
   - 주문(`orders`)의 매출 시각은 `paid_at`이 유일한 기준이며 KST 일 단위로 버킷한다.
   - **수기 주문(`manual_orders`)도 주문 수·매출 합·매출 추이에 합산한다.** 수기 주문에는
     `paid_at`이 없으므로 `is_paid = true`인 행만, `order_date`(이미 KST date)를 매출일로 본다.
     금액은 `amount - discount + shipping_fee`(실수령액) — `orders.total_price`가 배송비를
     포함하므로 같은 기준이다.
-  - 대시보드 타입 필터는 위 목록에 `manual`을 더한 7종이다. `manual`은 `orders.order_type`이
+  - 대시보드 타입 필터는 위 목록에 `manual`을 더한 6종이다. `manual`은 `orders.order_type`이
     아니라 별도 장부를 가리키므로 **주문 목록(`/admin/orders`) 필터에는 없다**. `manual`을 고르면
     `recent-orders`는 빈 페이지를 반환하고, 대시보드가 `/admin/manual-orders`를 따로 조회해
     자기 표에 그린다.
-  - 매출 추이(`timeseries.points`)는 일별 매출을 **유형 7종으로 분해**해 함께 내려준다:
-    `sale_amount`·`custom_amount`·`repair_amount`·`sample_amount`·`token_amount`(각각
-    `orders.order_type`) + `manual_custom_amount`·`manual_repair_amount`. **7종의 합은 항상
+  - 매출 추이(`timeseries.points`)는 일별 매출을 **유형 6종으로 분해**해 함께 내려준다:
+    `sale_amount`·`custom_amount`·`repair_amount`·`sample_amount`(각각
+    `orders.order_type`) + `manual_custom_amount`·`manual_repair_amount`. **6종의 합은 항상
     `order_amount`와 같다.** 수기 주문은 금액이 주문 단위라 품목 배분 근거가 없어 **주문 단위**로
     분류한다 — 품목 중 하나라도 주문제작(`items[].custom`)이 있으면 `manual_custom`, 아니면
     `manual_repair`다. 타입 필터를 걸면 해당 유형 외 구획은 0이 된다.
   - 인기 상품 TOP-N은 `order_items.product_id` 기준이라 커스텀·수선과 함께 수기 주문도 제외된다
     (수기 주문 품목은 JSONB이고 product_id가 없다).
 - 상품 옵션 전체 교체(admin): DELETE 후 재삽입, **옵션 ≥1개면 products.stock=NULL 강제**(옵션 재고 관리로 전환).
-- 디자인 예시 큐레이션: `GET·POST /admin/design/examples`, `PATCH·DELETE /admin/design/examples/{id}`. 등록은 run 하나당 1개(unique)이고, intent가 `source='user_upload'` 모티프를 쓰면 409(`private_motif_example`). 등록 직후는 비게시 — `published`를 켜야 store 갤러리에 노출된다.
+- 템플릿 큐레이션: `GET /admin/design/examples`, `PATCH·DELETE /admin/design/examples/{id}`(게시·순서·삭제). 템플릿은 시드 코드로만 만든다(admin 등록 없음). 템플릿 데이터(`category`·`point`·`logo_slots`·`photo_full_url`·`photo_detail_url`)는 시드 코드(`apps/worker/scripts/seed_design_examples.py`)가 정본이라 admin 본문으로 받지 않는다 — 응답에는 노출된다.
 - **팝업 공지**(store 첫 진입 기간 한정 안내): `GET·POST /admin/popups`, `PATCH·DELETE /admin/popups/{id}`, 배너 이미지 `POST /admin/popups/images/upload-url` → `POST /admin/popups/images/{upload_id}/complete` → 저장 시 연결, `DELETE /admin/popups/images/{upload_id}`(스테이징 만료). 공개 조회 `GET /popups/active`는 `enabled`이고 **KST 오늘**이 `starts_on ≤ 오늘 ≤ ends_on`인 행 중 `starts_on desc, created_at desc` 첫 1건을 주고, 없으면 200 + `null`. 공개 응답은 렌더에 필요한 것만(id·template·title·title_emphasis·body·fields·link_url) — 기간·활성 여부는 admin 응답(`active_now` 계산값 포함)에만 있다.
   - 템플릿은 `fields.template`으로 판별하는 3종: `holiday`(cutoff_on·cutoff_time `HH:MM`·closed_from·closed_to·resume_on·footnote — `cutoff_on ≤ closed_from ≤ closed_to < resume_on` 아니면 422; store가 이 날짜로 달력·범례를 그린다) · `operation`(rows[{label ≤20자, value ≤80자}] 1–4행·footnote) · `event`(image_upload_id — 본인이 완료 등록한 `popup_upload` 행만, 아니면 422 `invalid_popup_image`/`popup_image_not_completed`; `link_url` 필수 422 `popup_link_required`).
   - 공통 검증: `ends_on < starts_on` 422 `invalid_popup_period`(PATCH는 병합 뒤 검증), `link_url`은 `/`로 시작하는 내부 경로 또는 `https://`만, `body`는 평문에 `**굵게**` 마크만 허용(store가 해석). PATCH에서 생략은 "안 바꿈", null은 "지움", `fields`는 통째로 교체.
@@ -112,33 +112,19 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 
 ## 11. 디자인(`/design`) 엔드포인트
 
-재설계 뒤의 현재 표면. 한 번의 생성이 디자인 1개를 만들고, 세션은 그 디자인들의 선형 이력(스텝)을 갖는다. 디자인 생성·아이디어 요청에는 `reference_images`가 없고 사진 업로드는 팔레트 추출 또는 모티프 모달의 로컬 사진→SVG 변환에만 쓴다. 디자인 생성 중에는 GPT Image를 호출하지 않는다. 계약 상세는 [worker-pipeline.md](./worker-pipeline.md) §5, 과금은 [money.md](./money.md) §6.
+고객 흐름은 템플릿 고르기 → 색·로고 → 바로 주문하기다(2026-10-19 AI 디자인 생성·디자인 토큰 종료). 색은 store가 SVG에서 바꾸고, 꾸민 디자인은 store가 PNG로 만들어 맞춤 주문 참고 이미지(`custom_order`, §8·money.md §3)로 올린다. 아래가 남은 표면 전부이며 모두 무료다.
 
-| 엔드포인트 | 역할 | 과금 |
-|---|---|---|
-| `POST /design/sessions` · `GET /design/sessions` · `GET·DELETE /design/sessions/{id}` | 세션 CRUD. 단건 GET은 `current_motifs`, 목록은 `last_prompt`·`preview_svg`(마지막 activate 런의 디자인 SVG) 포함 | — |
-| `GET /design/examples` | 첫 진입 갤러리(게시된 큐레이션 예시, **공개 조회**) | 무료 |
-| `POST /design/sessions/from-example` | 예시 run을 새 세션의 시작점으로 복원(`{example_id}`) — 렌더·워커 호출 없음 | 무료 |
-| `GET·POST /design/sessions/{id}/turns` | 이력 조회·사용자 메모 턴 | — |
-| `POST /design/generate` | 입력창 문장. 커밋된 디자인이 없으면 **첫 생성**(전체 저작), 있으면 **구성 수정**(patch). 처리하지 못한 모티프 요청은 `motif_intent` sidecar로 피커에 안내하며, 순수 모티프 요청은 무과금 `200 {rejected:"motif",reason?,motif_intent?}` — `reason ∈ {motif_change,motif_recolor,motif_position,target_missing}`은 안내 문구 선택용, 없으면 기본(`motif_change`) 취급 | `design_token_cost_openai_render_standard` / `design_edit_cost` |
-| `POST /design/sessions/{id}/steps/activate` | 이력 썸네일 클릭 = 편집 포인터 이동(`{run_id}`). 이후 스텝은 그대로 남는다 | — |
-| `POST /design/sessions/{id}/motifs/search` | 문장으로 카탈로그 모티프 찾기 | 무료 |
-| `POST /design/sessions/{id}/motifs/generate` | 문장으로 모티프 새로 만들기(GPT Image) | `design_motif_generate_cost` 토큰 |
-| `POST /design/sessions/{id}/motifs/activate` | 슬롯(≤2)의 모티프 교체 → 결정적 재렌더 | 무료 |
-| `POST /design/motifs` · `GET /design/motifs` · `DELETE /design/motifs/{id}` | 내 모티프 라이브러리(계정당 100개) | 무료 |
-| `POST /design/motifs/text-preview` · `/design/motifs/photo-preview` | 글자·사진 → SVG 변환 | 무료 |
-| `POST /design/ideas` | 편집 초안 문장 3~4개 (별도 rate limit) | 무료 |
-| `POST /design/sessions/{id}/finalize` | 실사화 — 동기 요청-응답, 성공만 완성본 레코드로 남는다. 산출물 3장: 넥타이 실사·원단 실사(AI 편집 2회) + 정본 타일(결정론 렌더) → `tie_url`/`fabric_url`/`tile_url` | `design_finalize_cost` 토큰 |
-| `POST /design/export` | 이미 만든 SVG의 PNG/TIFF 변환 | 무료 |
-| `GET /design/jobs` · `DELETE /design/jobs/{id}` · `POST /design/jobs/{id}/order-reference` | 완성본 목록·삭제·주문 연결(인수물 = 넥타이 실사 + 정본 타일 2장, 화면 첨부 카드는 1개) | — |
+| 엔드포인트 | 역할 |
+|---|---|
+| `GET /design/examples` | 템플릿 목록(게시된 것, **공개 조회**). 템플릿 데이터 `category`(필터 칩 라벨)·`point`(`none\|top\|bottom`, 포인트 로고 자리)·`logo_slots`(`[{slot: 1\|2\|"logo", label}]` — 로고를 받을 자리, 순서대로 색·로고 화면의 업로드 칸. 템플릿이 안 정했으면 아래 서버 규칙 한 자리)·`photo_full_url`·`photo_detail_url`(실사 사진, 없으면 store가 결정론 샷)·`logo_preview_svg`(첫 로고 자리 모티프 미리보기 — 템플릿이 자리를 안 정했으면 panel 로고. 세션 `current_motifs[].preview_svg`와 같은 형식, 없으면 null)·`panel_svg`(배치형 요소 SVG, 반복형은 null)·`logo_in_panel`(포인트 로고를 panel이 그린다 — store는 엠블럼 오버레이를 얹지 않는다)·`colorways[]`(run intent의 `{id,name,mapping}` 그대로 — 템플릿은 `default`만 둔다. 색 고르기 부위는 intent 팔레트의 이름 붙은 슬롯) |
+| `POST /design/sessions/from-example` | 템플릿 run을 새 세션의 시작점으로 복원(`{example_id}`) — 렌더·워커 호출 없음. 세션에 `example_id`가 남고 세션 응답에 노출된다(템플릿 삭제 시 null) |
+| `GET /design/sessions/{id}` | 세션 단건. `preview_svg`(편집 포인터 = 마지막 activate 런의 디자인 SVG, 없으면 null)·`preview_panel_svg`(같은 런의 배치형 panel SVG — [worker-engine.md](./worker-engine.md) §2b, 없으면 null)·`current_motifs`·`active_generation_*`(진행 중 재렌더 — store가 폴링으로 복원) |
+| `POST /design/sessions/{id}/logo` | 로고 넣기(`{name, svg, slot?}`) — 내 모티프로 저장(content-hash로 멱등, 계정당 100개)한 뒤 그 자리의 모티프를 교체해 결정적 재렌더. 자리는 세션 템플릿(`example_id`)의 `logo_slots` 중 `slot`(생략하면 첫 자리), 없는 자리면 저장 전에 422(`invalid_logo_slot`). 템플릿이 자리를 안 정했으면 서버 규칙 한 자리 — intent에 배치형 panel 로고(`role=logo`)가 있으면 그 자리(워커 `motif_slot.slot="logo"`, 턴 `slot:"logo"`), 아니면 모티프 슬롯이 둘이면 2, 아니면 1. 진행 중 재렌더가 있으면 409(`generation_in_progress`) |
+| `POST /design/motifs/photo-preview` | 사진 → SVG 변환(워커 로컬 VTracer, [worker-motifs.md](./worker-motifs.md) §7.1). 사진은 `POST /images/upload-url`(`kind=design_reference`) → `POST /design-uploads/{id}/complete`로 먼저 올린다 |
 
-**미완료 차감 복구**: 모티프 생성·실사화는 토큰을 먼저 차감하고 외부 호출에 들어가므로, 차감과 같은 트랜잭션에 `token_works` pending 기록을 남긴다. 프로세스가 응답 전에 죽으면 기한(15분)이 지난 pending을 `POST /batch/recover-token-works`(5분 주기, LIMIT 100)가 정확히 한 번 환불한다. 늦게 돌아온 요청은 refunded 기록 위에 결과를 게시하지 않고 `motif_generate_expired`·`finalize_expired`로 거절한다. 규칙 전문은 [money.md](./money.md) §6. store는 세션 단건의 `active_generation_id`로 진행 중 생성을 복원한다 — 이 기록은 클라이언트에 노출되지 않는다.
+**역할 명시**: 정본은 intent JSON + 결정론 타일이다. 직조 실현 가능성 판단은 원단 디자이너(사람)의 영역이며 시스템은 이를 자동 판정하지 않는다.
 
-**역할 명시**: 정본은 intent JSON + 결정론 타일이다. AI 실사 이미지는 시각적 설득·참고물이다.
-직조 실현 가능성 판단은 원단 디자이너(사람)의 영역이며 시스템은 이를 자동 판정하지 않는다.
-파이프라인 2단 구조와 3곳 결속(weave)은 `worker-pipeline.md` §2.
-
-폐기된 엔드포인트: `POST /design/sessions/{id}/select`(→ `steps/activate`), `.../reroll`("같은 지시로 다시" 없음), `.../branch`(분기 트리 UI 없음).
+폐기된 엔드포인트(2026-10-19): 세션 생성·목록·삭제, 턴, `/design/generate`, `steps/activate`, 모티프 검색·생성·교체·라이브러리, `text-preview`, `ideas`, `finalize`, `export`, `/design/jobs*`, `/color`. 그 이전: `select`·`reroll`·`branch`.
 
 ## 12. 에러 메시지 계약
 

@@ -1,5 +1,5 @@
 import type { MotifDetailOut, PageMotifSummaryOut } from "@essesion/api-client";
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,7 +9,6 @@ import { renderAdminPage } from "../../test/render-admin-page";
 const api = vi.hoisted(() => ({
   list: vi.fn(),
   detail: vi.fn(),
-  review: vi.fn(),
   update: vi.fn(),
   listOptions: vi.fn(),
   detailOptions: vi.fn(),
@@ -36,7 +35,6 @@ vi.mock("@essesion/api-client/query", () => ({
     JSON.stringify(options),
   ],
   listAdminMotifsQueryKey: () => ["motifs"],
-  reviewAdminMotifMutation: () => ({ mutationFn: api.review }),
   updateAdminMotifMutation: () => ({ mutationFn: api.update }),
 }));
 
@@ -60,8 +58,6 @@ const page: PageMotifSummaryOut = {
       scope: "whole",
       style: "outline",
       source: "registry",
-      status: "pending",
-      reviewed_at: null,
       created_at: "2026-07-12T01:00:00Z",
       bbox: [0, 0, 24, 24],
       symbol:
@@ -76,8 +72,6 @@ const page: PageMotifSummaryOut = {
 
 const detail: MotifDetailOut = {
   ...page.items[0]!,
-  description: "정면 동백꽃 모티프",
-  tags: ["flower", "camellia"],
   anchor: [12, 12],
   ingested_user_id: null,
   ingested_session_id: null,
@@ -101,11 +95,6 @@ describe("MotifsPage", () => {
     });
     api.list.mockResolvedValue(page);
     api.detail.mockResolvedValue(detail);
-    api.review.mockResolvedValue({
-      ...detail,
-      status: "approved",
-      reviewed_at: "2026-08-03T08:00:00Z",
-    });
     api.update.mockResolvedValue(detail);
   });
 
@@ -113,11 +102,10 @@ describe("MotifsPage", () => {
     renderPage("/motifs?type=whole&page=2&limit=50");
 
     expect(
-      await screen.findByRole("table", { name: "Motif 목록" }),
+      await screen.findByRole("table", { name: "무늬·로고 목록" }),
     ).toBeTruthy();
     expect(api.listOptions).toHaveBeenCalledWith({
       query: {
-        status: "all",
         scope: "whole",
         q: undefined,
         start_date: undefined,
@@ -128,7 +116,7 @@ describe("MotifsPage", () => {
     });
   });
 
-  it("목록의 Motif 이름이 상세 페이지로 링크된다", async () => {
+  it("목록의 모티프 이름이 상세 페이지로 링크된다", async () => {
     renderPage();
 
     const link = await screen.findByRole("link", { name: "동백꽃" });
@@ -146,12 +134,9 @@ describe("MotifsPage", () => {
   it("검색과 생성일 필터를 적용하고 칩·전체 초기화로 해제한다", async () => {
     const user = userEvent.setup();
     renderPage();
-    await screen.findByRole("table", { name: "Motif 목록" });
+    await screen.findByRole("table", { name: "무늬·로고 목록" });
 
-    await user.type(
-      screen.getByLabelText("Motif ID·이름·소스 검색"),
-      "motif-1",
-    );
+    await user.type(screen.getByLabelText("ID·이름·소스 검색"), "motif-1");
     await user.click(screen.getByRole("button", { name: "검색" }));
     await waitFor(() =>
       expect(api.listOptions).toHaveBeenLastCalledWith({
@@ -200,15 +185,14 @@ describe("MotifsPage", () => {
       }),
     );
     expect(
-      (screen.getByLabelText("Motif ID·이름·소스 검색") as HTMLInputElement)
-        .value,
+      (screen.getByLabelText("ID·이름·소스 검색") as HTMLInputElement).value,
     ).toBe("");
   });
 
   it("범위 필터 초안은 취소하면 버리고 적용할 때 조회한다", async () => {
     const user = userEvent.setup();
     renderPage("/motifs?type=whole");
-    await screen.findByRole("table", { name: "Motif 목록" });
+    await screen.findByRole("table", { name: "무늬·로고 목록" });
 
     const requestCount = api.list.mock.calls.length;
     await user.click(screen.getByRole("button", { name: "필터 1" }));
@@ -234,22 +218,6 @@ describe("MotifsPage", () => {
       }),
     );
   });
-
-  it("전체 상태를 기본 조회하고 상태 필터를 적용한다", async () => {
-    const user = userEvent.setup();
-    renderPage();
-    await screen.findByRole("table", { name: "Motif 목록" });
-
-    await user.click(screen.getByRole("button", { name: "필터" }));
-    await user.click(screen.getByRole("radio", { name: "승인" }));
-    await user.click(screen.getByRole("button", { name: "필터 적용" }));
-
-    await waitFor(() =>
-      expect(api.listOptions).toHaveBeenLastCalledWith({
-        query: expect.objectContaining({ status: "approved", offset: 0 }),
-      }),
-    );
-  });
 });
 
 describe("MotifDetailPage", () => {
@@ -262,11 +230,6 @@ describe("MotifDetailPage", () => {
       revokeObjectURL: { configurable: true, value: revokeObjectURL },
     });
     api.detail.mockResolvedValue(detail);
-    api.review.mockResolvedValue({
-      ...detail,
-      status: "approved",
-      reviewed_at: "2026-08-03T08:00:00Z",
-    });
     api.update.mockResolvedValue(detail);
   });
 
@@ -280,14 +243,14 @@ describe("MotifDetailPage", () => {
 
     expect(
       await screen.findByRole("img", {
-        name: "동백꽃 Motif 안전 미리보기",
+        name: "동백꽃 모티프 안전 미리보기",
       }),
     ).toBeTruthy();
     expect(api.detailOptions).toHaveBeenCalledWith({
       path: { motif_id: "motif-1" },
     });
     expect(createObjectURL).toHaveBeenCalledTimes(1);
-    await screen.findByRole("heading", { name: "검색 메타데이터" });
+    await screen.findByRole("heading", { name: "무늬·로고 정보" });
   });
 
   it("모티프 메타데이터 행 집합을 그대로 노출한다", async () => {
@@ -298,7 +261,7 @@ describe("MotifDetailPage", () => {
       { entry: "/motifs/motif-1" },
     );
 
-    await screen.findByRole("heading", { name: "검색 메타데이터" });
+    await screen.findByRole("heading", { name: "무늬·로고 정보" });
     expect(
       Array.from(container.querySelectorAll("dt"), (node) => node.textContent),
     ).toEqual([
@@ -306,8 +269,6 @@ describe("MotifDetailPage", () => {
       "범위",
       "스타일",
       "소스",
-      "검토 상태",
-      "검토 시각",
       "생성일",
       "최초 요청자",
       "최초 요청 세션",
@@ -316,7 +277,7 @@ describe("MotifDetailPage", () => {
     ]);
   });
 
-  it("관리자가 검색 메타데이터를 수정한다", async () => {
+  it("관리자가 무늬·로고 정보를 수정한다", async () => {
     const user = userEvent.setup();
     renderAdminPage(
       <Routes>
@@ -324,12 +285,10 @@ describe("MotifDetailPage", () => {
       </Routes>,
       { entry: "/motifs/motif-1" },
     );
-    await screen.findByRole("heading", { name: "검색 메타데이터" });
+    await screen.findByRole("heading", { name: "무늬·로고 정보" });
 
     await user.clear(screen.getByLabelText("주제"));
     await user.type(screen.getByLabelText("주제"), "붉은 동백");
-    await user.clear(screen.getByLabelText("태그"));
-    await user.type(screen.getByLabelText("태그"), "꽃, flower, red");
     await user.click(screen.getByRole("radio", { name: "플랫" }));
     await user.click(screen.getByRole("button", { name: "저장" }));
 
@@ -338,35 +297,10 @@ describe("MotifDetailPage", () => {
         path: { motif_id: "motif-1" },
         body: {
           subject: "붉은 동백",
-          description: "정면 동백꽃 모티프",
-          tags: ["꽃", "flower", "red"],
           style: "flat",
         },
       }),
     );
-  });
-
-  it("승인 확인 후 생성 클라이언트로 검토 상태를 변경한다", async () => {
-    const user = userEvent.setup();
-    renderAdminPage(
-      <Routes>
-        <Route path="/motifs/:motifId" element={<MotifDetailPage />} />
-      </Routes>,
-      { entry: "/motifs/motif-1" },
-    );
-    await screen.findByRole("heading", { name: "검색 메타데이터" });
-
-    await user.click(screen.getByRole("button", { name: "승인" }));
-    const dialog = await screen.findByRole("alertdialog");
-    await user.click(within(dialog).getByRole("button", { name: "승인" }));
-
-    await waitFor(() =>
-      expect(api.review.mock.calls[0]?.[0]).toEqual({
-        path: { motif_id: "motif-1" },
-        body: { status: "approved" },
-      }),
-    );
-    expect(screen.getAllByText("승인").length).toBeGreaterThan(0);
   });
 
   it("symbol fragment를 innerHTML 없이 독립 SVG 문서로 감싼다", () => {

@@ -13,7 +13,7 @@
 import json
 import logging
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from datetime import date as date_type
 from typing import Any, cast
 
@@ -25,10 +25,9 @@ from db.models.commerce import (
     PaymentIncident,
     UserCoupon,
 )
-from db.models.tokens import DesignToken
 from fastapi import BackgroundTasks
 from obs import request_id_var
-from sqlalchemy import CursorResult, exists, func, select, update
+from sqlalchemy import CursorResult, exists, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -56,7 +55,6 @@ from api.pricing import get_pricing_constants
 
 logger = logging.getLogger(__name__)
 
-PLAN_LABELS = {"starter": "Starter", "popular": "Popular", "pro": "Pro"}
 TOSS_PAYMENT_NOT_FOUND_CODE = "NOT_FOUND_PAYMENT"
 
 # (쿠폰명, 할인액 상수 키 목록) — 원단+봉제는 가격과 같이 두 상수의 합이다 (money.md §4).
@@ -93,8 +91,6 @@ def mask_payment_key(payment_key: str) -> str:
 def _post_status(order: Order) -> str:
     if order.order_type == "sale":
         return "진행중"
-    if order.order_type == "token":
-        return "완료"
     if order.order_type == "repair":
         return "발송대기"  # 고객이 직접 발송한다 — money.md §7
     return "접수"
@@ -123,35 +119,18 @@ async def _has_open_confirm_incident(session: AsyncSession, order_ids: list[uuid
     )
 
 
-async def _token_order_amount(session: AsyncSession, order: Order) -> tuple[int, str]:
-    item = await session.scalar(select(OrderItem).where(OrderItem.order_id == order.id))
-    if item is None:
-        raise DomainError("Token order item not found", code="invalid_token_order")
-    data = item.item_data
-    token_amount, plan_key = data.get("token_amount"), data.get("plan_key")
-    if not isinstance(token_amount, int) or token_amount <= 0 or not plan_key:
-        raise DomainError("Invalid token order", code="invalid_token_order")
-    return token_amount, plan_key
-
-
-async def _done_response(session: AsyncSession, orders: list[Order]) -> PaymentConfirmResponse:
-    confirmed = []
-    total_tokens: int | None = None
-    for order in orders:
-        token_amount = None
-        if order.order_type == "token":
-            token_amount, _ = await _token_order_amount(session, order)
-            total_tokens = (total_tokens or 0) + token_amount
-        confirmed.append(
+def _done_response(orders: list[Order]) -> PaymentConfirmResponse:
+    return PaymentConfirmResponse(
+        orders=[
             ConfirmedOrder(
                 order_id=order.id,
                 order_number=order.order_number,
                 order_type=order.order_type,
                 status=order.status,
-                token_amount=token_amount,
             )
-        )
-    return PaymentConfirmResponse(orders=confirmed, token_amount=total_tokens)
+            for order in orders
+        ]
+    )
 
 
 async def confirm_payment(
@@ -187,7 +166,7 @@ async def confirm_payment(
                 "기존 결제 시도와 결제키가 일치하지 않습니다",
                 code="payment_key_mismatch",
             )
-        return await _done_response(session, orders)
+        return _done_response(orders)
     if any(o.paid_at is not None for o in orders):
         raise ConflictError(
             "주문 그룹의 결제 상태 대사가 필요합니다",
@@ -222,7 +201,7 @@ async def confirm_payment(
                 "기존 결제 시도와 결제키가 일치하지 않습니다",
                 code="payment_key_mismatch",
             )
-        return await _done_response(session, orders)
+        return _done_response(orders)
     if any(order.paid_at is not None for order in orders):
         raise ConflictError(
             "주문 그룹의 결제 상태 대사가 필요합니다",
@@ -445,8 +424,8 @@ async def _confirm(
                 observed_amount=sum(order.total_price for order in orders),
             )
             await session.commit()
-        return await _done_response(session, orders)  # 경합 승자에게 양보 — 멱등
-    confirmed, total_tokens = await _apply_confirmation(
+        return _done_response(orders)  # 경합 승자에게 양보 — 멱등
+    confirmed = await _apply_confirmation(
         session,
         orders,
         payment_key,
@@ -457,7 +436,7 @@ async def _confirm(
         settings=settings,
         background=background,
     )
-    return PaymentConfirmResponse(orders=confirmed, token_amount=total_tokens)
+    return PaymentConfirmResponse(orders=confirmed)
 
 
 async def reconcile_confirmed_payment(
@@ -500,7 +479,7 @@ async def reconcile_canceled_payment(
     """검증된 전액취소를 아직 확정되지 않은 결제중 주문에 반영한다.
 
     호출자는 Toss의 paymentKey/orderId/status/최초 관측금액을 모두 검증해야 한다.
-    토큰 회수와 같은 USER_LOCK을 order row보다 먼저 잡아 돈 경로 lock 순서를 지킨다.
+    USER_LOCK을 order row보다 먼저 잡아 돈 경로 lock 순서(USER → order)를 지킨다.
     """
 
     group_user_ids = await session.scalars(
@@ -534,8 +513,6 @@ async def reconcile_canceled_payment(
                 memo="Toss 전액취소 관리자 대사",
             )
             changed += 1
-        if order.order_type == "token":
-            await _claw_back_purchased_tokens(session, order)
     # 결제 확정 전에 취소된 주문의 reserved 쿠폰만 복원한다. used 쿠폰은 건드리지 않는다.
     await restore_reserved_order_coupons(session, orders)
     await session.commit()
@@ -627,13 +604,12 @@ async def _apply_confirmation(
     solapi: SolapiClient | None = None,
     settings: Settings | None = None,
     background: BackgroundTasks | None = None,
-) -> tuple[list[ConfirmedOrder], int | None]:
-    """결제중 → 결제후 상태 + 부수효과(토큰 지급·샘플 쿠폰·쿠폰 사용확정). 커밋 포함.
+) -> list[ConfirmedOrder]:
+    """결제중 → 결제후 상태 + 부수효과(샘플 쿠폰·쿠폰 사용확정). 커밋 포함.
 
     orders는 FOR UPDATE로 잠긴 상태여야 한다. actor_id=None은 시스템(웹훅 대사).
     """
     confirmed: list[ConfirmedOrder] = []
-    total_tokens: int | None = None
     masked = mask_payment_key(payment_key)
     paid_at = datetime.now(UTC)
 
@@ -645,12 +621,8 @@ async def _apply_confirmation(
         order.payment_key = payment_key
         order.paid_at = paid_at  # 매출 지표의 시간 기준 — 결제중 가드가 1회성을 보장한다
 
-        token_amount = None
         coupon_issued = False
-        if order.order_type == "token":
-            token_amount = await _grant_purchased_tokens(session, order)
-            total_tokens = (total_tokens or 0) + token_amount
-        elif order.order_type == "sample":
+        if order.order_type == "sample":
             coupon_issued = await _issue_sample_followup_coupon(session, order)
 
         confirmed.append(
@@ -659,7 +631,6 @@ async def _apply_confirmation(
                 order_number=order.order_number,
                 order_type=order.order_type,
                 status=post,
-                token_amount=token_amount,
                 coupon_issued=coupon_issued,
             )
         )
@@ -691,7 +662,7 @@ async def _apply_confirmation(
     # 여기가 paid_at을 쓰는 유일한 지점이라 정상 confirm·웹훅 대사·관리자 대사가 한 번에 커버되고,
     # 위의 "결제중" 가드가 구조적으로 주문당 1회만 통과시키므로 재발송 방지 코드가 따로 필요 없다.
     await _notify_payment_done(session, solapi, settings, orders, background)
-    return confirmed, total_tokens
+    return confirmed
 
 
 async def _unlock(session: AsyncSession, user: User, group_id: uuid.UUID) -> None:
@@ -709,28 +680,6 @@ async def _unlock(session: AsyncSession, user: User, group_id: uuid.UUID) -> Non
             order.payment_key = None
     await restore_reserved_order_coupons(session, orders)
     await session.commit()
-
-
-async def _grant_purchased_tokens(session: AsyncSession, order: Order) -> int:
-    token_amount, plan_key = await _token_order_amount(session, order)
-    label = PLAN_LABELS.get(plan_key, plan_key)
-    await session.execute(
-        pg_insert(DesignToken)
-        .values(
-            user_id=order.user_id,
-            amount=token_amount,
-            type="purchase",
-            token_class="paid",
-            description=f"{label} 플랜 구매",
-            work_id=f"order_{order.id}",
-            source_order_id=order.id,
-            expires_at=datetime.now(UTC) + timedelta(days=365),
-        )
-        .on_conflict_do_nothing(
-            index_elements=[DesignToken.work_id], index_where=DesignToken.work_id.isnot(None)
-        )
-    )
-    return token_amount
 
 
 async def _sample_followup_key(
@@ -941,9 +890,8 @@ async def reconcile_from_webhook(
     except ValueError:
         return {"handled": False, "reason": "unknown_order"}
 
-    # 취소 웹훅은 토큰 구매 지급분을 회수한다. 토큰 사용과 같은 USER_LOCK을
-    # 주문 row lock보다 먼저 잡아야 use_tokens가 회수 직전의 잔액을 읽지 않고,
-    # 환불 경로의 공통 lock 순서(USER → order)도 깨지지 않는다.
+    # 취소 웹훅도 환불 경로의 공통 lock 순서(USER → order)를 따른다 — USER_LOCK을
+    # 주문 row lock보다 먼저 잡는다.
     if toss_status == "CANCELED":
         group_user_ids = await session.scalars(
             select(Order.user_id).where(Order.payment_group_id == group_id)
@@ -1051,7 +999,7 @@ async def reconcile_from_webhook(
                 total,
             )
             return {"handled": False, "reason": "amount_mismatch"}
-        confirmed, _ = await _apply_confirmation(
+        confirmed = await _apply_confirmation(
             session,
             orders,
             payment_key,
@@ -1117,8 +1065,6 @@ async def reconcile_from_webhook(
             # 대시보드 직접 취소 동기화 — 상태기계를 의도적으로 우회(돈이 이미 환불됨)
             log_status(session, order, "취소", changed_by=None, memo="Toss 웹훅 취소 동기화")
             changed += 1
-            if order.order_type == "token":
-                await _claw_back_purchased_tokens(session, order)
         # 승인 반영 전에 Toss에서 취소된 주문의 reserved 쿠폰만 복원한다.
         # 이미 used인 쿠폰은 restore helper의 조건에 걸리지 않아 수동 정책을 유지한다.
         await restore_reserved_order_coupons(session, orders)
@@ -1161,39 +1107,4 @@ async def _record_webhook_cancel_mismatch(
         operation_scope="webhook-cancel",
         operation_discriminator=reason,
         fingerprint_incident_type=False,
-    )
-
-
-async def _claw_back_purchased_tokens(session: AsyncSession, order: Order) -> None:
-    """대시보드 취소된 토큰 주문의 지급분 회수 — work_id 멱등."""
-    granted = await session.scalar(
-        select(func.coalesce(func.sum(DesignToken.amount), 0)).where(
-            DesignToken.user_id == order.user_id,
-            DesignToken.type == "purchase",
-            DesignToken.token_class == "paid",
-            DesignToken.source_order_id == order.id,
-        )
-    )
-    if not granted or granted <= 0:
-        return
-    expires = await session.scalar(
-        select(DesignToken.expires_at).where(
-            DesignToken.type == "purchase", DesignToken.source_order_id == order.id
-        )
-    )
-    await session.execute(
-        pg_insert(DesignToken)
-        .values(
-            user_id=order.user_id,
-            amount=-granted,
-            type="refund",
-            token_class="paid",
-            description="Toss 웹훅 취소 동기화 — 토큰 회수",
-            work_id=f"webhook_cancel_{order.id}",
-            source_order_id=order.id,
-            expires_at=expires,
-        )
-        .on_conflict_do_nothing(
-            index_elements=[DesignToken.work_id], index_where=DesignToken.work_id.isnot(None)
-        )
     )

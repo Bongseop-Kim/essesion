@@ -107,13 +107,10 @@ export function ProductDetailPage() {
     // ID 자체가 잘못됐으면 query가 비활성(enabled:false)이라 refetch로 회복할 수 없다.
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading
-          title="상품 상세"
-          description="상품과 옵션 정보를 확인합니다."
-        />
+        <RouteHeading title="상품 상세" />
         <ContentPlaceholder
           title="상품을 찾을 수 없습니다"
-          description="유효하지 않은 상품 ID입니다. 목록에서 다시 선택해 주세요."
+          description="삭제됐거나 주소가 잘못된 상품입니다. 목록에서 다시 선택해 주세요."
           action={
             <ActionButton onClick={() => navigate("/products")}>
               목록으로
@@ -126,13 +123,10 @@ export function ProductDetailPage() {
   if (query.isError || product === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading
-          title="상품 상세"
-          description="상품과 옵션 정보를 확인합니다."
-        />
+        <RouteHeading title="상품 상세" />
         <ContentPlaceholder
           title="상품을 불러오지 못했습니다"
-          description="상품 ID를 확인하거나 다시 시도해 주세요."
+          description="잠시 후 다시 시도해 주세요."
           action={
             <ActionButton onClick={() => void query.refetch()}>
               다시 시도
@@ -180,12 +174,12 @@ export function ProductDetailPage() {
           <VStack flex={1} minWidth={260} alignItems="stretch">
             <DetailList
               items={[
-                { label: "상품 이름", value: product.name },
+                { label: "상품명", value: product.name },
                 { label: "상품 코드", value: product.code ?? "없음" },
                 { label: "가격", value: formatMoney(product.price) },
                 { label: "재고", value: stockLabel(product) },
                 {
-                  label: "분류",
+                  label: "카테고리",
                   value: [
                     attributeLabel(PRODUCT_CATEGORIES, product.category),
                     attributeLabel(PRODUCT_COLORS, product.color),

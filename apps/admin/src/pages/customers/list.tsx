@@ -63,12 +63,6 @@ const columns: readonly AdminTableColumn<AdminCustomerSummaryOut>[] = [
     ),
   },
   {
-    key: "token",
-    header: "토큰",
-    align: "end",
-    render: (customer) => `${customer.token_balance.toLocaleString("ko-KR")}개`,
-  },
-  {
     key: "orders",
     header: "주문",
     align: "end",
@@ -173,10 +167,7 @@ export function CustomersPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <RouteHeading
-        title="고객 관리"
-        description="customer 역할 계정만 조회하며 개인정보 검색어는 브라우저 주소에 남기지 않습니다."
-      />
+      <RouteHeading title="고객 관리" />
 
       <PaginatedAdminTableCard
         title="고객 목록"

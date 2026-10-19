@@ -304,7 +304,7 @@ export function ProductForm({
           <VStack gap="x4" alignItems="stretch">
             <Grid columns={{ base: 1, md: 2 }} gap="x4">
               <TextField
-                label="상품 이름"
+                label="상품명"
                 required
                 maxLength={200}
                 value={draft.name}
@@ -374,7 +374,7 @@ export function ProductForm({
 
         <AdminCard
           title="이미지"
-          description="JPG·PNG·WebP, 파일당 10MB 이하입니다. 업로드 완료 후 상품 저장 시 관계가 확정됩니다."
+          description="JPG·PNG·WebP, 파일당 10MB 이하. 상품을 저장해야 이미지가 반영됩니다."
         >
           <VStack gap="x5" alignItems="stretch">
             <AttachmentDisplayField
@@ -479,7 +479,6 @@ export function ProductForm({
 
         <AdminCard
           title="옵션"
-          description="기존 옵션 ID를 유지한 채 추가·수정·제거됩니다."
           action={
             <ActionButton
               variant="neutralOutline"
@@ -527,9 +526,7 @@ export function ProductForm({
                       key={option.clientId}
                       title={`옵션 ${index + 1}`}
                       description={
-                        option.id === undefined
-                          ? "새 옵션"
-                          : `기존 옵션 ID ${option.id}`
+                        option.id === undefined ? "새 옵션" : "등록된 옵션"
                       }
                       action={
                         <ActionButton
@@ -545,7 +542,7 @@ export function ProductForm({
                             )
                           }
                         >
-                          제거
+                          삭제
                         </ActionButton>
                       }
                     >
@@ -623,7 +620,7 @@ export function ProductForm({
               title="상품을 저장하지 못했습니다"
               description={getErrorMessage(
                 error,
-                "다른 관리자의 변경 또는 입력 조건을 확인해 주세요. 현재 입력은 보존됩니다.",
+                "다른 관리자가 먼저 수정했을 수 있습니다. 입력한 내용은 그대로 있으니 최신 내용과 비교해 주세요.",
               )}
             />
             {errorAction}
@@ -632,7 +629,7 @@ export function ProductForm({
 
         <HStack gap="x2" wrap>
           <ActionButton type="submit" loading={pending || uploading > 0}>
-            {mode === "create" ? "상품 등록" : "상품 변경 저장"}
+            {mode === "create" ? "상품 등록" : "저장"}
           </ActionButton>
           <ActionButton
             variant="ghost"
@@ -645,17 +642,17 @@ export function ProductForm({
               setUploadError(undefined);
             }}
           >
-            변경 취소
+            {mode === "create" ? "입력 취소" : "수정 취소"}
           </ActionButton>
         </HStack>
       </VStack>
 
       <AlertDialog
         open={blocker.state === "blocked"}
-        title="저장하지 않은 상품 변경을 버릴까요?"
-        description="입력한 상품 정보와 아직 확정하지 않은 이미지가 사라집니다."
+        title="저장하지 않고 나갈까요?"
+        description="입력한 상품 정보와 이미지는 저장되지 않습니다."
         primaryActionProps={{
-          children: "변경 버리기",
+          children: "나가기",
           variant: "criticalSolid",
           onClick: () => {
             discardStaged();
@@ -663,7 +660,7 @@ export function ProductForm({
           },
         }}
         secondaryActionProps={{
-          children: "계속 편집",
+          children: "계속 작성",
           onClick: () => blocker.reset?.(),
         }}
       />

@@ -1,20 +1,15 @@
-"""sanitize 게이트 — SVG 인젝션 차단, 정상 엔진 출력은 무변경 통과, /export가 위험 SVG 거부.
+"""sanitize 게이트 — SVG 인젝션 차단, 정상 엔진 출력은 무변경 통과.
 
-원본 seamless-tile tests/test_sanitize.py 전량을 essesion의 색 검증 함수/정규식과
-/export 라우트(경로 `/export`, essesion 문구)에 맞춰 이식.
+원본 seamless-tile tests/test_sanitize.py를 essesion의 색 검증 함수/정규식에 맞춰 이식.
 """
 
 import pytest
-from fastapi.testclient import TestClient
 from svg_safety import HEX_RE, SanitizeError, sanitize_svg, scrub_svg
 from worker.engine.generate import generate
-from worker.main import app
 
 from .intent_helpers import mvp_intent, register_test_motifs
 
 register_test_motifs()
-
-client = TestClient(app)
 
 _NS = '<svg xmlns="http://www.w3.org/2000/svg"'
 
@@ -101,19 +96,6 @@ def test_sanitize_allows_spot_color_token():
 )
 def test_hex_regex(value, ok):
     assert bool(HEX_RE.match(value)) is ok
-
-
-def test_export_route_rejects_unsafe_svg_400():
-    bad = f'{_NS}><image href="http://evil/x.png"/></svg>'
-    resp = client.post("/export", json={"svg": bad, "dpi": 300, "width_mm": 48})
-    assert resp.status_code == 400
-    assert "image" in str(resp.json()["detail"]).lower()  # essesion: "disallowed svg tag: image"
-
-
-def test_export_route_rejects_script_breakout_400():
-    bad = f"{_NS}><rect/></svg><script>alert(1)</script>"
-    resp = client.post("/export", json={"svg": bad, "dpi": 300, "width_mm": 48})
-    assert resp.status_code == 400
 
 
 @pytest.mark.parametrize(

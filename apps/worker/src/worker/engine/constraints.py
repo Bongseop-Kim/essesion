@@ -60,6 +60,12 @@ def ordered_slot_refs(raw: dict[str, Any]) -> list[str]:
         for candidate in candidates:
             if isinstance(candidate, str) and candidate and candidate not in refs:
                 refs.append(candidate)
+    # 배치형 요소의 색도 슬롯 참조다 — 빠지면 _renumber가 그 슬롯을 지운다.
+    panel = raw.get("panel")
+    for element in panel if isinstance(panel, list) else ():
+        color = element.get("color") if isinstance(element, dict) else None
+        if isinstance(color, str) and color and color not in refs:
+            refs.append(color)
     return refs
 
 

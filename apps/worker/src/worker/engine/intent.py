@@ -99,6 +99,9 @@ class Placement(BaseModel):
     lattice: LatticeSpec | None = None
     scatter: ScatterSpec | None = None
     point_set: PointSetSpec | None = None
+    # 앞서 그려지는 모티프 레이어 id — 그 인스턴스와 외접원이 겹치는 자기 인스턴스를 뺀다
+    # (worker-engine.md §3). None은 dump에서 생략돼 기존 intent는 byte-identical하다.
+    avoid_layer: str | None = None
 
     @model_validator(mode="after")
     def _spec_matches_type(self) -> "Placement":
@@ -175,12 +178,81 @@ class MotifLayer(BaseModel):
     type: Literal["motif"]
     params: MotifParams
     placement: Placement | None = None
+    # 모티프 슬롯(1..) — 같은 슬롯의 레이어는 한 모티프로 같이 바뀐다. 없으면 고유 motif_id가
+    # 처음 나오는 순서로 매긴다(`patch.motif_layer_slots`). 첫 교체가 전부 박아 두므로 두 슬롯에
+    # 같은 모티프를 넣어도 슬롯이 합쳐지지 않는다.
+    slot: int | None = Field(default=None, ge=1)
     z_order: int
     opacity: float = Field(default=1.0, ge=0.0, le=1.0)
     clip: str | None = None
 
 
 Layer = Annotated[BackgroundLayer | StripeLayer | MotifLayer, Field(discriminator="type")]
+
+# 배치형(panel) — 블레이드에 한 번만 놓이는 요소(worker-engine.md §2b). 좌표는 블레이드 프레임:
+# x 0..1000 = 블레이드 폭(왼→오, 어깨 기준), y는 같은 단위(위→아래)로 어깨선(끝이 좁아지기
+# 시작하는 줄)이 1000, 끝 ≈ 1500. 등방 단위라 평면 카드·실사 컷 어디서든 모양이 같다.
+PanelPoint = tuple[
+    Annotated[float, Field(ge=-10_000, le=10_000)], Annotated[float, Field(ge=-10_000, le=10_000)]
+]
+
+
+class PanelRegion(BaseModel):
+    """다각형 채움 — 대각·V 분할."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["region"]
+    points: list[PanelPoint] = Field(min_length=3, max_length=64)
+    color: str
+
+
+class PanelLine(BaseModel):
+    """폴리라인 — 사선 한 줄, 세로 금선. `end_dot`은 끝점의 점 지름."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["line"]
+    points: list[PanelPoint] = Field(min_length=2, max_length=64)
+    width: float = Field(gt=0, le=1_000)
+    color: str
+    end_dot: float | None = Field(default=None, gt=0, le=1_000)
+
+
+class PanelCurveBand(BaseModel):
+    """3차 베지어 띠 — 점 3n+1개(시작, 제어1, 제어2, 끝, …). 여러 개를 겹쳐 겹띠를 만든다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["curve_band"]
+    points: list[PanelPoint] = Field(min_length=4, max_length=64)
+    width: float = Field(gt=0, le=1_000)
+    color: str
+
+    @model_validator(mode="after")
+    def _cubic_segments(self) -> "PanelCurveBand":
+        if (len(self.points) - 1) % 3:
+            raise ValueError("curve_band needs 3n+1 points (cubic bezier segments)")
+        return self
+
+
+class PanelMotif(BaseModel):
+    """모티프 한 번 — 넝쿨·붓 터치·포인트 로고. `size`는 같은 면적의 정사각 한 변(면적 기준)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["motif"]
+    motif_id: str
+    at: PanelPoint
+    size: float = Field(gt=0, le=5_000)
+    rotation: float = Field(default=0.0, ge=-360.0, le=360.0)
+    anchor: Literal["center", "bottom_right"] = "center"
+    role: Literal["logo", "decor"] = "decor"
+
+
+PanelElement = Annotated[
+    PanelRegion | PanelLine | PanelCurveBand | PanelMotif, Field(discriminator="type")
+]
 
 
 class Intent(BaseModel):
@@ -193,3 +265,12 @@ class Intent(BaseModel):
     palette: PaletteSpec
     colorways: list[ColorwaySpec] = Field(min_length=1, max_length=32)
     layers: list[Layer] = Field(min_length=1, max_length=64)
+    # 비면 None — 기존 intent의 dump·layout_id가 바이트 단위로 그대로다(exclude_none).
+    panel: list[PanelElement] | None = Field(default=None, min_length=1, max_length=32)
+
+    @model_validator(mode="after")
+    def _one_panel_logo(self) -> "Intent":
+        logos = [e for e in self.panel or () if e.type == "motif" and e.role == "logo"]
+        if len(logos) > 1:
+            raise ValueError("panel may hold at most one logo motif")
+        return self

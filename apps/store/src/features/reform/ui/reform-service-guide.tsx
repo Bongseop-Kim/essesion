@@ -2,6 +2,7 @@ import {
   AspectRatio,
   Box,
   cn,
+  Flex,
   Grid,
   HStack,
   ImageFrame,
@@ -115,6 +116,171 @@ const WIDTH_COMPARISON = [
   },
 ] as const;
 
+// 실사 넥타이 컷(tie-mask.png·tie-shadow.webp, 794×2097) 기준 좌표. 오른쪽에 치수선 칸을 덧붙여
+// 한 viewBox로 그린다 — top·bottom은 매듭 위 끝·대검 끝, left는 실루엣 왼쪽 끝, knotRight·tipX는 보조선이
+// 출발하는 가장자리.
+const TIE_ART = {
+  width: 794,
+  height: 2097,
+  left: 240,
+  top: 37,
+  bottom: 2075,
+  knotRight: 520,
+  tipX: 420,
+} as const;
+const TIE_FIGURE_WIDTH = 900;
+const TIE_RULER_X = 850;
+
+const TIE_LAYER_STYLE = {
+  maskImage: "url(/images/tie-mask.png)",
+  maskSize: "100% 100%",
+  maskRepeat: "no-repeat",
+} as const;
+
+/** "매듭 포함" 라벨 캡슐 — 치수선 가운데에 얹는다. */
+function KnotLabel() {
+  return (
+    <Box
+      bg="bg.layer-default"
+      borderWidth={1}
+      borderColor="stroke.neutral-weak"
+      borderRadius="full"
+      px="x2"
+      py="x0_5"
+    >
+      <Text
+        textStyle="captionSm"
+        color="fg.neutral"
+        className="whitespace-nowrap"
+      >
+        매듭 포함
+      </Text>
+    </Box>
+  );
+}
+
+/**
+ * 세로로 선 넥타이 그림 — 오른쪽에 매듭 위 끝~대검 끝 치수선과 보조선. `label`이 거짓이면 라벨을
+ * 빼고 그린다(눕혀 쓰는 모바일 — 라벨까지 돌리면 글자가 누우니 바깥에서 얹는다).
+ */
+function TieDrawing({ label = true }: { label?: boolean }) {
+  const width = TIE_FIGURE_WIDTH;
+  return (
+    <Box
+      position="relative"
+      width="full"
+      style={{ aspectRatio: `${width} / ${TIE_ART.height}` }}
+    >
+      <Box
+        position="absolute"
+        top={0}
+        bottom={0}
+        left={0}
+        style={{ width: `${(TIE_ART.width / width) * 100}%` }}
+      >
+        <Box
+          position="absolute"
+          inset={0}
+          bg="bg.brand-solid"
+          style={TIE_LAYER_STYLE}
+        />
+        {/* 명암도 실루엣 안에만 — 셔츠 깃까지 그리면 패널 위에서 탁해 보인다 */}
+        <Box
+          position="absolute"
+          inset={0}
+          style={{
+            ...TIE_LAYER_STYLE,
+            backgroundImage: "url(/images/tie-shadow.webp)",
+            backgroundSize: "100% 100%",
+          }}
+        />
+      </Box>
+      <svg
+        viewBox={`0 0 ${width} ${TIE_ART.height}`}
+        className="absolute inset-0 size-full overflow-visible text-fg-neutral-muted"
+        aria-hidden="true"
+      >
+        <g stroke="currentColor" fill="none">
+          {/* 보조선 — 매듭 위 끝·대검 끝에서 치수선까지 */}
+          <g strokeDasharray="2 3" opacity={0.6}>
+            <line
+              x1={TIE_ART.knotRight}
+              x2={TIE_RULER_X + 30}
+              y1={TIE_ART.top}
+              y2={TIE_ART.top}
+              vectorEffect="non-scaling-stroke"
+            />
+            <line
+              x1={TIE_ART.tipX}
+              x2={TIE_RULER_X + 30}
+              y1={TIE_ART.bottom}
+              y2={TIE_ART.bottom}
+              vectorEffect="non-scaling-stroke"
+            />
+          </g>
+          <line
+            x1={TIE_RULER_X}
+            x2={TIE_RULER_X}
+            y1={TIE_ART.top}
+            y2={TIE_ART.bottom}
+            vectorEffect="non-scaling-stroke"
+          />
+        </g>
+      </svg>
+      {label ? (
+        <Box
+          position="absolute"
+          top="50%"
+          style={{
+            left: `${(TIE_RULER_X / width) * 100}%`,
+            transform: "translate(-50%, -50%)",
+          }}
+        >
+          <KnotLabel />
+        </Box>
+      ) : null}
+    </Box>
+  );
+}
+
+/** 모바일: 데스크톱 그림을 -90° 눕힌다 — 매듭이 왼쪽, 치수선이 위. 라벨만 눕히지 않고 치수선 위에 얹는다. */
+function LyingTie() {
+  // 눕히면 그림의 x가 아래→위가 된다. 넥타이 왼쪽 가장자리(TIE_ART.left) 밖은 비어 있어 그만큼
+  // 아래를 잘라 바깥 높이를 잡는다 — 회전 상자는 위쪽(치수선)에 붙인다.
+  const lyingHeight = TIE_FIGURE_WIDTH - TIE_ART.left;
+  return (
+    <Box
+      position="relative"
+      width="full"
+      style={{ aspectRatio: `${TIE_ART.height} / ${lyingHeight}` }}
+    >
+      {/* 회전 전 상자의 폭 = 눕힌 뒤 높이 — 그 중심을 바깥 위에서 폭의 절반만큼 내려 돌린다 */}
+      <Box
+        position="absolute"
+        left="50%"
+        style={{
+          top: `${(TIE_FIGURE_WIDTH / 2 / lyingHeight) * 100}%`,
+          width: `${(TIE_FIGURE_WIDTH / TIE_ART.height) * 100}%`,
+          transform: "translate(-50%, -50%) rotate(-90deg)",
+        }}
+      >
+        <TieDrawing label={false} />
+      </Box>
+      {/* 눕히면 치수선 x가 위에서부터의 거리가 되고, 치수선 가운데 y가 왼쪽에서부터의 거리가 된다 */}
+      <Box
+        position="absolute"
+        style={{
+          top: `${((TIE_FIGURE_WIDTH - TIE_RULER_X) / lyingHeight) * 100}%`,
+          left: `${((TIE_ART.top + TIE_ART.bottom) / 2 / TIE_ART.height) * 100}%`,
+          transform: "translate(-50%, -50%)",
+        }}
+      >
+        <KnotLabel />
+      </Box>
+    </Box>
+  );
+}
+
 /**
  * 키→권장 길이 참조표.
  * 기본: 상세 가이드용 카드형 테이블. compact: 사이드바 요약 카드용 —
@@ -129,7 +295,7 @@ export function ReformHeightGuide({ compact = false }: { compact?: boolean }) {
             착용자 키
           </Text>
           <Text textStyle="captionSm" color="fg.neutral-subtle">
-            권장 길이
+            권장 길이(매듭 포함)
           </Text>
         </HStack>
         {HEIGHT_GUIDE.map((guide) => (
@@ -144,41 +310,82 @@ export function ReformHeightGuide({ compact = false }: { compact?: boolean }) {
     );
   }
   return (
+    // 데스크톱: 재는 법 | 착용자 키 | 권장 길이 1:1:1, 그림 칸이 본문 행 전체를 세로로 차지한다.
+    // 모바일: 눕힌 넥타이를 카드 맨 위에 두고 아래는 2열 표.
     <Box
       overflow="hidden"
       borderWidth={1}
       borderColor="stroke.neutral-weak"
       borderRadius="r3"
     >
-      <Grid templateColumns="1fr 1fr" bg="bg.neutral-weak">
+      <Box
+        display={{ base: "block", md: "none" }}
+        px="x6"
+        py="x5"
+        className="border-b border-stroke-neutral-weak"
+        aria-hidden="true"
+      >
+        <LyingTie />
+      </Box>
+      <Grid columns={{ base: 2, md: 3 }} bg="bg.neutral-weak">
+        <Text
+          as="div"
+          display={{ base: "none", md: "block" }}
+          textStyle="labelSm"
+          px="x4"
+          py="x3"
+        >
+          재는 법
+        </Text>
         <Text as="div" textStyle="labelSm" px="x4" py="x3">
           착용자 키
         </Text>
-        <Text as="div" textStyle="labelSm" px="x4" py="x3" align="end">
+        <Text as="div" textStyle="labelSm" px="x4" py="x3">
           권장 넥타이 길이
         </Text>
       </Grid>
-      {HEIGHT_GUIDE.map((guide) => (
-        <Grid
-          key={guide.height}
-          templateColumns="1fr 1fr"
-          className="border-t border-stroke-neutral-weak"
+      <Grid
+        columns={{ base: 1, md: 3 }}
+        className="border-t border-stroke-neutral-weak"
+      >
+        <Flex
+          display={{ base: "none", md: "flex" }}
+          justify="center"
+          align="center"
+          px="x6"
+          py="x5"
+          className="border-r border-stroke-neutral-weak"
+          aria-hidden="true"
         >
-          <Text as="div" textStyle="bodySm" px="x4" py="x3">
-            {guide.height}
-          </Text>
-          <Text
-            as="div"
-            textStyle="bodySm"
-            color="fg.neutral-muted"
-            px="x4"
-            py="x3"
-            align="end"
-          >
-            {guide.length}
-          </Text>
-        </Grid>
-      ))}
+          <Box width={120}>
+            <TieDrawing />
+          </Box>
+        </Flex>
+        <Box className="md:col-span-2">
+          {HEIGHT_GUIDE.map((guide, index) => (
+            <Grid
+              key={guide.height}
+              templateColumns="1fr 1fr"
+              className={
+                index === 0 ? undefined : "border-t border-stroke-neutral-weak"
+              }
+            >
+              <Text as="div" textStyle="bodySm" px="x4" py="x3">
+                {guide.height}
+              </Text>
+              <Text
+                as="div"
+                textStyle="bodySm"
+                color="fg.neutral-muted"
+                px="x4"
+                py="x3"
+              >
+                {guide.length}
+              </Text>
+            </Grid>
+          ))}
+        </Box>
+      </Grid>
     </Box>
   );
 }

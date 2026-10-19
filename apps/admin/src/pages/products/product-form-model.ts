@@ -142,9 +142,9 @@ export function validateProductDraft(
   mode: "create" | "edit",
 ): ProductDraftErrors {
   const errors: ProductDraftErrors = { options: {} };
-  if (draft.name.trim() === "") errors.name = "상품 이름을 입력해 주세요.";
+  if (draft.name.trim() === "") errors.name = "상품명을 입력해 주세요.";
   if (nonNegativeInteger(draft.price) === undefined) {
-    errors.price = "가격은 0 이상의 정수여야 합니다.";
+    errors.price = "가격은 0 이상의 정수로 입력해 주세요.";
   }
   if (draft.info.trim() === "") errors.info = "상품 설명을 입력해 주세요.";
   if (
@@ -152,7 +152,7 @@ export function validateProductDraft(
     !draft.unlimitedStock &&
     nonNegativeInteger(draft.stock) === undefined
   ) {
-    errors.stock = "재고는 0 이상의 정수여야 합니다.";
+    errors.stock = "재고는 0 이상의 정수로 입력해 주세요.";
   }
   if (draft.options.length > 0 && draft.optionLabel.trim() === "") {
     errors.optionLabel = "옵션 묶음 이름을 입력해 주세요.";
@@ -174,16 +174,17 @@ export function validateProductDraft(
     const name = option.name.trim();
     if (name === "") optionErrors.name = "옵션 이름을 입력해 주세요.";
     else if ((nameCounts.get(name) ?? 0) > 1) {
-      optionErrors.name = "같은 옵션 이름을 중복할 수 없습니다.";
+      optionErrors.name = "이미 있는 옵션 이름입니다.";
     }
     if (nonNegativeInteger(option.additionalPrice) === undefined) {
-      optionErrors.additionalPrice = "추가 금액은 0 이상의 정수여야 합니다.";
+      optionErrors.additionalPrice =
+        "추가 금액은 0 이상의 정수로 입력해 주세요.";
     }
     if (
       !option.unlimitedStock &&
       nonNegativeInteger(option.stock) === undefined
     ) {
-      optionErrors.stock = "재고는 0 이상의 정수여야 합니다.";
+      optionErrors.stock = "재고는 0 이상의 정수로 입력해 주세요.";
     }
     if (Object.keys(optionErrors).length > 0) {
       errors.options[option.clientId] = optionErrors;

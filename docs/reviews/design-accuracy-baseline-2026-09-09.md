@@ -14,7 +14,7 @@
 
 ## 무엇으로 측정했나
 
-[collect_design_accuracy.py](../../apps/worker/scripts/collect_design_accuracy.py)를 새로 만들었다.
+collect_design_accuracy.py(`apps/worker/scripts/collect_design_accuracy.py`, 2026-10-19 삭제)를 새로 만들었다.
 worker 라우트와 같은 경로(검색 → 저작 → 컴파일 → 제약 → 검증, 편집은 스냅샷 → patch → 적용)를 그대로 타고
 최종 resolved intent를 모아 오프라인 채점기에 넣는다. `--confirm-live` 없이는 실행되지 않고,
 문장·plan·provider 응답은 출력하지 않는다. fixture 모티프에는 DB 행이 없으므로 프로덕션이 DB에서 읽는
@@ -31,7 +31,7 @@ subject("원"·"별")만 같은 자리에 공급했다(스크립트 상수, 보�
 | 반복 재현성 | 2회 독립 실행이 **같은 27/30, 같은 실패 3건** — 분산 0 |
 | 지연 | 평균 3.2s / 3.0s, p95 5.1s / 5.2s |
 | 저작 시도 횟수 | 평균 1.00 / 1.03 |
-| 컴파일 성공률([eval_authoring](../../apps/worker/scripts/eval_authoring.py), 별도 30건) | 30/30, 평균 4.5s, p95 7.5s, RAG family recall 0.60 |
+| 컴파일 성공률(eval_authoring(`apps/worker/scripts/eval_authoring.py`, 2026-10-19 삭제), 별도 30건) | 30/30, 평균 4.5s, p95 7.5s, RAG family recall 0.60 |
 
 **실패 3건은 전부 기준(코퍼스) 문제로 판정했다 — 모델 결함이 아니다.**
 사람 확정 후의 재측정은 아래 §기준 확정과 재측정에 있다.
@@ -132,7 +132,7 @@ v3에서 30/30이 나와 코퍼스가 모델을 변별하지 못했다. 사용�
 ### 찾은 결함: 명시 hex를 지명색 표가 덮어썼다
 
 `금색 #FFD700`을 달라고 했는데 `#D4AF37`이 나왔다. 모델이 아니라
-[named_colors.py](../../apps/worker/src/worker/adapters/named_colors.py)의 결정론적 접지가 원인이었다 —
+named_colors.py(`apps/worker/src/worker/adapters/named_colors.py`, 2026-10-19 삭제)의 결정론적 접지가 원인이었다 —
 "금색"이라는 단어를 보고 표의 hex로 슬롯을 덮어썼고, 사용자가 바로 옆에 적은 값을 무시했다.
 두 실행에서 두 사례 모두 재현됐다(모델 변동이 아니다).
 
@@ -289,7 +289,7 @@ Aside로 로컬 store를 구동해 네 항목을 확인했고, 둘은 그 자리
 
 ## 남은 것
 
-[후속 플랜](../plans/design-accuracy-followups.md)에는 트리거가 아직 안 찬 **두 항목만** 남았다.
+후속 플랜(`design-accuracy-followups.md`, 2026-10-19 AI 디자인 제거로 삭제)에는 트리거가 아직 안 찬 **두 항목만** 남았다.
 "사용자 보고를 기다린다"는 트리거는 대부분 내가 앱을 돌려 직접 만들 수 있었다 — 그렇게 두 개를 더 고쳤다.
 기준 확정·변별력 보강·반복 측정·대화 평가는 끝났다.
 

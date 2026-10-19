@@ -37,17 +37,10 @@ describe("AdminSidebar", () => {
         .map((link) => link.textContent),
     ).toEqual(["상품 관리", "가격 관리", "쿠폰 관리"]);
     expect(
-      within(within(sidebar).getByRole("region", { name: "생성·에셋" }))
+      within(within(sidebar).getByRole("region", { name: "디자인" }))
         .getAllByRole("link")
         .map((link) => link.textContent),
-    ).toEqual([
-      "Seamless 로그",
-      "생성 작업",
-      "few-shot 후보",
-      "선별된 few-shot",
-      "Motif SVG",
-      "디자인 예시",
-    ]);
+    ).toEqual(["디자인 렌더 로그", "무늬·로고", "템플릿"]);
     expect(
       within(sidebar)
         .getByRole("link", { name: "주문 관리" })

@@ -96,12 +96,12 @@ describe("SeamlessLogsPage", () => {
     api.seamlessStats.mockResolvedValue(seamlessStats);
   });
 
-  it("Seamless 전용 목록·통계를 조회하고 상태 필터를 URL에 반영한다", async () => {
+  it("렌더 로그 목록·통계를 조회하고 상태 필터를 URL에 반영한다", async () => {
     const user = userEvent.setup();
     renderPage();
 
     expect(
-      await screen.findByRole("table", { name: "Seamless 로그 목록" }),
+      await screen.findByRole("table", { name: "디자인 렌더 로그 목록" }),
     ).toBeTruthy();
     await screen.findByText("22222222…2222");
     expect(
@@ -126,7 +126,9 @@ describe("SeamlessLogsPage", () => {
 
     expect(screen.queryByRole("radiogroup", { name: "상태" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "필터" }));
-    const dialog = screen.getByRole("dialog", { name: "Seamless 상세 필터" });
+    const dialog = screen.getByRole("dialog", {
+      name: "디자인 렌더 로그 필터",
+    });
     expect(within(dialog).queryByLabelText("식별자 검색")).toBeNull();
     await user.click(within(dialog).getByRole("radio", { name: "부분 성공" }));
     await user.click(within(dialog).getByRole("button", { name: "필터 적용" }));
@@ -159,13 +161,13 @@ describe("SeamlessLogsPage", () => {
   it("식별자 검색을 목록과 통계에 적용하고 전체 초기화한다", async () => {
     const user = userEvent.setup();
     renderPage();
-    await screen.findByRole("table", { name: "Seamless 로그 목록" });
+    await screen.findByRole("table", { name: "디자인 렌더 로그 목록" });
 
     const input = screen.getByLabelText("식별자 검색") as HTMLInputElement;
     await user.type(input, "request/id");
     await user.click(screen.getByRole("button", { name: "검색" }));
 
-    expect(screen.getByText("식별자 형식이 올바르지 않습니다.")).toBeTruthy();
+    expect(screen.getByText("ID 전체를 정확히 입력해 주세요.")).toBeTruthy();
     expect(api.seamlessOptions).not.toHaveBeenCalledWith({
       query: expect.objectContaining({ identifier: "request/id" }),
     });
@@ -198,13 +200,13 @@ describe("SeamlessLogsPage", () => {
     );
   });
 
-  it("마지막 성공 갱신을 표시하고 자동 갱신을 일시정지·재개한다", async () => {
+  it("마지막 갱신을 표시하고 자동 갱신을 일시정지·재개한다", async () => {
     const user = userEvent.setup();
     renderPage();
-    await screen.findByRole("table", { name: "Seamless 로그 목록" });
+    await screen.findByRole("table", { name: "디자인 렌더 로그 목록" });
 
     const refreshStatus = screen.getByRole("group", {
-      name: "Seamless 로그 갱신 상태",
+      name: "디자인 렌더 로그 갱신 상태",
     });
     expect(within(refreshStatus).getByText("자동 갱신 켜짐")).toBeTruthy();
     await waitFor(() =>

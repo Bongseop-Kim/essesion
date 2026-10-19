@@ -81,8 +81,8 @@ function updateBody(value: ProductFormValue, revision: string) {
 function ServerComparison({ product }: { product: AdminProductDetailOut }) {
   return (
     <AdminCard
-      title="현재 서버 값"
-      description={`서버 revision ${product.updated_at}`}
+      title="저장된 최신 내용"
+      description={`마지막 저장 ${formatDateTime(product.updated_at)}`}
     >
       <HStack gap="x5" align="flex-start" wrap>
         <VStack width={160}>
@@ -97,7 +97,7 @@ function ServerComparison({ product }: { product: AdminProductDetailOut }) {
         <VStack flex={1} minWidth={260} alignItems="stretch">
           <DetailList
             items={[
-              { label: "상품 이름", value: product.name },
+              { label: "상품명", value: product.name },
               { label: "가격", value: formatMoney(product.price) },
               {
                 label: "재고",
@@ -109,7 +109,7 @@ function ServerComparison({ product }: { product: AdminProductDetailOut }) {
                       : `${product.stock.toLocaleString("ko-KR")}개`,
               },
               {
-                label: "분류",
+                label: "카테고리",
                 value: `${product.category} · ${product.color} · ${product.pattern} · ${product.material}`,
               },
               {
@@ -172,13 +172,10 @@ function ProductEditPageContent({ productId }: { productId: string }) {
   ) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading
-          title="상품 수정"
-          description="상품과 옵션 정보를 안전하게 변경합니다."
-        />
+        <RouteHeading title="상품 수정" />
         <ContentPlaceholder
           title="상품을 불러오지 못했습니다"
-          description="상품 ID를 확인하거나 다시 시도해 주세요."
+          description="잠시 후 다시 시도해 주세요."
           action={
             <ActionButton onClick={() => void query.refetch()}>
               다시 시도
@@ -230,13 +227,13 @@ function ProductEditPageContent({ productId }: { productId: string }) {
               loading={query.isFetching}
               onClick={() => void compareServer()}
             >
-              최신 서버 값 비교
+              최신 내용과 비교
             </ActionButton>
             <ActionButton
               variant="ghost"
               onClick={() => setReloadConfirmOpen(true)}
             >
-              서버 값으로 초기화
+              최신 내용으로 되돌리기
             </ActionButton>
           </HStack>
         }
@@ -254,14 +251,14 @@ function ProductEditPageContent({ productId }: { productId: string }) {
       <AlertDialog
         open={reloadConfirmOpen}
         onOpenChange={setReloadConfirmOpen}
-        title="입력한 변경을 서버 값으로 초기화할까요?"
-        description="현재 입력은 사라지고 최신 저장 값으로 돌아갑니다."
+        title="입력한 내용을 지우고 최신 내용으로 되돌릴까요?"
+        description="입력한 내용은 저장되지 않습니다."
         primaryActionProps={{
-          children: "서버 값 불러오기",
+          children: "되돌리기",
           variant: "criticalSolid",
           onClick: () => void resetFromServer(),
         }}
-        secondaryActionProps={{ children: "계속 편집" }}
+        secondaryActionProps={{ children: "계속 작성" }}
       />
     </VStack>
   );

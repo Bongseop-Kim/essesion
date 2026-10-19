@@ -1,14 +1,11 @@
 """결제 확정 — lock → Toss(respx) → confirm/unlock 멱등 (docs/api-spec/money.md §5)."""
 
-import asyncio
 import uuid
 from datetime import UTC, date, datetime
 
 import respx
 from api.domains.auth.rate_limit import AuthRateLimiter
-from api.domains.payments import service as payment_service
-from api.domains.tokens import ledger as token_ledger
-from api.integrations.toss import RealTossClient, TossResult
+from api.integrations.toss import RealTossClient
 from db.models.commerce import (
     Coupon,
     Order,
@@ -17,7 +14,6 @@ from db.models.commerce import (
     PaymentIncident,
     UserCoupon,
 )
-from db.models.tokens import DesignToken
 from httpx import Response
 from sqlalchemy import func, select
 
@@ -31,14 +27,9 @@ from .factories import (
     make_user,
     make_user_coupon,
     seed_pricing,
-    seed_setting,
 )
 
 TOSS_CONFIRM = "https://api.tosspayments.com/v1/payments/confirm"
-TOKEN_COST = ("design_token_cost_openai_render_standard", "5")
-EDIT_COST = ("design_edit_cost", "2")
-MOTIF_COST = ("design_motif_generate_cost", "3")
-FINALIZE_COST = ("design_finalize_cost", "1")
 
 
 async def _create_sale_order(client, db_session, settings, user, *, coupon_id=None):
@@ -301,53 +292,6 @@ async def test_confirm_rejects_invalid_boundaries_before_toss(client, db_session
         assert response.status_code == 422
 
     assert len(respx.calls) == 0
-
-
-@respx.mock
-async def test_token_order_confirm_grants_tokens(client, db_session, settings):
-    respx.post(TOSS_CONFIRM).mock(return_value=Response(200, json={"status": "DONE"}))
-    user = await make_user(db_session)
-    await seed_pricing(
-        db_session,
-        {"token_plan_starter_price": 2500, "token_plan_starter_amount": 100},
-        category="token",
-    )
-    await seed_setting(db_session, *TOKEN_COST)
-    await seed_setting(db_session, *EDIT_COST)
-    await seed_setting(db_session, *MOTIF_COST)
-    await seed_setting(db_session, *FINALIZE_COST)
-    headers = auth_headers(user, settings)
-    created = (
-        await client.post("/tokens/orders", json={"plan_key": "starter"}, headers=headers)
-    ).json()
-    assert created["order_number"].startswith("TKN-")
-
-    res = await client.post(
-        "/payments/confirm",
-        json={
-            "payment_key": "tok-key-12345678",
-            "payment_group_id": created["payment_group_id"],
-            "amount": 2500,
-        },
-        headers=headers,
-    )
-    assert res.status_code == 200, res.text
-    assert res.json()["token_amount"] == 100
-    assert res.json()["orders"][0]["status"] == "완료"
-
-    balance = (await client.get("/tokens/balance", headers=headers)).json()
-    assert balance == {
-        "total": 100,
-        "paid": 100,
-        "bonus": 0,
-        "generate_cost": 5,
-        "edit_cost": 2,
-        "motif_generate_cost": 3,
-        "finalize_cost": 1,
-    }
-
-    grant = await db_session.scalar(select(DesignToken).where(DesignToken.type == "purchase"))
-    assert grant.expires_at is not None  # 구매 토큰은 +1년 만료
 
 
 @respx.mock
@@ -671,162 +615,6 @@ async def test_webhook_cancel_restores_reserved_coupon(client, db_session, setti
     await db_session.refresh(user_coupon)
     assert order.status == "취소"
     assert user_coupon.status == "active"
-
-
-@respx.mock
-async def test_webhook_syncs_dashboard_cancel_with_token_clawback(client, db_session, settings):
-    """대시보드 직접 취소 → 주문 취소 동기화 + 토큰 회수(멱등)."""
-    from db.models.tokens import DesignToken
-
-    respx.post(TOSS_CONFIRM).mock(return_value=Response(200, json={"status": "DONE"}))
-    user = await make_user(db_session)
-    await seed_pricing(
-        db_session,
-        {"token_plan_starter_price": 2500, "token_plan_starter_amount": 100},
-        category="token",
-    )
-    await seed_setting(db_session, *TOKEN_COST)
-    await seed_setting(db_session, *EDIT_COST)
-    await seed_setting(db_session, *MOTIF_COST)
-    await seed_setting(db_session, *FINALIZE_COST)
-    headers = auth_headers(user, settings)
-    created = (
-        await client.post("/tokens/orders", json={"plan_key": "starter"}, headers=headers)
-    ).json()
-    group_id = created["payment_group_id"]
-    await client.post(
-        "/payments/confirm",
-        json={"payment_key": "cn-key-12345678", "payment_group_id": group_id, "amount": 2500},
-        headers=headers,
-    )
-    assert (await client.get("/tokens/balance", headers=headers)).json()["paid"] == 100
-
-    respx.get(f"{TOSS_PAYMENTS}/cn-key-12345678").mock(
-        return_value=Response(
-            200,
-            json={
-                "paymentKey": "cn-key-12345678",
-                "status": "CANCELED",
-                "orderId": group_id,
-                "totalAmount": 2500,
-            },
-        )
-    )
-    res = await client.post("/payments/webhook", json={"data": {"paymentKey": "cn-key-12345678"}})
-    assert res.json()["action"] == "canceled" and res.json()["orders"] == 1
-
-    orders = (await client.get("/orders", headers=headers)).json()
-    assert orders[0]["status"] == "취소"
-    assert (await client.get("/tokens/balance", headers=headers)).json()["paid"] == 0
-
-    # 재전송 — 회수 중복 없음 (work_id 멱등)
-    await client.post("/payments/webhook", json={"data": {"paymentKey": "cn-key-12345678"}})
-    refunds = await db_session.scalar(
-        select(func.count()).select_from(DesignToken).where(DesignToken.type == "refund")
-    )
-    assert refunds == 1
-    assert (await client.get("/tokens/balance", headers=headers)).json()["paid"] == 0
-
-
-@respx.mock
-async def test_webhook_cancel_serializes_token_clawback_before_concurrent_use(
-    app, client, db_session, settings, monkeypatch
-):
-    """웹훅이 회수를 시작한 뒤의 토큰 사용은 USER_LOCK에서 대기한다."""
-
-    respx.post(TOSS_CONFIRM).mock(return_value=Response(200, json={"status": "DONE"}))
-    user = await make_user(db_session)
-    await seed_pricing(
-        db_session,
-        {"token_plan_starter_price": 2500, "token_plan_starter_amount": 100},
-        category="token",
-    )
-    await seed_setting(db_session, *TOKEN_COST)
-    await seed_setting(db_session, *EDIT_COST)
-    await seed_setting(db_session, *MOTIF_COST)
-    await seed_setting(db_session, *FINALIZE_COST)
-    headers = auth_headers(user, settings)
-    created = (
-        await client.post("/tokens/orders", json={"plan_key": "starter"}, headers=headers)
-    ).json()
-    group_id = created["payment_group_id"]
-    payment_key = "concurrent-cancel-key-12345678"
-    confirmed = await client.post(
-        "/payments/confirm",
-        json={"payment_key": payment_key, "payment_group_id": group_id, "amount": 2500},
-        headers=headers,
-    )
-    assert confirmed.status_code == 200
-    expected_payment_key = payment_key
-
-    class CanceledToss:
-        capability_mode = "real"
-
-        async def confirm(self, payment_key: str, order_id: str, amount: int) -> TossResult:
-            raise AssertionError("confirm must not be called")
-
-        async def cancel(
-            self, payment_key: str, reason: str, cancel_amount: int | None = None
-        ) -> TossResult:
-            raise AssertionError("cancel must not be called")
-
-        async def get_payment(self, payment_key: str) -> TossResult:
-            assert payment_key == expected_payment_key
-            return TossResult(
-                ok=True,
-                status=200,
-                body={
-                    "paymentKey": expected_payment_key,
-                    "status": "CANCELED",
-                    "orderId": group_id,
-                    "totalAmount": 2500,
-                },
-            )
-
-        async def aclose(self) -> None:
-            pass
-
-    clawback_entered = asyncio.Event()
-    release_clawback = asyncio.Event()
-    original_clawback = payment_service._claw_back_purchased_tokens
-
-    async def paused_clawback(session, order):
-        clawback_entered.set()
-        await release_clawback.wait()
-        await original_clawback(session, order)
-
-    monkeypatch.setattr(payment_service, "_claw_back_purchased_tokens", paused_clawback)
-
-    async def reconcile():
-        async with app.state.sessionmaker() as session:
-            return await payment_service.reconcile_from_webhook(
-                session, CanceledToss(), payment_key
-            )
-
-    async def use_tokens():
-        async with app.state.sessionmaker() as session:
-            return await token_ledger.use_tokens(session, user.id, "webhook-cancel-race")
-
-    webhook_task = asyncio.create_task(reconcile())
-    await asyncio.wait_for(clawback_entered.wait(), timeout=5)
-    use_task = asyncio.create_task(use_tokens())
-    completed_before_clawback, _ = await asyncio.wait({use_task}, timeout=0.1)
-    use_was_blocked = not completed_before_clawback
-    release_clawback.set()
-    webhook_result, use_result = await asyncio.wait_for(
-        asyncio.gather(webhook_task, use_task), timeout=5
-    )
-
-    assert use_was_blocked
-    assert webhook_result == {"handled": True, "action": "canceled", "orders": 1}
-    assert use_result.success is False
-    assert use_result.error == "insufficient_tokens"
-    assert use_result.balance == 0
-    assert (await token_ledger.get_balance(db_session, user.id))["paid"] == 0
-    uses = await db_session.scalar(
-        select(func.count()).select_from(DesignToken).where(DesignToken.type == "use")
-    )
-    assert uses == 0
 
 
 @respx.mock

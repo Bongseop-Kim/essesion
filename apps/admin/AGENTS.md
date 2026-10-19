@@ -43,7 +43,6 @@ UI는 `@essesion/shared`로만 작성한다. 규칙 원본: `packages/shared/AGE
 | 주문 action/tracking | 주문 detail/list, dashboard summary/recent orders, 연결 claim |
 | claim action/tracking/알림 retry | claim detail/list, 주문 detail, dashboard summary, 연결 payment incident |
 | payment 조정/해결 | incident detail/list, dashboard summary, 연결 주문/claim |
-| customer token 조정 | customer detail/list, token ledger, operation log |
 | coupon 수정/발급/회수 | coupon detail/list/history, 영향받은 customer coupon page |
 | product 저장 | product detail/list, public product query |
 | quote 저장/action | quote detail/list, dashboard recent quotes |

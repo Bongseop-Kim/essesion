@@ -4,7 +4,6 @@ from unittest.mock import ANY
 
 from api.integrations.gcs import RealGcsClient
 from google.auth.credentials import Credentials, Signing
-from google.cloud.exceptions import PreconditionFailed
 
 
 class _FakeSigningCredentials(Credentials, Signing):
@@ -48,25 +47,12 @@ class _FakeBlob:
 class _FakeBucket:
     def __init__(self, name: str):
         self.name = name
-        self.copy_error: Exception | None = None
-        self.copies: list[tuple[str, str, str, dict[str, object]]] = []
         self.blobs: dict[str, _FakeBlob] = {}
 
     def blob(self, name: str) -> _FakeBlob:
         if name not in self.blobs:
             self.blobs[name] = _FakeBlob(name)
         return self.blobs[name]
-
-    def copy_blob(
-        self,
-        blob: _FakeBlob,
-        destination: "_FakeBucket",
-        new_name: str,
-        **kwargs: object,
-    ) -> None:
-        if self.copy_error is not None:
-            raise self.copy_error
-        self.copies.append((blob.name, destination.name, new_name, kwargs))
 
 
 class _FakeStorageClient:
@@ -90,29 +76,6 @@ def _install(monkeypatch, storage: _FakeStorageClient) -> list[list[str]]:
     monkeypatch.setattr("google.auth.default", _default)
     monkeypatch.setattr("google.cloud.storage.Client", lambda **kwargs: storage)
     return requested
-
-
-async def test_copy_from_bucket_is_create_only_and_existing_destination_is_success(monkeypatch):
-    storage = _FakeStorageClient()
-    _install(monkeypatch, storage)
-    gcs = RealGcsClient("private-uploads")
-
-    assert await gcs.copy_from_bucket(
-        "public-assets", "fabric/result.png", "uploads/custom_order/design-job.png"
-    )
-    assert storage.bucket("public-assets").copies == [
-        (
-            "fabric/result.png",
-            "private-uploads",
-            "uploads/custom_order/design-job.png",
-            {"if_generation_match": 0},
-        )
-    ]
-
-    storage.bucket("public-assets").copy_error = PreconditionFailed("already exists")
-    assert await gcs.copy_from_bucket(
-        "public-assets", "fabric/result.png", "uploads/custom_order/design-job.png"
-    )
 
 
 async def test_signed_upload_url_signs_create_only_generation_precondition(monkeypatch):
@@ -188,14 +151,3 @@ async def test_signed_read_url_memoizes_per_object_until_cache_ttl(monkeypatch):
     now += 601
     await gcs.signed_read_url("uploads/a.png")
     assert len(storage.bucket("private-uploads").blob("uploads/a.png").signed_url_calls) == 2
-
-
-async def test_copy_from_bucket_reports_other_sdk_failures(monkeypatch):
-    storage = _FakeStorageClient()
-    _install(monkeypatch, storage)
-    gcs = RealGcsClient("private-uploads")
-    storage.bucket("public-assets").copy_error = RuntimeError("unavailable")
-
-    assert not await gcs.copy_from_bucket(
-        "public-assets", "fabric/result.png", "uploads/custom_order/design-job.png"
-    )

@@ -11,7 +11,7 @@ from svg_safety import sanitize_svg
 from worker.config import get_settings
 from worker.engine.intent import Intent, Layer, MotifLayer
 from worker.engine.palette import Palette
-from worker.engine.placement import Instance, place
+from worker.engine.placement import Instance, _torus_dist, place
 from worker.engine.primitives import build_primitive
 from worker.engine.seamless import clone_instances
 from worker.engine.units import fmt
@@ -50,6 +50,8 @@ def compose(
     }
 
     symbol_defs: dict[str, str] = {}  # 삽입순 유지 — 최초 등장 심볼 순서가 defs 순서
+    # 모티프 레이어별 그려진 배치(클론 전·avoid 후, size_mm) — 뒤 레이어의 avoid_layer가 본다
+    placed_by_layer: dict[str, tuple[list[Instance], float]] = {}
     fragments: list[str] = []
     for layer in layers:
         fragment = _render_layer(
@@ -62,6 +64,7 @@ def compose(
             intent.seed,
             motifs,
             warnings if warnings is not None else [],
+            placed_by_layer,
         )
         if not fragment:
             continue
@@ -98,13 +101,16 @@ def _render_layer(
     seed: int,
     motifs: MotifCatalog | None,
     warnings: list[str],
+    placed_by_layer: dict[str, tuple[list[Instance], float]],
 ) -> str:
     if layer.type == "background":
         return hosts[layer.id].render(tile, palette, colorway_id)
     if layer.type == "stripe":
         return hosts[layer.id].render(palette, colorway_id)
     if layer.type == "motif":
-        return _render_motif_layer(layer, hosts, tile, symbol_defs, seed, motifs, warnings)
+        return _render_motif_layer(
+            layer, hosts, tile, symbol_defs, seed, motifs, warnings, placed_by_layer
+        )
     raise ValueError(f"unsupported layer type: {layer.type!r}")
 
 
@@ -116,6 +122,7 @@ def _render_motif_layer(
     seed: int,
     motifs: MotifCatalog | None,
     warnings: list[str],
+    placed_by_layer: dict[str, tuple[list[Instance], float]],
 ) -> str:
     placement = layer.placement
     if placement is None:
@@ -138,6 +145,18 @@ def _render_motif_layer(
             f"layer {layer.id!r}: scatter placed {len(placed)} of {scatter.count} "
             f"requested instances (min_dist_mm {scatter.min_dist_mm})"
         )
+    if placement.avoid_layer is not None:
+        if placement.avoid_layer not in placed_by_layer:
+            raise ValueError(
+                f"motif layer {layer.id!r} avoid_layer {placement.avoid_layer!r} "
+                "is not an earlier motif layer"
+            )
+        placed = _avoid(placed, size_mm, *placed_by_layer[placement.avoid_layer], tile)
+        if not placed:
+            warnings.append(
+                f"layer {layer.id!r}: avoid_layer {placement.avoid_layer!r} removed every instance"
+            )
+    placed_by_layer[layer.id] = (placed, size_mm)
     instances = clone_instances(placed, motif=motif, size_mm=size_mm, tile_mm=tile)
 
     symbol_defs.setdefault(f"motif-{motif.id}", motif.symbol)
@@ -145,6 +164,22 @@ def _render_motif_layer(
         f'<use href="#motif-{motif.id}" transform="{_instance_transform(motif, inst, size_mm)}"/>'
         for inst in instances
     )
+
+
+def _avoid(
+    placed: list[Instance],
+    size_mm: float,
+    others: list[Instance],
+    other_size_mm: float,
+    tile: float,
+) -> list[Instance]:
+    """외접원 근사로 앞 레이어 인스턴스와 겹치는 자기 인스턴스를 뺀다(입력 순서 유지, 결정론)."""
+    reach = (size_mm + other_size_mm) / 2
+    return [
+        inst
+        for inst in placed
+        if all(_torus_dist(inst.x_mm, inst.y_mm, o.x_mm, o.y_mm, tile) >= reach for o in others)
+    ]
 
 
 def _instance_transform(motif: MotifDef, inst: Instance, size_mm: float) -> str:

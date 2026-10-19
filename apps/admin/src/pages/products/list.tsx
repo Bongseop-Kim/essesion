@@ -91,7 +91,7 @@ const columns: readonly AdminTableColumn<AdminProductSummaryOut>[] = [
   },
   {
     key: "category",
-    header: "분류",
+    header: "카테고리",
     visibility: "medium",
     render: (product) =>
       PRODUCT_CATEGORIES.find(
@@ -224,7 +224,7 @@ export function ProductsPage() {
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading
           title="상품 관리"
-          description="상품과 옵션의 가격·재고를 서버 필터와 페이지 단위로 관리합니다."
+          description="상품과 옵션의 가격·재고를 관리합니다."
         />
         <ActionButton onClick={() => navigate("/products/new")}>
           상품 등록

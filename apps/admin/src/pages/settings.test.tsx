@@ -47,20 +47,6 @@ const settings: AdminSettingOut[] = [
     updated_at: "2026-07-12T01:00:00Z",
     updated_by: "admin-1",
   },
-  {
-    key: "design_token_initial_grant",
-    value: "3",
-    value_type: "non_negative_integer",
-    updated_at: "2026-07-12T01:00:00Z",
-    updated_by: "admin-1",
-  },
-  {
-    key: "design_finalize_cost",
-    value: "200",
-    value_type: "non_negative_integer",
-    updated_at: "2026-07-12T01:00:00Z",
-    updated_by: "admin-1",
-  },
 ];
 
 function renderPage() {
@@ -99,9 +85,8 @@ describe("SettingsPage", () => {
     api.getSettings.mockResolvedValue(settings);
     renderPage();
 
-    expect(await screen.findByText(/조회 전용 권한/)).toBeTruthy();
+    expect(await screen.findByText(/조회 권한만 있습니다/)).toBeTruthy();
     expect(screen.queryByLabelText("택배사명")).toBeNull();
-    expect(screen.queryByLabelText("토큰 수량")).toBeNull();
     expect(screen.queryByRole("button", { name: "수정" })).toBeNull();
   });
 
@@ -115,61 +100,9 @@ describe("SettingsPage", () => {
     await user.click(screen.getAllByRole("button", { name: "수정" })[0]!);
 
     expect(await screen.findByLabelText("택배사명")).toBeTruthy();
-    expect(screen.queryByLabelText("토큰 수량")).toBeNull();
     expect(screen.queryAllByRole("button", { name: "수정" })).toHaveLength(0);
-    await user.click(screen.getByRole("button", { name: "편집 취소" }));
+    await user.click(screen.getByRole("button", { name: "수정 취소" }));
     expect(screen.queryByLabelText("택배사명")).toBeNull();
-  });
-
-  it("실사화 단가 설정을 개 단위로 표시하고 전용 라벨로 편집한다", async () => {
-    const user = userEvent.setup();
-    api.getSettings.mockResolvedValue(settings);
-    renderPage();
-
-    expect(await screen.findByText("실사화 토큰 단가")).toBeTruthy();
-    // 현재 값·시스템 기본값 모두 "200개" — 개 단위 포맷 확인
-    expect(screen.getAllByText("200개").length).toBeGreaterThan(0);
-    await user.click(screen.getAllByRole("button", { name: "수정" })[2]!);
-    expect(await screen.findByLabelText("토큰 수량")).toBeTruthy();
-  });
-
-  it("숫자 설정별 서버 상한을 입력 힌트와 검증에 동일하게 적용한다", async () => {
-    const user = userEvent.setup();
-    api.getSettings.mockResolvedValue(settings);
-    renderPage();
-
-    await user.click(
-      (await screen.findAllByRole("button", { name: "수정" }))[2]!,
-    );
-    const finalizeCost = (await screen.findByLabelText(
-      "토큰 수량",
-    )) as HTMLInputElement;
-    await user.clear(finalizeCost);
-    await user.type(finalizeCost, "1001");
-    expect(screen.getByText("설정 값을 확인해 주세요")).toBeTruthy();
-    expect(
-      (
-        screen.getByRole("button", {
-          name: "설정 변경 검토",
-        }) as HTMLButtonElement
-      ).disabled,
-    ).toBe(true);
-
-    await user.click(screen.getByRole("button", { name: "편집 취소" }));
-    await user.click(screen.getAllByRole("button", { name: "수정" })[1]!);
-    const initialGrant = (await screen.findByLabelText(
-      "토큰 수량",
-    )) as HTMLInputElement;
-    await user.clear(initialGrant);
-    await user.type(initialGrant, "100001");
-    expect(screen.getByText("설정 값을 확인해 주세요")).toBeTruthy();
-    expect(
-      (
-        screen.getByRole("button", {
-          name: "설정 변경 검토",
-        }) as HTMLButtonElement
-      ).disabled,
-    ).toBe(true);
   });
 
   it("편집 중 캐시가 갱신되어도 편집 시작 revision으로 저장한다", async () => {
@@ -207,7 +140,7 @@ describe("SettingsPage", () => {
     expect(within(dialog).getByText("계약 택배사 변경")).toBeTruthy();
     await user.click(
       within(dialog).getByRole("button", {
-        name: "설정 변경 적용",
+        name: "저장",
       }),
     );
 
@@ -243,7 +176,7 @@ describe("SettingsPage", () => {
     await user.click(screen.getByRole("button", { name: "설정 변경 검토" }));
     await user.click(
       within(await screen.findByRole("alertdialog")).getByRole("button", {
-        name: "설정 변경 적용",
+        name: "저장",
       }),
     );
     expect(await screen.findByText("일시적인 저장 실패")).toBeTruthy();
@@ -251,7 +184,7 @@ describe("SettingsPage", () => {
     await user.click(screen.getByRole("button", { name: "설정 변경 검토" }));
     await user.click(
       within(await screen.findByRole("alertdialog")).getByRole("button", {
-        name: "설정 변경 적용",
+        name: "저장",
       }),
     );
     await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(2));
@@ -268,7 +201,7 @@ describe("SettingsPage", () => {
     await user.click(screen.getByRole("button", { name: "설정 변경 검토" }));
     await user.click(
       within(await screen.findByRole("alertdialog")).getByRole("button", {
-        name: "설정 변경 적용",
+        name: "저장",
       }),
     );
     await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(3));
@@ -299,7 +232,7 @@ describe("SettingsPage", () => {
     await user.click(screen.getByRole("button", { name: "설정 변경 검토" }));
     await user.click(
       within(await screen.findByRole("alertdialog")).getByRole("button", {
-        name: "설정 변경 적용",
+        name: "저장",
       }),
     );
 

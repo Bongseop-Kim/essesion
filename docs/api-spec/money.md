@@ -1,16 +1,15 @@
-# 돈 경로 동작 명세 — 주문·결제·토큰
+# 돈 경로 동작 명세 — 주문·결제
 
-주문 생성 3종·결제 확인·토큰 원장의 **동작 정본**이다. 기능 개편 금지 — 구현이 이 명세와 달라지면 버그다. 숫자·상태 문자열·수식을 바꾸려면 이 문서를 먼저 고칠 것.
+주문 생성 3종·결제 확인의 **동작 정본**이다. 기능 개편 금지 — 구현이 이 명세와 달라지면 버그다. 숫자·상태 문자열·수식을 바꾸려면 이 문서를 먼저 고칠 것.
 
 결제 프로바이더는 Toss Payments다. 프론트 successUrl 콜백의 confirm이 주 경로이며,
-현재 구현은 상태 복구용 조회 검증 웹훅도 함께 사용한다(§7 자동 대사 참고).
+현재 구현은 상태 복구용 조회 검증 웹훅도 함께 사용한다(§9 자동 대사 참고).
 
 ## 1. 채번
 
-- `ORD-YYYYMMDD-NNN`(주문), `TKN-YYYYMMDD-NNN`(토큰 주문), `CLM-YYYYMMDD-NNN`(클레임), `QUO-YYYYMMDD-NNN`(견적). NNN = 당일 max+1, lpad 3자리.
+- `ORD-YYYYMMDD-NNN`(주문), `CLM-YYYYMMDD-NNN`(클레임), `QUO-YYYYMMDD-NNN`(견적). NNN = 당일 max+1, lpad 3자리.
 - 직렬화: 전 prefix 공통 `advisory_xact_lock("num:{prefix}:{date}")` (`api/numbering.py`). 트랜잭션 내에서만 유효.
 - 상품 코드: `{3F|SF|KN|BT|XX}-YYYYMMDD-NNN` (카테고리 3fold/sfolderato/knit/bowtie 매핑, 코드 미지정 시 자동).
-- 토큰 환불 클레임 번호는 별도: `TKR-YYYYMMDDHH24MISS-<uuid 앞 4자>`.
 
 ## 2. 일반 주문 생성 (sale/repair — 구 create_order_txn)
 
@@ -77,52 +76,22 @@
    | order_type | 확정 상태 |
    |---|---|
    | sale | 진행중 |
-   | token | 완료 |
    | sample | 접수 |
    | repair | 발송대기 |
    payment_key 저장(로그에는 `****`+뒤 8자 마스킹), 로그 memo `payment confirmed: <masked>`.
-   - token 주문: order_items에서 `{token_amount, plan_key}` → design_tokens INSERT `{amount, type:'purchase', class:'paid', work_id:'order_'+order_id, source_order_id, expires_at: now+1년}` ON CONFLICT(work_id) DO NOTHING.
    - sample 주문: §4 후속 쿠폰 발급.
    - 마지막에 쿠폰 `reserved→used`(used_at=now).
 
-## 6. 토큰 원장·플랜·환불
+## 6. 토큰 원장 (삭제)
 
-- **플랜**: pricing_constants `token_plan_{starter|popular|pro}_{price|amount}` 6키 (DB가 소스). 스케일은 **1토큰 ≈ 1원**(starter 기준)이고 볼륨 할인은 보너스 토큰으로 드러난다.
-  | 플랜 | 가격 | 토큰 | 보너스 | 토큰당 | 생성 가능 |
-  |---|---|---|---|---|---|
-  | starter | 2,500원 | 2,500 | — | 1.00원 | 100회 |
-  | popular | 6,500원 | 7,500 | +15% | 0.87원 | 300회 |
-  | pro | 18,000원 | 25,000 | +39% | 0.72원 | 1,000회 |
-- **토큰 주문 생성**: 플랜 검증 → `TKN-` 채번 → orders(order_type='token', 배송지 NULL, total=price) + order_items(item_type='token', item_data={plan_key, token_amount}).
-- **차감 (use)**: 비용 = 호출자가 지정한 `cost_key`의 admin_settings 값. 단가는 provider 원가에 비례시키지 않는다 — 원가는 결제액의 6~20%로 가격을 지배하지 않고, 디자인 생성은 넥타이 주문(상품 27,000~47,000원 / 맞춤 50,000원+)을 만드는 퍼널이라 생성 1회 마진은 주문 1건의 1/500~1/2,000이다. 기준은 ① 고객이 산수 없이 이해하는 단위 ② 생성 횟수 최대화 ③ 원가는 두 가지 검사로만 쓴다: **평균 원가 ≤ pro 순수령의 25%**, **최악 원가 < pro 순수령**(단일 요청 적자 없음).
-  | 액션 | 설정 키 | 현행 | 평균 원가 | pro 순수령 | 평균 원가율 |
-  |---|---|---|---|---|---|
-  | 디자인 첫 생성 | `design_token_cost_openai_render_standard` | 25 | 1.0~2.3원 | 15.8원 | 6~15% |
-  | 구성 수정(patch) | `design_edit_cost` | 12 | 1.0원 | 7.6원 | 13% |
-  | 새 모티프 생성 | `design_motif_generate_cost` | 100 | 12.4원 | 63.1원 | 20% |
-  | 실사화(finalize) | `design_finalize_cost` | 200 | 21.9원 (추정) | 126.2원 | 17% |
-  순수령은 표기가에서 VAT 10%와 카드 수수료 3.3%를 뺀 값이며(토큰당 starter 0.876 / popular 0.759 / **pro 0.631원** — 여유가 가장 적은 pro로 검사한다), 원가에는 provider 요금과 **Cloud Run 요청 시간**을 함께 넣는다(요청 기반 과금이라 LLM 대기 시간도 청구된다). 네 키 모두 관리자 설정 화면에서 1~1000으로 바꿀 수 있고 0이면 해당 요청이 503이다. 5/2/0이던 초기값은 첫 생성이 후보 이미지를 여러 장 굽던 시절의 잔재였다. **실사화 단가 200은 2026-08-20에 확정했다** — AI 실사화 컷오버로 finalize 1회가 gpt-image **편집 2회**(quality=**low**, 넥타이 1024x1536 + 원단 1024x1024, 병렬, 실측 24.4s) + Cloud Run 시간이 되었고, 원가는 편집 12.6 + 8.4원(아래 low 1024² = 8.4원에서 픽셀 비례한 **추정**) + Cloud Run 0.9원 ≈ 21.9원이다. 원가율 17%는 25% 가드를 충족하고, 최악(토큰 기반 과금 변동을 보수적으로 평균 2배 ≈ 44원)도 pro 순수령 아래다. quality를 medium으로 올리면 요청당 약 150원이라 단가(약 950토큰)를 함께 올려야 한다 — 품질과 단가는 한 몸이다(`worker/config.py` `finalize_image_quality` 주석). 추정 원가는 운영 `provider_usage` 로그(`operation=finalize_tie`·`finalize_fabric` 두 줄) 50건이 쌓이면 실측으로 교체한다 — 재조정은 `docs/plans/token-pricing-recalibration.md`와 같은 작업이며 실사화 행이 겹친다.
-  - **이미지 생성 손익 가드**: 이미지 provider를 호출하는 경로는 모티프 생성과 실사화(위 행) 둘이다. 모티프 생성 기준으로: 평균 12.4원(1.3장×8.4원 + 태깅 0.5원 + CPU 1.0원), 최악 19.4원(2장 + CPU 60s). 100토큰이면 pro 최악에서도 43.7원이 남는다. 이 계산을 뒤집는 것 3종: ① `adapters/gpt_image.py`의 `DEFAULT_QUALITY="low"` — `medium`은 장당 74원이라 요청당 최악 150원으로 확실한 적자이며 단가를 약 400토큰으로 함께 올려야 한다 ② worker `motif_generate_per_request_limit`(기본 2) — 올리면 최악 원가가 비례해 커진다 ③ gpt-image-2는 token-based billing이라 장당 단가가 프롬프트 길이에 따라 변동한다(`provider_usage` 로그 `operation=generate_motif` 50건으로 실측 교체할 것). 디자인 생성은 이미지 생성 provider를 호출하지 않는다. 모티프 검색·교체는 무과금이고, 사용자가 모티프 모달에서 명시적으로 실행한 모티프 생성만 `design_motif_generate_cost`를 쓴다 — **사용량 제한은 이 토큰 하나이며 세션·계정 단위 횟수 상한은 없다**. 워커 실패·결과 조회 실패면 되돌린다(work_id `motif_generate_{run_id.hex}`). 유저 `pg_advisory_xact_lock(hashtext(user_id))`. 진행 중 토큰환불 클레임(접수) 있으면 `refund_pending` 거부. 잔액(만료 제외: `expires_at IS NULL OR > now()`) < 비용 → `insufficient_tokens`. **유료 우선**: paid를 (source_order_id, expires_at) 그룹별 **만료 임박순**으로 배치 차감(work_id `{work}_use_paid_{i}`), 잔여는 bonus/free(work_id `{work}_use_bonus`·`_use_bonus_0`·`_use_free`·`_use_free_0`). 전부 ON CONFLICT(work_id) DO NOTHING으로 멱등 처리하고, 재차감 여부는 이 다섯 키의 존재로 판정한다.
-- **미완료 차감 기록 (`token_works`)**: 이미지 provider를 호출하는 두 경로(모티프 생성·실사화)는 토큰을 먼저 차감하고 외부 호출에 들어간다. 차감 원장만으로는 그 호출이 결과를 남겼는지 판별할 수 없으므로 **차감과 같은 트랜잭션에** pending 기록을 남긴다: `work_id`(원장 멱등 키와 같은 값) · `user_id` · `kind`(`motif_generate|design_finalize`) · `status`(`pending|succeeded|refunded`) · `started_at` · `deadline_at` · `finished_at` · `result_id`. 프롬프트·이미지·intent는 중복 저장하지 않고, `user_id`는 CASCADE가 아니라 탈퇴가 미완료 과금 증거를 지우지 않는다. 이 기록은 worker 실행 큐도 공개 완성본도 아니며 worker는 읽지도 쓰지도 않는다.
-  - **기한**: `deadline_at = started_at + 15분`. worker 호출은 httpx 단계별 `worker_timeout_seconds`(기본 180s)라 총 경과가 그 값 하나로 끝나지 않고, 뒤에 결과 조회·라이브러리 저장·완성본 INSERT가 붙는다. 디자인 생성의 stale 회수(75분)와는 별개 기계다.
-  - **종결**: 실사화는 `GenerationJob` INSERT와 succeeded 전환을 한 트랜잭션으로, 모티프 생성은 결과 확인·라이브러리 저장 처리 후 `result_id`(motif_id)와 succeeded를 커밋한다. 라이브러리 저장 실패는 생성 실패가 아니므로(`saved=false` 계약 유지) 종결만 다시 커밋한다. 일반 실패는 원장 반전과 refunded 전환을 한 트랜잭션으로 처리한다. `_shielded`는 클라이언트 끊김만 막고 강제 종료 복구 수단이 아니다.
-  - **복구 배치**: `POST /batch/recover-token-works`(5분 주기, 1회 최대 100건)가 기한이 지난 pending만 집는다. 잠금 순서는 돈 경로와 같은 사용자 advisory lock → 작업 행이며, 잠금 아래에서 상태·기한을 다시 검사해 성공 완료와 경쟁해도 **terminal 상태를 하나만** 커밋한다. 환불은 기존 원장 반전 함수로 정확히 한 번(work_id 멱등), 외부 호출은 재실행하지 않고 회수 불가능한 provider 비용은 서비스가 부담한다. **늦게 돌아온 요청은 refunded 기록 위에 성공 결과나 라이브러리 링크를 게시하지 않고** `motif_generate_expired`·`finalize_expired`로 거절한다. 기록 없는 오래된 차감은 자동 환불하지 않는다.
-- **실패 환불 (refund)**: 내부 전용. 실제 차감 행마다 class·source_order_id·expires_at을 보존한 양수 반전 행을 INSERT한다. work_id는 각 `{work}_use_*_refund`로 필수 멱등. 토큰 환불 클레임 승인 경로는 class별로 `refund_{claim_id}_paid`·`refund_{claim_id}_bonus`를 쓴다.
-- **잔액**: `{total, paid, bonus(=bonus+free)}` — 만료 제외 합. `GET /tokens/balance`는 여기에 `generate_cost`·`edit_cost`·`motif_generate_cost`·`finalize_cost`를 실어 store 토큰 pill이 단가를 그대로 보여주고, 모티프 생성·실사화 버튼도 누르는 자리에 단가를 표기한다.
-- **가입 지급**: 신규 유저 생성 시(소셜 가입) admin_settings `design_token_initial_grant`(기본 750 = 탐색 + 실사화 1회 완주, 약 385토큰), type='grant', class='free', **만료 없음**.
-- **admin 지급/회수**: amount≠0, description 필수, 음수면 잔액 검증(유저 lock). type='admin', class='paid'.
-- **환불 요청 (고객)**: 조건 = ①본인 완료(status='완료') 토큰 주문 ②paid 지급분 존재·미만료 ③**가장 최근 완료 토큰 주문일 것** ④지급 이후 type='use' 내역 없음 ⑤중복 요청 없음(거부 제외). refund_amount = total_price 전액. claims INSERT: type='token_refund', status='접수', claim_number=`TKR-...`, refund_data=`{paid_token_amount, bonus_token_amount:0, refund_amount}`.
-- **환불 취소 (고객)**: 접수 상태만 → '거부'로 전환.
-- **환불 승인 (admin)**: Toss `POST /v1/payments/{paymentKey}/cancel` body `{cancelReason:'고객 토큰 환불 요청', cancelAmount?(부분일 때만, 생략=전액)}` → 성공 시: 음수 원장(type='refund', work_id `refund_{claim_id}_paid`, 원본 expires 승계) + 주문 status='취소' + 클레임 '접수→완료'. Toss 성공 후 DB 실패 = 수동 개입(원 동작 — 보상 트랜잭션 없음, 로그 명확히).
-- **환불 가능 목록**: 완료 토큰 주문 + is_refundable/사유(expired/pending_refund/approved_refund/tokens_used/최신 아님).
+2026-10-19 AI 디자인·디자인 토큰 서비스 종료로 삭제했다. 절 번호는 코드 주석 참조를 지키려고 비워 둔다.
 
 ## 7. 구매 확정·배치
 
 - **고객 확정**: status ∈ {배송중, 배송완료}에서만, 활성 클레임 있으면 거부. → '완료'+confirmed_at, 로그 '고객 직접 구매확정'.
 - **자동 확정 (배치)**: `배송완료 AND delivered_at <= now-7d` 또는 `배송중 AND (repair? company_shipped_at : shipped_at) <= now-7d`, 활성 클레임 없음. FOR UPDATE SKIP LOCKED. changed_by=NULL, memo `자동 구매확정 (... 7일 경과)`.
 - **stale 취소 (배치)**: `대기중 AND created_at < now-30분` → '취소'. SKIP LOCKED. memo '자동 취소 (대기중 30분 초과)'. (스케줄 30분 주기 — 최악 60분 내 정리, perf-cost-reduction 리뷰 20번.)
-- **미완료 차감 복구 (배치)**: `token_works.status='pending' AND deadline_at < now` 최대 100건, 5분 주기 → 사용자 lock → 작업 행 FOR UPDATE → 원장 반전 + refunded 전환 한 트랜잭션. 상세는 §6.
-- **환불 계산**: 허용 상태(sale: 대기중/결제중/진행중, custom·repair·sample: +접수, token: 대기중/결제중)에서 `refund = total_price` 전액.
+- **환불 계산**: 허용 상태(sale: 대기중/결제중/진행중, custom·repair·sample: +접수)에서 `refund = total_price` 전액.
 
 ## 8. 주문 상태기계 (admin)
 
@@ -133,7 +102,6 @@
 - custom: 대기중→접수→제작중→제작완료→배송중→배송완료→완료. 취소 ← {대기중,결제중,접수}
 - sample: 접수→제작중→배송중→배송완료→완료. 취소 ← {대기중,결제중,접수}
 - repair: {발송대기,발송중,발송확인중}→접수→수선중→수선완료→배송중→배송완료→완료. 취소 ← {대기중,결제중,발송대기,발송중,발송확인중} — 발송대기→접수는 §9 의도적 추가(고객 미등록 입고 시 관리자 강제 접수)
-- token: 취소 ← {대기중,결제중}만. **완료는 결제 confirm 전용.**
 
 - **배송중 알림톡**: status가 배송중 AND 송장 완비(택배사·송장번호 모두 존재; repair는 company_courier_company·company_tracking_number, 그 외는 courier_company·tracking_number)가 되는 순간 1회 발송. 두 조건 중 나중에 충족되는 쪽(상태 변경 또는 송장 저장) 커밋 직후 best-effort. 롤백 제외. 수신 4조건(notification_consent·notification_enabled·phone_verified·phone). 송장을 지웠다 다시 넣으면 재발송(의도). 템플릿 미설정이면 건너뜀.
 
@@ -142,17 +110,15 @@
 - custom: 결제중→대기중, 접수→대기중, 제작중→접수, 제작완료→제작중
 - sample: 결제중→대기중, 접수→대기중, 제작중→접수
 - repair: 접수→order_status_logs에 보존된 직전 발송 상태(legacy 수거예정은 발송대기, 판별 불가하면 롤백 없음), 수선중→접수, 수선완료→수선중
-- token: 결제중→대기중
 
-고객 액션(get_order_customer_actions): claim_cancel(sale{대기중,진행중}/custom{대기중,접수}/sample{대기중,접수}/repair{대기중,발송대기,발송중,발송확인중}/token{대기중}), claim_return·claim_exchange(sale {배송중,배송완료}만), confirm_purchase(비-token, {배송중,배송완료}, 활성 클레임 없음).
+고객 액션(get_order_customer_actions): claim_cancel(sale{대기중,진행중}/custom{대기중,접수}/sample{대기중,접수}/repair{대기중,발송대기,발송중,발송확인중}), claim_return·claim_exchange(sale {배송중,배송완료}만), confirm_purchase({배송중,배송완료}, 활성 클레임 없음).
 
 ## 9. 재구현 시 결정 사항 (원문과 의도적 차이)
 
 - 스케줄러는 Cloud Scheduler → `POST /batch/*` (pg_cron 이미 제거된 상태였음).
-- use_design_tokens의 p_quality 파라미터는 비용 미반영 vestigial — 제거.
 - Toss 호출 금액은 항상 DB 재계산 합(원 동작 유지). 클라이언트 amount는 사전 일치 검증만.
 - stale 대기중 주문 자동 취소 시 해당 주문 소유자의 예약 쿠폰을 `reserved→active`로 복원한다(원문은 쿠폰이 영구 잠기는 누락이 있었음).
 - **repair 발송 확인 단순화 (원문과 의도적 차이 — UX 재검토로 결정)**: 결제 후 고객에게 필수로 받는 것은 "발송했다"는 확인뿐. 송장번호·사진은 선택 증빙(송장 있으면 발송중, 없으면 발송확인중 — 두 상태는 유지), no_tracking의 reason(quick/overseas/lost)은 선택화(원문은 필수). tracking 영수증에도 memo 허용. 고객이 아무 확인 없이 보낸 실물이 입고되면 관리자가 `발송대기→접수` 강제 전이(원문 전이표에는 없던 추가).
 - **자동 대사 2겹 추가 (원문에 없던 보강 — 제품 관점 재검토로 결정)**:
   - confirm 재시도가 `ALREADY_PROCESSED_PAYMENT`를 받으면 실패(→unlock→stale 취소 = "돈 받고 주문 취소") 대신 **조회 API로 상태·orderId·금액 검증 후 DB 확정**.
-  - `POST /payments/webhook`(공개): Toss 상태 변경 통지 수신. **페이로드 불신 — 조회 API 재검증**(Toss 공식 권장, Stripe식 HMAC 서명은 미제공) 후 불일치만 교정: 멈춘 '결제중' 확정 / 대시보드 직접 취소 동기화(+토큰 주문 지급분 회수, work_id `webhook_cancel_{order_id}` 멱등). 토큰 회수는 결제 그룹의 user id를 먼저 조회·정렬해 `USER_LOCK`을 잡은 뒤 order row를 잠그므로 `use_tokens`와 직렬화되고, 환불 경로의 공통 잠금 순서(USER → order)를 지킨다. 입력 `paymentKey`는 최대 200자이며, Toss 조회에서 4xx로 확인된 키는 인스턴스별 bounded TTL cache로 짧게 억제한다. IP 제한과 이 cache는 Cloud Run 인스턴스 내부 보조선이고, 전체 트래픽 제한은 Cloudflare WAF가 담당한다. 취소 동기화 전에는 조회 응답·저장 `paymentKey`와 총액이 모두 일치해야 한다. 부분취소·혼합상태·식별자/금액불일치는 자동 교정하지 않고 open `mixed_state` incident와 critical 로그로 남긴다(수동). 사용확정된 쿠폰 복원도 수동 정책. 조회 5xx만 5xx 응답으로 Toss 재시도 유도 — 그 외는 200 ack. 대시보드 웹훅 URL은 production 공개 API 도메인으로 등록한다.
+  - `POST /payments/webhook`(공개): Toss 상태 변경 통지 수신. **페이로드 불신 — 조회 API 재검증**(Toss 공식 권장, Stripe식 HMAC 서명은 미제공) 후 불일치만 교정: 멈춘 '결제중' 확정 / 대시보드 직접 취소 동기화. 입력 `paymentKey`는 최대 200자이며, Toss 조회에서 4xx로 확인된 키는 인스턴스별 bounded TTL cache로 짧게 억제한다. IP 제한과 이 cache는 Cloud Run 인스턴스 내부 보조선이고, 전체 트래픽 제한은 Cloudflare WAF가 담당한다. 취소 동기화 전에는 조회 응답·저장 `paymentKey`와 총액이 모두 일치해야 한다. 부분취소·혼합상태·식별자/금액불일치는 자동 교정하지 않고 open `mixed_state` incident와 critical 로그로 남긴다(수동). 사용확정된 쿠폰 복원도 수동 정책. 조회 5xx만 5xx 응답으로 Toss 재시도 유도 — 그 외는 200 ack. 대시보드 웹훅 URL은 production 공개 API 도메인으로 등록한다.

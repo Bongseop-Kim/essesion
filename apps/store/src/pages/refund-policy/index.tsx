@@ -16,9 +16,9 @@ export function RefundPolicyContent() {
       <PolicySection title="1. 적용 범위">
         <Text as="p" {...bodyProps}>
           이 정책은 영선산업(상호명 ESSE SION, 이하 “회사”)이 판매하는 일반
-          상품, 수선, 맞춤·샘플 제작 및 디자인 토큰의 취소, 교환과 환불에
-          적용됩니다. 관련 법령이 이 정책보다 이용자에게 유리한 기준을 정한 경우
-          그 법령을 우선합니다.
+          상품, 수선과 맞춤·샘플 제작의 취소, 교환과 환불에 적용됩니다. 관련
+          법령이 이 정책보다 이용자에게 유리한 기준을 정한 경우 그 법령을
+          우선합니다.
         </Text>
       </PolicySection>
 
@@ -37,7 +37,6 @@ export function RefundPolicyContent() {
             "사용 또는 일부 소비로 상품 가치가 현저히 감소한 경우",
             "시간이 지나 재판매가 곤란할 정도로 상품 가치가 현저히 감소한 경우",
             "이용자 주문에 따라 개별 생산되는 상품으로서, 철회 시 회사에 회복하기 어려운 중대한 피해가 예상되고 법령상 사전 고지와 동의 요건을 갖춘 경우",
-            "디지털 서비스 제공이 시작되었고 법령상 사전 고지와 동의 요건을 갖춘 경우",
           ]}
         />
       </PolicySection>
@@ -109,23 +108,12 @@ export function RefundPolicyContent() {
         />
       </PolicySection>
 
-      <PolicySection title="11. 디자인 토큰과 디지털 서비스">
-        <PolicyList
-          items={[
-            "사용하지 않은 유료 토큰의 환불은 마이페이지 또는 고객지원을 통해 신청할 수 있습니다.",
-            "무상으로 지급된 토큰과 이미 정상적으로 사용된 토큰은 환불 금액에 포함되지 않습니다.",
-            "AI 디자인 생성이 실패하면 해당 요청에서 차감한 토큰은 자동으로 복원합니다.",
-            "디지털 서비스 제공 개시 후 철회 제한은 관련 법령상 사전 고지와 동의 요건을 갖춘 경우에만 적용합니다.",
-          ]}
-        />
-      </PolicySection>
-
-      <PolicySection title="12. 정책 변경과 시행일">
+      <PolicySection title="11. 정책 변경과 시행일">
         <Text as="p" {...bodyProps}>
           정책이 변경되면 적용일과 주요 내용을 공지사항에 안내합니다.
         </Text>
         <PolicyInfoBox>
-          <Text textStyle="labelSm">시행일: 2026년 8월 31일</Text>
+          <Text textStyle="labelSm">시행일: 2026년 10월 19일</Text>
         </PolicyInfoBox>
       </PolicySection>
     </PolicyDocument>
@@ -137,7 +125,7 @@ export function RefundPolicyPage() {
     <>
       <PageMeta
         title="환불정책 | ESSE SION"
-        description="ESSE SION의 일반 상품, 수선, 맞춤 제작과 디자인 토큰의 취소·교환·환불 기준을 안내합니다."
+        description="ESSE SION의 일반 상품, 수선, 맞춤 제작의 취소·교환·환불 기준을 안내합니다."
         path="/refund-policy"
       />
       <ContentLayout

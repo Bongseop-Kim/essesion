@@ -141,7 +141,7 @@ export type AdminClaimAction = {
     /**
      * Kind
      */
-    kind: 'advance' | 'reject' | 'rollback' | 'approve_refund';
+    kind: 'advance' | 'reject' | 'rollback';
     /**
      * Label
      */
@@ -601,10 +601,6 @@ export type AdminCustomerDetailOut = {
      */
     birth: string | null;
     /**
-     * Bonus Token Balance
-     */
-    bonus_token_balance: number;
-    /**
      * Created At
      */
     created_at: string;
@@ -641,10 +637,6 @@ export type AdminCustomerDetailOut = {
      */
     order_count: number;
     /**
-     * Paid Token Balance
-     */
-    paid_token_balance: number;
-    /**
      * Phone
      */
     phone: string | null;
@@ -652,10 +644,6 @@ export type AdminCustomerDetailOut = {
      * Phone Verified
      */
     phone_verified: boolean;
-    /**
-     * Token Balance
-     */
-    token_balance: number;
     /**
      * Updated At
      */
@@ -732,74 +720,6 @@ export type AdminCustomerSummaryOut = {
      * Phone Verified
      */
     phone_verified: boolean;
-    /**
-     * Token Balance
-     */
-    token_balance: number;
-};
-
-/**
- * AdminCustomerTokenOut
- */
-export type AdminCustomerTokenOut = {
-    /**
-     * Amount
-     */
-    amount: number;
-    /**
-     * Created At
-     */
-    created_at: string;
-    /**
-     * Description
-     */
-    description: string | null;
-    /**
-     * Expires At
-     */
-    expires_at: string | null;
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Source Order Id
-     */
-    source_order_id: string | null;
-    /**
-     * Token Class
-     */
-    token_class: string;
-    /**
-     * Type
-     */
-    type: string;
-    /**
-     * Work Id
-     */
-    work_id: string | null;
-};
-
-/**
- * AdminDesignExampleCreateRequest
- */
-export type AdminDesignExampleCreateRequest = {
-    /**
-     * Caption
-     */
-    caption?: string | null;
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Ordinal
-     */
-    ordinal?: number;
-    /**
-     * Run Id
-     */
-    run_id: string;
 };
 
 /**
@@ -811,9 +731,29 @@ export type AdminDesignExampleOut = {
      */
     caption: string | null;
     /**
+     * Category
+     */
+    category: string | null;
+    /**
+     * Colorways
+     */
+    colorways: Array<DesignExampleColorway>;
+    /**
      * Id
      */
     id: string;
+    /**
+     * Logo In Panel
+     */
+    logo_in_panel?: boolean;
+    /**
+     * Logo Preview Svg
+     */
+    logo_preview_svg: string | null;
+    /**
+     * Logo Slots
+     */
+    logo_slots: Array<DesignLogoSlotOut>;
     /**
      * Name
      */
@@ -822,6 +762,22 @@ export type AdminDesignExampleOut = {
      * Ordinal
      */
     ordinal: number;
+    /**
+     * Panel Svg
+     */
+    panel_svg?: string | null;
+    /**
+     * Photo Detail Url
+     */
+    photo_detail_url: string | null;
+    /**
+     * Photo Full Url
+     */
+    photo_full_url: string | null;
+    /**
+     * Point
+     */
+    point: 'none' | 'top' | 'bottom';
     /**
      * Preview Svg
      */
@@ -1173,6 +1129,14 @@ export type AdminOrderDetailOut = {
      */
     payment_group_id: string | null;
     /**
+     * Recipient Name
+     */
+    recipient_name?: string | null;
+    /**
+     * Recipient Phone
+     */
+    recipient_phone?: string | null;
+    /**
      * Related Orders
      */
     related_orders?: Array<AdminRelatedOrderOut>;
@@ -1309,6 +1273,14 @@ export type AdminOrderSummaryOut = {
      * Payment Group Id
      */
     payment_group_id: string | null;
+    /**
+     * Recipient Name
+     */
+    recipient_name?: string | null;
+    /**
+     * Recipient Phone
+     */
+    recipient_phone?: string | null;
     /**
      * Status
      */
@@ -2096,7 +2068,7 @@ export type AdminSettingOut = {
     /**
      * Key
      */
-    key: 'default_courier_company' | 'design_edit_cost' | 'design_finalize_cost' | 'design_motif_generate_cost' | 'design_token_cost_openai_render_standard' | 'design_token_initial_grant';
+    key: 'default_courier_company';
     /**
      * Updated At
      */
@@ -2184,46 +2156,6 @@ export type AdminTimelineEvent = {
 };
 
 /**
- * AdminTokenManageRequest
- */
-export type AdminTokenManageRequest = {
-    /**
-     * Amount
-     */
-    amount: number;
-    /**
-     * Description
-     */
-    description: string;
-    /**
-     * Operation Id
-     */
-    operation_id: string;
-    /**
-     * User Id
-     */
-    user_id: string;
-};
-
-/**
- * AdminTokenManageResponse
- */
-export type AdminTokenManageResponse = {
-    /**
-     * New Balance
-     */
-    new_balance: number;
-    /**
-     * Operation Id
-     */
-    operation_id: string;
-    /**
-     * Success
-     */
-    success: boolean;
-};
-
-/**
  * AdminTrackingUpdateRequest
  */
 export type AdminTrackingUpdateRequest = {
@@ -2261,600 +2193,6 @@ export type AffectedResponse = {
      * Success
      */
     success?: boolean;
-};
-
-/**
- * AuthoringCandidateDecisionRequest
- */
-export type AuthoringCandidateDecisionRequest = {
-    /**
-     * Decision
-     */
-    decision: 'hold' | 'reject' | 'approve';
-    /**
-     * Expected Review Version
-     */
-    expected_review_version: number;
-    /**
-     * Operation Id
-     */
-    operation_id: string;
-    /**
-     * Reason
-     */
-    reason: string;
-};
-
-/**
- * AuthoringCandidateDetailOut
- */
-export type AuthoringCandidateDetailOut = {
-    /**
-     * Approved Example Id
-     */
-    approved_example_id: string | null;
-    /**
-     * Compiler Revision
-     */
-    compiler_revision: string;
-    /**
-     * Contract Version
-     */
-    contract_version: number;
-    /**
-     * Created At
-     */
-    created_at: string;
-    /**
-     * Design Id
-     */
-    design_id: string;
-    /**
-     * Embedding Model
-     */
-    embedding_model: string | null;
-    /**
-     * Family
-     */
-    family: string;
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Injection Suspected
-     */
-    injection_suspected: boolean;
-    /**
-     * Motif Count
-     */
-    motif_count: number;
-    /**
-     * Nearest Id
-     */
-    nearest_id: string | null;
-    /**
-     * Nearest Kind
-     */
-    nearest_kind: string | null;
-    /**
-     * Nearest Similarity
-     */
-    nearest_similarity: number | null;
-    /**
-     * Plan
-     */
-    plan: {
-        [key: string]: unknown;
-    };
-    /**
-     * Preview Status
-     */
-    preview_status: 'safe' | 'unavailable' | 'unsafe';
-    /**
-     * Preview Svg
-     */
-    preview_svg: string | null;
-    /**
-     * Prompt Revision
-     */
-    prompt_revision: string;
-    /**
-     * Retrieval Text
-     */
-    retrieval_text: string;
-    /**
-     * Review Reason
-     */
-    review_reason: string | null;
-    /**
-     * Review Version
-     */
-    review_version: number;
-    /**
-     * Reviewed At
-     */
-    reviewed_at: string | null;
-    /**
-     * Reviewed By
-     */
-    reviewed_by: string | null;
-    /**
-     * Rule Reasons
-     */
-    rule_reasons: Array<unknown>;
-    /**
-     * Source Digest
-     */
-    source_digest: string;
-    /**
-     * Source Generation Log Id
-     */
-    source_generation_log_id: string | null;
-    /**
-     * Source Key
-     */
-    source_key: string;
-    /**
-     * Status
-     */
-    status: 'pending' | 'hold' | 'rejected' | 'approved' | 'duplicate' | 'invalid';
-    /**
-     * Structural Fingerprint
-     */
-    structural_fingerprint: string | null;
-    /**
-     * Tags
-     */
-    tags: Array<string>;
-    /**
-     * Updated At
-     */
-    updated_at: string;
-};
-
-/**
- * AuthoringCandidateSummaryOut
- */
-export type AuthoringCandidateSummaryOut = {
-    /**
-     * Approved Example Id
-     */
-    approved_example_id: string | null;
-    /**
-     * Compiler Revision
-     */
-    compiler_revision: string;
-    /**
-     * Contract Version
-     */
-    contract_version: number;
-    /**
-     * Created At
-     */
-    created_at: string;
-    /**
-     * Design Id
-     */
-    design_id: string;
-    /**
-     * Family
-     */
-    family: string;
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Injection Suspected
-     */
-    injection_suspected: boolean;
-    /**
-     * Motif Count
-     */
-    motif_count: number;
-    /**
-     * Nearest Id
-     */
-    nearest_id: string | null;
-    /**
-     * Nearest Kind
-     */
-    nearest_kind: string | null;
-    /**
-     * Nearest Similarity
-     */
-    nearest_similarity: number | null;
-    /**
-     * Prompt Revision
-     */
-    prompt_revision: string;
-    /**
-     * Retrieval Text
-     */
-    retrieval_text: string;
-    /**
-     * Review Reason
-     */
-    review_reason: string | null;
-    /**
-     * Review Version
-     */
-    review_version: number;
-    /**
-     * Reviewed At
-     */
-    reviewed_at: string | null;
-    /**
-     * Reviewed By
-     */
-    reviewed_by: string | null;
-    /**
-     * Rule Reasons
-     */
-    rule_reasons: Array<unknown>;
-    /**
-     * Source Generation Log Id
-     */
-    source_generation_log_id: string | null;
-    /**
-     * Status
-     */
-    status: 'pending' | 'hold' | 'rejected' | 'approved' | 'duplicate' | 'invalid';
-    /**
-     * Structural Fingerprint
-     */
-    structural_fingerprint: string | null;
-    /**
-     * Tags
-     */
-    tags: Array<string>;
-    /**
-     * Updated At
-     */
-    updated_at: string;
-};
-
-/**
- * AuthoringExampleActivationRequest
- */
-export type AuthoringExampleActivationRequest = {
-    /**
-     * Active
-     */
-    active: boolean;
-    /**
-     * Expected Updated At
-     */
-    expected_updated_at: string;
-    /**
-     * Operation Id
-     */
-    operation_id: string;
-};
-
-/**
- * AuthoringExampleCreateRequest
- */
-export type AuthoringExampleCreateRequest = {
-    /**
-     * Motif Ids
-     */
-    motif_ids?: Array<string>;
-    /**
-     * Plan
-     */
-    plan: {
-        [key: string]: unknown;
-    };
-    /**
-     * Retrieval Text
-     */
-    retrieval_text: string;
-};
-
-/**
- * AuthoringExampleDeleteRequest
- */
-export type AuthoringExampleDeleteRequest = {
-    /**
-     * Operation Id
-     */
-    operation_id: string;
-};
-
-/**
- * AuthoringExampleDetailOut
- */
-export type AuthoringExampleDetailOut = {
-    /**
-     * Active
-     */
-    active: boolean;
-    /**
-     * Active Reason
-     */
-    active_reason: string | null;
-    /**
-     * Active Updated At
-     */
-    active_updated_at: string | null;
-    /**
-     * Active Updated By
-     */
-    active_updated_by: string | null;
-    /**
-     * Approved At
-     */
-    approved_at: string | null;
-    /**
-     * Approved By
-     */
-    approved_by: string | null;
-    /**
-     * Contract Version
-     */
-    contract_version: number;
-    /**
-     * Created At
-     */
-    created_at: string;
-    /**
-     * Embedding Model
-     */
-    embedding_model: string;
-    /**
-     * Example Id
-     */
-    example_id: string;
-    /**
-     * Family
-     */
-    family: string;
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Motif Count
-     */
-    motif_count: number;
-    /**
-     * Motif Ids
-     */
-    motif_ids: Array<string>;
-    /**
-     * Plan
-     */
-    plan: {
-        [key: string]: unknown;
-    };
-    /**
-     * Retrieval Text
-     */
-    retrieval_text: string;
-    /**
-     * Source
-     */
-    source: 'bootstrap' | 'promoted' | 'authored';
-    /**
-     * Source Digest
-     */
-    source_digest: string;
-    /**
-     * Structural Fingerprint
-     */
-    structural_fingerprint: string;
-    /**
-     * Tags
-     */
-    tags: Array<string>;
-    /**
-     * Updated At
-     */
-    updated_at: string;
-};
-
-/**
- * AuthoringExamplePreviewBatchItem
- */
-export type AuthoringExamplePreviewBatchItem = {
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Svg
-     */
-    svg: string | null;
-    /**
-     * Warnings
-     */
-    warnings?: Array<string>;
-};
-
-/**
- * AuthoringExamplePreviewBatchOut
- */
-export type AuthoringExamplePreviewBatchOut = {
-    /**
-     * Previews
-     */
-    previews: Array<AuthoringExamplePreviewBatchItem>;
-};
-
-/**
- * AuthoringExamplePreviewOut
- */
-export type AuthoringExamplePreviewOut = {
-    /**
-     * Svg
-     */
-    svg: string;
-    /**
-     * Warnings
-     */
-    warnings: Array<string>;
-};
-
-/**
- * AuthoringExamplePreviewRequest
- */
-export type AuthoringExamplePreviewRequest = {
-    /**
-     * Colorway
-     */
-    colorway?: string | null;
-    /**
-     * Motif Ids
-     */
-    motif_ids?: Array<string>;
-    /**
-     * Plan
-     */
-    plan: {
-        [key: string]: unknown;
-    };
-    /**
-     * Seed
-     */
-    seed?: number | null;
-    /**
-     * Tile Mm
-     */
-    tile_mm?: number;
-};
-
-/**
- * AuthoringExampleSummaryOut
- */
-export type AuthoringExampleSummaryOut = {
-    /**
-     * Active
-     */
-    active: boolean;
-    /**
-     * Active Reason
-     */
-    active_reason: string | null;
-    /**
-     * Active Updated At
-     */
-    active_updated_at: string | null;
-    /**
-     * Active Updated By
-     */
-    active_updated_by: string | null;
-    /**
-     * Approved At
-     */
-    approved_at: string | null;
-    /**
-     * Approved By
-     */
-    approved_by: string | null;
-    /**
-     * Contract Version
-     */
-    contract_version: number;
-    /**
-     * Created At
-     */
-    created_at: string;
-    /**
-     * Embedding Model
-     */
-    embedding_model: string;
-    /**
-     * Example Id
-     */
-    example_id: string;
-    /**
-     * Family
-     */
-    family: string;
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Motif Count
-     */
-    motif_count: number;
-    /**
-     * Retrieval Text
-     */
-    retrieval_text: string;
-    /**
-     * Source
-     */
-    source: 'bootstrap' | 'promoted' | 'authored';
-    /**
-     * Structural Fingerprint
-     */
-    structural_fingerprint: string;
-    /**
-     * Tags
-     */
-    tags: Array<string>;
-    /**
-     * Updated At
-     */
-    updated_at: string;
-};
-
-/**
- * AuthoringExampleUpdateRequest
- */
-export type AuthoringExampleUpdateRequest = {
-    /**
-     * Expected Updated At
-     */
-    expected_updated_at: string;
-    /**
-     * Motif Ids
-     */
-    motif_ids?: Array<string> | null;
-    /**
-     * Operation Id
-     */
-    operation_id: string;
-    /**
-     * Plan
-     */
-    plan?: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * Retrieval Text
-     */
-    retrieval_text?: string | null;
-};
-
-/**
- * AuthoringPromotionBatchResult
- */
-export type AuthoringPromotionBatchResult = {
-    /**
-     * Duplicate
-     */
-    duplicate: number;
-    /**
-     * Failed
-     */
-    failed: number;
-    /**
-     * Invalid
-     */
-    invalid: number;
-    /**
-     * Pending
-     */
-    pending: number;
-    /**
-     * Scanned
-     */
-    scanned: number;
 };
 
 /**
@@ -3191,10 +2529,6 @@ export type ConfirmedOrder = {
      * Status
      */
     status: string;
-    /**
-     * Token Amount
-     */
-    token_amount?: number | null;
 };
 
 /**
@@ -3710,7 +3044,7 @@ export type DashboardSummaryOut = {
     /**
      * Order Type
      */
-    order_type: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample' | 'manual';
+    order_type: 'all' | 'sale' | 'custom' | 'repair' | 'sample' | 'manual';
     /**
      * Start Date
      */
@@ -3736,7 +3070,7 @@ export type DashboardTimeseriesOut = {
     /**
      * Order Type
      */
-    order_type: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample' | 'manual';
+    order_type: 'all' | 'sale' | 'custom' | 'repair' | 'sample' | 'manual';
     /**
      * Points
      */
@@ -3759,14 +3093,6 @@ export type DashboardTimeseriesPointOut = {
      * Day
      */
     day: string;
-    /**
-     * Generation Failed
-     */
-    generation_failed: number;
-    /**
-     * Generation Total
-     */
-    generation_total: number;
     /**
      * Manual Custom Amount
      */
@@ -3799,18 +3125,6 @@ export type DashboardTimeseriesPointOut = {
      * Sample Amount
      */
     sample_amount: number;
-    /**
-     * Token Amount
-     */
-    token_amount: number;
-    /**
-     * Token Consumed
-     */
-    token_consumed: number;
-    /**
-     * Token Sold
-     */
-    token_sold: number;
 };
 
 /**
@@ -3858,6 +3172,26 @@ export type DashboardTopProductsOut = {
 };
 
 /**
+ * DesignExampleColorway
+ */
+export type DesignExampleColorway = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Mapping
+     */
+    mapping: {
+        [key: string]: string;
+    };
+    /**
+     * Name
+     */
+    name: string | null;
+};
+
+/**
  * DesignExampleOut
  */
 export type DesignExampleOut = {
@@ -3866,13 +3200,49 @@ export type DesignExampleOut = {
      */
     caption: string | null;
     /**
+     * Category
+     */
+    category: string | null;
+    /**
+     * Colorways
+     */
+    colorways: Array<DesignExampleColorway>;
+    /**
      * Id
      */
     id: string;
     /**
+     * Logo In Panel
+     */
+    logo_in_panel?: boolean;
+    /**
+     * Logo Preview Svg
+     */
+    logo_preview_svg: string | null;
+    /**
+     * Logo Slots
+     */
+    logo_slots: Array<DesignLogoSlotOut>;
+    /**
      * Name
      */
     name: string;
+    /**
+     * Panel Svg
+     */
+    panel_svg?: string | null;
+    /**
+     * Photo Detail Url
+     */
+    photo_detail_url: string | null;
+    /**
+     * Photo Full Url
+     */
+    photo_full_url: string | null;
+    /**
+     * Point
+     */
+    point: 'none' | 'top' | 'bottom';
     /**
      * Preview Svg
      */
@@ -3890,63 +3260,6 @@ export type DesignExampleStartRequest = {
 };
 
 /**
- * DesignExportRequest
- *
- * SVG → PNG/TIFF 형식 변환 — 이미 생성된 디자인의 재출력이라 토큰 과금 없음.
- *
- * dpi·치수 상한은 워커가 최종 권위(WorkerRequestError로 detail 전파) — 여기서
- * 중복 선언하면 KNOWN_WEAVES처럼 드리프트 위험이라 구조 검증만 한다.
- */
-export type DesignExportRequest = {
-    /**
-     * Dpi
-     */
-    dpi?: number;
-    /**
-     * Format
-     */
-    format?: 'png' | 'tiff';
-    /**
-     * Height Mm
-     */
-    height_mm?: number | null;
-    /**
-     * Session Id
-     */
-    session_id?: string | null;
-    /**
-     * Svg
-     */
-    svg: string;
-    /**
-     * Width Mm
-     */
-    width_mm: number;
-};
-
-/**
- * DesignFinalizeTurnPayload
- */
-export type DesignFinalizeTurnPayload = {
-    /**
-     * Job Id
-     */
-    job_id: string;
-    /**
-     * Production Method
-     */
-    production_method: string;
-    /**
-     * Type
-     */
-    type?: 'finalize';
-    /**
-     * Weave
-     */
-    weave: string;
-};
-
-/**
  * DesignGenerateOut
  */
 export type DesignGenerateOut = {
@@ -3955,11 +3268,6 @@ export type DesignGenerateOut = {
      * Engine Version
      */
     engine_version: string;
-    motif_intent?: MotifIntentOut | null;
-    /**
-     * Note
-     */
-    note?: string | null;
     /**
      * Registry Version
      */
@@ -3979,98 +3287,37 @@ export type DesignGenerateOut = {
 };
 
 /**
- * DesignGenerateRejectedOut
+ * DesignLogoPlaceRequest
+ */
+export type DesignLogoPlaceRequest = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Slot
+     */
+    slot?: 1 | 2 | 'logo' | null;
+    /**
+     * Svg
+     */
+    svg: string;
+};
+
+/**
+ * DesignLogoSlotOut
  *
- * 구성 수정으로 표현할 수 없는 요청 — 토큰·턴 없이 끝나고 피커 안내만 붙는다.
+ * 템플릿의 로고 자리 하나 — 1|2는 intent 모티프 레이어 순서, "logo"는 배치형 포인트 로고.
  */
-export type DesignGenerateRejectedOut = {
-    motif_intent?: MotifIntentOut | null;
+export type DesignLogoSlotOut = {
     /**
-     * Reason
+     * Label
      */
-    reason?: 'motif_change' | 'motif_recolor' | 'motif_position' | 'target_missing' | 'no_change' | null;
+    label?: string | null;
     /**
-     * Rejected
+     * Slot
      */
-    rejected: 'motif';
-};
-
-/**
- * DesignGenerateRequest
- */
-export type DesignGenerateRequest = {
-    /**
-     * Colorway
-     */
-    colorway?: string | null;
-    /**
-     * Prompt
-     */
-    prompt?: string | null;
-    /**
-     * Seed
-     */
-    seed?: number | null;
-    /**
-     * Session Id
-     */
-    session_id: string;
-    /**
-     * User Motif Ids
-     */
-    user_motif_ids?: Array<string>;
-};
-
-/**
- * DesignIdeasOut
- */
-export type DesignIdeasOut = {
-    /**
-     * Ideas
-     */
-    ideas: Array<string>;
-};
-
-/**
- * DesignIdeasRequest
- */
-export type DesignIdeasRequest = {
-    /**
-     * Count
-     */
-    count?: 3 | 4;
-    /**
-     * Prompt
-     */
-    prompt?: string;
-    /**
-     * User Motif Ids
-     */
-    user_motif_ids?: Array<string>;
-};
-
-/**
- * DesignOrderReferenceItem
- */
-export type DesignOrderReferenceItem = {
-    /**
-     * Object Key
-     */
-    object_key: string;
-    /**
-     * Upload Id
-     */
-    upload_id?: string | null;
-};
-
-/**
- * DesignOrderReferenceOut
- */
-export type DesignOrderReferenceOut = {
-    /**
-     * Items
-     */
-    items: Array<DesignOrderReferenceItem>;
+    slot: 1 | 2 | 'logo';
 };
 
 /**
@@ -4089,6 +3336,10 @@ export type DesignOut = {
      * Layout Id
      */
     layout_id: string;
+    /**
+     * Panel Svg
+     */
+    panel_svg?: string | null;
     /**
      * Png Object Key
      */
@@ -4164,19 +3415,17 @@ export type DesignSessionOut = {
      */
     current_motifs?: Array<CurrentMotifOut>;
     /**
-     * Current Plan
+     * Example Id
      */
-    current_plan: {
-        [key: string]: unknown;
-    } | null;
+    example_id?: string | null;
     /**
      * Id
      */
     id: string;
     /**
-     * Last Prompt
+     * Preview Panel Svg
      */
-    last_prompt?: string | null;
+    preview_panel_svg?: string | null;
     /**
      * Preview Svg
      */
@@ -4197,78 +3446,6 @@ export type DesignSessionOut = {
      * Updated At
      */
     updated_at: string;
-};
-
-/**
- * DesignStepActivateRequest
- */
-export type DesignStepActivateRequest = {
-    /**
-     * Run Id
-     */
-    run_id: string;
-};
-
-/**
- * DesignTurnAttachmentOut
- */
-export type DesignTurnAttachmentOut = {
-    /**
-     * Filename
-     */
-    filename: string;
-    /**
-     * Preview Svg
-     */
-    preview_svg: string;
-};
-
-/**
- * DesignTurnCreateRequest
- *
- * Only UI-only finalize annotations remain client-authored.
- *
- * Generation results and candidate selections mutate session memory, so their
- * turns are emitted exclusively by the corresponding server actions.
- */
-export type DesignTurnCreateRequest = {
-    payload: DesignFinalizeTurnPayload;
-    /**
-     * Role
-     */
-    role: 'user';
-};
-
-/**
- * DesignTurnOut
- */
-export type DesignTurnOut = {
-    /**
-     * Attachments
-     */
-    attachments?: Array<DesignTurnAttachmentOut>;
-    /**
-     * Created At
-     */
-    created_at: string;
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Payload
-     */
-    payload: {
-        [key: string]: unknown;
-    };
-    /**
-     * Role
-     */
-    role: string;
-    /**
-     * Seq
-     */
-    seq: number;
 };
 
 /**
@@ -4304,67 +3481,9 @@ export type EventFields = {
 };
 
 /**
- * FinalizeRequest
- */
-export type FinalizeRequest = {
-    /**
-     * Colorway Id
-     */
-    colorway_id?: string | null;
-    /**
-     * Dpi
-     */
-    dpi?: number | null;
-    /**
-     * Intent
-     */
-    intent?: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * Material Map
-     */
-    material_map?: {
-        [key: string]: string;
-    } | null;
-    /**
-     * Production Method
-     */
-    production_method?: string | null;
-    /**
-     * Relief Strength
-     */
-    relief_strength?: number | null;
-    /**
-     * Run Id
-     */
-    run_id?: string | null;
-    /**
-     * Texture Strength
-     */
-    texture_strength?: number | null;
-    /**
-     * Weave
-     */
-    weave?: string | null;
-};
-
-/**
  * GenerationDiagnosticsOut
  */
 export type GenerationDiagnosticsOut = {
-    /**
-     * Authoring Attempts
-     */
-    authoring_attempts?: number | null;
-    /**
-     * Authoring Ms
-     */
-    authoring_ms?: number | null;
-    /**
-     * Catalog Candidate Count
-     */
-    catalog_candidate_count?: number | null;
     /**
      * Compose Ms
      */
@@ -4374,287 +3493,23 @@ export type GenerationDiagnosticsOut = {
      */
     failure_code?: string | null;
     /**
-     * Failure Operation
-     */
-    failure_operation?: string | null;
-    /**
-     * Failure Provider
-     */
-    failure_provider?: string | null;
-    /**
-     * Failure Reason
-     */
-    failure_reason?: string | null;
-    /**
      * Failure Stage
      */
     failure_stage?: string | null;
     /**
-     * Failure Status Code
-     */
-    failure_status_code?: number | null;
-    /**
      * Mode
      */
-    mode?: 'prompt' | 'patch' | 'variation' | 'motif_slot' | null;
-    /**
-     * Model
-     */
-    model?: string | null;
-    /**
-     * Motif Resolutions
-     */
-    motif_resolutions?: Array<MotifResolutionOut>;
-    /**
-     * Patch
-     */
-    patch?: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * Patch Axes
-     */
-    patch_axes?: Array<string>;
-    /**
-     * Prompt Revision
-     */
-    prompt_revision?: string | null;
+    mode?: 'variation' | 'motif_slot' | null;
     /**
      * Render Ms
      */
     render_ms?: number | null;
-    /**
-     * Resolved Count
-     */
-    resolved_count?: number | null;
-};
-
-/**
- * GenerationJobDetailOut
- */
-export type GenerationJobDetailOut = {
-    /**
-     * Attempts
-     */
-    attempts: number;
-    /**
-     * Created At
-     */
-    created_at: string;
-    /**
-     * Error Summary
-     */
-    error_summary: string | null;
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Kind
-     */
-    kind: 'finalize' | 'export';
-    /**
-     * Owner Reference
-     */
-    owner_reference: string;
-    /**
-     * Parameter Summary
-     */
-    parameter_summary: {
-        [key: string]: unknown;
-    };
-    /**
-     * Request Id
-     */
-    request_id: string | null;
-    /**
-     * Result Available
-     */
-    result_available: boolean;
-    /**
-     * Result Url
-     */
-    result_url: string | null;
-    /**
-     * Session Id
-     */
-    session_id: string | null;
-    /**
-     * Status
-     */
-    status: 'queued' | 'processing' | 'succeeded' | 'failed' | 'canceled';
-    /**
-     * Updated At
-     */
-    updated_at: string;
-};
-
-/**
- * GenerationJobOut
- */
-export type GenerationJobOut = {
-    /**
-     * Attempts
-     */
-    attempts: number;
-    /**
-     * Created At
-     */
-    created_at: string;
-    /**
-     * Error Message
-     */
-    error_message: string | null;
-    /**
-     * Fabric Url
-     */
-    fabric_url?: string | null;
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Kind
-     */
-    kind: string;
-    /**
-     * Params
-     */
-    params: {
-        [key: string]: unknown;
-    };
-    /**
-     * Request Id
-     */
-    request_id: string | null;
-    /**
-     * Result
-     */
-    result: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * Result Url
-     */
-    result_url: string | null;
-    /**
-     * Session Id
-     */
-    session_id: string | null;
-    /**
-     * Status
-     */
-    status: string;
-    /**
-     * Tie Url
-     */
-    tie_url?: string | null;
-    /**
-     * Tile Url
-     */
-    tile_url?: string | null;
-    /**
-     * Updated At
-     */
-    updated_at: string;
-};
-
-/**
- * GenerationJobStatsOut
- */
-export type GenerationJobStatsOut = {
-    /**
-     * As Of
-     */
-    as_of: string;
-    /**
-     * Average Attempts
-     */
-    average_attempts: number;
-    /**
-     * Canceled
-     */
-    canceled: number;
-    /**
-     * Failed
-     */
-    failed: number;
-    /**
-     * Processing
-     */
-    processing: number;
-    /**
-     * Queued
-     */
-    queued: number;
-    /**
-     * Succeeded
-     */
-    succeeded: number;
-    /**
-     * Total
-     */
-    total: number;
-};
-
-/**
- * GenerationJobSummaryOut
- */
-export type GenerationJobSummaryOut = {
-    /**
-     * Attempts
-     */
-    attempts: number;
-    /**
-     * Created At
-     */
-    created_at: string;
-    /**
-     * Error Summary
-     */
-    error_summary: string | null;
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Kind
-     */
-    kind: 'finalize' | 'export';
-    /**
-     * Request Id
-     */
-    request_id: string | null;
-    /**
-     * Result Available
-     */
-    result_available: boolean;
-    /**
-     * Status
-     */
-    status: 'queued' | 'processing' | 'succeeded' | 'failed' | 'canceled';
-    /**
-     * Updated At
-     */
-    updated_at: string;
 };
 
 /**
  * GenerationOutcomeOut
  */
 export type GenerationOutcomeOut = {
-    /**
-     * Finalized
-     */
-    finalized?: boolean;
-    /**
-     * Reactivated
-     */
-    reactivated?: boolean;
-    /**
-     * Regenerated
-     */
-    regenerated?: boolean;
     /**
      * Session Id
      */
@@ -4667,28 +3522,6 @@ export type GenerationOutcomeOut = {
      * User Name
      */
     user_name?: string | null;
-};
-
-/**
- * GenerationTokenAccountingOut
- */
-export type GenerationTokenAccountingOut = {
-    /**
-     * Debited
-     */
-    debited: number;
-    /**
-     * Matched
-     */
-    matched: boolean;
-    /**
-     * Net
-     */
-    net: number;
-    /**
-     * Refunded
-     */
-    refunded: number;
 };
 
 /**
@@ -5389,20 +4222,6 @@ export type MessageResponse = {
 };
 
 /**
- * MotifActivateRequest
- */
-export type MotifActivateRequest = {
-    /**
-     * Motif Id
-     */
-    motif_id: string;
-    /**
-     * Slot
-     */
-    slot: 1 | 2;
-};
-
-/**
  * MotifDetailOut
  */
 export type MotifDetailOut = {
@@ -5419,10 +4238,6 @@ export type MotifDetailOut = {
      */
     created_at: string;
     /**
-     * Description
-     */
-    description: string | null;
-    /**
      * Id
      */
     id: string;
@@ -5435,10 +4250,6 @@ export type MotifDetailOut = {
      */
     ingested_user_id: string | null;
     /**
-     * Reviewed At
-     */
-    reviewed_at: string | null;
-    /**
      * Scope
      */
     scope: string | null;
@@ -5446,10 +4257,6 @@ export type MotifDetailOut = {
      * Source
      */
     source: string;
-    /**
-     * Status
-     */
-    status: 'pending' | 'approved' | 'rejected';
     /**
      * Style
      */
@@ -5466,55 +4273,6 @@ export type MotifDetailOut = {
      * Symbol
      */
     symbol: string | null;
-    /**
-     * Tags
-     */
-    tags: Array<string>;
-};
-
-/**
- * MotifGenerateOut
- */
-export type MotifGenerateOut = {
-    motif: MotifResultOut;
-    /**
-     * Request Id
-     */
-    request_id: string;
-    /**
-     * Saved
-     */
-    saved: boolean;
-};
-
-/**
- * MotifGenerateRequest
- */
-export type MotifGenerateRequest = {
-    /**
-     * Prompt
-     */
-    prompt: string;
-};
-
-/**
- * MotifIntentOut
- *
- * 현재 응답에서만 소비하는 모티프 피커 안내 sidecar.
- */
-export type MotifIntentOut = {
-    /**
-     * Detected
-     */
-    detected?: true;
-    /**
-     * Reason
-     */
-    reason: 'motif_mention' | 'motif_change';
-    /**
-     * Subject
-     */
-    subject?: string | null;
 };
 
 /**
@@ -5540,110 +4298,6 @@ export type MotifPreviewOut = {
 };
 
 /**
- * MotifResolutionOut
- */
-export type MotifResolutionOut = {
-    /**
-     * Layer Id
-     */
-    layer_id?: string | null;
-    /**
-     * Match Type
-     */
-    match_type?: string | null;
-    /**
-     * Motif Id
-     */
-    motif_id?: string | null;
-    /**
-     * Operation
-     */
-    operation?: string | null;
-    /**
-     * Outcome
-     */
-    outcome?: string | null;
-    /**
-     * Provider
-     */
-    provider?: string | null;
-    /**
-     * Reason Code
-     */
-    reason_code?: string | null;
-    /**
-     * Scope
-     */
-    scope?: string | null;
-    /**
-     * Similarity
-     */
-    similarity?: number | null;
-    /**
-     * Status Code
-     */
-    status_code?: number | null;
-    /**
-     * Subject
-     */
-    subject?: string | null;
-};
-
-/**
- * MotifResultOut
- *
- * 모달 카드 하나 — 프론트가 썸네일을 바로 그린다.
- */
-export type MotifResultOut = {
-    /**
-     * Current
-     */
-    current?: boolean;
-    /**
-     * Motif Id
-     */
-    motif_id: string;
-    /**
-     * Name
-     */
-    name: string | null;
-    /**
-     * Preview Svg
-     */
-    preview_svg: string;
-};
-
-/**
- * MotifReviewRequest
- */
-export type MotifReviewRequest = {
-    /**
-     * Status
-     */
-    status: 'approved' | 'rejected';
-};
-
-/**
- * MotifSearchOut
- */
-export type MotifSearchOut = {
-    /**
-     * Results
-     */
-    results: Array<MotifResultOut>;
-};
-
-/**
- * MotifSearchRequest
- */
-export type MotifSearchRequest = {
-    /**
-     * Query
-     */
-    query: string;
-};
-
-/**
  * MotifSummaryOut
  */
 export type MotifSummaryOut = {
@@ -5660,10 +4314,6 @@ export type MotifSummaryOut = {
      */
     id: string;
     /**
-     * Reviewed At
-     */
-    reviewed_at: string | null;
-    /**
      * Scope
      */
     scope: string | null;
@@ -5671,10 +4321,6 @@ export type MotifSummaryOut = {
      * Source
      */
     source: string;
-    /**
-     * Status
-     */
-    status: 'pending' | 'approved' | 'rejected';
     /**
      * Style
      */
@@ -5698,10 +4344,6 @@ export type MotifSummaryOut = {
  */
 export type MotifUpdateRequest = {
     /**
-     * Description
-     */
-    description?: string | null;
-    /**
      * Style
      */
     style?: 'flat' | 'outline' | null;
@@ -5709,10 +4351,6 @@ export type MotifUpdateRequest = {
      * Subject
      */
     subject?: string | null;
-    /**
-     * Tags
-     */
-    tags?: Array<string> | null;
 };
 
 /**
@@ -6303,28 +4941,6 @@ export type PageAdminCustomerSummaryOut = {
 };
 
 /**
- * Page[AdminCustomerTokenOut]
- */
-export type PageAdminCustomerTokenOut = {
-    /**
-     * Items
-     */
-    items: Array<AdminCustomerTokenOut>;
-    /**
-     * Limit
-     */
-    limit: number;
-    /**
-     * Offset
-     */
-    offset: number;
-    /**
-     * Total
-     */
-    total: number;
-};
-
-/**
  * Page[AdminInquirySummaryOut]
  */
 export type PageAdminInquirySummaryOut = {
@@ -6413,50 +5029,6 @@ export type PageAdminQuoteSummaryOut = {
 };
 
 /**
- * Page[AuthoringCandidateSummaryOut]
- */
-export type PageAuthoringCandidateSummaryOut = {
-    /**
-     * Items
-     */
-    items: Array<AuthoringCandidateSummaryOut>;
-    /**
-     * Limit
-     */
-    limit: number;
-    /**
-     * Offset
-     */
-    offset: number;
-    /**
-     * Total
-     */
-    total: number;
-};
-
-/**
- * Page[AuthoringExampleSummaryOut]
- */
-export type PageAuthoringExampleSummaryOut = {
-    /**
-     * Items
-     */
-    items: Array<AuthoringExampleSummaryOut>;
-    /**
-     * Limit
-     */
-    limit: number;
-    /**
-     * Offset
-     */
-    offset: number;
-    /**
-     * Total
-     */
-    total: number;
-};
-
-/**
  * Page[CouponAudienceCustomerOut]
  */
 export type PageCouponAudienceCustomerOut = {
@@ -6464,28 +5036,6 @@ export type PageCouponAudienceCustomerOut = {
      * Items
      */
     items: Array<CouponAudienceCustomerOut>;
-    /**
-     * Limit
-     */
-    limit: number;
-    /**
-     * Offset
-     */
-    offset: number;
-    /**
-     * Total
-     */
-    total: number;
-};
-
-/**
- * Page[GenerationJobSummaryOut]
- */
-export type PageGenerationJobSummaryOut = {
-    /**
-     * Items
-     */
-    items: Array<GenerationJobSummaryOut>;
     /**
      * Limit
      */
@@ -6662,10 +5212,6 @@ export type PaymentConfirmResponse = {
      * Success
      */
     success?: boolean;
-    /**
-     * Token Amount
-     */
-    token_amount?: number | null;
 };
 
 /**
@@ -7103,7 +5649,7 @@ export type PricingValueOut = {
     /**
      * Unit
      */
-    unit: '원' | '개';
+    unit: '원';
     /**
      * Updated At
      */
@@ -7641,44 +6187,6 @@ export type ReformUploadUrlResponse = {
 };
 
 /**
- * RefundableTokenOrder
- */
-export type RefundableTokenOrder = {
-    /**
-     * Claim Id
-     */
-    claim_id: string | null;
-    /**
-     * Is Refundable
-     */
-    is_refundable: boolean;
-    /**
-     * Order Id
-     */
-    order_id: string;
-    /**
-     * Order Number
-     */
-    order_number: string;
-    /**
-     * Paid Tokens Granted
-     */
-    paid_tokens_granted: number;
-    /**
-     * Reason
-     */
-    reason: string | null;
-    /**
-     * Token Expires At
-     */
-    token_expires_at: string | null;
-    /**
-     * Total Price
-     */
-    total_price: number;
-};
-
-/**
  * RepairNoTrackingRequest
  */
 export type RepairNoTrackingRequest = {
@@ -8083,10 +6591,6 @@ export type SeamlessDetailOut = {
      */
     generate_ms: number | null;
     /**
-     * Has Prompt
-     */
-    has_prompt: boolean;
-    /**
      * Id
      */
     id: string;
@@ -8101,10 +6605,6 @@ export type SeamlessDetailOut = {
         [key: string]: unknown;
     } | null;
     outcome: GenerationOutcomeOut;
-    /**
-     * Prompt
-     */
-    prompt: string | null;
     /**
      * Registry Version
      */
@@ -8125,7 +6625,6 @@ export type SeamlessDetailOut = {
      * Status
      */
     status: 'success' | 'partial' | 'error';
-    token_accounting: GenerationTokenAccountingOut;
     /**
      * Warning Count
      */
@@ -8261,7 +6760,7 @@ export type SettingUpdateItem = {
     /**
      * Key
      */
-    key: 'default_courier_company' | 'design_edit_cost' | 'design_finalize_cost' | 'design_motif_generate_cost' | 'design_token_cost_openai_render_standard' | 'design_token_initial_grant';
+    key: 'default_courier_company';
     /**
      * Value
      */
@@ -8275,7 +6774,9 @@ export type SettingsUpdateRequest = {
     /**
      * Items
      */
-    items: Array<SettingUpdateItem>;
+    items: [
+        SettingUpdateItem
+    ];
     /**
      * Operation Id
      */
@@ -8407,190 +6908,6 @@ export type SingleOrderCreateResponse = {
 };
 
 /**
- * TextMotifPreviewRequest
- */
-export type TextMotifPreviewRequest = {
-    /**
-     * Font Id
-     */
-    font_id?: 'nanum-gothic' | 'nanum-myeongjo';
-    /**
-     * Font Weight
-     */
-    font_weight?: 400 | 700;
-    /**
-     * Letter Spacing
-     */
-    letter_spacing?: number;
-    /**
-     * Text
-     */
-    text: string;
-};
-
-/**
- * TokenBalance
- */
-export type TokenBalance = {
-    /**
-     * Bonus
-     */
-    bonus: number;
-    /**
-     * Edit Cost
-     */
-    edit_cost: number;
-    /**
-     * Finalize Cost
-     */
-    finalize_cost: number;
-    /**
-     * Generate Cost
-     */
-    generate_cost: number;
-    /**
-     * Motif Generate Cost
-     */
-    motif_generate_cost: number;
-    /**
-     * Paid
-     */
-    paid: number;
-    /**
-     * Total
-     */
-    total: number;
-};
-
-/**
- * TokenHistoryEntry
- */
-export type TokenHistoryEntry = {
-    /**
-     * Amount
-     */
-    amount: number;
-    /**
-     * Created At
-     */
-    created_at: string;
-    /**
-     * Description
-     */
-    description: string | null;
-    /**
-     * Expires At
-     */
-    expires_at: string | null;
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Source Order Id
-     */
-    source_order_id: string | null;
-    /**
-     * Token Class
-     */
-    token_class: 'paid' | 'bonus' | 'free';
-    /**
-     * Type
-     */
-    type: 'grant' | 'use' | 'refund' | 'admin' | 'purchase';
-};
-
-/**
- * TokenOrderCreateRequest
- */
-export type TokenOrderCreateRequest = {
-    /**
-     * Plan Key
-     */
-    plan_key: 'starter' | 'popular' | 'pro';
-};
-
-/**
- * TokenOrderCreateResponse
- */
-export type TokenOrderCreateResponse = {
-    /**
-     * Order Id
-     */
-    order_id: string;
-    /**
-     * Order Number
-     */
-    order_number: string;
-    /**
-     * Payment Group Id
-     */
-    payment_group_id: string;
-    /**
-     * Price
-     */
-    price: number;
-    /**
-     * Token Amount
-     */
-    token_amount: number;
-};
-
-/**
- * TokenPlan
- */
-export type TokenPlan = {
-    /**
-     * Plan Key
-     */
-    plan_key: string;
-    /**
-     * Price
-     */
-    price: number;
-    /**
-     * Token Amount
-     */
-    token_amount: number;
-};
-
-/**
- * TokenRefundRequestIn
- */
-export type TokenRefundRequestIn = {
-    /**
-     * Order Id
-     */
-    order_id: string;
-};
-
-/**
- * TokenRefundRequestOut
- */
-export type TokenRefundRequestOut = {
-    /**
-     * Bonus Token Amount
-     */
-    bonus_token_amount: number;
-    /**
-     * Claim Id
-     */
-    claim_id: string;
-    /**
-     * Claim Number
-     */
-    claim_number: string;
-    /**
-     * Paid Token Amount
-     */
-    paid_token_amount: number;
-    /**
-     * Refund Amount
-     */
-    refund_amount: number;
-};
-
-/**
  * TokenResponse
  */
 export type TokenResponse = {
@@ -8705,46 +7022,6 @@ export type UserCouponOut = {
 };
 
 /**
- * UserMotifImportRequest
- */
-export type UserMotifImportRequest = {
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Svg
-     */
-    svg: string;
-};
-
-/**
- * UserMotifOut
- */
-export type UserMotifOut = {
-    /**
-     * Created At
-     */
-    created_at: string;
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Motif Id
-     */
-    motif_id: string;
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Preview Svg
-     */
-    preview_svg: string;
-};
-
-/**
  * ValidationError
  */
 export type ValidationError = {
@@ -8804,362 +7081,6 @@ export type WidthReform = {
     target_width_cm: number;
 };
 
-export type ListAuthoringCandidatesData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Status
-         */
-        status?: 'all' | 'pending' | 'hold' | 'rejected' | 'approved' | 'duplicate' | 'invalid';
-        /**
-         * Family
-         */
-        family?: string | null;
-        /**
-         * Q
-         */
-        q?: string | null;
-        /**
-         * Limit
-         */
-        limit?: number;
-        /**
-         * Offset
-         */
-        offset?: number;
-    };
-    url: '/admin/authoring/candidates';
-};
-
-export type ListAuthoringCandidatesErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ListAuthoringCandidatesError = ListAuthoringCandidatesErrors[keyof ListAuthoringCandidatesErrors];
-
-export type ListAuthoringCandidatesResponses = {
-    /**
-     * Successful Response
-     */
-    200: PageAuthoringCandidateSummaryOut;
-};
-
-export type ListAuthoringCandidatesResponse = ListAuthoringCandidatesResponses[keyof ListAuthoringCandidatesResponses];
-
-export type GetAuthoringCandidateData = {
-    body?: never;
-    path: {
-        /**
-         * Candidate Id
-         */
-        candidate_id: string;
-    };
-    query?: never;
-    url: '/admin/authoring/candidates/{candidate_id}';
-};
-
-export type GetAuthoringCandidateErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetAuthoringCandidateError = GetAuthoringCandidateErrors[keyof GetAuthoringCandidateErrors];
-
-export type GetAuthoringCandidateResponses = {
-    /**
-     * Successful Response
-     */
-    200: AuthoringCandidateDetailOut;
-};
-
-export type GetAuthoringCandidateResponse = GetAuthoringCandidateResponses[keyof GetAuthoringCandidateResponses];
-
-export type DecideAuthoringCandidateData = {
-    body: AuthoringCandidateDecisionRequest;
-    path: {
-        /**
-         * Candidate Id
-         */
-        candidate_id: string;
-    };
-    query?: never;
-    url: '/admin/authoring/candidates/{candidate_id}/decision';
-};
-
-export type DecideAuthoringCandidateErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DecideAuthoringCandidateError = DecideAuthoringCandidateErrors[keyof DecideAuthoringCandidateErrors];
-
-export type DecideAuthoringCandidateResponses = {
-    /**
-     * Successful Response
-     */
-    200: AuthoringCandidateDetailOut;
-};
-
-export type DecideAuthoringCandidateResponse = DecideAuthoringCandidateResponses[keyof DecideAuthoringCandidateResponses];
-
-export type ListAuthoringExamplesData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Active
-         */
-        active?: 'all' | 'active' | 'inactive';
-        /**
-         * Source
-         */
-        source?: 'all' | 'bootstrap' | 'promoted' | 'authored';
-        /**
-         * Family
-         */
-        family?: string | null;
-        /**
-         * Q
-         */
-        q?: string | null;
-        /**
-         * Limit
-         */
-        limit?: number;
-        /**
-         * Offset
-         */
-        offset?: number;
-    };
-    url: '/admin/authoring/examples';
-};
-
-export type ListAuthoringExamplesErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ListAuthoringExamplesError = ListAuthoringExamplesErrors[keyof ListAuthoringExamplesErrors];
-
-export type ListAuthoringExamplesResponses = {
-    /**
-     * Successful Response
-     */
-    200: PageAuthoringExampleSummaryOut;
-};
-
-export type ListAuthoringExamplesResponse = ListAuthoringExamplesResponses[keyof ListAuthoringExamplesResponses];
-
-export type CreateAuthoringExampleData = {
-    body: AuthoringExampleCreateRequest;
-    path?: never;
-    query?: never;
-    url: '/admin/authoring/examples';
-};
-
-export type CreateAuthoringExampleErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type CreateAuthoringExampleError = CreateAuthoringExampleErrors[keyof CreateAuthoringExampleErrors];
-
-export type CreateAuthoringExampleResponses = {
-    /**
-     * Successful Response
-     */
-    201: AuthoringExampleDetailOut;
-};
-
-export type CreateAuthoringExampleResponse = CreateAuthoringExampleResponses[keyof CreateAuthoringExampleResponses];
-
-export type BatchAuthoringExamplePreviewsData = {
-    body?: never;
-    path?: never;
-    query: {
-        /**
-         * Ids
-         */
-        ids: Array<string>;
-    };
-    url: '/admin/authoring/examples/preview-batch';
-};
-
-export type BatchAuthoringExamplePreviewsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type BatchAuthoringExamplePreviewsError = BatchAuthoringExamplePreviewsErrors[keyof BatchAuthoringExamplePreviewsErrors];
-
-export type BatchAuthoringExamplePreviewsResponses = {
-    /**
-     * Successful Response
-     */
-    200: AuthoringExamplePreviewBatchOut;
-};
-
-export type BatchAuthoringExamplePreviewsResponse = BatchAuthoringExamplePreviewsResponses[keyof BatchAuthoringExamplePreviewsResponses];
-
-export type DeleteAuthoringExampleData = {
-    body: AuthoringExampleDeleteRequest;
-    path: {
-        /**
-         * Example Id
-         */
-        example_id: string;
-    };
-    query?: never;
-    url: '/admin/authoring/examples/{example_id}';
-};
-
-export type DeleteAuthoringExampleErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DeleteAuthoringExampleError = DeleteAuthoringExampleErrors[keyof DeleteAuthoringExampleErrors];
-
-export type DeleteAuthoringExampleResponses = {
-    /**
-     * Successful Response
-     */
-    204: void;
-};
-
-export type DeleteAuthoringExampleResponse = DeleteAuthoringExampleResponses[keyof DeleteAuthoringExampleResponses];
-
-export type GetAuthoringExampleData = {
-    body?: never;
-    path: {
-        /**
-         * Example Id
-         */
-        example_id: string;
-    };
-    query?: never;
-    url: '/admin/authoring/examples/{example_id}';
-};
-
-export type GetAuthoringExampleErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetAuthoringExampleError = GetAuthoringExampleErrors[keyof GetAuthoringExampleErrors];
-
-export type GetAuthoringExampleResponses = {
-    /**
-     * Successful Response
-     */
-    200: AuthoringExampleDetailOut;
-};
-
-export type GetAuthoringExampleResponse = GetAuthoringExampleResponses[keyof GetAuthoringExampleResponses];
-
-export type UpdateAuthoringExampleData = {
-    body: AuthoringExampleUpdateRequest;
-    path: {
-        /**
-         * Example Id
-         */
-        example_id: string;
-    };
-    query?: never;
-    url: '/admin/authoring/examples/{example_id}';
-};
-
-export type UpdateAuthoringExampleErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateAuthoringExampleError = UpdateAuthoringExampleErrors[keyof UpdateAuthoringExampleErrors];
-
-export type UpdateAuthoringExampleResponses = {
-    /**
-     * Successful Response
-     */
-    200: AuthoringExampleDetailOut;
-};
-
-export type UpdateAuthoringExampleResponse = UpdateAuthoringExampleResponses[keyof UpdateAuthoringExampleResponses];
-
-export type SetAuthoringExampleActivationData = {
-    body: AuthoringExampleActivationRequest;
-    path: {
-        /**
-         * Example Id
-         */
-        example_id: string;
-    };
-    query?: never;
-    url: '/admin/authoring/examples/{example_id}/activation';
-};
-
-export type SetAuthoringExampleActivationErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type SetAuthoringExampleActivationError = SetAuthoringExampleActivationErrors[keyof SetAuthoringExampleActivationErrors];
-
-export type SetAuthoringExampleActivationResponses = {
-    /**
-     * Successful Response
-     */
-    200: AuthoringExampleDetailOut;
-};
-
-export type SetAuthoringExampleActivationResponse = SetAuthoringExampleActivationResponses[keyof SetAuthoringExampleActivationResponses];
-
-export type PreviewAuthoringExampleData = {
-    body: AuthoringExamplePreviewRequest;
-    path?: never;
-    query?: never;
-    url: '/admin/authoring/preview';
-};
-
-export type PreviewAuthoringExampleErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type PreviewAuthoringExampleError = PreviewAuthoringExampleErrors[keyof PreviewAuthoringExampleErrors];
-
-export type PreviewAuthoringExampleResponses = {
-    /**
-     * Successful Response
-     */
-    200: AuthoringExamplePreviewOut;
-};
-
-export type PreviewAuthoringExampleResponse = PreviewAuthoringExampleResponses[keyof PreviewAuthoringExampleResponses];
-
 export type GetAdminCapabilitiesData = {
     body?: never;
     path?: never;
@@ -9213,7 +7134,7 @@ export type AdminListClaimsV2Data = {
         /**
          * Claim Type
          */
-        claim_type?: 'all' | 'cancel' | 'return' | 'exchange' | 'token_refund';
+        claim_type?: 'all' | 'cancel' | 'return' | 'exchange';
         /**
          * Status
          */
@@ -9846,45 +7767,6 @@ export type ListAdminCustomerOrdersResponses = {
 
 export type ListAdminCustomerOrdersResponse = ListAdminCustomerOrdersResponses[keyof ListAdminCustomerOrdersResponses];
 
-export type ListAdminCustomerTokensData = {
-    body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: {
-        /**
-         * Limit
-         */
-        limit?: number;
-        /**
-         * Offset
-         */
-        offset?: number;
-    };
-    url: '/admin/customers/{user_id}/tokens';
-};
-
-export type ListAdminCustomerTokensErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ListAdminCustomerTokensError = ListAdminCustomerTokensErrors[keyof ListAdminCustomerTokensErrors];
-
-export type ListAdminCustomerTokensResponses = {
-    /**
-     * Successful Response
-     */
-    200: PageAdminCustomerTokenOut;
-};
-
-export type ListAdminCustomerTokensResponse = ListAdminCustomerTokensResponses[keyof ListAdminCustomerTokensResponses];
-
 export type GetDashboardOverviewData = {
     body?: never;
     path?: never;
@@ -9900,7 +7782,7 @@ export type GetDashboardOverviewData = {
         /**
          * Order Type
          */
-        order_type?: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample' | 'manual';
+        order_type?: 'all' | 'sale' | 'custom' | 'repair' | 'sample' | 'manual';
         /**
          * Top Limit
          */
@@ -9934,7 +7816,7 @@ export type GetDashboardRecentOrdersData = {
         /**
          * Order Type
          */
-        order_type?: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample' | 'manual';
+        order_type?: 'all' | 'sale' | 'custom' | 'repair' | 'sample' | 'manual';
         /**
          * Limit
          */
@@ -10009,31 +7891,6 @@ export type ListAdminDesignExamplesResponses = {
 
 export type ListAdminDesignExamplesResponse = ListAdminDesignExamplesResponses[keyof ListAdminDesignExamplesResponses];
 
-export type CreateAdminDesignExampleData = {
-    body: AdminDesignExampleCreateRequest;
-    path?: never;
-    query?: never;
-    url: '/admin/design/examples';
-};
-
-export type CreateAdminDesignExampleErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type CreateAdminDesignExampleError = CreateAdminDesignExampleErrors[keyof CreateAdminDesignExampleErrors];
-
-export type CreateAdminDesignExampleResponses = {
-    /**
-     * Successful Response
-     */
-    201: AdminDesignExampleOut;
-};
-
-export type CreateAdminDesignExampleResponse = CreateAdminDesignExampleResponses[keyof CreateAdminDesignExampleResponses];
-
 export type DeleteAdminDesignExampleData = {
     body?: never;
     path: {
@@ -10093,144 +7950,6 @@ export type UpdateAdminDesignExampleResponses = {
 };
 
 export type UpdateAdminDesignExampleResponse = UpdateAdminDesignExampleResponses[keyof UpdateAdminDesignExampleResponses];
-
-export type ListAdminGenerationJobsData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Job Id
-         */
-        job_id?: string | null;
-        /**
-         * Kind
-         */
-        kind?: 'finalize' | 'export' | null;
-        /**
-         * Status
-         */
-        status?: 'queued' | 'processing' | 'succeeded' | 'failed' | 'canceled' | null;
-        /**
-         * User Id
-         */
-        user_id?: string | null;
-        /**
-         * Start
-         */
-        start?: string | null;
-        /**
-         * End
-         */
-        end?: string | null;
-        /**
-         * Limit
-         */
-        limit?: number;
-        /**
-         * Offset
-         */
-        offset?: number;
-    };
-    url: '/admin/generation/jobs';
-};
-
-export type ListAdminGenerationJobsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ListAdminGenerationJobsError = ListAdminGenerationJobsErrors[keyof ListAdminGenerationJobsErrors];
-
-export type ListAdminGenerationJobsResponses = {
-    /**
-     * Successful Response
-     */
-    200: PageGenerationJobSummaryOut;
-};
-
-export type ListAdminGenerationJobsResponse = ListAdminGenerationJobsResponses[keyof ListAdminGenerationJobsResponses];
-
-export type GetAdminGenerationJobStatsData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Job Id
-         */
-        job_id?: string | null;
-        /**
-         * Kind
-         */
-        kind?: 'finalize' | 'export' | null;
-        /**
-         * Status
-         */
-        status?: 'queued' | 'processing' | 'succeeded' | 'failed' | 'canceled' | null;
-        /**
-         * User Id
-         */
-        user_id?: string | null;
-        /**
-         * Start
-         */
-        start?: string | null;
-        /**
-         * End
-         */
-        end?: string | null;
-    };
-    url: '/admin/generation/jobs/stats';
-};
-
-export type GetAdminGenerationJobStatsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetAdminGenerationJobStatsError = GetAdminGenerationJobStatsErrors[keyof GetAdminGenerationJobStatsErrors];
-
-export type GetAdminGenerationJobStatsResponses = {
-    /**
-     * Successful Response
-     */
-    200: GenerationJobStatsOut;
-};
-
-export type GetAdminGenerationJobStatsResponse = GetAdminGenerationJobStatsResponses[keyof GetAdminGenerationJobStatsResponses];
-
-export type GetAdminGenerationJobData = {
-    body?: never;
-    path: {
-        /**
-         * Job Id
-         */
-        job_id: string;
-    };
-    query?: never;
-    url: '/admin/generation/jobs/{job_id}';
-};
-
-export type GetAdminGenerationJobErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetAdminGenerationJobError = GetAdminGenerationJobErrors[keyof GetAdminGenerationJobErrors];
-
-export type GetAdminGenerationJobResponses = {
-    /**
-     * Successful Response
-     */
-    200: GenerationJobDetailOut;
-};
-
-export type GetAdminGenerationJobResponse = GetAdminGenerationJobResponses[keyof GetAdminGenerationJobResponses];
 
 export type ListAdminSeamlessLogsData = {
     body?: never;
@@ -10760,10 +8479,6 @@ export type ListAdminMotifsData = {
     path?: never;
     query?: {
         /**
-         * Status
-         */
-        status?: 'all' | 'pending' | 'approved' | 'rejected';
-        /**
          * Scope
          */
         scope?: 'whole' | 'partial' | null;
@@ -10873,36 +8588,6 @@ export type UpdateAdminMotifResponses = {
 
 export type UpdateAdminMotifResponse = UpdateAdminMotifResponses[keyof UpdateAdminMotifResponses];
 
-export type ReviewAdminMotifData = {
-    body: MotifReviewRequest;
-    path: {
-        /**
-         * Motif Id
-         */
-        motif_id: string;
-    };
-    query?: never;
-    url: '/admin/motifs/{motif_id}/review';
-};
-
-export type ReviewAdminMotifErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ReviewAdminMotifError = ReviewAdminMotifErrors[keyof ReviewAdminMotifErrors];
-
-export type ReviewAdminMotifResponses = {
-    /**
-     * Successful Response
-     */
-    200: MotifDetailOut;
-};
-
-export type ReviewAdminMotifResponse = ReviewAdminMotifResponses[keyof ReviewAdminMotifResponses];
-
 export type ListAllOrdersData = {
     body?: never;
     path?: never;
@@ -10910,7 +8595,7 @@ export type ListAllOrdersData = {
         /**
          * Order Type
          */
-        order_type?: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample';
+        order_type?: 'all' | 'sale' | 'custom' | 'repair' | 'sample';
         /**
          * Status
          */
@@ -12085,65 +9770,6 @@ export type UpdateAdminSettingsResponses = {
 
 export type UpdateAdminSettingsResponse = UpdateAdminSettingsResponses[keyof UpdateAdminSettingsResponses];
 
-export type AdminApproveTokenRefundData = {
-    body?: never;
-    path: {
-        /**
-         * Claim Id
-         */
-        claim_id: string;
-    };
-    query?: never;
-    url: '/admin/token-refunds/{claim_id}/approve';
-};
-
-export type AdminApproveTokenRefundErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type AdminApproveTokenRefundError = AdminApproveTokenRefundErrors[keyof AdminApproveTokenRefundErrors];
-
-export type AdminApproveTokenRefundResponses = {
-    /**
-     * Response Admin Approve Token Refund
-     *
-     * Successful Response
-     */
-    200: {
-        [key: string]: unknown;
-    };
-};
-
-export type AdminApproveTokenRefundResponse = AdminApproveTokenRefundResponses[keyof AdminApproveTokenRefundResponses];
-
-export type AdminManageTokensData = {
-    body: AdminTokenManageRequest;
-    path?: never;
-    query?: never;
-    url: '/admin/tokens/manage';
-};
-
-export type AdminManageTokensErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type AdminManageTokensError = AdminManageTokensErrors[keyof AdminManageTokensErrors];
-
-export type AdminManageTokensResponses = {
-    /**
-     * Successful Response
-     */
-    200: AdminTokenManageResponse;
-};
-
-export type AdminManageTokensResponse = AdminManageTokensResponses[keyof AdminManageTokensResponses];
-
 export type AdminLoginData = {
     body: LoginRequest;
     path?: never;
@@ -12324,22 +9950,6 @@ export type RefreshTokensResponses = {
 
 export type RefreshTokensResponse = RefreshTokensResponses[keyof RefreshTokensResponses];
 
-export type AuthoringPromotionCandidatesData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/batch/authoring-promotion-candidates';
-};
-
-export type AuthoringPromotionCandidatesResponses = {
-    /**
-     * Successful Response
-     */
-    200: AuthoringPromotionBatchResult;
-};
-
-export type AuthoringPromotionCandidatesResponse = AuthoringPromotionCandidatesResponses[keyof AuthoringPromotionCandidatesResponses];
-
 export type AutoConfirmOrdersData = {
     body?: never;
     path?: never;
@@ -12387,22 +9997,6 @@ export type CleanupImagesResponses = {
 };
 
 export type CleanupImagesResponse = CleanupImagesResponses[keyof CleanupImagesResponses];
-
-export type RecoverTokenWorksData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/batch/recover-token-works';
-};
-
-export type RecoverTokenWorksResponses = {
-    /**
-     * Successful Response
-     */
-    200: BatchResult;
-};
-
-export type RecoverTokenWorksResponse = RecoverTokenWorksResponses[keyof RecoverTokenWorksResponses];
 
 export type GetCartData = {
     body?: never;
@@ -12629,255 +10223,6 @@ export type ListDesignExamplesResponses = {
 
 export type ListDesignExamplesResponse = ListDesignExamplesResponses[keyof ListDesignExamplesResponses];
 
-export type ExportDesignData = {
-    body: DesignExportRequest;
-    path?: never;
-    query?: never;
-    url: '/design/export';
-};
-
-export type ExportDesignErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ExportDesignError = ExportDesignErrors[keyof ExportDesignErrors];
-
-export type ExportDesignResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type GenerateDesignData = {
-    body: DesignGenerateRequest;
-    path?: never;
-    query?: never;
-    url: '/design/generate';
-};
-
-export type GenerateDesignErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GenerateDesignError = GenerateDesignErrors[keyof GenerateDesignErrors];
-
-export type GenerateDesignResponses = {
-    /**
-     * Response Generate Design
-     *
-     * Successful Response
-     */
-    200: DesignGenerateOut | DesignGenerateRejectedOut;
-};
-
-export type GenerateDesignResponse = GenerateDesignResponses[keyof GenerateDesignResponses];
-
-export type CreateDesignIdeasData = {
-    body: DesignIdeasRequest;
-    path?: never;
-    query?: never;
-    url: '/design/ideas';
-};
-
-export type CreateDesignIdeasErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type CreateDesignIdeasError = CreateDesignIdeasErrors[keyof CreateDesignIdeasErrors];
-
-export type CreateDesignIdeasResponses = {
-    /**
-     * Successful Response
-     */
-    200: DesignIdeasOut;
-};
-
-export type CreateDesignIdeasResponse = CreateDesignIdeasResponses[keyof CreateDesignIdeasResponses];
-
-export type ListGenerationJobsData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Kind
-         */
-        kind?: 'finalize' | 'export';
-        /**
-         * Status
-         */
-        status?: 'queued' | 'processing' | 'succeeded' | 'failed' | 'canceled' | null;
-        /**
-         * Session Id
-         */
-        session_id?: string | null;
-        /**
-         * Limit
-         */
-        limit?: number;
-        /**
-         * Offset
-         */
-        offset?: number;
-    };
-    url: '/design/jobs';
-};
-
-export type ListGenerationJobsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ListGenerationJobsError = ListGenerationJobsErrors[keyof ListGenerationJobsErrors];
-
-export type ListGenerationJobsResponses = {
-    /**
-     * Response List Generation Jobs
-     *
-     * Successful Response
-     */
-    200: Array<GenerationJobOut>;
-};
-
-export type ListGenerationJobsResponse = ListGenerationJobsResponses[keyof ListGenerationJobsResponses];
-
-export type DeleteGenerationJobData = {
-    body?: never;
-    path: {
-        /**
-         * Job Id
-         */
-        job_id: string;
-    };
-    query?: never;
-    url: '/design/jobs/{job_id}';
-};
-
-export type DeleteGenerationJobErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DeleteGenerationJobError = DeleteGenerationJobErrors[keyof DeleteGenerationJobErrors];
-
-export type DeleteGenerationJobResponses = {
-    /**
-     * Successful Response
-     */
-    204: void;
-};
-
-export type DeleteGenerationJobResponse = DeleteGenerationJobResponses[keyof DeleteGenerationJobResponses];
-
-export type CreateDesignOrderReferenceData = {
-    body?: never;
-    path: {
-        /**
-         * Job Id
-         */
-        job_id: string;
-    };
-    query?: {
-        /**
-         * Kind
-         */
-        kind?: 'custom_order' | 'quote_request';
-    };
-    url: '/design/jobs/{job_id}/order-reference';
-};
-
-export type CreateDesignOrderReferenceErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type CreateDesignOrderReferenceError = CreateDesignOrderReferenceErrors[keyof CreateDesignOrderReferenceErrors];
-
-export type CreateDesignOrderReferenceResponses = {
-    /**
-     * Successful Response
-     */
-    200: DesignOrderReferenceOut;
-};
-
-export type CreateDesignOrderReferenceResponse = CreateDesignOrderReferenceResponses[keyof CreateDesignOrderReferenceResponses];
-
-export type ListUserMotifsData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Limit
-         */
-        limit?: number;
-        /**
-         * Offset
-         */
-        offset?: number;
-    };
-    url: '/design/motifs';
-};
-
-export type ListUserMotifsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ListUserMotifsError = ListUserMotifsErrors[keyof ListUserMotifsErrors];
-
-export type ListUserMotifsResponses = {
-    /**
-     * Response List User Motifs
-     *
-     * Successful Response
-     */
-    200: Array<UserMotifOut>;
-};
-
-export type ListUserMotifsResponse = ListUserMotifsResponses[keyof ListUserMotifsResponses];
-
-export type ImportUserMotifData = {
-    body: UserMotifImportRequest;
-    path?: never;
-    query?: never;
-    url: '/design/motifs';
-};
-
-export type ImportUserMotifErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ImportUserMotifError = ImportUserMotifErrors[keyof ImportUserMotifErrors];
-
-export type ImportUserMotifResponses = {
-    /**
-     * Successful Response
-     */
-    201: UserMotifOut;
-};
-
-export type ImportUserMotifResponse = ImportUserMotifResponses[keyof ImportUserMotifResponses];
-
 export type PreviewPhotoMotifData = {
     body: PhotoMotifPreviewRequest;
     path?: never;
@@ -12903,95 +10248,6 @@ export type PreviewPhotoMotifResponses = {
 
 export type PreviewPhotoMotifResponse = PreviewPhotoMotifResponses[keyof PreviewPhotoMotifResponses];
 
-export type PreviewTextMotifData = {
-    body: TextMotifPreviewRequest;
-    path?: never;
-    query?: never;
-    url: '/design/motifs/text-preview';
-};
-
-export type PreviewTextMotifErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type PreviewTextMotifError = PreviewTextMotifErrors[keyof PreviewTextMotifErrors];
-
-export type PreviewTextMotifResponses = {
-    /**
-     * Successful Response
-     */
-    200: MotifPreviewOut;
-};
-
-export type PreviewTextMotifResponse = PreviewTextMotifResponses[keyof PreviewTextMotifResponses];
-
-export type DeleteUserMotifData = {
-    body?: never;
-    path: {
-        /**
-         * User Motif Id
-         */
-        user_motif_id: string;
-    };
-    query?: never;
-    url: '/design/motifs/{user_motif_id}';
-};
-
-export type DeleteUserMotifErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DeleteUserMotifError = DeleteUserMotifErrors[keyof DeleteUserMotifErrors];
-
-export type DeleteUserMotifResponses = {
-    /**
-     * Successful Response
-     */
-    204: void;
-};
-
-export type DeleteUserMotifResponse = DeleteUserMotifResponses[keyof DeleteUserMotifResponses];
-
-export type ListDesignSessionsData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/design/sessions';
-};
-
-export type ListDesignSessionsResponses = {
-    /**
-     * Response List Design Sessions
-     *
-     * Successful Response
-     */
-    200: Array<DesignSessionOut>;
-};
-
-export type ListDesignSessionsResponse = ListDesignSessionsResponses[keyof ListDesignSessionsResponses];
-
-export type CreateDesignSessionData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/design/sessions';
-};
-
-export type CreateDesignSessionResponses = {
-    /**
-     * Successful Response
-     */
-    201: DesignSessionOut;
-};
-
-export type CreateDesignSessionResponse = CreateDesignSessionResponses[keyof CreateDesignSessionResponses];
-
 export type CreateDesignSessionFromExampleData = {
     body: DesignExampleStartRequest;
     path?: never;
@@ -13016,36 +10272,6 @@ export type CreateDesignSessionFromExampleResponses = {
 };
 
 export type CreateDesignSessionFromExampleResponse = CreateDesignSessionFromExampleResponses[keyof CreateDesignSessionFromExampleResponses];
-
-export type DeleteDesignSessionData = {
-    body?: never;
-    path: {
-        /**
-         * Session Id
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/design/sessions/{session_id}';
-};
-
-export type DeleteDesignSessionErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DeleteDesignSessionError = DeleteDesignSessionErrors[keyof DeleteDesignSessionErrors];
-
-export type DeleteDesignSessionResponses = {
-    /**
-     * Successful Response
-     */
-    204: void;
-};
-
-export type DeleteDesignSessionResponse = DeleteDesignSessionResponses[keyof DeleteDesignSessionResponses];
 
 export type GetDesignSessionData = {
     body?: never;
@@ -13077,8 +10303,8 @@ export type GetDesignSessionResponses = {
 
 export type GetDesignSessionResponse = GetDesignSessionResponses[keyof GetDesignSessionResponses];
 
-export type CreateFinalizeJobData = {
-    body: FinalizeRequest;
+export type PlaceDesignLogoData = {
+    body: DesignLogoPlaceRequest;
     path: {
         /**
          * Session Id
@@ -13086,208 +10312,26 @@ export type CreateFinalizeJobData = {
         session_id: string;
     };
     query?: never;
-    url: '/design/sessions/{session_id}/finalize';
+    url: '/design/sessions/{session_id}/logo';
 };
 
-export type CreateFinalizeJobErrors = {
+export type PlaceDesignLogoErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type CreateFinalizeJobError = CreateFinalizeJobErrors[keyof CreateFinalizeJobErrors];
+export type PlaceDesignLogoError = PlaceDesignLogoErrors[keyof PlaceDesignLogoErrors];
 
-export type CreateFinalizeJobResponses = {
-    /**
-     * Successful Response
-     */
-    201: GenerationJobOut;
-};
-
-export type CreateFinalizeJobResponse = CreateFinalizeJobResponses[keyof CreateFinalizeJobResponses];
-
-export type ActivateMotifData = {
-    body: MotifActivateRequest;
-    path: {
-        /**
-         * Session Id
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/design/sessions/{session_id}/motifs/activate';
-};
-
-export type ActivateMotifErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ActivateMotifError = ActivateMotifErrors[keyof ActivateMotifErrors];
-
-export type ActivateMotifResponses = {
+export type PlaceDesignLogoResponses = {
     /**
      * Successful Response
      */
     200: DesignGenerateOut;
 };
 
-export type ActivateMotifResponse = ActivateMotifResponses[keyof ActivateMotifResponses];
-
-export type GenerateMotifData = {
-    body: MotifGenerateRequest;
-    path: {
-        /**
-         * Session Id
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/design/sessions/{session_id}/motifs/generate';
-};
-
-export type GenerateMotifErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GenerateMotifError = GenerateMotifErrors[keyof GenerateMotifErrors];
-
-export type GenerateMotifResponses = {
-    /**
-     * Successful Response
-     */
-    200: MotifGenerateOut;
-};
-
-export type GenerateMotifResponse = GenerateMotifResponses[keyof GenerateMotifResponses];
-
-export type SearchMotifsData = {
-    body: MotifSearchRequest;
-    path: {
-        /**
-         * Session Id
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/design/sessions/{session_id}/motifs/search';
-};
-
-export type SearchMotifsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type SearchMotifsError = SearchMotifsErrors[keyof SearchMotifsErrors];
-
-export type SearchMotifsResponses = {
-    /**
-     * Successful Response
-     */
-    200: MotifSearchOut;
-};
-
-export type SearchMotifsResponse = SearchMotifsResponses[keyof SearchMotifsResponses];
-
-export type ActivateDesignStepData = {
-    body: DesignStepActivateRequest;
-    path: {
-        /**
-         * Session Id
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/design/sessions/{session_id}/steps/activate';
-};
-
-export type ActivateDesignStepErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ActivateDesignStepError = ActivateDesignStepErrors[keyof ActivateDesignStepErrors];
-
-export type ActivateDesignStepResponses = {
-    /**
-     * Successful Response
-     */
-    200: DesignSessionOut;
-};
-
-export type ActivateDesignStepResponse = ActivateDesignStepResponses[keyof ActivateDesignStepResponses];
-
-export type ListDesignTurnsData = {
-    body?: never;
-    path: {
-        /**
-         * Session Id
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/design/sessions/{session_id}/turns';
-};
-
-export type ListDesignTurnsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ListDesignTurnsError = ListDesignTurnsErrors[keyof ListDesignTurnsErrors];
-
-export type ListDesignTurnsResponses = {
-    /**
-     * Response List Design Turns
-     *
-     * Successful Response
-     */
-    200: Array<DesignTurnOut>;
-};
-
-export type ListDesignTurnsResponse = ListDesignTurnsResponses[keyof ListDesignTurnsResponses];
-
-export type AppendDesignTurnData = {
-    body: DesignTurnCreateRequest;
-    path: {
-        /**
-         * Session Id
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/design/sessions/{session_id}/turns';
-};
-
-export type AppendDesignTurnErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type AppendDesignTurnError = AppendDesignTurnErrors[keyof AppendDesignTurnErrors];
-
-export type AppendDesignTurnResponses = {
-    /**
-     * Successful Response
-     */
-    201: DesignTurnOut;
-};
-
-export type AppendDesignTurnResponse = AppendDesignTurnResponses[keyof AppendDesignTurnResponses];
+export type PlaceDesignLogoResponse = PlaceDesignLogoResponses[keyof PlaceDesignLogoResponses];
 
 export type HealthzData = {
     body?: never;
@@ -13646,7 +10690,7 @@ export type ListMyOrdersData = {
         /**
          * Order Type
          */
-        order_type?: 'sale' | 'custom' | 'repair' | 'token' | 'sample' | null;
+        order_type?: 'sale' | 'repair' | 'custom' | 'sample' | null;
     };
     url: '/orders';
 };
@@ -14574,178 +11618,6 @@ export type UpdateReviewResponses = {
 };
 
 export type UpdateReviewResponse = UpdateReviewResponses[keyof UpdateReviewResponses];
-
-export type GetTokenBalanceData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/tokens/balance';
-};
-
-export type GetTokenBalanceResponses = {
-    /**
-     * Successful Response
-     */
-    200: TokenBalance;
-};
-
-export type GetTokenBalanceResponse = GetTokenBalanceResponses[keyof GetTokenBalanceResponses];
-
-export type ListTokenHistoryData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Limit
-         */
-        limit?: number;
-        /**
-         * Offset
-         */
-        offset?: number;
-        /**
-         * Type
-         */
-        type?: 'credit' | 'use' | 'refund' | null;
-    };
-    url: '/tokens/history';
-};
-
-export type ListTokenHistoryErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ListTokenHistoryError = ListTokenHistoryErrors[keyof ListTokenHistoryErrors];
-
-export type ListTokenHistoryResponses = {
-    /**
-     * Response List Token History
-     *
-     * Successful Response
-     */
-    200: Array<TokenHistoryEntry>;
-};
-
-export type ListTokenHistoryResponse = ListTokenHistoryResponses[keyof ListTokenHistoryResponses];
-
-export type CreateTokenOrderData = {
-    body: TokenOrderCreateRequest;
-    path?: never;
-    query?: never;
-    url: '/tokens/orders';
-};
-
-export type CreateTokenOrderErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type CreateTokenOrderError = CreateTokenOrderErrors[keyof CreateTokenOrderErrors];
-
-export type CreateTokenOrderResponses = {
-    /**
-     * Successful Response
-     */
-    201: TokenOrderCreateResponse;
-};
-
-export type CreateTokenOrderResponse = CreateTokenOrderResponses[keyof CreateTokenOrderResponses];
-
-export type GetTokenPlansData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/tokens/plans';
-};
-
-export type GetTokenPlansResponses = {
-    /**
-     * Response Get Token Plans
-     *
-     * Successful Response
-     */
-    200: Array<TokenPlan>;
-};
-
-export type GetTokenPlansResponse = GetTokenPlansResponses[keyof GetTokenPlansResponses];
-
-export type RequestTokenRefundData = {
-    body: TokenRefundRequestIn;
-    path?: never;
-    query?: never;
-    url: '/tokens/refund-requests';
-};
-
-export type RequestTokenRefundErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type RequestTokenRefundError = RequestTokenRefundErrors[keyof RequestTokenRefundErrors];
-
-export type RequestTokenRefundResponses = {
-    /**
-     * Successful Response
-     */
-    201: TokenRefundRequestOut;
-};
-
-export type RequestTokenRefundResponse = RequestTokenRefundResponses[keyof RequestTokenRefundResponses];
-
-export type CancelTokenRefundData = {
-    body?: never;
-    path: {
-        /**
-         * Claim Id
-         */
-        claim_id: string;
-    };
-    query?: never;
-    url: '/tokens/refund-requests/{claim_id}/cancel';
-};
-
-export type CancelTokenRefundErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type CancelTokenRefundError = CancelTokenRefundErrors[keyof CancelTokenRefundErrors];
-
-export type CancelTokenRefundResponses = {
-    /**
-     * Successful Response
-     */
-    204: void;
-};
-
-export type CancelTokenRefundResponse = CancelTokenRefundResponses[keyof CancelTokenRefundResponses];
-
-export type ListRefundableTokenOrdersData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/tokens/refundable-orders';
-};
-
-export type ListRefundableTokenOrdersResponses = {
-    /**
-     * Response List Refundable Token Orders
-     *
-     * Successful Response
-     */
-    200: Array<RefundableTokenOrder>;
-};
-
-export type ListRefundableTokenOrdersResponse = ListRefundableTokenOrdersResponses[keyof ListRefundableTokenOrdersResponses];
 
 export type DeleteAccountData = {
     body?: never;

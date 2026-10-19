@@ -1,7 +1,7 @@
 [project]
 name = "essesion-worker"
 version = "0.1.0"
-description = "이미지 생성 워커 — 한 코드베이스, generate/finalize 두 서비스로 배포 (ARCHITECTURE §2·§7)"
+description = "이미지 렌더 워커 — 템플릿 결정론 렌더·로고 정규화·사진→SVG (ARCHITECTURE §2·§7)"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.115",
@@ -13,7 +13,6 @@ dependencies = [
     "httpx>=0.28",
     "google-cloud-storage>=2.18",
     "pillow>=11",
-    "fonttools>=4.59,<5",
     "vtracer>=0.6,<0.7",
 ]
 

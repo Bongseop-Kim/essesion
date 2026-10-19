@@ -24,7 +24,6 @@ from api.security import (
 )
 from db.models.auth import PhoneVerification, RefreshToken, User, UserIdentity
 from db.models.commerce import ShippingAddress
-from db.models.tokens import DesignToken
 from httpx import ASGITransport, AsyncClient
 from joserfc import jwt as jose_jwt
 from joserfc.jwk import ECKey
@@ -38,7 +37,6 @@ from .factories import (
     make_order,
     make_product,
     make_user,
-    seed_setting,
 )
 
 
@@ -705,64 +703,17 @@ async def test_phone_verification_concurrent_failures_cap_attempts_atomically(
     assert verification.locked_at is not None
 
 
-async def test_oauth_user_creation_grants_initial_tokens(db_session):
-    await seed_setting(db_session, "design_token_initial_grant", "30")
+async def test_oauth_user_creation_reuses_identity(db_session):
     user = await ensure_oauth_user(db_session, "kakao", "kakao-1", None, "카카오유저")
     assert user.email is None and user.name == "카카오유저"
 
-    balance = await db_session.scalar(
-        select(func.sum(DesignToken.amount)).where(DesignToken.user_id == user.id)
-    )
-    assert balance == 30
-
-    # 같은 identity 재로그인 — 같은 유저, 토큰 추가 지급 없음
+    # 같은 identity 재로그인 — 같은 유저
     again = await ensure_oauth_user(db_session, "kakao", "kakao-1", None, "카카오유저")
     assert again.id == user.id
     count = await db_session.scalar(
         select(func.count()).select_from(UserIdentity).where(UserIdentity.user_id == user.id)
     )
     assert count == 1
-
-
-async def test_oauth_user_creation_rejects_missing_initial_token_setting(db_session):
-    with pytest.raises(DomainError) as exc_info:
-        await ensure_oauth_user(db_session, "kakao", "missing-grant", None, "카카오유저")
-
-    assert exc_info.value.status == 503
-    assert exc_info.value.code == "missing_configuration"
-    await db_session.rollback()
-    assert await db_session.scalar(select(func.count()).select_from(UserIdentity)) == 0
-
-
-async def test_oauth_user_creation_rejects_invalid_initial_token_setting(db_session):
-    await seed_setting(db_session, "design_token_initial_grant", "invalid")
-
-    with pytest.raises(DomainError) as exc_info:
-        await ensure_oauth_user(db_session, "kakao", "invalid-grant", None, "카카오유저")
-
-    assert exc_info.value.status == 503
-    assert exc_info.value.code == "invalid_configuration"
-    await db_session.rollback()
-    assert await db_session.scalar(select(func.count()).select_from(UserIdentity)) == 0
-
-
-async def test_oauth_user_creation_allows_zero_initial_tokens_without_ledger_row(db_session):
-    await seed_setting(db_session, "design_token_initial_grant", "0")
-
-    user = await ensure_oauth_user(db_session, "kakao", "zero-grant", None, "카카오유저")
-
-    assert (
-        await db_session.scalar(
-            select(func.count()).select_from(DesignToken).where(DesignToken.user_id == user.id)
-        )
-        == 0
-    )
-    assert (
-        await db_session.scalar(
-            select(func.count()).select_from(UserIdentity).where(UserIdentity.user_id == user.id)
-        )
-        == 1
-    )
 
 
 async def test_oauth_links_existing_user_by_email(db_session):
@@ -827,7 +778,6 @@ async def test_oauth_refuses_existing_privileged_identity(db_session):
 
 
 async def test_oauth_unverified_email_does_not_link_existing_user(db_session):
-    await seed_setting(db_session, "design_token_initial_grant", "30")
     existing = await make_user(db_session, email="unverified-link@test.local")
     social = await ensure_oauth_user(
         db_session,
@@ -1143,7 +1093,6 @@ async def test_apple_callback_parses_real_form_post_body(client, db_session, set
     python-multipart가 없으면 form 파싱이 AssertionError로 죽어 콜백 URL에 500 JSON이
     노출된다(_FormRequest 스텁 테스트는 이 경로를 우회하므로 잡지 못한다).
     """
-    await seed_setting(db_session, "design_token_initial_grant", "30")
     oauth_client = _AppleFormPostClient(
         {"userinfo": {"sub": "apple-sub", "email": "apple@test.local", "email_verified": "true"}}
     )
@@ -1243,7 +1192,6 @@ async def test_oauth_callback_marks_rejected_account_separately_from_cancel(
 
 
 async def test_oauth_same_identity_first_callback_race_reuses_winner(app, db_session):
-    await seed_setting(db_session, "design_token_initial_grant", "30")
 
     async def callback() -> uuid.UUID:
         async with app.state.sessionmaker() as session:
@@ -1279,7 +1227,6 @@ async def test_oauth_same_identity_first_callback_race_reuses_winner(app, db_ses
 
 
 async def test_oauth_verified_email_cross_provider_race_links_one_user(app, db_session):
-    await seed_setting(db_session, "design_token_initial_grant", "30")
 
     async def callback(provider: str, provider_user_id: str) -> uuid.UUID:
         async with app.state.sessionmaker() as session:
@@ -1375,13 +1322,18 @@ async def test_manager_access_token_cannot_gain_admin_only_access_after_role_pro
     manager.role = "admin"
     await db_session.commit()
 
-    denied = await client.post(
-        "/admin/tokens/manage",
+    denied = await client.put(
+        "/admin/settings",
         json={
             "operation_id": str(uuid.uuid4()),
-            "user_id": str(manager.id),
-            "amount": 1,
-            "description": "승격 전 토큰 거부 확인",
+            "reason": "승격 전 토큰 거부 확인",
+            "items": [
+                {
+                    "key": "default_courier_company",
+                    "value": "CJ대한통운",
+                    "expected_updated_at": "2026-01-01T00:00:00+00:00",
+                }
+            ],
         },
         headers={"Authorization": f"Bearer {login.json()['access_token']}"},
     )
@@ -1460,13 +1412,18 @@ async def test_manager_can_read_but_cannot_run_admin_only_mutation(client, db_se
     headers = auth_headers(manager, settings)
 
     assert (await client.get("/admin/capabilities", headers=headers)).status_code == 200
-    denied = await client.post(
-        "/admin/tokens/manage",
+    denied = await client.put(
+        "/admin/settings",
         json={
             "operation_id": str(uuid.uuid4()),
-            "user_id": str(manager.id),
-            "amount": 1,
-            "description": "권한 확인",
+            "reason": "권한 확인",
+            "items": [
+                {
+                    "key": "default_courier_company",
+                    "value": "CJ대한통운",
+                    "expected_updated_at": "2026-01-01T00:00:00+00:00",
+                }
+            ],
         },
         headers=headers,
     )

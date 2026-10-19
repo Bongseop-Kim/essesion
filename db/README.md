@@ -14,7 +14,7 @@ uv run pytest tests/                                              # 마이그레
 
 접속 URL은 `DATABASE_URL` env(기본 = compose 값).
 
-현재 리비전 체인은 42개 테이블 베이스라인 `f8c3b2a19d47` → `6dbb8bb66939`(OpenAI 임베딩 전환) → `e71baf2532ce`(claim status cancel) → `a4d9c1e57b02`(motif variant group 드롭) → `b9e4f61a2c73`(motif view expression 드롭) → `c7a8d2f1b604`(생성 예산 컬럼 rename) → `d4e9a71c3b58`(모티프 생성 상한 제거로 카운터 드롭)이며 마지막이 현재 head다. 빈 DB와 중간까지 적용된 DB 모두 `upgrade head`로 전진한다. OpenAI 전환은 기존 provider 벡터를 무효화하므로 적용 뒤 `index_motif_embeddings.py --confirm-live`와 `seed_authoring_examples.py --confirm-live`로 임베딩을 다시 만든다.
+현재 리비전 체인은 42개 테이블 베이스라인 `f8c3b2a19d47` → `6dbb8bb66939`(OpenAI 임베딩 전환) → `e71baf2532ce`(claim status cancel) → `a4d9c1e57b02`(motif variant group 드롭) → `b9e4f61a2c73`(motif view expression 드롭) → `c7a8d2f1b604`(생성 예산 컬럼 rename) → `d4e9a71c3b58`(모티프 생성 상한 제거로 카운터 드롭) → … → `1edfb81ae618`(2026-10-19 AI 디자인·디자인 토큰 제거)이며 마지막이 현재 head다. 빈 DB와 중간까지 적용된 DB 모두 `upgrade head`로 전진한다.
 
 main에 공개된 리비전은 운영 배포 전이라도 스쿼시·재작성하거나 id를 재사용하지 않는다. 실행 중인 DB를 자동 삭제하는 스크립트도 두지 않는다. 실제 운영 배포 이후에는 같은 원칙으로 새 리비전을 순서대로 누적한다.
 
@@ -25,18 +25,18 @@ main에 공개된 리비전은 운영 배포 전이라도 스쿼시·재작성�
 - **PG enum은 user_role 하나로 봉인.** ① 후속 리비전에서 같은 enum 참조 시 `postgresql.ENUM(..., name="user_role", create_type=False)`, ② 값 추가는 autogenerate가 감지 못함 — 수동 `op.execute("ALTER TYPE user_role ADD VALUE ...")`, ③ 새 enum 추가 금지(text+CHECK 사용).
 - **DB 트리거·함수·뷰 금지** — 채번·원장·인가·통계 전부 api 소유. updated_at은 SQLAlchemy onupdate(raw SQL UPDATE는 갱신 안 됨을 전제).
 - **db/ 밑에 pytest 테스트 두지 말 것** — pytest importlib 모드가 더미 부모 모듈 `db`를 만들어 실제 패키지를 가린다. 테스트는 루트 `tests/`에.
-- pgvector는 베이스라인 리비전이 `CREATE EXTENSION`으로 활성화한다(로컬 compose·Cloud SQL 모두 지원). motif와 authoring 검색 임베딩은 OpenAI text-embedding-3-large 1536차원만 사용한다.
+- pgvector: 베이스라인 리비전이 `CREATE EXTENSION`으로 켜고 `1edfb81ae618`이 임베딩 제거와 함께 끈다. 옛 리비전이 `pgvector` 패키지를 import하므로 패키지와 pgvector 이미지는 빈 DB `upgrade head`(CI·testcontainers)를 위해 남긴다.
 
 ## 의도적 설계 — 모델 코드만 봐선 안 보이는 것
 
 - **users.email은 nullable + 부분 unique** — 카카오 로그인이 이메일 미동의를 허용한다. NOT NULL로 되돌리지 말 것.
 - **부분 unique·부분 인덱스는 전부 의도된 것** — claims 2종(아이템·타입당 활성 1건 / 주문당 진행중 1건), images(2단계 삭제 + `expires_at`, 미귀속 업로드는 24시간 후 정리), orders 3종(`/batch/*` 스케줄러의 스캔 대상). 전체 unique로 바꾸면 정상 재접수가 막힌다.
-- **users 삭제 시 이력 테이블은 NO ACTION** — 주문·클레임·견적·토큰 원장은 CASCADE 대상이 아니다. 탈퇴는 이력이 있으면 `is_active=false` + 개인정보 익명화, 없으면 하드 삭제 (api users).
-- **design_tokens.work_id는 FK 없는 text** — 생성 작업 멱등 키로만 쓴다.
+- **users 삭제 시 이력 테이블은 NO ACTION** — 주문·클레임·견적·디자인 세션은 CASCADE 대상이 아니다. 탈퇴는 이력이 있으면 `is_active=false` + 개인정보 익명화, 없으면 하드 삭제 (api users).
+- **design_examples의 템플릿 컬럼(category·point·logo_slots·photo_*_url)은 전달용** — 정본은 `apps/worker/scripts/seed_design_examples.py`(코드)이고 admin은 쓰지 않는다. `design_sessions.example_id`는 `use_alter` FK — 세션→예시→run→세션 순환을 끊기 위해서다.
 
 ## 초기화 정책
 
-운영에 배포된 적 없는 스키마이므로 데이터 변환 경로를 두지 않는다. 개발 DB는 drop/recreate 후 베이스라인→head, 운영은 빈 DB를 head까지 올린 뒤 관리자·설정·공개 motif·authoring example을 시드로 초기 입력한다(루트 AGENTS.md 부트스트랩 순서).
+운영에 배포된 적 없는 스키마이므로 데이터 변환 경로를 두지 않는다. 개발 DB는 drop/recreate 후 베이스라인→head, 운영은 빈 DB를 head까지 올린 뒤 관리자·설정·공개 motif·템플릿을 시드로 초기 입력한다(루트 AGENTS.md 부트스트랩 순서).
 
 ## 테스트 헬퍼
 

@@ -95,7 +95,6 @@ async def test_claim_guards_match_customer_actions(client, db_session, settings)
         "custom": ("대기중", "접수"),
         "sample": ("대기중", "접수"),
         "repair": ("대기중", "발송대기", "발송중", "발송확인중"),
-        "token": ("대기중",),
     }
 
     for order_type, statuses in cancelable.items():

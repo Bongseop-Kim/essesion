@@ -64,7 +64,7 @@ export function PopupsPage() {
     },
     onSuccess: refresh,
     onError: (error) =>
-      snackbar(getErrorMessage(error, "팝업을 바꾸지 못했습니다.")),
+      snackbar(getErrorMessage(error, "활성 상태를 바꾸지 못했습니다.")),
   });
   const remove = useMutation({
     ...deleteAdminPopupMutation(),
@@ -156,7 +156,7 @@ export function PopupsPage() {
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading
           title="팝업 공지"
-          description="store 첫 진입에 기간 한정으로 띄우는 안내입니다. 템플릿을 고르고 빈칸만 채우면 됩니다."
+          description="스토어 첫 진입에 기간 한정으로 띄우는 안내입니다. 템플릿을 고르고 빈칸만 채우면 됩니다."
         />
         <ActionButton onClick={() => navigate("/popups/new")}>
           팝업 등록
@@ -165,7 +165,7 @@ export function PopupsPage() {
 
       <AdminCard
         title="등록된 팝업"
-        description="활성 스위치를 켠 팝업 중 노출 기간(KST) 안인 것 1개만 store에 보입니다. 기간이 지나면 자동으로 사라집니다."
+        description="활성화한 팝업 중 노출 기간(KST) 안의 1개만 스토어에 보입니다."
         action={
           <ActionButton
             variant="neutralWeak"
@@ -197,7 +197,7 @@ export function PopupsPage() {
           if (!open && !remove.isPending) setDeleteTarget(null);
         }}
         title="팝업을 삭제할까요?"
-        description="store에서 즉시 사라집니다. 배너 이미지도 함께 정리됩니다."
+        description="스토어에서 즉시 사라집니다. 배너 이미지도 함께 삭제됩니다."
         primaryActionProps={{
           children: "삭제",
           variant: "criticalSolid",

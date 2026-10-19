@@ -119,7 +119,7 @@ def _action(kind: Literal["advance", "reject", "rollback"], target: str) -> Admi
     )
 
 
-def admin_actions(claim: Claim, *, actor_role: str) -> list[AdminClaimAction]:
+def admin_actions(claim: Claim) -> list[AdminClaimAction]:
     actions = [
         _action("advance", target)
         for current, target in sorted(FORWARD_CLAIM[claim.type])
@@ -132,19 +132,6 @@ def admin_actions(claim: Claim, *, actor_role: str) -> list[AdminClaimAction]:
         for current, target in sorted(ROLLBACK_CLAIM[claim.type])
         if current == claim.status
     )
-    if claim.type == "token_refund" and claim.status == "접수":
-        is_admin = actor_role == "admin"
-        actions.insert(
-            0,
-            AdminClaimAction(
-                kind="approve_refund",
-                target_status="완료",
-                label="토큰 환불 승인",
-                enabled=is_admin,
-                blocking_reason=None if is_admin else "최고 관리자 권한이 필요합니다",
-                destructive=True,
-            ),
-        )
     return actions
 
 
@@ -259,8 +246,6 @@ def _summary(
     claim: Claim,
     order: Order,
     customer: User,
-    *,
-    actor_role: str,
 ) -> AdminClaimSummaryOut:
     return AdminClaimSummaryOut(
         id=claim.id,
@@ -274,14 +259,13 @@ def _summary(
         customer=AdminClaimCustomerOut.model_validate(customer),
         created_at=claim.created_at,
         updated_at=claim.updated_at,
-        admin_actions=admin_actions(claim, actor_role=actor_role),
+        admin_actions=admin_actions(claim),
     )
 
 
 async def list_claims(
     session: AsyncSession,
     *,
-    actor_role: str,
     claim_type: ClaimTypeFilter,
     status: ClaimStatusFilter,
     start_date: date | None,
@@ -313,7 +297,7 @@ async def list_claims(
         )
     ).all()
     return Page[AdminClaimSummaryOut](
-        items=[_summary(claim, order, user, actor_role=actor_role) for claim, order, user in rows],
+        items=[_summary(claim, order, user) for claim, order, user in rows],
         total=total,
         limit=limit,
         offset=offset,
@@ -412,9 +396,7 @@ def _timeline(
     return sorted(events, key=lambda event: (event.created_at, event.event_type))
 
 
-async def get_claim_detail(
-    session: AsyncSession, claim_id: uuid.UUID, *, actor_role: str
-) -> AdminClaimDetailOut:
+async def get_claim_detail(session: AsyncSession, claim_id: uuid.UUID) -> AdminClaimDetailOut:
     row = (
         await session.execute(
             select(Claim, Order, OrderItem, User)
@@ -475,7 +457,7 @@ async def get_claim_detail(
             .order_by(AdminOperationLog.created_at.asc(), AdminOperationLog.id.asc())
         )
     )
-    summary = _summary(claim, order, customer, actor_role=actor_role)
+    summary = _summary(claim, order, customer)
     return AdminClaimDetailOut(
         **summary.model_dump(),
         description=claim.description,

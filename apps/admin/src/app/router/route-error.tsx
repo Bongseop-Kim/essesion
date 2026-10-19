@@ -5,8 +5,8 @@ export function RouteErrorBoundary() {
   const error = useRouteError();
   const navigate = useNavigate();
   const description = isRouteErrorResponse(error)
-    ? `요청을 처리하지 못했습니다. (${error.status})`
-    : "예상하지 못한 오류가 발생했습니다.";
+    ? "화면을 불러오지 못했습니다. 새로고침하거나 대시보드로 이동해 주세요."
+    : "예상하지 못한 오류가 발생했습니다. 새로고침하거나 대시보드로 이동해 주세요.";
 
   return (
     <Layout bg="bg.layer-basement">

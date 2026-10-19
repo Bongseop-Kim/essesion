@@ -77,9 +77,7 @@ describe("payment confirm terminal failure", () => {
   });
 
   it("확인 요청 중 렌더가 바뀌어도 시작 시점의 완료 핸들러를 사용한다", async () => {
-    let finishConfirm:
-      | ((value: { orders: []; token_amount: null }) => void)
-      | undefined;
+    let finishConfirm: ((value: { orders: [] }) => void) | undefined;
     api.confirm.mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -102,14 +100,11 @@ describe("payment confirm terminal failure", () => {
     await waitFor(() => expect(api.confirm).toHaveBeenCalledOnce());
     rerender({ onConfirmed: nextHandler });
     await act(async () => {
-      finishConfirm?.({ orders: [], token_amount: null });
+      finishConfirm?.({ orders: [] });
     });
 
     await waitFor(() => expect(result.current.confirmed).toBe(true));
-    expect(firstHandler).toHaveBeenCalledWith(
-      { orders: [], token_amount: null },
-      "group",
-    );
+    expect(firstHandler).toHaveBeenCalledWith({ orders: [] }, "group");
     expect(nextHandler).not.toHaveBeenCalled();
     queryClient.clear();
   });

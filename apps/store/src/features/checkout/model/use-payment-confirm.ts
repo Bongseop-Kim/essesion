@@ -1,5 +1,4 @@
-// ponytail: 줄수 이득은 미미 — Toss successUrl 콜백의 멱등 confirm 스캐폴드
-// (파라미터 검증·started 가드·실패 재시도)를 주문/토큰 결제가 한 벌로 쓰는 게 목적.
+// Toss successUrl 콜백의 멱등 confirm 스캐폴드(파라미터 검증·started 가드·실패 재시도).
 import type { PaymentConfirmResponse } from "@essesion/api-client";
 import { confirmPaymentMutation } from "@essesion/api-client/query";
 import { useMutation } from "@tanstack/react-query";

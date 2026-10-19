@@ -19,7 +19,11 @@ import { CompactFilterToolbar } from "../../shared/ui/compact-filter-toolbar";
 import { DateRangeFilters } from "../../shared/ui/date-range-filters";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
-import { ClaimStatusBadge, StatusBadge } from "../../shared/ui/status-badge";
+import {
+  ClaimStatusBadge,
+  formatStatus,
+  StatusBadge,
+} from "../../shared/ui/status-badge";
 import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
@@ -29,7 +33,6 @@ const ORDER_TYPE_VALUES = [
   "sale",
   "custom",
   "repair",
-  "token",
   "sample",
 ] as const;
 const ORDER_TYPES = ORDER_TYPE_VALUES.map((value) => ({
@@ -78,7 +81,7 @@ const columns: readonly AdminTableColumn<AdminOrderSummaryOut>[] = [
   },
   {
     key: "customer",
-    header: "고객",
+    header: "주문자",
     render: (order) => (
       <VStack gap="x0_5">
         <Text textStyle="bodySm">{order.customer.name}</Text>
@@ -87,6 +90,21 @@ const columns: readonly AdminTableColumn<AdminOrderSummaryOut>[] = [
         </Text>
       </VStack>
     ),
+  },
+  {
+    key: "recipient",
+    header: "받는 분",
+    render: (order) =>
+      order.recipient_name ? (
+        <VStack gap="x0_5">
+          <Text textStyle="bodySm">{order.recipient_name}</Text>
+          <Text textStyle="caption" color="fg.neutral-muted">
+            {order.recipient_phone}
+          </Text>
+        </VStack>
+      ) : (
+        "-"
+      ),
   },
   {
     key: "order_type",
@@ -173,10 +191,7 @@ export function OrdersPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <RouteHeading
-        title="주문 관리"
-        description="주문번호와 운영 상태를 기준으로 주문을 조회합니다."
-      />
+      <RouteHeading title="주문 관리" />
       <PaginatedAdminTableCard
         title="주문 목록"
         label="주문 목록"
@@ -227,7 +242,7 @@ export function OrdersPage() {
                     value={draftStatus}
                     options={ORDER_STATUSES.map((value) => ({
                       value,
-                      label: value === "all" ? "전체" : value,
+                      label: value === "all" ? "전체" : formatStatus(value),
                     }))}
                     onValueChange={(value) =>
                       setDraftStatus(value as OrderStatus)
@@ -290,7 +305,7 @@ export function OrdersPage() {
                 },
                 status !== "all" && {
                   key: "status",
-                  label: `상태: ${status}`,
+                  label: `상태: ${formatStatus(status)}`,
                   onRemove: () => replaceQuery({ status: undefined, page: 1 }),
                 },
                 parsed.from !== undefined && {

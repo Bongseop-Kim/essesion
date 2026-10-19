@@ -408,14 +408,6 @@ async def _reconcile_domain_state(
             settings=settings,
         )
     claim = await session.get(Claim, incident.claim_id) if incident.claim_id else None
-    if claim is not None and claim.type == "token_refund":
-        from api.domains.tokens.ledger import reconcile_approved_refund
-
-        return await reconcile_approved_refund(
-            session,
-            claim_id=claim.id,
-            actor_id=actor_id,
-        )
     consistent = order.status == "취소" and (claim is None or claim.status == "완료")
     return consistent, "already_consistent" if consistent else "refund_apply_not_supported"
 
@@ -601,15 +593,6 @@ async def _current_domain_consistent(
         return False
     if incident.incident_type == "partial_cancel":
         return False
-    if incident.claim_id is not None:
-        claim_type = await session.scalar(select(Claim.type).where(Claim.id == incident.claim_id))
-        if claim_type == "token_refund":
-            from api.domains.tokens.ledger import token_refund_is_consistent
-
-            return await token_refund_is_consistent(
-                session,
-                claim_id=incident.claim_id,
-            )
     locked_order = await session.scalar(
         select(Order)
         .where(Order.id == order.id)

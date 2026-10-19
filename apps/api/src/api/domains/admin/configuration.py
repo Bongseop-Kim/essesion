@@ -46,42 +46,16 @@ PRICE_CATEGORIES: dict[str, str] = {
     "sample_discount_sewing": "sample_discount",
     "sample_discount_fabric_printing": "sample_discount",
     "sample_discount_fabric_yarn_dyed": "sample_discount",
-    "token_plan_starter_price": "token",
-    "token_plan_starter_amount": "token",
-    "token_plan_popular_price": "token",
-    "token_plan_popular_amount": "token",
-    "token_plan_pro_price": "token",
-    "token_plan_pro_amount": "token",
 }
-SettingKey = Literal[
-    "default_courier_company",
-    "design_edit_cost",
-    "design_finalize_cost",
-    "design_motif_generate_cost",
-    "design_token_cost_openai_render_standard",
-    "design_token_initial_grant",
-]
+SettingKey = Literal["default_courier_company"]
 SETTING_KEYS: tuple[str, ...] = get_args(SettingKey)
-# 단가 하한이 1인 이유: 0이면 생성 자체가 503이다 (ledger.get_cost).
-_COST_RANGE = (1, 1_000, "토큰 단가는 1에서 1000 사이 정수여야 합니다")
-_INT_SETTING_RANGES = {
-    "design_edit_cost": _COST_RANGE,
-    "design_finalize_cost": _COST_RANGE,
-    "design_motif_generate_cost": _COST_RANGE,
-    "design_token_cost_openai_render_standard": _COST_RANGE,
-    "design_token_initial_grant": (
-        0,
-        100_000,
-        "신규 사용자 초기 토큰은 0에서 100000 사이 정수여야 합니다",
-    ),
-}
 
 
 class PricingValueOut(BaseModel):
     key: str
     amount: int
     category: str
-    unit: Literal["원", "개"]
+    unit: Literal["원"]
     description: str
     updated_at: datetime
     updated_by: uuid.UUID | None
@@ -129,12 +103,11 @@ def _missing(keys: Collection[str], *, resource: str) -> None:
 
 
 def _price_out(row: PricingConstant) -> PricingValueOut:
-    is_token_amount = row.key.startswith("token_plan_") and row.key.endswith("_amount")
     return PricingValueOut(
         key=row.key,
         amount=row.amount,
         category=row.category,
-        unit="개" if is_token_amount else "원",
+        unit="원",
         description=row.key,
         updated_at=row.updated_at,
         updated_by=row.updated_by,
@@ -224,14 +197,9 @@ async def update_admin_pricing(
 
 def _validate_setting(key: str, value: str) -> str:
     clean = value.strip()
-    if key == "default_courier_company":
-        if not clean:
-            raise DomainError("기본 택배사를 입력해 주세요", code="invalid_setting", status=422)
-        return clean
-    low, high, message = _INT_SETTING_RANGES[key]
-    if not clean.isdigit() or not low <= int(clean) <= high:
-        raise DomainError(message, code="invalid_setting", status=422)
-    return str(int(clean))
+    if not clean:
+        raise DomainError("기본 택배사를 입력해 주세요", code="invalid_setting", status=422)
+    return clean
 
 
 def _setting_out(row: AdminSetting) -> AdminSettingOut:

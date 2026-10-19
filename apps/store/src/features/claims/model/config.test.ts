@@ -51,6 +51,5 @@ describe("claimItemTitle", () => {
 
   it("상품 외 타입은 고정 라벨을 유지한다", () => {
     expect(claimItemTitle(item({ item_type: "reform" }))).toBe("넥타이 수선");
-    expect(claimItemTitle(item({ item_type: "token" }))).toBe("디자인 토큰");
   });
 });

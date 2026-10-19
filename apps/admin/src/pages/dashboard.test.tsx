@@ -147,7 +147,6 @@ const noAmountByType = {
   custom_amount: 0,
   repair_amount: 0,
   sample_amount: 0,
-  token_amount: 0,
   manual_custom_amount: 0,
   manual_repair_amount: 0,
 };
@@ -163,10 +162,6 @@ const timeseries: DashboardTimeseriesOut = {
       order_amount: 0,
       ...noAmountByType,
       new_customer_count: 0,
-      generation_total: 0,
-      generation_failed: 0,
-      token_consumed: 0,
-      token_sold: 0,
     },
     {
       day: "2026-07-12",
@@ -176,10 +171,6 @@ const timeseries: DashboardTimeseriesOut = {
       sale_amount: 30_000,
       manual_repair_amount: 20_000,
       new_customer_count: 2,
-      generation_total: 4,
-      generation_failed: 1,
-      token_consumed: 30,
-      token_sold: 100,
     },
   ],
   as_of: summary.as_of,
@@ -266,8 +257,7 @@ describe("DashboardPage", () => {
     renderPage();
 
     expect(await screen.findByText("매출 추이")).toBeTruthy();
-    expect(screen.getByText("이미지 생성")).toBeTruthy();
-    expect(screen.getByText("토큰 판매·소모")).toBeTruthy();
+    expect(screen.getByText("신규 가입")).toBeTruthy();
     // jsdom에서는 ResponsiveContainer 폭이 0이라 차트 내부(SVG)는 검증하지 않는다
     expect(screen.getByRole("table", { name: "인기 상품" })).toBeTruthy();
     expect(await screen.findByText("인기 넥타이")).toBeTruthy();
@@ -294,7 +284,7 @@ describe("DashboardPage", () => {
     expect(
       await screen.findByText("필수 연동을 사용할 수 없습니다"),
     ).toBeTruthy();
-    expect(screen.getByText(/Toss 결제 관련 작업은 실패 상태/)).toBeTruthy();
+    expect(screen.getByText(/Toss 결제 관련 작업이 실패합니다/)).toBeTruthy();
     expect(screen.getByText(/로컬·대체 연동 모드/)).toBeTruthy();
     expect(screen.getByText(/Solapi 알림: dry-run/)).toBeTruthy();
   });

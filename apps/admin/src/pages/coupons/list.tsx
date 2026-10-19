@@ -125,10 +125,7 @@ export function CouponsPage() {
   return (
     <VStack gap="x6" alignItems="stretch">
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title="쿠폰 관리"
-          description="쿠폰 정의와 발급 현황을 조회합니다. 목록 상태에는 비민감 필터만 저장합니다."
-        />
+        <RouteHeading title="쿠폰 관리" />
         <ActionButton onClick={() => navigate("/coupons/new")}>
           새 쿠폰 등록
         </ActionButton>
@@ -167,7 +164,7 @@ export function CouponsPage() {
             <CompactFilterToolbar
               primaryControls={
                 <SubmittedMemorySearch
-                  label="쿠폰명·표시명·쿠폰 ID 검색"
+                  label="쿠폰 이름·표시 이름·ID 검색"
                   placeholder="2자 이상 입력"
                   maxLength={100}
                   resetKey={searchResetKey}

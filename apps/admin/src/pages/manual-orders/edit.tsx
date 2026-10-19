@@ -92,13 +92,10 @@ function ManualOrderEdit({ kind }: { kind: ManualOrderKind }) {
   if (order === undefined || initialDraft === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading
-          title={`${noun} 수정`}
-          description="작업지시서 내용을 수정합니다."
-        />
+        <RouteHeading title={`${noun} 수정`} />
         <ContentPlaceholder
           title={`${noun}을 불러오지 못했습니다`}
-          description="주문 ID를 확인하거나 다시 시도해 주세요."
+          description="잠시 후 다시 시도해 주세요."
           action={
             <ActionButton onClick={() => void query.refetch()}>
               다시 시도
@@ -138,7 +135,7 @@ function ManualOrderEdit({ kind }: { kind: ManualOrderKind }) {
         manualOrderId={order.id}
         revision={order.updated_at}
         resetSignal={resetSignal}
-        submitLabel="변경 저장"
+        submitLabel="저장"
         pending={updateMutation.isPending}
         error={updateMutation.error}
         blockerBypassRef={savedRef}
@@ -154,7 +151,7 @@ function ManualOrderEdit({ kind }: { kind: ManualOrderKind }) {
                 setResetSignal((current) => current + 1);
               }}
             >
-              서버 값으로 초기화
+              최신 내용으로 되돌리기
             </ActionButton>
           </HStack>
         }

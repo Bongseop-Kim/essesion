@@ -49,12 +49,16 @@ const columns: readonly AdminTableColumn<AdminInquirySummaryOut>[] = [
           {inquiry.is_secret ? <Badge>비밀글</Badge> : null}
         </HStack>
         <Text textStyle="caption" color="fg.neutral-muted">
-          {inquiry.customer?.name ?? "탈퇴/비회원 고객"}
+          {inquiry.customer?.name ?? "탈퇴·비회원 고객"}
         </Text>
       </VStack>
     ),
   },
-  { key: "category", header: "분류", render: (inquiry) => inquiry.category },
+  {
+    key: "category",
+    header: "카테고리",
+    render: (inquiry) => inquiry.category,
+  },
   {
     key: "product",
     header: "관련 상품",
@@ -145,10 +149,7 @@ export function InquiriesPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <RouteHeading
-        title="문의 관리"
-        description="고객·상품 문맥을 확인하고 중복 없이 답변합니다. 검색어는 URL에 남기지 않습니다."
-      />
+      <RouteHeading title="문의 관리" description="고객 문의에 답변합니다." />
       <PaginatedAdminTableCard
         title="문의 목록"
         label="문의 목록"
@@ -207,7 +208,7 @@ export function InquiriesPage() {
                     }
                   />
                   <FilterSelect
-                    label="분류"
+                    label="카테고리"
                     presentation="inline"
                     value={draftCategory}
                     options={INQUIRY_CATEGORIES.map((value) => ({
@@ -233,7 +234,7 @@ export function InquiriesPage() {
                 Number(parsed.to !== undefined)
               }
               secondaryTitle="문의 상세 필터"
-              secondaryDescription="답변 상태, 문의 분류, 문의일을 한 번에 적용합니다."
+              secondaryDescription="답변 상태, 카테고리, 문의일을 한 번에 적용합니다."
               onResetSecondaryFilters={() => {
                 setDraftStatus(status);
                 setDraftCategory(category);
@@ -268,7 +269,7 @@ export function InquiriesPage() {
                 },
                 category !== "all" && {
                   key: "category",
-                  label: `분류: ${category}`,
+                  label: `카테고리: ${category}`,
                   onRemove: () => replaceQuery({ type: undefined, page: 1 }),
                 },
                 parsed.from !== undefined && {

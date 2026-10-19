@@ -1,5 +1,4 @@
 from functools import lru_cache
-from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -9,41 +8,22 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     env: str = "local"
-    service_mode: Literal["all", "generate", "finalize"] = "all"
     database_url: str = "postgresql+asyncpg://essesion:essesion@localhost:5432/essesion"
     gcs_bucket: str = ""
     # local/test에서 둘 다 비우면 builder가 localhost:4443/dev-assets를 사용한다.
     gcs_emulator_host: str = ""
     db_pool_size: int = Field(default=2, ge=1, le=20)
-    # 모티프 upsert 선커밋(resolver)이 요청 중 짧게 커넥션 1개를 더 쓴다 — 동시 생성 대비 여유.
+    # 동시 렌더 대비 여유.
     db_max_overflow: int = Field(default=2, ge=0, le=20)
     db_pool_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
 
     engine_version: str = "0.1.0"
     preview_dpi: int = Field(default=192, ge=1, le=1200)
-    fabric_dpi: int = Field(default=300, ge=1, le=1200)
-    max_dpi: int = Field(default=600, ge=1)
     max_tile_mm: float = Field(default=2000.0, gt=0.0, allow_inf_nan=False)
     max_svg_bytes: int = Field(default=2_000_000, ge=1)
     max_placement_instances: int = Field(default=50_000, ge=1)
     stripe_max_band_coverage: float = Field(default=0.75, ge=0.1, le=1.0)
 
-    # AI 실사화(finalize) 편집 품질 — 단가·품질 트레이드오프. low 실측(2026-08-20):
-    # 편집 2회 병렬 24.4s, 요청당 원가 약 21.9원 — design_finalize_cost 200토큰의 산정
-    # 근거다(money.md §6). medium은 요청당 약 150원이라 올리려면 단가(약 950토큰)를 함께 올릴 것.
-    finalize_image_quality: Literal["low", "medium", "high", "auto"] = "low"
-
-    # 빈 키 → LLM/임베딩 클라이언트 None(비활성). base_url은 테스트의 mock 주입 지점.
-    openai_api_key: str = ""
-    openai_base_url: str = "https://api.openai.com/v1"
-    llm_model: str = "gpt-5.6-luna"
-    embedding_model: str = "text-embedding-3-large"
-    # text-embedding-3-large 분포 기준(2026-08-03 재캘리브레이션): 정답 top-1 0.445~0.608,
-    # 무관 쿼리 ≤0.339 — 0.40이 둘을 가른다. gemini-embedding-001 시절 값은 0.84였다.
-    motif_similarity_tau: float = Field(default=0.40, ge=0.0, le=1.0)
-    # One explicit motif-generation request may retry the suitability gate. Bound its actual
-    # GPT Image calls while catalog hits remain free.
-    motif_generate_per_request_limit: int = Field(default=2, ge=1, le=8)
     motif_max_aspect_ratio: float = Field(default=20.0, gt=1.0, allow_inf_nan=False)
     motif_edge_seam_tol: float = Field(default=2.0, gt=0.0, allow_inf_nan=False)
     motif_render_check: bool = True

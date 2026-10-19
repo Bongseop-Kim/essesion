@@ -36,10 +36,7 @@ function discountLabel(coupon: AdminCouponOut) {
 function CouponDetailLoading() {
   return (
     <VStack gap="x6" alignItems="stretch" aria-busy="true">
-      <RouteHeading
-        title="쿠폰 상세"
-        description="쿠폰 정의와 발급 이력을 불러오고 있습니다."
-      />
+      <RouteHeading title="쿠폰 상세" />
       <AdminCard title="쿠폰 정보">
         <VStack gap="x3" alignItems="stretch">
           <Skeleton width="60%" height={24} />
@@ -67,13 +64,10 @@ export function CouponDetailPage() {
   if (query.isError || coupon === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading
-          title="쿠폰 상세"
-          description="쿠폰 정의와 발급 이력을 확인합니다."
-        />
+        <RouteHeading title="쿠폰 상세" />
         <ContentPlaceholder
           title="쿠폰을 불러오지 못했습니다"
-          description="쿠폰 ID를 확인하거나 다시 시도해 주세요."
+          description="주소를 확인하거나 다시 시도해 주세요."
           action={
             <ActionButton onClick={() => void query.refetch()}>
               다시 시도
@@ -137,7 +131,7 @@ export function CouponDetailPage() {
             <AdminCard title="쿠폰 정의">
               <DetailList
                 items={[
-                  { label: "이름", value: coupon.name },
+                  { label: "쿠폰 이름", value: coupon.name },
                   {
                     label: "고객 표시 이름",
                     value: coupon.display_name ?? "-",

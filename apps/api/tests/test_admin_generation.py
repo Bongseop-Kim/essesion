@@ -1,113 +1,13 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
 
-import pytest
-from api.domains.admin.generation import finalize_duration_seconds
-from db.models.design import DesignSession, DesignSessionTurn, GenerationJob
+from db.models.design import DesignSession
 from db.models.seamless import Motif, SeamlessGenerationLog
-from db.models.tokens import DesignToken
 
 from .factories import auth_headers, make_user
 
 
-async def test_generation_jobs_page_stats_and_safe_detail(app, client, db_session, settings):
-    admin = await make_user(db_session, role="admin")
-    owner = await make_user(db_session, email="owner-secret@test.local")
-    app.state.settings.gcs_assets_bucket = "configured-assets"
-    now = datetime.now(UTC)
-    succeeded = GenerationJob(
-        user_id=owner.id,
-        kind="finalize",
-        status="succeeded",
-        params={
-            "intent": {"raw_prompt": "owner-secret@test.local"},
-            "dpi": 300,
-            "weave": "twill-45",
-        },
-        result={"object_key": "fabric/0123456789abcdef.png"},
-        request_id="job-safe-1",
-        attempts=1,
-        created_at=now - timedelta(minutes=1),
-        updated_at=now - timedelta(minutes=1),
-    )
-    failed = GenerationJob(
-        user_id=owner.id,
-        kind="finalize",
-        status="failed",
-        params={"intent": {"private_object_key": "uploads/private/customer.png"}},
-        result=None,
-        error_message="token=super-secret owner-secret@test.local /private/path",
-        request_id="job-safe-2",
-        attempts=2,
-        created_at=now,
-        updated_at=now,
-    )
-    db_session.add_all([succeeded, failed])
-    await db_session.commit()
-
-    headers = auth_headers(admin, settings)
-    page = await client.get("/admin/generation/jobs", params={"limit": 1}, headers=headers)
-    assert page.status_code == 200
-    assert page.json()["total"] == 2
-    assert len(page.json()["items"]) == 1
-    serialized = page.text
-    assert "owner-secret@test.local" not in serialized
-    assert "super-secret" not in serialized
-    assert "params" not in page.json()["items"][0]
-    assert "result" not in page.json()["items"][0]
-    assert "user_id" not in page.json()["items"][0]
-
-    stats = await client.get("/admin/generation/jobs/stats", headers=headers)
-    assert stats.status_code == 200
-    assert {key: stats.json()[key] for key in ("total", "succeeded", "failed")} == {
-        "total": 2,
-        "succeeded": 1,
-        "failed": 1,
-    }
-    assert stats.json()["average_attempts"] == 1.5
-
-    filtered_page = await client.get(
-        "/admin/generation/jobs", params={"job_id": str(succeeded.id)}, headers=headers
-    )
-    assert filtered_page.status_code == 200
-    assert filtered_page.json()["total"] == 1
-    assert [item["id"] for item in filtered_page.json()["items"]] == [str(succeeded.id)]
-
-    filtered_stats = await client.get(
-        "/admin/generation/jobs/stats", params={"job_id": str(succeeded.id)}, headers=headers
-    )
-    assert filtered_stats.status_code == 200
-    assert {key: filtered_stats.json()[key] for key in ("total", "succeeded", "failed")} == {
-        "total": 1,
-        "succeeded": 1,
-        "failed": 0,
-    }
-
-    invalid_job_id = await client.get(
-        "/admin/generation/jobs", params={"job_id": "not-a-uuid"}, headers=headers
-    )
-    assert invalid_job_id.status_code == 422
-
-    detail = await client.get(f"/admin/generation/jobs/{succeeded.id}", headers=headers)
-    assert detail.status_code == 200
-    body = detail.json()
-    assert body["parameter_summary"] == {
-        "has_intent": True,
-        "dpi": 300,
-        "weave": "twill-45",
-    }
-    assert body["result_url"] == (
-        "http://localhost:4443/configured-assets/fabric/0123456789abcdef.png"
-    )
-    assert str(owner.id) not in detail.text
-    assert "owner-secret@test.local" not in detail.text
-
-    failed_detail = await client.get(f"/admin/generation/jobs/{failed.id}", headers=headers)
-    assert failed_detail.json()["error_summary"] == "생성 작업에 실패했습니다"
-    assert "super-secret" not in failed_detail.text
-
-
-async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_payloads(
+async def test_seamless_detail_projects_intent_without_leaking_unsafe_payloads(
     client, db_session, settings
 ):
     admin = await make_user(db_session, role="admin")
@@ -117,8 +17,7 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
     rows = [
         SeamlessGenerationLog(
             request_id="seamless-success",
-            input_type="prompt",
-            prompt="customer-secret@test.local",
+            input_type="intent",
             intent={
                 "design": {
                     "intent_version": 1,
@@ -195,19 +94,11 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
             render_ms=Decimal("3.5"),
             status="success",
             diagnostics={
-                "mode": "patch",
-                "model": "gpt-5.6-luna",
-                "authoring_attempts": 1,
-                "patch_axes": ["background", "placement"],
-                "patch": {
-                    "background": {"color": "#112233"},
-                    "placement": {"arrangement": "staggered", "count_per_axis": 4},
-                    "note": "customer-secret@test.local",
-                    "provider_payload": "raw-provider-secret",
-                },
-                "resolved_count": 3,
+                "mode": "motif_slot",
+                "compose_ms": 12.5,
+                "note": "customer-secret@test.local",
+                "provider_payload": "raw-provider-secret",
                 "legacy_provider_calls": 3,
-                "reference_count": 1,
             },
         ),
         SeamlessGenerationLog(
@@ -221,18 +112,17 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
         ),
         SeamlessGenerationLog(
             request_id="seamless-error",
-            input_type="prompt",
-            prompt="raw secret prompt",
+            input_type="intent",
             warnings=[],
             generate_ms=Decimal("5"),
             render_ms=Decimal("0"),
             status="error",
-            error_type="AdapterClientError",
+            error_type="IntentInvalid",
             error_message="api_key=secret-value customer-secret@test.local",
             diagnostics={
-                "mode": "prompt",
-                "failure_code": "authoring_invalid",
-                "failure_stage": "authoring",
+                "mode": "variation",
+                "failure_code": "intent_invalid",
+                "failure_stage": "intent",
                 "model": "customer-secret@test.local",
                 "legacy_provider_calls": 2,
             },
@@ -245,8 +135,6 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
         anchor=[0.5, 0.5],
         subject="flower",
         scope="whole",
-        description="customer-secret@test.local",
-        tags=["botanical", "010-1234-5678"],
         source="seed",
     )
     unsafe_motif = Motif(
@@ -264,15 +152,14 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
     page = await client.get("/admin/generation/seamless", headers=headers)
     assert page.status_code == 200
     assert page.json()["total"] == 3
-    assert all("prompt" not in item for item in page.json()["items"])
     assert all("intent" not in item for item in page.json()["items"])
     assert "customer-secret@test.local" not in page.text
     assert "<svg" not in page.text
     assert "private/secret" not in page.text
     error_item = next(item for item in page.json()["items"] if item["status"] == "error")
-    assert error_item["error_summary"] == "외부 생성 연동에 실패했습니다"
-    assert error_item["failure_code"] == "authoring_invalid"
-    assert error_item["failure_stage"] == "authoring"
+    assert error_item["error_summary"] == "입력 intent 검증에 실패했습니다"
+    assert error_item["failure_code"] == "intent_invalid"
+    assert error_item["failure_stage"] == "intent"
     assert error_item["render_ms"] == 0.0
 
     stats = await client.get("/admin/generation/seamless/stats", headers=headers)
@@ -290,7 +177,8 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
     assert detail.json()["design"]["id"] == "safe-design"
     assert detail.json()["design"]["svg"] == safe_svg
     assert detail.json()["design"]["svg_status"] == "safe"
-    assert detail.json()["prompt"] == "customer-secret@test.local"
+    assert "prompt" not in detail.json()
+    assert "customer-secret@test.local" not in detail.text
     assert detail.json()["intent"] == {
         "intent_version": 1,
         "canvas": {"tile_mm": 48, "dpi": 300},
@@ -331,28 +219,11 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
     assert "raw-provider-secret" not in detail.text
     assert "png_object_key" not in detail.text
     assert detail.json()["diagnostics"] == {
-        "mode": "patch",
-        "model": "gpt-5.6-luna",
-        "prompt_revision": None,
-        "patch_axes": ["background", "placement"],
-        # note는 모델이 쓴 자유 문장 — email이 섞이면 통째로 떨어진다.
-        "patch": {
-            "background": {"color": "#112233"},
-            "placement": {"arrangement": "staggered", "count_per_axis": 4},
-        },
-        "authoring_attempts": 1,
-        "catalog_candidate_count": None,
-        "resolved_count": 3,
-        "authoring_ms": None,
-        "compose_ms": None,
+        "mode": "motif_slot",
+        "compose_ms": 12.5,
         "render_ms": None,
         "failure_code": None,
         "failure_stage": None,
-        "failure_provider": None,
-        "failure_operation": None,
-        "failure_reason": None,
-        "failure_status_code": None,
-        "motif_resolutions": [],
     }
 
     unsafe_detail_log = await client.get(
@@ -376,8 +247,8 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
     safe_detail = await client.get(f"/admin/motifs/{safe_motif.id}", headers=headers)
     assert safe_detail.json()["svg_status"] == "safe"
     assert safe_detail.json()["symbol"] == safe_motif.symbol
-    assert safe_detail.json()["description"] is None
-    assert safe_detail.json()["tags"] == ["botanical"]
+    assert "description" not in safe_detail.json()
+    assert "tags" not in safe_detail.json()
 
     unsafe_detail = await client.get(f"/admin/motifs/{unsafe_motif.id}", headers=headers)
     assert unsafe_detail.json()["svg_status"] == "unsafe"
@@ -398,7 +269,7 @@ async def test_seamless_identifier_filter_matches_request_log_session_and_user(
         request_id="identifier-request",
         session_id=owner_session.id,
         user_id=owner.id,
-        input_type="prompt",
+        input_type="intent",
         warnings=[],
         status="success",
     )
@@ -406,7 +277,7 @@ async def test_seamless_identifier_filter_matches_request_log_session_and_user(
         request_id="other-request",
         session_id=other_session.id,
         user_id=other_owner.id,
-        input_type="prompt",
+        input_type="intent",
         warnings=[],
         status="success",
     )
@@ -457,7 +328,7 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
         request_id="warning-groups-request",
         session_id=design_session.id,
         user_id=owner.id,
-        input_type="prompt",
+        input_type="intent",
         design={"id": "design-1"},
         warnings=[
             "motif layer 'motif_1' dropped — Tier-1 gate exhausted (triangle/partial)",
@@ -471,128 +342,20 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
             "알 수 없는 경고",
         ],
         status="partial",
-        diagnostics={
-            "motif_resolutions": [
-                {
-                    "layer_id": "motif_1",
-                    "subject": "triangle",
-                    "scope": "partial",
-                    "outcome": "dropped",
-                    "provider": "openai_image",
-                    "operation": "generate_motif",
-                    "reason_code": "rate_limited",
-                    "status_code": 429,
-                }
-            ]
-        },
         created_at=now,
     )
-    previous_log = SeamlessGenerationLog(
-        request_id="previous-run-request",
+    failure = SeamlessGenerationLog(
+        request_id="intent-failure-request",
         session_id=design_session.id,
         user_id=owner.id,
-        input_type="prompt",
-        design={"id": "design-0"},
-        warnings=[],
-        status="success",
-        created_at=now - timedelta(minutes=10),
-    )
-    # 실패 로그도 워커가 FK를 채운다 — 상관 턴이 없어도 요청자는 드러난다
-    provider_failure = SeamlessGenerationLog(
-        request_id="embedding-failure-request",
-        session_id=design_session.id,
-        user_id=owner.id,
-        input_type="prompt",
+        input_type="intent",
         warnings=[],
         status="error",
-        error_type="EmbeddingError",
-        diagnostics={
-            "failure_code": "provider_request_failed",
-            "failure_stage": "motif_resolution",
-            "failure_provider": "openai_embedding",
-            "failure_operation": "embed",
-            "failure_reason": "rate_limited",
-            "failure_status_code": 429,
-        },
+        error_type="constraint_conflict",
+        diagnostics={"failure_code": "constraint_conflict", "failure_stage": "constraints"},
         created_at=now,
     )
-    db_session.add_all([log, previous_log, provider_failure])
-    await db_session.flush()
-    finalize_job = GenerationJob(
-        user_id=owner.id,
-        session_id=design_session.id,
-        kind="finalize",
-        status="succeeded",
-        # 다른 run의 finalize는 현재 로그의 완료가 아니다.
-        params={"run_id": str(previous_log.id)},
-        result={"object_key": "fabric/0123456789abcdef.png"},
-        created_at=now + timedelta(seconds=3),
-        updated_at=now + timedelta(seconds=3),
-        finished_at=now + timedelta(seconds=3),
-    )
-    db_session.add_all(
-        [
-            DesignToken(
-                user_id=owner.id,
-                amount=-5,
-                type="use",
-                token_class="free",
-                work_id=f"design_generate_{log.id.hex}_use_free",
-            ),
-            DesignToken(
-                user_id=owner.id,
-                amount=5,
-                type="refund",
-                token_class="free",
-                work_id=f"design_generate_{log.id.hex}_use_free_refund",
-            ),
-            DesignSessionTurn(
-                session_id=design_session.id,
-                seq=1,
-                role="assistant",
-                payload={
-                    "type": "generate",
-                    "run_id": str(previous_log.id),
-                    "status": "succeeded",
-                },
-                created_at=now - timedelta(minutes=6),
-            ),
-            DesignSessionTurn(
-                session_id=design_session.id,
-                seq=2,
-                role="assistant",
-                payload={
-                    "type": "generate",
-                    "run_id": str(log.id),
-                    "status": "succeeded",
-                },
-                created_at=now - timedelta(minutes=5),
-            ),
-            DesignSessionTurn(
-                session_id=design_session.id,
-                seq=3,
-                role="user",
-                payload={"type": "activate", "run_id": str(log.id)},
-                created_at=now + timedelta(seconds=1),
-            ),
-            # 과거 실행을 다시 활성화해도 현재 로그의 판정을 덮어쓰면 안 된다.
-            DesignSessionTurn(
-                session_id=design_session.id,
-                seq=4,
-                role="user",
-                payload={"type": "activate", "run_id": str(previous_log.id)},
-                created_at=now + timedelta(seconds=2),
-            ),
-            finalize_job,
-            DesignSessionTurn(
-                session_id=design_session.id,
-                seq=5,
-                role="user",
-                payload={"type": "generate_request"},
-                created_at=now + timedelta(seconds=4),
-            ),
-        ]
-    )
+    db_session.add_all([log, failure])
     await db_session.commit()
 
     detail = await client.get(
@@ -629,67 +392,21 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
             "items": [],
         },
     ]
-    assert body["diagnostics"]["motif_resolutions"][0] == {
-        "layer_id": "motif_1",
-        "subject": "triangle",
-        "scope": "partial",
-        "outcome": "dropped",
-        "motif_id": None,
-        "similarity": None,
-        "match_type": None,
-        "provider": "openai_image",
-        "operation": "generate_motif",
-        "reason_code": "rate_limited",
-        "status_code": 429,
-    }
     assert body["outcome"] == {
         "session_id": str(design_session.id),
         "user_id": str(owner.id),
         "user_name": owner.name,
-        "reactivated": True,
-        "regenerated": True,
-        "finalized": False,
-    }
-    assert body["token_accounting"] == {
-        "matched": True,
-        "debited": 5,
-        "refunded": 5,
-        "net": 0,
     }
 
-    # run_id 등가 매칭은 시간창 없이 완료로 집계한다 — 다음 생성 뒤에 끝났어도
-    # 이 run의 finalize임은 변하지 않는다.
-    finalize_job.params = {"run_id": str(log.id)}
-    finalize_job.finished_at = now + timedelta(seconds=5)
-    await db_session.commit()
-    completed = await client.get(
-        f"/admin/generation/seamless/{log.id}",
-        headers=auth_headers(admin, settings),
-    )
-    assert completed.json()["outcome"]["finalized"] is True
-
+    # 실패 로그도 워커가 FK를 채운다 — 요청자는 그대로 드러난다
     failed_detail = await client.get(
-        f"/admin/generation/seamless/{provider_failure.id}",
+        f"/admin/generation/seamless/{failure.id}",
         headers=auth_headers(admin, settings),
     )
     assert failed_detail.status_code == 200
-    assert failed_detail.json()["error_summary"] == "OpenAI 임베딩 생성 연동에 실패했습니다"
-    assert failed_detail.json()["diagnostics"]["failure_reason"] == "rate_limited"
-    assert failed_detail.json()["token_accounting"] == {
-        "matched": False,
-        "debited": 0,
-        "refunded": 0,
-        "net": 0,
-    }
-    # 상관 턴이 없으므로 활성화·재생성 판정은 비어 있지만 요청자는 FK에서 그대로 온다
-    assert failed_detail.json()["outcome"] == {
-        "session_id": str(design_session.id),
-        "user_id": str(owner.id),
-        "user_name": owner.name,
-        "reactivated": False,
-        "regenerated": False,
-        "finalized": False,
-    }
+    assert failed_detail.json()["error_summary"] == "선택한 생성 조건이 충돌했습니다"
+    assert failed_detail.json()["diagnostics"]["failure_stage"] == "constraints"
+    assert failed_detail.json()["outcome"]["user_id"] == str(owner.id)
 
 
 async def test_motif_detail_returns_concrete_symbol_without_slot_metadata(
@@ -717,106 +434,19 @@ async def test_motif_detail_returns_concrete_symbol_without_slot_metadata(
     response = await client.get("/admin/motifs/motif-fixed-colors", headers=headers)
     assert response.status_code == 200
     body = response.json()
-    # GPT Image 유입 출처는 admin에서 세션 상관을 볼 수 있는 유일한 경로다.
+    # 처음 올린 고객은 admin에서 업로더를 볼 수 있는 유일한 경로다.
     assert body["ingested_user_id"] == str(admin.id)
     assert body["ingested_session_id"] is None
     assert body["svg_status"] == "safe"
-    assert body["status"] == "pending"
-    assert body["reviewed_at"] is None
+    assert "status" not in body
+    assert "reviewed_at" not in body
     assert "#010000" in body["symbol"] and "#0685b1" in body["symbol"]
     assert "color_slots" not in body
     assert "slot_colors" not in body
     assert "slot_parts" not in body
 
 
-async def test_motif_review_requires_admin_and_allows_reversal(client, db_session, settings):
-    admin = await make_user(db_session, role="admin")
-    manager = await make_user(db_session, role="manager")
-    customer = await make_user(db_session)
-    motif = Motif(
-        id="motif-review-gate",
-        symbol='<symbol id="motif-review-gate"/>',
-        bbox=[0, 0, 1, 1],
-        anchor=[0.5, 0.5],
-        subject="review gate",
-        scope="whole",
-        source="gpt_image",
-    )
-    db_session.add(motif)
-    await db_session.commit()
-
-    path = f"/admin/motifs/{motif.id}/review"
-    assert (await client.post(path, json={"status": "approved"})).status_code == 401
-    assert (
-        await client.post(
-            path,
-            json={"status": "approved"},
-            headers=auth_headers(customer, settings),
-        )
-    ).status_code == 403
-    assert (
-        await client.post(
-            path,
-            json={"status": "approved"},
-            headers=auth_headers(manager, settings),
-        )
-    ).status_code == 403
-
-    headers = auth_headers(admin, settings)
-    invalid = await client.post(path, json={"status": "pending"}, headers=headers)
-    assert invalid.status_code == 422
-
-    approved = await client.post(path, json={"status": "approved"}, headers=headers)
-    assert approved.status_code == 200
-    assert approved.json()["status"] == "approved"
-    assert approved.json()["reviewed_at"] is not None
-    await db_session.refresh(motif)
-    assert motif.reviewed_by == admin.id
-    assert motif.reviewed_at is not None
-
-    pending_page = await client.get("/admin/motifs", headers=headers)
-    approved_page = await client.get(
-        "/admin/motifs", params={"status": "approved"}, headers=headers
-    )
-    all_page = await client.get("/admin/motifs", params={"status": "all"}, headers=headers)
-    assert pending_page.json()["total"] == 0
-    assert [item["id"] for item in approved_page.json()["items"]] == [motif.id]
-    assert all_page.json()["total"] == 1
-
-    no_op = await client.post(path, json={"status": "approved"}, headers=headers)
-    assert no_op.status_code == 409
-    assert no_op.json()["code"] == "invalid_motif_transition"
-
-    rejected = await client.post(path, json={"status": "rejected"}, headers=headers)
-    assert rejected.status_code == 200
-    assert rejected.json()["status"] == "rejected"
-
-    # user_upload은 소스 필터로 공개 카탈로그에서 이미 제외 — 검토 대상이 아니다.
-    db_session.add(
-        Motif(
-            id="motif-user-upload",
-            symbol='<symbol id="motif-user-upload"/>',
-            bbox=[0, 0, 1, 1],
-            anchor=[0.5, 0.5],
-            subject="user upload",
-            scope="whole",
-            source="user_upload",
-            status="approved",
-        )
-    )
-    await db_session.commit()
-    upload_review = await client.post(
-        "/admin/motifs/motif-user-upload/review",
-        json={"status": "rejected"},
-        headers=headers,
-    )
-    assert upload_review.status_code == 409
-    assert upload_review.json()["code"] == "invalid_motif_transition"
-
-
-async def test_motif_metadata_edit_requires_admin_and_invalidates_embedding(
-    client, db_session, settings
-):
+async def test_motif_metadata_edit_requires_admin(client, db_session, settings):
     admin = await make_user(db_session, role="admin")
     manager = await make_user(db_session, role="manager")
     motif = Motif(
@@ -826,10 +456,7 @@ async def test_motif_metadata_edit_requires_admin_and_invalidates_embedding(
         anchor=[0.5, 0.5],
         subject="old subject",
         scope="whole",
-        description="old description",
-        tags=["old"],
         style="outline",
-        embedding_openai=[1.0] + [0.0] * 1535,
         source="seed",
         status="approved",
     )
@@ -857,48 +484,25 @@ async def test_motif_metadata_edit_requires_admin_and_invalidates_embedding(
 
     updated = await client.patch(
         path,
-        json={
-            "subject": "N" * 170,
-            "description": "푸른 원형 꽃잎 모티프",
-            "tags": ["꽃", "flower", "꽃"],
-            "style": "flat",
-        },
+        json={"subject": "N" * 170, "style": "flat"},
         headers=auth_headers(admin, settings),
     )
     assert updated.status_code == 200
     assert updated.json()["subject"] == "N" * 160
-    assert updated.json()["description"] == "푸른 원형 꽃잎 모티프"
-    assert updated.json()["tags"] == ["꽃", "flower"]
     assert updated.json()["style"] == "flat"
-    await db_session.refresh(motif)
-    assert motif.embedding_openai is None
 
-    motif.embedding_openai = [1.0] + [0.0] * 1535
-    await db_session.commit()
-    unchanged = await client.patch(
-        path,
-        json={"style": "flat"},
-        headers=auth_headers(admin, settings),
+    removed_field = await client.patch(
+        path, json={"tags": ["꽃"]}, headers=auth_headers(admin, settings)
     )
-    assert unchanged.status_code == 200
-    await db_session.refresh(motif)
-    assert motif.embedding_openai is not None
+    assert removed_field.status_code == 422
 
     unsafe = await client.patch(
         path,
-        json={"description": "contact secret@example.com"},
+        json={"subject": "contact secret@example.com"},
         headers=auth_headers(admin, settings),
     )
     assert unsafe.status_code == 400
     assert unsafe.json()["code"] == "invalid_motif_metadata"
-
-    empty_tag = await client.patch(
-        path,
-        json={"tags": [""]},
-        headers=auth_headers(admin, settings),
-    )
-    assert empty_tag.status_code == 400
-    assert empty_tag.json()["code"] == "invalid_motif_metadata"
 
 
 async def test_motif_list_searches_fields_and_filters_kst_created_date(
@@ -1001,40 +605,3 @@ async def test_motif_list_searches_fields_and_filters_kst_created_date(
     blank_search = await client.get("/admin/motifs", params={"q": "  "}, headers=headers)
     assert blank_search.status_code == 400
     assert blank_search.json()["code"] == "invalid_search"
-
-
-async def test_finalize_duration_uses_started_finished_timestamps(db_session):
-    """감사 이연 항목(p50/p95)의 산출 조건 — 성공 finalize만, updated_at 근사 없음."""
-    owner = await make_user(db_session)
-    now = datetime.now(UTC)
-    db_session.add_all(
-        [
-            GenerationJob(
-                user_id=owner.id,
-                kind="finalize",
-                status="succeeded",
-                params={},
-                started_at=now,
-                finished_at=now + timedelta(seconds=seconds),
-            )
-            for seconds in (10, 20, 120)
-        ]
-        + [
-            # 실패 job과 타임스탬프 없는 job은 분포에 들어가지 않는다
-            GenerationJob(
-                user_id=owner.id,
-                kind="finalize",
-                status="failed",
-                params={},
-                started_at=now,
-                finished_at=now + timedelta(seconds=9999),
-            ),
-            GenerationJob(user_id=owner.id, kind="finalize", status="succeeded", params={}),
-        ]
-    )
-    await db_session.commit()
-
-    duration = await finalize_duration_seconds(db_session)
-    assert duration.average == 50.0
-    assert duration.p50 == 20.0
-    assert duration.p95 == pytest.approx(110.0)

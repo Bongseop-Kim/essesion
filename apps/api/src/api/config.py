@@ -39,8 +39,6 @@ class Settings(BaseSettings):
     store_auth_rate_limit_window_seconds: int = 60
     phone_verify_rate_limit_attempts: int = 20
     phone_verify_rate_limit_window_seconds: int = 60
-    design_ideas_rate_limit_attempts: int = 6
-    design_ideas_rate_limit_window_seconds: int = 60
     toss_webhook_rate_limit_attempts: int = 300
     toss_webhook_rate_limit_window_seconds: int = 60
     public_rate_limit_max_keys: int = 10_000
@@ -85,9 +83,6 @@ class Settings(BaseSettings):
     worker_base_url: str = "http://localhost:8001"
     worker_timeout_seconds: float = 180.0
     worker_oidc_audience: str = ""  # 비어 있으면 인증 없이 호출(로컬) — Cloud Run 프라이빗용
-    worker_finalize_oidc_audience: str = ""
-    # finalize 과금은 admin_settings 'design_finalize_cost' (money.md §6)
-    worker_finalize_url: str = ""
 
     # Cloud Scheduler → /batch/* — audience 설정 시 Google OIDC 검증(+ 발신 SA email 고정),
     # 비어 있으면 batch_token 폴백(로컬·테스트). 값은 tofu가 주입 (infra/scheduler.tf)

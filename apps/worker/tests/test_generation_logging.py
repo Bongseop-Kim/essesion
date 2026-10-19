@@ -61,16 +61,7 @@ async def test_worker_records_success_with_actual_render_timing(client, db_sessi
     assert row.generate_ms is not None and row.generate_ms >= Decimal(0)
     assert row.render_ms is not None and row.render_ms >= Decimal(0)
     assert row.error_message is None
-    assert {
-        key: row.diagnostics[key]
-        for key in (
-            "mode",
-            "motif_resolutions",
-        )
-    } == {
-        "mode": "variation",
-        "motif_resolutions": [],
-    }
+    assert row.diagnostics["mode"] == "variation"
     assert row.diagnostics["compose_ms"] >= 0
     assert row.diagnostics["render_ms"] >= 0
     # 생성 1회 = 디자인 1개 — 로그도 배열이 아니라 단수 키다.
@@ -176,28 +167,6 @@ async def test_worker_sanitizes_unexpected_exception_before_persisting(
     assert row.render_ms == Decimal(0)
 
 
-async def test_worker_records_safe_provider_failure_diagnostics(client, db_session):
-    response = await client.post(
-        "/generate",
-        headers={"X-Request-ID": "log-provider-failure"},
-        json={"run_id": _RUN_ID, "prompt": "navy paisley tie"},
-    )
-    assert response.status_code == 503
-
-    row = await _latest_log(db_session)
-    assert row.diagnostics == {
-        "mode": "prompt",
-        "motif_resolutions": [],
-        "failure_code": "provider_request_failed",
-        "failure_stage": "authoring",
-        "failure_provider": "openai",
-        "failure_operation": "chat_completions",
-        "failure_reason": "not_configured",
-        "failure_status_code": None,
-    }
-    assert "navy paisley" not in str(row.diagnostics)
-
-
 def test_json_formatter_emits_only_safe_provider_metadata():
     record = logging.LogRecord(
         "worker.test",
@@ -208,8 +177,8 @@ def test_json_formatter_emits_only_safe_provider_metadata():
         (),
         None,
     )
-    record.provider = "openai_image"
-    record.operation = "generate_motif"
+    record.provider = "toss"
+    record.operation = "confirm_payment"
     record.reason_code = "rate_limited"
     record.status_code = 429
     record.duration_ms = 12.5
@@ -217,8 +186,8 @@ def test_json_formatter_emits_only_safe_provider_metadata():
 
     payload = json.loads(JsonFormatter().format(record))
 
-    assert payload["provider"] == "openai_image"
-    assert payload["operation"] == "generate_motif"
+    assert payload["provider"] == "toss"
+    assert payload["operation"] == "confirm_payment"
     assert payload["reason_code"] == "rate_limited"
     assert payload["status_code"] == 429
     assert payload["duration_ms"] == 12.5

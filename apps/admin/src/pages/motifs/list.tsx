@@ -15,26 +15,14 @@ import { CompactFilterToolbar } from "../../shared/ui/compact-filter-toolbar";
 import { DateRangeFilters } from "../../shared/ui/date-range-filters";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
-import { StatusBadge } from "../../shared/ui/status-badge";
 import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
 import { motifPreviewDocument } from "./detail";
 
 const SCOPES = ["whole", "partial"] as const;
-const DEFAULT_STATUS = "all";
-const MOTIF_STATUS_LABELS = {
-  pending: "검토 대기",
-  approved: "승인",
-  rejected: "거절",
-  all: "전체",
-} as const;
-const MOTIF_STATUSES = Object.keys(
-  MOTIF_STATUS_LABELS,
-) as readonly MotifStatus[];
 
 type MotifScope = (typeof SCOPES)[number];
-type MotifStatus = keyof typeof MOTIF_STATUS_LABELS;
 
 function isScope(value: string | undefined): value is MotifScope {
   return value !== undefined && SCOPES.includes(value as MotifScope);
@@ -70,7 +58,7 @@ const columns: readonly AdminTableColumn<MotifSummaryOut>[] = [
   },
   {
     key: "subject",
-    header: "Motif",
+    header: "무늬·로고",
     render: (motif) => (
       <VStack gap="x0_5">
         <Link to={`/motifs/${motif.id}`}>
@@ -96,11 +84,6 @@ const columns: readonly AdminTableColumn<MotifSummaryOut>[] = [
     render: (motif) => motif.source,
   },
   {
-    key: "status",
-    header: "검토 상태",
-    render: (motif) => <StatusBadge status={motif.status} />,
-  },
-  {
     key: "created_at",
     header: "생성일",
     visibility: "large",
@@ -112,12 +95,9 @@ export function MotifsPage() {
   const navigate = useNavigate();
   const { query: parsed, replaceQuery } = useAdminListUrlState({
     allowedTypes: SCOPES,
-    allowedStatuses: MOTIF_STATUSES,
   });
   const scope = isScope(parsed.type) ? parsed.type : undefined;
-  const status = (parsed.status ?? DEFAULT_STATUS) as MotifStatus;
   const [draftScope, setDraftScope] = useState<MotifScope | undefined>(scope);
-  const [draftStatus, setDraftStatus] = useState<MotifStatus>(status);
   const [search, setSearch] = useState<string>();
   const [searchResetKey, setSearchResetKey] = useState(0);
   const [draftFrom, setDraftFrom] = useState(parsed.from);
@@ -125,7 +105,6 @@ export function MotifsPage() {
   const query = useQuery({
     ...listAdminMotifsOptions({
       query: {
-        status,
         scope,
         q: search,
         start_date: parsed.from,
@@ -152,13 +131,13 @@ export function MotifsPage() {
   return (
     <VStack gap="x6" alignItems="stretch">
       <RouteHeading
-        title="Motif SVG"
-        description="AI 생성 Motif의 공개 카탈로그 반영 여부를 검토하고 안전한 SVG와 메타데이터를 확인합니다."
+        title="무늬·로고"
+        description="템플릿 무늬와 고객이 올린 로고 SVG입니다."
       />
 
       <PaginatedAdminTableCard
-        title="Motif 목록"
-        label="Motif 목록"
+        title="무늬·로고 목록"
+        label="무늬·로고 목록"
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
@@ -174,17 +153,18 @@ export function MotifsPage() {
         limit={parsed.limit}
         refreshing={query.isFetching}
         onRefresh={() => void query.refetch()}
-        emptyTitle="조건에 맞는 Motif가 없습니다"
+        emptyTitle="조건에 맞는 무늬·로고가 없습니다"
+        emptyDescription="검색어나 필터를 바꿔 보세요."
         page={Math.min(parsed.page, totalPages)}
         totalPages={totalPages}
         onPageChange={(page) => replaceQuery({ page })}
-        paginationLabel="Motif 목록 페이지"
+        paginationLabel="무늬·로고 목록 페이지"
         toolbar={
           <VStack gap="x3" alignItems="stretch">
             <CompactFilterToolbar
               primaryControls={
                 <SubmittedMemorySearch
-                  label="Motif ID·이름·소스 검색"
+                  label="ID·이름·소스 검색"
                   placeholder="2자 이상 입력"
                   maxLength={100}
                   resetKey={searchResetKey}
@@ -197,23 +177,11 @@ export function MotifsPage() {
               secondaryFilters={
                 <VStack gap="x4" alignItems="stretch">
                   <FilterSelect
-                    label="검토 상태"
-                    presentation="inline"
-                    value={draftStatus}
-                    options={MOTIF_STATUSES.map((value) => ({
-                      value,
-                      label: MOTIF_STATUS_LABELS[value],
-                    }))}
-                    onValueChange={(value) =>
-                      setDraftStatus(value as MotifStatus)
-                    }
-                  />
-                  <FilterSelect
                     label="범위"
                     presentation="inline"
                     value={draftScope ?? "all"}
                     options={[
-                      { value: "all", label: "전체" },
+                      { value: "all", label: "모두" },
                       { value: "whole", label: "전체 모티프" },
                       { value: "partial", label: "부분 모티프" },
                     ]}
@@ -232,23 +200,19 @@ export function MotifsPage() {
                 </VStack>
               }
               secondaryFilterCount={
-                Number(parsed.status !== undefined) +
                 Number(scope !== undefined) +
                 Number(parsed.from !== undefined) +
                 Number(parsed.to !== undefined)
               }
-              secondaryTitle="Motif 필터"
-              secondaryDescription="검토 상태와 Motif 범위, 생성일을 한 번에 적용합니다."
+              secondaryTitle="무늬·로고 필터"
+              secondaryDescription="모티프 범위와 생성일을 한 번에 적용합니다."
               onResetSecondaryFilters={() => {
-                setDraftStatus(status);
                 setDraftScope(scope);
                 setDraftFrom(parsed.from);
                 setDraftTo(parsed.to);
               }}
               onApplySecondaryFilters={() => {
                 replaceQuery({
-                  status:
-                    draftStatus === DEFAULT_STATUS ? undefined : draftStatus,
                   type: draftScope,
                   from: draftFrom,
                   to: draftTo,
@@ -272,11 +236,6 @@ export function MotifsPage() {
                   label: `범위: ${scope === "whole" ? "전체 모티프" : "부분 모티프"}`,
                   onRemove: () => replaceQuery({ type: undefined, page: 1 }),
                 },
-                parsed.status !== undefined && {
-                  key: "status",
-                  label: `검토 상태: ${MOTIF_STATUS_LABELS[status]}`,
-                  onRemove: () => replaceQuery({ status: undefined, page: 1 }),
-                },
                 parsed.from !== undefined && {
                   key: "from",
                   label: `생성 시작일: ${parsed.from}`,
@@ -296,7 +255,6 @@ export function MotifsPage() {
                   limit: 20,
                   sort: undefined,
                   direction: "asc",
-                  status: undefined,
                   type: undefined,
                   from: undefined,
                   to: undefined,

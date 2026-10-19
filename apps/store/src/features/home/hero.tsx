@@ -24,11 +24,11 @@ const AUTOPLAY_MS = 5000; // 캐로셀 표준 간격(Bootstrap 기본과 동일)
 
 const HERO_BANNERS = [
   {
-    tag: "AI",
-    title: "쉽고 간편하게\n30초 만에 만들기",
+    tag: "DESIGN",
+    title: "템플릿 골라\n색·로고만 바꾸기",
     image: "/images/home/ai-1086.webp",
     srcSet: "/images/home/ai-544.webp 544w, /images/home/ai-1086.webp 1086w",
-    alt: "AI 디자인 생성",
+    alt: "넥타이 디자인",
     href: "/design",
   },
   {

@@ -65,9 +65,7 @@ async function editAndConfirm(user: ReturnType<typeof userEvent.setup>) {
   expect(within(dialog).getByText(/1,000원 → 1,200원/)).toBeTruthy();
   expect(within(dialog).getByText(/신규 주문 계산부터 적용/)).toBeTruthy();
   expect(within(dialog).getByText("배송비 정책 변경")).toBeTruthy();
-  await user.click(
-    within(dialog).getByRole("button", { name: "가격 1건 적용" }),
-  );
+  await user.click(within(dialog).getByRole("button", { name: "1건 저장" }));
   return amount as HTMLInputElement;
 }
 
@@ -102,7 +100,7 @@ describe("PricingPage", () => {
     await user.click(screen.getByRole("button", { name: "가격 수정" }));
     expect(await screen.findByLabelText("sample_shipping_fee")).toBeTruthy();
     expect(screen.getByLabelText(/변경 사유/)).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: "편집 취소" }));
+    await user.click(screen.getByRole("button", { name: "수정 취소" }));
     expect(screen.queryByLabelText("sample_shipping_fee")).toBeNull();
   });
 
@@ -162,7 +160,7 @@ describe("PricingPage", () => {
     await user.click(screen.getByRole("button", { name: "변경 1건 검토" }));
     await user.click(
       within(await screen.findByRole("alertdialog")).getByRole("button", {
-        name: "가격 1건 적용",
+        name: "1건 저장",
       }),
     );
     await waitFor(() => expect(api.updatePricing).toHaveBeenCalledTimes(2));
@@ -182,7 +180,7 @@ describe("PricingPage", () => {
     await user.click(screen.getByRole("button", { name: "변경 1건 검토" }));
     await user.click(
       within(await screen.findByRole("alertdialog")).getByRole("button", {
-        name: "가격 1건 적용",
+        name: "1건 저장",
       }),
     );
     await waitFor(() => expect(api.updatePricing).toHaveBeenCalledTimes(3));
@@ -247,7 +245,7 @@ describe("PricingPage", () => {
     await user.click(screen.getByRole("button", { name: "변경 1건 검토" }));
     await user.click(
       within(await screen.findByRole("alertdialog")).getByRole("button", {
-        name: "가격 1건 적용",
+        name: "1건 저장",
       }),
     );
 

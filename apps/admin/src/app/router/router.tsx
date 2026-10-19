@@ -275,69 +275,6 @@ const pageRoutes: RouteObject[] = [
     },
   },
   {
-    path: "generation-jobs",
-    lazy: async () => {
-      const { GenerationJobsPage } = await import(
-        "../../pages/generation/jobs-list"
-      );
-      return { Component: GenerationJobsPage };
-    },
-  },
-  {
-    path: "generation-jobs/:jobId",
-    lazy: async () => {
-      const { GenerationJobDetailPage } = await import(
-        "../../pages/generation/job-detail"
-      );
-      return { Component: GenerationJobDetailPage };
-    },
-  },
-  {
-    path: "few-shot-candidates",
-    lazy: async () => {
-      const { FewShotCandidatesPage } = await import(
-        "../../pages/authoring/candidates-list"
-      );
-      return { Component: FewShotCandidatesPage };
-    },
-  },
-  {
-    path: "few-shot-candidates/:candidateId",
-    lazy: async () => {
-      const { AuthoringCandidateDetailPage } = await import(
-        "../../pages/authoring/candidate-detail"
-      );
-      return { Component: AuthoringCandidateDetailPage };
-    },
-  },
-  {
-    path: "few-shot-examples",
-    lazy: async () => {
-      const { FewShotExamplesPage } = await import(
-        "../../pages/authoring/examples-list"
-      );
-      return { Component: FewShotExamplesPage };
-    },
-  },
-  {
-    path: "few-shot-examples/new",
-    lazy: async () => {
-      const { FewShotExampleNewPage } = await import(
-        "../../pages/authoring/example-new"
-      );
-      return { Component: FewShotExampleNewPage };
-    },
-  },
-  {
-    path: "few-shot-examples/:exampleId",
-    lazy: async () => {
-      const { AuthoringExampleDetailPage } = await import(
-        "../../pages/authoring/example-detail"
-      );
-      return { Component: AuthoringExampleDetailPage };
-    },
-  },
-  {
     path: "motifs",
     lazy: async () => {
       const { MotifsPage } = await import("../../pages/motifs/list");
@@ -351,15 +288,6 @@ const pageRoutes: RouteObject[] = [
         "../../pages/design-examples/list"
       );
       return { Component: DesignExamplesPage };
-    },
-  },
-  {
-    path: "design-examples/new",
-    lazy: async () => {
-      const { DesignExampleNewPage } = await import(
-        "../../pages/design-examples/new"
-      );
-      return { Component: DesignExampleNewPage };
     },
   },
   {

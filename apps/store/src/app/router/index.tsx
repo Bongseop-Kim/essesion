@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router";
+import { createBrowserRouter, redirect } from "react-router";
 
 import { AppLayout } from "@/app/layout/app-layout";
 import { ProtectedRoute } from "@/app/router/protected-route";
@@ -59,7 +59,8 @@ export const storeRouteObjects = [
       {
         path: "design",
         lazy: async () => ({
-          Component: (await import("@/pages/design")).DesignPage,
+          Component: (await import("@/pages/design/templates"))
+            .DesignTemplatesPage,
         }),
       },
       {
@@ -69,10 +70,13 @@ export const storeRouteObjects = [
         }),
       },
       {
-        path: "token/purchase",
-        lazy: async () => ({
-          Component: (await import("@/pages/token-purchase")).TokenPurchasePage,
-        }),
+        // 디자인 토큰 판매 종료(2026-10-19) — 옛 링크 보존
+        path: "token/*",
+        loader: () => redirect("/"),
+      },
+      {
+        path: "my-page/token-history",
+        loader: () => redirect("/"),
       },
       {
         path: "faq",
@@ -109,6 +113,25 @@ export const storeRouteObjects = [
         element: <ProtectedRoute />,
         children: [
           {
+            // 옛 주소(색·로고가 나뉘던 시절) 링크 보존
+            path: "design/sessions/:id/color",
+            loader: ({ params }) =>
+              redirect(`/design/sessions/${params.id}/customize`),
+          },
+          {
+            path: "design/sessions/:id/customize",
+            lazy: async () => ({
+              Component: (await import("@/pages/design/customize"))
+                .DesignCustomizePage,
+            }),
+          },
+          {
+            // 실사화 결과 화면은 없어졌다 — 옛 링크는 색·로고로
+            path: "design/sessions/:id/result",
+            loader: ({ params }) =>
+              redirect(`/design/sessions/${params.id}/customize`),
+          },
+          {
             path: "order/order-form",
             lazy: async () => ({
               Component: (await import("@/pages/order/order-form"))
@@ -127,27 +150,6 @@ export const storeRouteObjects = [
             lazy: async () => ({
               Component: (await import("@/pages/order/sample-payment"))
                 .SamplePaymentPage,
-            }),
-          },
-          {
-            path: "token/purchase/payment",
-            lazy: async () => ({
-              Component: (await import("@/pages/token-purchase/payment"))
-                .TokenPaymentPage,
-            }),
-          },
-          {
-            path: "token/purchase/success",
-            lazy: async () => ({
-              Component: (await import("@/pages/token-purchase/success"))
-                .TokenPurchaseSuccessPage,
-            }),
-          },
-          {
-            path: "token/purchase/fail",
-            lazy: async () => ({
-              Component: (await import("@/pages/token-purchase/fail"))
-                .TokenPurchaseFailPage,
             }),
           },
           {
@@ -187,13 +189,6 @@ export const storeRouteObjects = [
             lazy: async () => ({
               Component: (await import("@/pages/my-page/claim-detail"))
                 .ClaimDetailPage,
-            }),
-          },
-          {
-            path: "my-page/token-history",
-            lazy: async () => ({
-              Component: (await import("@/pages/my-page/token-history"))
-                .TokenHistoryPage,
             }),
           },
           {

@@ -95,7 +95,7 @@ function renderPage() {
   );
 }
 
-const confirmed: PaymentConfirmResponse = { orders: [], token_amount: null };
+const confirmed: PaymentConfirmResponse = { orders: [] };
 
 describe("payment success pending boundary", () => {
   beforeEach(() => {

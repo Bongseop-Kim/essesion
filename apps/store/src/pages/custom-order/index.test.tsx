@@ -21,10 +21,6 @@ vi.mock("@/features/auth/ui/auth-guard-provider", () => ({
   useAuthGuard: () => ({ requireAuth: auth.requireAuth }),
 }));
 
-vi.mock("@/features/design/ui/design-picker", () => ({
-  DesignPicker: () => null,
-}));
-
 vi.mock("@/features/custom-order/model/use-custom-quote", () => ({
   useCustomQuote: () => ({
     data: { total_cost: 100_000, sewing_cost: 60_000, fabric_cost: 40_000 },
@@ -193,6 +189,31 @@ describe("CustomOrderPage", () => {
     );
     expect(createObjectURL).toHaveBeenCalledTimes(2);
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:second");
+    queryClient.clear();
+  });
+
+  it("색·로고에서 넘긴 디자인 PNG가 참고 이미지로 들어온다", async () => {
+    const design = new File(["png"], "design.png", { type: "image/png" });
+    const BrowserURL = URL;
+    class ObjectURL extends BrowserURL {}
+    ObjectURL.createObjectURL = vi.fn(() => "blob:design");
+    ObjectURL.revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", ObjectURL);
+    const queryClient = new QueryClient();
+
+    render(
+      <MemoryRouter
+        initialEntries={[
+          { pathname: "/custom-order", state: { designFiles: [design] } },
+        ]}
+      >
+        <QueryClientProvider client={queryClient}>
+          <CustomOrderPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole("button", { name: "design.png 삭제" });
     queryClient.clear();
   });
 });

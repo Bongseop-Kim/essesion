@@ -9,7 +9,6 @@ class FakeGcsClient:
     def __init__(self) -> None:
         self.deleted: list[str] = []
         self.deleted_from: list[tuple[str | None, str]] = []
-        self.copied: list[tuple[str, str, str]] = []
         self.metadata: dict[str, GcsObjectMetadata] = {}
 
     async def signed_upload_url(
@@ -36,16 +35,6 @@ class FakeGcsClient:
         self, object_key: str, *, bucket_name: str | None = None
     ) -> GcsObjectMetadata | None:
         return self.metadata.get(object_key)
-
-    async def copy_from_bucket(
-        self, source_bucket: str, source_key: str, destination_key: str
-    ) -> bool:
-        self.copied.append((source_bucket, source_key, destination_key))
-        # 복사가 끝나면 대상 객체가 실제로 존재한다 — 호출자의 메타데이터 검증 대상.
-        self.metadata[destination_key] = self.metadata.get(
-            source_key, GcsObjectMetadata(size_bytes=1, content_type="image/png")
-        )
-        return True
 
 
 async def simulate_uploads(app) -> None:  # noqa: ANN001 — FastAPI app state만 사용

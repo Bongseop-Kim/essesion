@@ -128,7 +128,7 @@ describe("OrdersPage", () => {
       screen.getByRole("button", { name: "유형: 수선 필터 제거" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "상태: 진행중 필터 제거" }),
+      screen.getByRole("button", { name: "상태: 진행 중 필터 제거" }),
     ).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "전체 초기화" }));
@@ -149,7 +149,7 @@ describe("OrdersPage", () => {
     await screen.findByRole("table", { name: "주문 목록" });
     const filterButton = screen.getByRole("button", { name: "필터" });
     await user.click(filterButton);
-    await user.click(screen.getByRole("radio", { name: "진행중" }));
+    await user.click(screen.getByRole("radio", { name: "진행 중" }));
     await user.click(screen.getByRole("radio", { name: "수선" }));
 
     expect(screen.getByLabelText("현재 URL").textContent).toBe("");
@@ -161,12 +161,12 @@ describe("OrdersPage", () => {
     expect(screen.getByLabelText("현재 URL").textContent).toBe("");
 
     await user.click(filterButton);
-    expect(screen.getByRole("radio", { name: "진행중" })).toHaveProperty(
+    expect(screen.getByRole("radio", { name: "진행 중" })).toHaveProperty(
       "checked",
       false,
     );
     await user.click(screen.getByRole("radio", { name: "수선" }));
-    await user.click(screen.getByRole("radio", { name: "진행중" }));
+    await user.click(screen.getByRole("radio", { name: "진행 중" }));
     await user.click(screen.getByRole("button", { name: "필터 적용" }));
 
     await waitFor(() =>

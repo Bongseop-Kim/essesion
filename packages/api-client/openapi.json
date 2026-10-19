@@ -203,8 +203,7 @@
             "enum": [
               "advance",
               "reject",
-              "rollback",
-              "approve_refund"
+              "rollback"
             ],
             "title": "Kind",
             "type": "string"
@@ -1040,10 +1039,6 @@
             ],
             "title": "Birth"
           },
-          "bonus_token_balance": {
-            "title": "Bonus Token Balance",
-            "type": "integer"
-          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -1089,10 +1084,6 @@
             "title": "Order Count",
             "type": "integer"
           },
-          "paid_token_balance": {
-            "title": "Paid Token Balance",
-            "type": "integer"
-          },
           "phone": {
             "anyOf": [
               {
@@ -1108,10 +1099,6 @@
             "title": "Phone Verified",
             "type": "boolean"
           },
-          "token_balance": {
-            "title": "Token Balance",
-            "type": "integer"
-          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
@@ -1126,16 +1113,13 @@
           "is_active",
           "phone_verified",
           "created_at",
-          "token_balance",
           "order_count",
           "active_coupon_count",
           "birth",
           "notification_consent",
           "notification_enabled",
           "marketing_kakao_sms_consent",
-          "updated_at",
-          "paid_token_balance",
-          "bonus_token_balance"
+          "updated_at"
         ],
         "title": "AdminCustomerDetailOut",
         "type": "object"
@@ -1233,10 +1217,6 @@
           "phone_verified": {
             "title": "Phone Verified",
             "type": "boolean"
-          },
-          "token_balance": {
-            "title": "Token Balance",
-            "type": "integer"
           }
         },
         "required": [
@@ -1247,136 +1227,10 @@
           "is_active",
           "phone_verified",
           "created_at",
-          "token_balance",
           "order_count",
           "active_coupon_count"
         ],
         "title": "AdminCustomerSummaryOut",
-        "type": "object"
-      },
-      "AdminCustomerTokenOut": {
-        "properties": {
-          "amount": {
-            "title": "Amount",
-            "type": "integer"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          },
-          "expires_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expires At"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "source_order_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Order Id"
-          },
-          "token_class": {
-            "title": "Token Class",
-            "type": "string"
-          },
-          "type": {
-            "title": "Type",
-            "type": "string"
-          },
-          "work_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Work Id"
-          }
-        },
-        "required": [
-          "id",
-          "amount",
-          "type",
-          "token_class",
-          "description",
-          "work_id",
-          "source_order_id",
-          "expires_at",
-          "created_at"
-        ],
-        "title": "AdminCustomerTokenOut",
-        "type": "object"
-      },
-      "AdminDesignExampleCreateRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "caption": {
-            "anyOf": [
-              {
-                "maxLength": 60,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Caption"
-          },
-          "name": {
-            "maxLength": 100,
-            "minLength": 1,
-            "title": "Name",
-            "type": "string"
-          },
-          "ordinal": {
-            "default": 0,
-            "minimum": 0.0,
-            "title": "Ordinal",
-            "type": "integer"
-          },
-          "run_id": {
-            "format": "uuid",
-            "title": "Run Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "run_id",
-          "name"
-        ],
-        "title": "AdminDesignExampleCreateRequest",
         "type": "object"
       },
       "AdminDesignExampleOut": {
@@ -1392,10 +1246,51 @@
             ],
             "title": "Caption"
           },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "colorways": {
+            "items": {
+              "$ref": "#/components/schemas/DesignExampleColorway"
+            },
+            "title": "Colorways",
+            "type": "array"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "logo_in_panel": {
+            "default": false,
+            "title": "Logo In Panel",
+            "type": "boolean"
+          },
+          "logo_preview_svg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Preview Svg"
+          },
+          "logo_slots": {
+            "items": {
+              "$ref": "#/components/schemas/DesignLogoSlotOut"
+            },
+            "title": "Logo Slots",
+            "type": "array"
           },
           "name": {
             "title": "Name",
@@ -1404,6 +1299,48 @@
           "ordinal": {
             "title": "Ordinal",
             "type": "integer"
+          },
+          "panel_svg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Panel Svg"
+          },
+          "photo_detail_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Detail Url"
+          },
+          "photo_full_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Full Url"
+          },
+          "point": {
+            "enum": [
+              "none",
+              "top",
+              "bottom"
+            ],
+            "title": "Point",
+            "type": "string"
           },
           "preview_svg": {
             "title": "Preview Svg",
@@ -1424,6 +1361,13 @@
           "name",
           "caption",
           "preview_svg",
+          "category",
+          "point",
+          "logo_slots",
+          "photo_full_url",
+          "photo_detail_url",
+          "logo_preview_svg",
+          "colorways",
           "run_id",
           "ordinal",
           "published"
@@ -2122,6 +2066,28 @@
             ],
             "title": "Payment Group Id"
           },
+          "recipient_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipient Name"
+          },
+          "recipient_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipient Phone"
+          },
           "related_orders": {
             "items": {
               "$ref": "#/components/schemas/AdminRelatedOrderOut"
@@ -2404,6 +2370,28 @@
               }
             ],
             "title": "Payment Group Id"
+          },
+          "recipient_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipient Name"
+          },
+          "recipient_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipient Phone"
           },
           "status": {
             "title": "Status",
@@ -3904,14 +3892,7 @@
       "AdminSettingOut": {
         "properties": {
           "key": {
-            "enum": [
-              "default_courier_company",
-              "design_edit_cost",
-              "design_finalize_cost",
-              "design_motif_generate_cost",
-              "design_token_cost_openai_render_standard",
-              "design_token_initial_grant"
-            ],
+            "const": "default_courier_company",
             "title": "Key",
             "type": "string"
           },
@@ -4067,62 +4048,6 @@
         "title": "AdminTimelineEvent",
         "type": "object"
       },
-      "AdminTokenManageRequest": {
-        "properties": {
-          "amount": {
-            "title": "Amount",
-            "type": "integer"
-          },
-          "description": {
-            "maxLength": 500,
-            "minLength": 3,
-            "title": "Description",
-            "type": "string"
-          },
-          "operation_id": {
-            "format": "uuid",
-            "title": "Operation Id",
-            "type": "string"
-          },
-          "user_id": {
-            "format": "uuid",
-            "title": "User Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "operation_id",
-          "user_id",
-          "amount",
-          "description"
-        ],
-        "title": "AdminTokenManageRequest",
-        "type": "object"
-      },
-      "AdminTokenManageResponse": {
-        "properties": {
-          "new_balance": {
-            "title": "New Balance",
-            "type": "integer"
-          },
-          "operation_id": {
-            "format": "uuid",
-            "title": "Operation Id",
-            "type": "string"
-          },
-          "success": {
-            "title": "Success",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "success",
-          "new_balance",
-          "operation_id"
-        ],
-        "title": "AdminTokenManageResponse",
-        "type": "object"
-      },
       "AdminTrackingUpdateRequest": {
         "properties": {
           "company_courier_company": {
@@ -4195,1114 +4120,6 @@
           "operation_id"
         ],
         "title": "AffectedResponse",
-        "type": "object"
-      },
-      "AuthoringCandidateDecisionRequest": {
-        "properties": {
-          "decision": {
-            "enum": [
-              "hold",
-              "reject",
-              "approve"
-            ],
-            "title": "Decision",
-            "type": "string"
-          },
-          "expected_review_version": {
-            "minimum": 0.0,
-            "title": "Expected Review Version",
-            "type": "integer"
-          },
-          "operation_id": {
-            "format": "uuid",
-            "title": "Operation Id",
-            "type": "string"
-          },
-          "reason": {
-            "maxLength": 500,
-            "minLength": 3,
-            "title": "Reason",
-            "type": "string"
-          }
-        },
-        "required": [
-          "operation_id",
-          "decision",
-          "reason",
-          "expected_review_version"
-        ],
-        "title": "AuthoringCandidateDecisionRequest",
-        "type": "object"
-      },
-      "AuthoringCandidateDetailOut": {
-        "properties": {
-          "approved_example_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Approved Example Id"
-          },
-          "compiler_revision": {
-            "title": "Compiler Revision",
-            "type": "string"
-          },
-          "contract_version": {
-            "title": "Contract Version",
-            "type": "integer"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "design_id": {
-            "title": "Design Id",
-            "type": "string"
-          },
-          "embedding_model": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Embedding Model"
-          },
-          "family": {
-            "title": "Family",
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "injection_suspected": {
-            "title": "Injection Suspected",
-            "type": "boolean"
-          },
-          "motif_count": {
-            "title": "Motif Count",
-            "type": "integer"
-          },
-          "nearest_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Nearest Id"
-          },
-          "nearest_kind": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Nearest Kind"
-          },
-          "nearest_similarity": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Nearest Similarity"
-          },
-          "plan": {
-            "additionalProperties": true,
-            "title": "Plan",
-            "type": "object"
-          },
-          "preview_status": {
-            "enum": [
-              "safe",
-              "unavailable",
-              "unsafe"
-            ],
-            "title": "Preview Status",
-            "type": "string"
-          },
-          "preview_svg": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Preview Svg"
-          },
-          "prompt_revision": {
-            "title": "Prompt Revision",
-            "type": "string"
-          },
-          "retrieval_text": {
-            "title": "Retrieval Text",
-            "type": "string"
-          },
-          "review_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Review Reason"
-          },
-          "review_version": {
-            "title": "Review Version",
-            "type": "integer"
-          },
-          "reviewed_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reviewed At"
-          },
-          "reviewed_by": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reviewed By"
-          },
-          "rule_reasons": {
-            "items": {},
-            "title": "Rule Reasons",
-            "type": "array"
-          },
-          "source_digest": {
-            "title": "Source Digest",
-            "type": "string"
-          },
-          "source_generation_log_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Generation Log Id"
-          },
-          "source_key": {
-            "title": "Source Key",
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "pending",
-              "hold",
-              "rejected",
-              "approved",
-              "duplicate",
-              "invalid"
-            ],
-            "title": "Status",
-            "type": "string"
-          },
-          "structural_fingerprint": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Structural Fingerprint"
-          },
-          "tags": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Tags",
-            "type": "array"
-          },
-          "updated_at": {
-            "format": "date-time",
-            "title": "Updated At",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "source_generation_log_id",
-          "design_id",
-          "contract_version",
-          "compiler_revision",
-          "prompt_revision",
-          "family",
-          "motif_count",
-          "retrieval_text",
-          "tags",
-          "injection_suspected",
-          "structural_fingerprint",
-          "nearest_kind",
-          "nearest_id",
-          "nearest_similarity",
-          "status",
-          "rule_reasons",
-          "review_version",
-          "reviewed_at",
-          "reviewed_by",
-          "review_reason",
-          "approved_example_id",
-          "created_at",
-          "updated_at",
-          "source_key",
-          "source_digest",
-          "embedding_model",
-          "plan",
-          "preview_svg",
-          "preview_status"
-        ],
-        "title": "AuthoringCandidateDetailOut",
-        "type": "object"
-      },
-      "AuthoringCandidateSummaryOut": {
-        "properties": {
-          "approved_example_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Approved Example Id"
-          },
-          "compiler_revision": {
-            "title": "Compiler Revision",
-            "type": "string"
-          },
-          "contract_version": {
-            "title": "Contract Version",
-            "type": "integer"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "design_id": {
-            "title": "Design Id",
-            "type": "string"
-          },
-          "family": {
-            "title": "Family",
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "injection_suspected": {
-            "title": "Injection Suspected",
-            "type": "boolean"
-          },
-          "motif_count": {
-            "title": "Motif Count",
-            "type": "integer"
-          },
-          "nearest_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Nearest Id"
-          },
-          "nearest_kind": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Nearest Kind"
-          },
-          "nearest_similarity": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Nearest Similarity"
-          },
-          "prompt_revision": {
-            "title": "Prompt Revision",
-            "type": "string"
-          },
-          "retrieval_text": {
-            "title": "Retrieval Text",
-            "type": "string"
-          },
-          "review_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Review Reason"
-          },
-          "review_version": {
-            "title": "Review Version",
-            "type": "integer"
-          },
-          "reviewed_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reviewed At"
-          },
-          "reviewed_by": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reviewed By"
-          },
-          "rule_reasons": {
-            "items": {},
-            "title": "Rule Reasons",
-            "type": "array"
-          },
-          "source_generation_log_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Generation Log Id"
-          },
-          "status": {
-            "enum": [
-              "pending",
-              "hold",
-              "rejected",
-              "approved",
-              "duplicate",
-              "invalid"
-            ],
-            "title": "Status",
-            "type": "string"
-          },
-          "structural_fingerprint": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Structural Fingerprint"
-          },
-          "tags": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Tags",
-            "type": "array"
-          },
-          "updated_at": {
-            "format": "date-time",
-            "title": "Updated At",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "source_generation_log_id",
-          "design_id",
-          "contract_version",
-          "compiler_revision",
-          "prompt_revision",
-          "family",
-          "motif_count",
-          "retrieval_text",
-          "tags",
-          "injection_suspected",
-          "structural_fingerprint",
-          "nearest_kind",
-          "nearest_id",
-          "nearest_similarity",
-          "status",
-          "rule_reasons",
-          "review_version",
-          "reviewed_at",
-          "reviewed_by",
-          "review_reason",
-          "approved_example_id",
-          "created_at",
-          "updated_at"
-        ],
-        "title": "AuthoringCandidateSummaryOut",
-        "type": "object"
-      },
-      "AuthoringExampleActivationRequest": {
-        "properties": {
-          "active": {
-            "title": "Active",
-            "type": "boolean"
-          },
-          "expected_updated_at": {
-            "format": "date-time",
-            "title": "Expected Updated At",
-            "type": "string"
-          },
-          "operation_id": {
-            "format": "uuid",
-            "title": "Operation Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "operation_id",
-          "active",
-          "expected_updated_at"
-        ],
-        "title": "AuthoringExampleActivationRequest",
-        "type": "object"
-      },
-      "AuthoringExampleCreateRequest": {
-        "properties": {
-          "motif_ids": {
-            "items": {
-              "type": "string"
-            },
-            "maxItems": 2,
-            "title": "Motif Ids",
-            "type": "array"
-          },
-          "plan": {
-            "additionalProperties": true,
-            "title": "Plan",
-            "type": "object"
-          },
-          "retrieval_text": {
-            "maxLength": 500,
-            "minLength": 10,
-            "title": "Retrieval Text",
-            "type": "string"
-          }
-        },
-        "required": [
-          "retrieval_text",
-          "plan"
-        ],
-        "title": "AuthoringExampleCreateRequest",
-        "type": "object"
-      },
-      "AuthoringExampleDeleteRequest": {
-        "properties": {
-          "operation_id": {
-            "format": "uuid",
-            "title": "Operation Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "operation_id"
-        ],
-        "title": "AuthoringExampleDeleteRequest",
-        "type": "object"
-      },
-      "AuthoringExampleDetailOut": {
-        "properties": {
-          "active": {
-            "title": "Active",
-            "type": "boolean"
-          },
-          "active_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Active Reason"
-          },
-          "active_updated_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Active Updated At"
-          },
-          "active_updated_by": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Active Updated By"
-          },
-          "approved_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Approved At"
-          },
-          "approved_by": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Approved By"
-          },
-          "contract_version": {
-            "title": "Contract Version",
-            "type": "integer"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "embedding_model": {
-            "title": "Embedding Model",
-            "type": "string"
-          },
-          "example_id": {
-            "title": "Example Id",
-            "type": "string"
-          },
-          "family": {
-            "title": "Family",
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "motif_count": {
-            "title": "Motif Count",
-            "type": "integer"
-          },
-          "motif_ids": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Motif Ids",
-            "type": "array"
-          },
-          "plan": {
-            "additionalProperties": true,
-            "title": "Plan",
-            "type": "object"
-          },
-          "retrieval_text": {
-            "title": "Retrieval Text",
-            "type": "string"
-          },
-          "source": {
-            "enum": [
-              "bootstrap",
-              "promoted",
-              "authored"
-            ],
-            "title": "Source",
-            "type": "string"
-          },
-          "source_digest": {
-            "title": "Source Digest",
-            "type": "string"
-          },
-          "structural_fingerprint": {
-            "title": "Structural Fingerprint",
-            "type": "string"
-          },
-          "tags": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Tags",
-            "type": "array"
-          },
-          "updated_at": {
-            "format": "date-time",
-            "title": "Updated At",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "example_id",
-          "source",
-          "contract_version",
-          "family",
-          "motif_count",
-          "retrieval_text",
-          "tags",
-          "structural_fingerprint",
-          "embedding_model",
-          "active",
-          "approved_at",
-          "approved_by",
-          "active_updated_at",
-          "active_updated_by",
-          "active_reason",
-          "created_at",
-          "updated_at",
-          "source_digest",
-          "plan",
-          "motif_ids"
-        ],
-        "title": "AuthoringExampleDetailOut",
-        "type": "object"
-      },
-      "AuthoringExamplePreviewBatchItem": {
-        "properties": {
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "svg": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Svg"
-          },
-          "warnings": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Warnings",
-            "type": "array"
-          }
-        },
-        "required": [
-          "id",
-          "svg"
-        ],
-        "title": "AuthoringExamplePreviewBatchItem",
-        "type": "object"
-      },
-      "AuthoringExamplePreviewBatchOut": {
-        "properties": {
-          "previews": {
-            "items": {
-              "$ref": "#/components/schemas/AuthoringExamplePreviewBatchItem"
-            },
-            "title": "Previews",
-            "type": "array"
-          }
-        },
-        "required": [
-          "previews"
-        ],
-        "title": "AuthoringExamplePreviewBatchOut",
-        "type": "object"
-      },
-      "AuthoringExamplePreviewOut": {
-        "properties": {
-          "svg": {
-            "title": "Svg",
-            "type": "string"
-          },
-          "warnings": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Warnings",
-            "type": "array"
-          }
-        },
-        "required": [
-          "svg",
-          "warnings"
-        ],
-        "title": "AuthoringExamplePreviewOut",
-        "type": "object"
-      },
-      "AuthoringExamplePreviewRequest": {
-        "properties": {
-          "colorway": {
-            "anyOf": [
-              {
-                "maxLength": 100,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Colorway"
-          },
-          "motif_ids": {
-            "items": {
-              "type": "string"
-            },
-            "maxItems": 2,
-            "title": "Motif Ids",
-            "type": "array"
-          },
-          "plan": {
-            "additionalProperties": true,
-            "title": "Plan",
-            "type": "object"
-          },
-          "seed": {
-            "anyOf": [
-              {
-                "maximum": 9.223372036854776e+18,
-                "minimum": -9.223372036854776e+18,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Seed"
-          },
-          "tile_mm": {
-            "default": 48.0,
-            "exclusiveMinimum": 0.0,
-            "maximum": 500.0,
-            "title": "Tile Mm",
-            "type": "number"
-          }
-        },
-        "required": [
-          "plan"
-        ],
-        "title": "AuthoringExamplePreviewRequest",
-        "type": "object"
-      },
-      "AuthoringExampleSummaryOut": {
-        "properties": {
-          "active": {
-            "title": "Active",
-            "type": "boolean"
-          },
-          "active_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Active Reason"
-          },
-          "active_updated_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Active Updated At"
-          },
-          "active_updated_by": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Active Updated By"
-          },
-          "approved_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Approved At"
-          },
-          "approved_by": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Approved By"
-          },
-          "contract_version": {
-            "title": "Contract Version",
-            "type": "integer"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "embedding_model": {
-            "title": "Embedding Model",
-            "type": "string"
-          },
-          "example_id": {
-            "title": "Example Id",
-            "type": "string"
-          },
-          "family": {
-            "title": "Family",
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "motif_count": {
-            "title": "Motif Count",
-            "type": "integer"
-          },
-          "retrieval_text": {
-            "title": "Retrieval Text",
-            "type": "string"
-          },
-          "source": {
-            "enum": [
-              "bootstrap",
-              "promoted",
-              "authored"
-            ],
-            "title": "Source",
-            "type": "string"
-          },
-          "structural_fingerprint": {
-            "title": "Structural Fingerprint",
-            "type": "string"
-          },
-          "tags": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Tags",
-            "type": "array"
-          },
-          "updated_at": {
-            "format": "date-time",
-            "title": "Updated At",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "example_id",
-          "source",
-          "contract_version",
-          "family",
-          "motif_count",
-          "retrieval_text",
-          "tags",
-          "structural_fingerprint",
-          "embedding_model",
-          "active",
-          "approved_at",
-          "approved_by",
-          "active_updated_at",
-          "active_updated_by",
-          "active_reason",
-          "created_at",
-          "updated_at"
-        ],
-        "title": "AuthoringExampleSummaryOut",
-        "type": "object"
-      },
-      "AuthoringExampleUpdateRequest": {
-        "properties": {
-          "expected_updated_at": {
-            "format": "date-time",
-            "title": "Expected Updated At",
-            "type": "string"
-          },
-          "motif_ids": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "maxItems": 2,
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Motif Ids"
-          },
-          "operation_id": {
-            "format": "uuid",
-            "title": "Operation Id",
-            "type": "string"
-          },
-          "plan": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Plan"
-          },
-          "retrieval_text": {
-            "anyOf": [
-              {
-                "maxLength": 500,
-                "minLength": 10,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Retrieval Text"
-          }
-        },
-        "required": [
-          "operation_id",
-          "expected_updated_at"
-        ],
-        "title": "AuthoringExampleUpdateRequest",
-        "type": "object"
-      },
-      "AuthoringPromotionBatchResult": {
-        "properties": {
-          "duplicate": {
-            "title": "Duplicate",
-            "type": "integer"
-          },
-          "failed": {
-            "title": "Failed",
-            "type": "integer"
-          },
-          "invalid": {
-            "title": "Invalid",
-            "type": "integer"
-          },
-          "pending": {
-            "title": "Pending",
-            "type": "integer"
-          },
-          "scanned": {
-            "title": "Scanned",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "scanned",
-          "pending",
-          "duplicate",
-          "invalid",
-          "failed"
-        ],
-        "title": "AuthoringPromotionBatchResult",
         "type": "object"
       },
       "AutomaticReform": {
@@ -5941,17 +4758,6 @@
           "status": {
             "title": "Status",
             "type": "string"
-          },
-          "token_amount": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Token Amount"
           }
         },
         "required": [
@@ -6899,7 +5705,6 @@
               "sale",
               "custom",
               "repair",
-              "token",
               "sample",
               "manual"
             ],
@@ -6948,7 +5753,6 @@
               "sale",
               "custom",
               "repair",
-              "token",
               "sample",
               "manual"
             ],
@@ -6989,14 +5793,6 @@
             "title": "Day",
             "type": "string"
           },
-          "generation_failed": {
-            "title": "Generation Failed",
-            "type": "integer"
-          },
-          "generation_total": {
-            "title": "Generation Total",
-            "type": "integer"
-          },
           "manual_custom_amount": {
             "title": "Manual Custom Amount",
             "type": "integer"
@@ -7028,18 +5824,6 @@
           "sample_amount": {
             "title": "Sample Amount",
             "type": "integer"
-          },
-          "token_amount": {
-            "title": "Token Amount",
-            "type": "integer"
-          },
-          "token_consumed": {
-            "title": "Token Consumed",
-            "type": "integer"
-          },
-          "token_sold": {
-            "title": "Token Sold",
-            "type": "integer"
           }
         },
         "required": [
@@ -7050,14 +5834,9 @@
           "custom_amount",
           "repair_amount",
           "sample_amount",
-          "token_amount",
           "manual_custom_amount",
           "manual_repair_amount",
-          "new_customer_count",
-          "generation_total",
-          "generation_failed",
-          "token_consumed",
-          "token_sold"
+          "new_customer_count"
         ],
         "title": "DashboardTimeseriesPointOut",
         "type": "object"
@@ -7124,6 +5903,39 @@
         "title": "DashboardTopProductsOut",
         "type": "object"
       },
+      "DesignExampleColorway": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "mapping": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Mapping",
+            "type": "object"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "mapping"
+        ],
+        "title": "DesignExampleColorway",
+        "type": "object"
+      },
       "DesignExampleOut": {
         "properties": {
           "caption": {
@@ -7137,13 +5949,96 @@
             ],
             "title": "Caption"
           },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "colorways": {
+            "items": {
+              "$ref": "#/components/schemas/DesignExampleColorway"
+            },
+            "title": "Colorways",
+            "type": "array"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
             "type": "string"
           },
+          "logo_in_panel": {
+            "default": false,
+            "title": "Logo In Panel",
+            "type": "boolean"
+          },
+          "logo_preview_svg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Preview Svg"
+          },
+          "logo_slots": {
+            "items": {
+              "$ref": "#/components/schemas/DesignLogoSlotOut"
+            },
+            "title": "Logo Slots",
+            "type": "array"
+          },
           "name": {
             "title": "Name",
+            "type": "string"
+          },
+          "panel_svg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Panel Svg"
+          },
+          "photo_detail_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Detail Url"
+          },
+          "photo_full_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Full Url"
+          },
+          "point": {
+            "enum": [
+              "none",
+              "top",
+              "bottom"
+            ],
+            "title": "Point",
             "type": "string"
           },
           "preview_svg": {
@@ -7155,7 +6050,14 @@
           "id",
           "name",
           "caption",
-          "preview_svg"
+          "preview_svg",
+          "category",
+          "point",
+          "logo_slots",
+          "photo_full_url",
+          "photo_detail_url",
+          "logo_preview_svg",
+          "colorways"
         ],
         "title": "DesignExampleOut",
         "type": "object"
@@ -7175,101 +6077,6 @@
         "title": "DesignExampleStartRequest",
         "type": "object"
       },
-      "DesignExportRequest": {
-        "description": "SVG → PNG/TIFF 형식 변환 — 이미 생성된 디자인의 재출력이라 토큰 과금 없음.\n\ndpi·치수 상한은 워커가 최종 권위(WorkerRequestError로 detail 전파) — 여기서\n중복 선언하면 KNOWN_WEAVES처럼 드리프트 위험이라 구조 검증만 한다.",
-        "properties": {
-          "dpi": {
-            "default": 300,
-            "minimum": 1.0,
-            "title": "Dpi",
-            "type": "integer"
-          },
-          "format": {
-            "default": "png",
-            "enum": [
-              "png",
-              "tiff"
-            ],
-            "title": "Format",
-            "type": "string"
-          },
-          "height_mm": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Height Mm"
-          },
-          "session_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Session Id"
-          },
-          "svg": {
-            "maxLength": 2000000,
-            "title": "Svg",
-            "type": "string"
-          },
-          "width_mm": {
-            "exclusiveMinimum": 0.0,
-            "title": "Width Mm",
-            "type": "number"
-          }
-        },
-        "required": [
-          "svg",
-          "width_mm"
-        ],
-        "title": "DesignExportRequest",
-        "type": "object"
-      },
-      "DesignFinalizeTurnPayload": {
-        "additionalProperties": false,
-        "properties": {
-          "job_id": {
-            "format": "uuid",
-            "title": "Job Id",
-            "type": "string"
-          },
-          "production_method": {
-            "maxLength": 100,
-            "minLength": 1,
-            "title": "Production Method",
-            "type": "string"
-          },
-          "type": {
-            "const": "finalize",
-            "default": "finalize",
-            "title": "Type",
-            "type": "string"
-          },
-          "weave": {
-            "maxLength": 100,
-            "minLength": 1,
-            "title": "Weave",
-            "type": "string"
-          }
-        },
-        "required": [
-          "job_id",
-          "production_method",
-          "weave"
-        ],
-        "title": "DesignFinalizeTurnPayload",
-        "type": "object"
-      },
       "DesignGenerateOut": {
         "properties": {
           "design": {
@@ -7278,27 +6085,6 @@
           "engine_version": {
             "title": "Engine Version",
             "type": "string"
-          },
-          "motif_intent": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/MotifIntentOut"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
           },
           "registry_version": {
             "title": "Registry Version",
@@ -7332,199 +6118,69 @@
         "title": "DesignGenerateOut",
         "type": "object"
       },
-      "DesignGenerateRejectedOut": {
-        "description": "구성 수정으로 표현할 수 없는 요청 — 토큰·턴 없이 끝나고 피커 안내만 붙는다.",
+      "DesignLogoPlaceRequest": {
         "properties": {
-          "motif_intent": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/MotifIntentOut"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
           },
-          "reason": {
+          "slot": {
             "anyOf": [
               {
                 "enum": [
-                  "motif_change",
-                  "motif_recolor",
-                  "motif_position",
-                  "target_missing",
-                  "no_change"
-                ],
-                "type": "string"
+                  1,
+                  2,
+                  "logo"
+                ]
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Reason"
+            "title": "Slot"
           },
-          "rejected": {
-            "const": "motif",
-            "title": "Rejected",
+          "svg": {
+            "maxLength": 2000000,
+            "title": "Svg",
             "type": "string"
           }
         },
         "required": [
-          "rejected"
+          "name",
+          "svg"
         ],
-        "title": "DesignGenerateRejectedOut",
+        "title": "DesignLogoPlaceRequest",
         "type": "object"
       },
-      "DesignGenerateRequest": {
-        "additionalProperties": false,
+      "DesignLogoSlotOut": {
+        "description": "템플릿의 로고 자리 하나 — 1|2는 intent 모티프 레이어 순서, \"logo\"는 배치형 포인트 로고.",
         "properties": {
-          "colorway": {
+          "label": {
             "anyOf": [
               {
-                "maxLength": 100,
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Colorway"
+            "title": "Label"
           },
-          "prompt": {
-            "anyOf": [
-              {
-                "maxLength": 4000,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Prompt"
-          },
-          "seed": {
-            "anyOf": [
-              {
-                "maximum": 9.223372036854776e+18,
-                "minimum": -9.223372036854776e+18,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Seed"
-          },
-          "session_id": {
-            "format": "uuid",
-            "title": "Session Id",
-            "type": "string"
-          },
-          "user_motif_ids": {
-            "items": {
-              "format": "uuid",
-              "type": "string"
-            },
-            "maxItems": 2,
-            "title": "User Motif Ids",
-            "type": "array"
-          }
-        },
-        "required": [
-          "session_id"
-        ],
-        "title": "DesignGenerateRequest",
-        "type": "object"
-      },
-      "DesignIdeasOut": {
-        "properties": {
-          "ideas": {
-            "items": {
-              "maxLength": 180,
-              "type": "string"
-            },
-            "maxItems": 4,
-            "minItems": 3,
-            "title": "Ideas",
-            "type": "array"
-          }
-        },
-        "required": [
-          "ideas"
-        ],
-        "title": "DesignIdeasOut",
-        "type": "object"
-      },
-      "DesignIdeasRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "count": {
-            "default": 4,
+          "slot": {
             "enum": [
-              3,
-              4
+              1,
+              2,
+              "logo"
             ],
-            "title": "Count",
-            "type": "integer"
-          },
-          "prompt": {
-            "default": "",
-            "maxLength": 4000,
-            "title": "Prompt",
-            "type": "string"
-          },
-          "user_motif_ids": {
-            "items": {
-              "format": "uuid",
-              "type": "string"
-            },
-            "maxItems": 2,
-            "title": "User Motif Ids",
-            "type": "array"
-          }
-        },
-        "title": "DesignIdeasRequest",
-        "type": "object"
-      },
-      "DesignOrderReferenceItem": {
-        "properties": {
-          "object_key": {
-            "title": "Object Key",
-            "type": "string"
-          },
-          "upload_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Upload Id"
+            "title": "Slot"
           }
         },
         "required": [
-          "object_key"
+          "slot"
         ],
-        "title": "DesignOrderReferenceItem",
-        "type": "object"
-      },
-      "DesignOrderReferenceOut": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/DesignOrderReferenceItem"
-            },
-            "title": "Items",
-            "type": "array"
-          }
-        },
-        "required": [
-          "items"
-        ],
-        "title": "DesignOrderReferenceOut",
+        "title": "DesignLogoSlotOut",
         "type": "object"
       },
       "DesignOut": {
@@ -7540,6 +6196,17 @@
           "layout_id": {
             "title": "Layout Id",
             "type": "string"
+          },
+          "panel_svg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Panel Svg"
           },
           "png_object_key": {
             "anyOf": [
@@ -7672,24 +6339,24 @@
             "title": "Current Motifs",
             "type": "array"
           },
-          "current_plan": {
+          "example_id": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "format": "uuid",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Current Plan"
+            "title": "Example Id"
           },
           "id": {
             "format": "uuid",
             "title": "Id",
             "type": "string"
           },
-          "last_prompt": {
+          "preview_panel_svg": {
             "anyOf": [
               {
                 "type": "string"
@@ -7698,7 +6365,7 @@
                 "type": "null"
               }
             ],
-            "title": "Last Prompt"
+            "title": "Preview Panel Svg"
           },
           "preview_svg": {
             "anyOf": [
@@ -7750,7 +6417,6 @@
           "colorway",
           "registry_version",
           "current_intent",
-          "current_plan",
           "context_version",
           "active_generation_id",
           "active_generation_started_at",
@@ -7758,102 +6424,6 @@
           "updated_at"
         ],
         "title": "DesignSessionOut",
-        "type": "object"
-      },
-      "DesignStepActivateRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "run_id": {
-            "format": "uuid",
-            "title": "Run Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "run_id"
-        ],
-        "title": "DesignStepActivateRequest",
-        "type": "object"
-      },
-      "DesignTurnAttachmentOut": {
-        "properties": {
-          "filename": {
-            "title": "Filename",
-            "type": "string"
-          },
-          "preview_svg": {
-            "title": "Preview Svg",
-            "type": "string"
-          }
-        },
-        "required": [
-          "filename",
-          "preview_svg"
-        ],
-        "title": "DesignTurnAttachmentOut",
-        "type": "object"
-      },
-      "DesignTurnCreateRequest": {
-        "additionalProperties": false,
-        "description": "Only UI-only finalize annotations remain client-authored.\n\nGeneration results and candidate selections mutate session memory, so their\nturns are emitted exclusively by the corresponding server actions.",
-        "properties": {
-          "payload": {
-            "$ref": "#/components/schemas/DesignFinalizeTurnPayload"
-          },
-          "role": {
-            "const": "user",
-            "title": "Role",
-            "type": "string"
-          }
-        },
-        "required": [
-          "role",
-          "payload"
-        ],
-        "title": "DesignTurnCreateRequest",
-        "type": "object"
-      },
-      "DesignTurnOut": {
-        "properties": {
-          "attachments": {
-            "items": {
-              "$ref": "#/components/schemas/DesignTurnAttachmentOut"
-            },
-            "title": "Attachments",
-            "type": "array"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "payload": {
-            "additionalProperties": true,
-            "title": "Payload",
-            "type": "object"
-          },
-          "role": {
-            "title": "Role",
-            "type": "string"
-          },
-          "seq": {
-            "title": "Seq",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "id",
-          "seq",
-          "role",
-          "payload",
-          "created_at"
-        ],
-        "title": "DesignTurnOut",
         "type": "object"
       },
       "DesignWarningOut": {
@@ -7901,161 +6471,8 @@
         "title": "EventFields",
         "type": "object"
       },
-      "FinalizeRequest": {
-        "properties": {
-          "colorway_id": {
-            "anyOf": [
-              {
-                "maxLength": 100,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Colorway Id"
-          },
-          "dpi": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Dpi"
-          },
-          "intent": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Intent"
-          },
-          "material_map": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "maxLength": 100,
-                  "type": "string"
-                },
-                "maxProperties": 100,
-                "propertyNames": {
-                  "maxLength": 100
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Material Map"
-          },
-          "production_method": {
-            "anyOf": [
-              {
-                "maxLength": 100,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Production Method"
-          },
-          "relief_strength": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Relief Strength"
-          },
-          "run_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Run Id"
-          },
-          "texture_strength": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Texture Strength"
-          },
-          "weave": {
-            "anyOf": [
-              {
-                "maxLength": 100,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Weave"
-          }
-        },
-        "title": "FinalizeRequest",
-        "type": "object"
-      },
       "GenerationDiagnosticsOut": {
         "properties": {
-          "authoring_attempts": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Authoring Attempts"
-          },
-          "authoring_ms": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Authoring Ms"
-          },
-          "catalog_candidate_count": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Catalog Candidate Count"
-          },
           "compose_ms": {
             "anyOf": [
               {
@@ -8078,39 +6495,6 @@
             ],
             "title": "Failure Code"
           },
-          "failure_operation": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Failure Operation"
-          },
-          "failure_provider": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Failure Provider"
-          },
-          "failure_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Failure Reason"
-          },
           "failure_stage": {
             "anyOf": [
               {
@@ -8122,23 +6506,10 @@
             ],
             "title": "Failure Stage"
           },
-          "failure_status_code": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Failure Status Code"
-          },
           "mode": {
             "anyOf": [
               {
                 "enum": [
-                  "prompt",
-                  "patch",
                   "variation",
                   "motif_slot"
                 ],
@@ -8150,54 +6521,6 @@
             ],
             "title": "Mode"
           },
-          "model": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Model"
-          },
-          "motif_resolutions": {
-            "items": {
-              "$ref": "#/components/schemas/MotifResolutionOut"
-            },
-            "title": "Motif Resolutions",
-            "type": "array"
-          },
-          "patch": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Patch"
-          },
-          "patch_axes": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Patch Axes",
-            "type": "array"
-          },
-          "prompt_revision": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Prompt Revision"
-          },
           "render_ms": {
             "anyOf": [
               {
@@ -8208,428 +6531,13 @@
               }
             ],
             "title": "Render Ms"
-          },
-          "resolved_count": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resolved Count"
           }
         },
         "title": "GenerationDiagnosticsOut",
         "type": "object"
       },
-      "GenerationJobDetailOut": {
-        "properties": {
-          "attempts": {
-            "title": "Attempts",
-            "type": "integer"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "error_summary": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Summary"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "finalize",
-              "export"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "owner_reference": {
-            "title": "Owner Reference",
-            "type": "string"
-          },
-          "parameter_summary": {
-            "additionalProperties": true,
-            "title": "Parameter Summary",
-            "type": "object"
-          },
-          "request_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Request Id"
-          },
-          "result_available": {
-            "title": "Result Available",
-            "type": "boolean"
-          },
-          "result_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Result Url"
-          },
-          "session_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Session Id"
-          },
-          "status": {
-            "enum": [
-              "queued",
-              "processing",
-              "succeeded",
-              "failed",
-              "canceled"
-            ],
-            "title": "Status",
-            "type": "string"
-          },
-          "updated_at": {
-            "format": "date-time",
-            "title": "Updated At",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "kind",
-          "status",
-          "attempts",
-          "request_id",
-          "result_available",
-          "error_summary",
-          "created_at",
-          "updated_at",
-          "session_id",
-          "owner_reference",
-          "parameter_summary",
-          "result_url"
-        ],
-        "title": "GenerationJobDetailOut",
-        "type": "object"
-      },
-      "GenerationJobOut": {
-        "properties": {
-          "attempts": {
-            "title": "Attempts",
-            "type": "integer"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "error_message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Message"
-          },
-          "fabric_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fabric Url"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "kind": {
-            "title": "Kind",
-            "type": "string"
-          },
-          "params": {
-            "additionalProperties": true,
-            "title": "Params",
-            "type": "object"
-          },
-          "request_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Request Id"
-          },
-          "result": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Result"
-          },
-          "result_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Result Url"
-          },
-          "session_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Session Id"
-          },
-          "status": {
-            "title": "Status",
-            "type": "string"
-          },
-          "tie_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tie Url"
-          },
-          "tile_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tile Url"
-          },
-          "updated_at": {
-            "format": "date-time",
-            "title": "Updated At",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "session_id",
-          "kind",
-          "status",
-          "params",
-          "result",
-          "result_url",
-          "error_message",
-          "request_id",
-          "attempts",
-          "created_at",
-          "updated_at"
-        ],
-        "title": "GenerationJobOut",
-        "type": "object"
-      },
-      "GenerationJobStatsOut": {
-        "properties": {
-          "as_of": {
-            "format": "date-time",
-            "title": "As Of",
-            "type": "string"
-          },
-          "average_attempts": {
-            "title": "Average Attempts",
-            "type": "number"
-          },
-          "canceled": {
-            "title": "Canceled",
-            "type": "integer"
-          },
-          "failed": {
-            "title": "Failed",
-            "type": "integer"
-          },
-          "processing": {
-            "title": "Processing",
-            "type": "integer"
-          },
-          "queued": {
-            "title": "Queued",
-            "type": "integer"
-          },
-          "succeeded": {
-            "title": "Succeeded",
-            "type": "integer"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "total",
-          "queued",
-          "processing",
-          "succeeded",
-          "failed",
-          "canceled",
-          "average_attempts",
-          "as_of"
-        ],
-        "title": "GenerationJobStatsOut",
-        "type": "object"
-      },
-      "GenerationJobSummaryOut": {
-        "properties": {
-          "attempts": {
-            "title": "Attempts",
-            "type": "integer"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "error_summary": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Summary"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "finalize",
-              "export"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "request_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Request Id"
-          },
-          "result_available": {
-            "title": "Result Available",
-            "type": "boolean"
-          },
-          "status": {
-            "enum": [
-              "queued",
-              "processing",
-              "succeeded",
-              "failed",
-              "canceled"
-            ],
-            "title": "Status",
-            "type": "string"
-          },
-          "updated_at": {
-            "format": "date-time",
-            "title": "Updated At",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "kind",
-          "status",
-          "attempts",
-          "request_id",
-          "result_available",
-          "error_summary",
-          "created_at",
-          "updated_at"
-        ],
-        "title": "GenerationJobSummaryOut",
-        "type": "object"
-      },
       "GenerationOutcomeOut": {
         "properties": {
-          "finalized": {
-            "default": false,
-            "title": "Finalized",
-            "type": "boolean"
-          },
-          "reactivated": {
-            "default": false,
-            "title": "Reactivated",
-            "type": "boolean"
-          },
-          "regenerated": {
-            "default": false,
-            "title": "Regenerated",
-            "type": "boolean"
-          },
           "session_id": {
             "anyOf": [
               {
@@ -8667,34 +6575,6 @@
           }
         },
         "title": "GenerationOutcomeOut",
-        "type": "object"
-      },
-      "GenerationTokenAccountingOut": {
-        "properties": {
-          "debited": {
-            "title": "Debited",
-            "type": "integer"
-          },
-          "matched": {
-            "title": "Matched",
-            "type": "boolean"
-          },
-          "net": {
-            "title": "Net",
-            "type": "integer"
-          },
-          "refunded": {
-            "title": "Refunded",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "matched",
-          "debited",
-          "refunded",
-          "net"
-        ],
-        "title": "GenerationTokenAccountingOut",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -9893,31 +7773,6 @@
         "title": "MessageResponse",
         "type": "object"
       },
-      "MotifActivateRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "motif_id": {
-            "maxLength": 100,
-            "minLength": 1,
-            "title": "Motif Id",
-            "type": "string"
-          },
-          "slot": {
-            "enum": [
-              1,
-              2
-            ],
-            "title": "Slot",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "slot",
-          "motif_id"
-        ],
-        "title": "MotifActivateRequest",
-        "type": "object"
-      },
       "MotifDetailOut": {
         "properties": {
           "anchor": {
@@ -9938,17 +7793,6 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
           },
           "id": {
             "title": "Id",
@@ -9978,18 +7822,6 @@
             ],
             "title": "Ingested User Id"
           },
-          "reviewed_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reviewed At"
-          },
           "scope": {
             "anyOf": [
               {
@@ -10003,15 +7835,6 @@
           },
           "source": {
             "title": "Source",
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "pending",
-              "approved",
-              "rejected"
-            ],
-            "title": "Status",
             "type": "string"
           },
           "style": {
@@ -10055,13 +7878,6 @@
               }
             ],
             "title": "Symbol"
-          },
-          "tags": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Tags",
-            "type": "array"
           }
         },
         "required": [
@@ -10070,93 +7886,15 @@
           "scope",
           "style",
           "source",
-          "status",
-          "reviewed_at",
           "created_at",
           "bbox",
           "symbol",
           "svg_status",
-          "description",
-          "tags",
           "anchor",
           "ingested_user_id",
           "ingested_session_id"
         ],
         "title": "MotifDetailOut",
-        "type": "object"
-      },
-      "MotifGenerateOut": {
-        "properties": {
-          "motif": {
-            "$ref": "#/components/schemas/MotifResultOut"
-          },
-          "request_id": {
-            "title": "Request Id",
-            "type": "string"
-          },
-          "saved": {
-            "title": "Saved",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "request_id",
-          "motif",
-          "saved"
-        ],
-        "title": "MotifGenerateOut",
-        "type": "object"
-      },
-      "MotifGenerateRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "prompt": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Prompt",
-            "type": "string"
-          }
-        },
-        "required": [
-          "prompt"
-        ],
-        "title": "MotifGenerateRequest",
-        "type": "object"
-      },
-      "MotifIntentOut": {
-        "description": "현재 응답에서만 소비하는 모티프 피커 안내 sidecar.",
-        "properties": {
-          "detected": {
-            "const": true,
-            "default": true,
-            "title": "Detected",
-            "type": "boolean"
-          },
-          "reason": {
-            "enum": [
-              "motif_mention",
-              "motif_change"
-            ],
-            "title": "Reason",
-            "type": "string"
-          },
-          "subject": {
-            "anyOf": [
-              {
-                "maxLength": 200,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Subject"
-          }
-        },
-        "required": [
-          "reason"
-        ],
-        "title": "MotifIntentOut",
         "type": "object"
       },
       "MotifPreviewOut": {
@@ -10205,218 +7943,6 @@
         "title": "MotifPreviewOut",
         "type": "object"
       },
-      "MotifResolutionOut": {
-        "properties": {
-          "layer_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Layer Id"
-          },
-          "match_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Match Type"
-          },
-          "motif_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Motif Id"
-          },
-          "operation": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Operation"
-          },
-          "outcome": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Outcome"
-          },
-          "provider": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Provider"
-          },
-          "reason_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason Code"
-          },
-          "scope": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Scope"
-          },
-          "similarity": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Similarity"
-          },
-          "status_code": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Status Code"
-          },
-          "subject": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Subject"
-          }
-        },
-        "title": "MotifResolutionOut",
-        "type": "object"
-      },
-      "MotifResultOut": {
-        "description": "모달 카드 하나 — 프론트가 썸네일을 바로 그린다.",
-        "properties": {
-          "current": {
-            "default": false,
-            "title": "Current",
-            "type": "boolean"
-          },
-          "motif_id": {
-            "title": "Motif Id",
-            "type": "string"
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          },
-          "preview_svg": {
-            "title": "Preview Svg",
-            "type": "string"
-          }
-        },
-        "required": [
-          "motif_id",
-          "name",
-          "preview_svg"
-        ],
-        "title": "MotifResultOut",
-        "type": "object"
-      },
-      "MotifReviewRequest": {
-        "properties": {
-          "status": {
-            "enum": [
-              "approved",
-              "rejected"
-            ],
-            "title": "Status",
-            "type": "string"
-          }
-        },
-        "required": [
-          "status"
-        ],
-        "title": "MotifReviewRequest",
-        "type": "object"
-      },
-      "MotifSearchOut": {
-        "properties": {
-          "results": {
-            "items": {
-              "$ref": "#/components/schemas/MotifResultOut"
-            },
-            "title": "Results",
-            "type": "array"
-          }
-        },
-        "required": [
-          "results"
-        ],
-        "title": "MotifSearchOut",
-        "type": "object"
-      },
-      "MotifSearchRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "query": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Query",
-            "type": "string"
-          }
-        },
-        "required": [
-          "query"
-        ],
-        "title": "MotifSearchRequest",
-        "type": "object"
-      },
       "MotifSummaryOut": {
         "properties": {
           "bbox": {
@@ -10435,18 +7961,6 @@
             "title": "Id",
             "type": "string"
           },
-          "reviewed_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reviewed At"
-          },
           "scope": {
             "anyOf": [
               {
@@ -10460,15 +7974,6 @@
           },
           "source": {
             "title": "Source",
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "pending",
-              "approved",
-              "rejected"
-            ],
-            "title": "Status",
             "type": "string"
           },
           "style": {
@@ -10520,8 +8025,6 @@
           "scope",
           "style",
           "source",
-          "status",
-          "reviewed_at",
           "created_at",
           "bbox",
           "symbol",
@@ -10533,17 +8036,6 @@
       "MotifUpdateRequest": {
         "additionalProperties": false,
         "properties": {
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          },
           "style": {
             "anyOf": [
               {
@@ -10569,21 +8061,6 @@
               }
             ],
             "title": "Subject"
-          },
-          "tags": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "maxItems": 24,
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tags"
           }
         },
         "title": "MotifUpdateRequest",
@@ -11714,37 +9191,6 @@
         "title": "Page[AdminCustomerSummaryOut]",
         "type": "object"
       },
-      "Page_AdminCustomerTokenOut_": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/AdminCustomerTokenOut"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "limit": {
-            "title": "Limit",
-            "type": "integer"
-          },
-          "offset": {
-            "title": "Offset",
-            "type": "integer"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "total",
-          "limit",
-          "offset"
-        ],
-        "title": "Page[AdminCustomerTokenOut]",
-        "type": "object"
-      },
       "Page_AdminInquirySummaryOut_": {
         "properties": {
           "items": {
@@ -11869,68 +9315,6 @@
         "title": "Page[AdminQuoteSummaryOut]",
         "type": "object"
       },
-      "Page_AuthoringCandidateSummaryOut_": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/AuthoringCandidateSummaryOut"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "limit": {
-            "title": "Limit",
-            "type": "integer"
-          },
-          "offset": {
-            "title": "Offset",
-            "type": "integer"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "total",
-          "limit",
-          "offset"
-        ],
-        "title": "Page[AuthoringCandidateSummaryOut]",
-        "type": "object"
-      },
-      "Page_AuthoringExampleSummaryOut_": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/AuthoringExampleSummaryOut"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "limit": {
-            "title": "Limit",
-            "type": "integer"
-          },
-          "offset": {
-            "title": "Offset",
-            "type": "integer"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "total",
-          "limit",
-          "offset"
-        ],
-        "title": "Page[AuthoringExampleSummaryOut]",
-        "type": "object"
-      },
       "Page_CouponAudienceCustomerOut_": {
         "properties": {
           "items": {
@@ -11960,37 +9344,6 @@
           "offset"
         ],
         "title": "Page[CouponAudienceCustomerOut]",
-        "type": "object"
-      },
-      "Page_GenerationJobSummaryOut_": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/GenerationJobSummaryOut"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "limit": {
-            "title": "Limit",
-            "type": "integer"
-          },
-          "offset": {
-            "title": "Offset",
-            "type": "integer"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "total",
-          "limit",
-          "offset"
-        ],
-        "title": "Page[GenerationJobSummaryOut]",
         "type": "object"
       },
       "Page_IssuedCouponOut_": {
@@ -12219,17 +9572,6 @@
             "default": true,
             "title": "Success",
             "type": "boolean"
-          },
-          "token_amount": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Token Amount"
           }
         },
         "required": [
@@ -13024,7 +10366,7 @@
             "items": {
               "$ref": "#/components/schemas/PricingUpdateItem"
             },
-            "maxItems": 33,
+            "maxItems": 27,
             "minItems": 1,
             "title": "Items",
             "type": "array"
@@ -13068,10 +10410,7 @@
             "type": "string"
           },
           "unit": {
-            "enum": [
-              "원",
-              "개"
-            ],
+            "const": "원",
             "title": "Unit",
             "type": "string"
           },
@@ -14016,78 +11355,6 @@
         "title": "ReformUploadUrlResponse",
         "type": "object"
       },
-      "RefundableTokenOrder": {
-        "properties": {
-          "claim_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Claim Id"
-          },
-          "is_refundable": {
-            "title": "Is Refundable",
-            "type": "boolean"
-          },
-          "order_id": {
-            "format": "uuid",
-            "title": "Order Id",
-            "type": "string"
-          },
-          "order_number": {
-            "title": "Order Number",
-            "type": "string"
-          },
-          "paid_tokens_granted": {
-            "title": "Paid Tokens Granted",
-            "type": "integer"
-          },
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason"
-          },
-          "token_expires_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Token Expires At"
-          },
-          "total_price": {
-            "title": "Total Price",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "order_id",
-          "order_number",
-          "total_price",
-          "paid_tokens_granted",
-          "token_expires_at",
-          "is_refundable",
-          "reason",
-          "claim_id"
-        ],
-        "title": "RefundableTokenOrder",
-        "type": "object"
-      },
       "RepairNoTrackingRequest": {
         "properties": {
           "memo": {
@@ -14810,10 +12077,6 @@
             ],
             "title": "Generate Ms"
           },
-          "has_prompt": {
-            "title": "Has Prompt",
-            "type": "boolean"
-          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -14837,17 +12100,6 @@
           },
           "outcome": {
             "$ref": "#/components/schemas/GenerationOutcomeOut"
-          },
-          "prompt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Prompt"
           },
           "registry_version": {
             "anyOf": [
@@ -14902,9 +12154,6 @@
             "title": "Status",
             "type": "string"
           },
-          "token_accounting": {
-            "$ref": "#/components/schemas/GenerationTokenAccountingOut"
-          },
           "warning_count": {
             "title": "Warning Count",
             "type": "integer"
@@ -14932,14 +12181,11 @@
           "failure_code",
           "failure_stage",
           "created_at",
-          "has_prompt",
-          "prompt",
           "intent",
           "seed",
           "warning_groups",
           "diagnostics",
           "outcome",
-          "token_accounting",
           "design"
         ],
         "title": "SeamlessDetailOut",
@@ -15192,14 +12438,7 @@
             "type": "string"
           },
           "key": {
-            "enum": [
-              "default_courier_company",
-              "design_edit_cost",
-              "design_finalize_cost",
-              "design_motif_generate_cost",
-              "design_token_cost_openai_render_standard",
-              "design_token_initial_grant"
-            ],
+            "const": "default_courier_company",
             "title": "Key",
             "type": "string"
           },
@@ -15223,7 +12462,7 @@
             "items": {
               "$ref": "#/components/schemas/SettingUpdateItem"
             },
-            "maxItems": 6,
+            "maxItems": 1,
             "minItems": 1,
             "title": "Items",
             "type": "array"
@@ -15450,299 +12689,6 @@
         "title": "SingleOrderCreateResponse",
         "type": "object"
       },
-      "TextMotifPreviewRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "font_id": {
-            "default": "nanum-gothic",
-            "enum": [
-              "nanum-gothic",
-              "nanum-myeongjo"
-            ],
-            "title": "Font Id",
-            "type": "string"
-          },
-          "font_weight": {
-            "default": 400,
-            "enum": [
-              400,
-              700
-            ],
-            "title": "Font Weight",
-            "type": "integer"
-          },
-          "letter_spacing": {
-            "default": 0,
-            "maximum": 1.0,
-            "minimum": -0.2,
-            "title": "Letter Spacing",
-            "type": "number"
-          },
-          "text": {
-            "maxLength": 20,
-            "minLength": 1,
-            "title": "Text",
-            "type": "string"
-          }
-        },
-        "required": [
-          "text"
-        ],
-        "title": "TextMotifPreviewRequest",
-        "type": "object"
-      },
-      "TokenBalance": {
-        "properties": {
-          "bonus": {
-            "title": "Bonus",
-            "type": "integer"
-          },
-          "edit_cost": {
-            "title": "Edit Cost",
-            "type": "integer"
-          },
-          "finalize_cost": {
-            "title": "Finalize Cost",
-            "type": "integer"
-          },
-          "generate_cost": {
-            "title": "Generate Cost",
-            "type": "integer"
-          },
-          "motif_generate_cost": {
-            "title": "Motif Generate Cost",
-            "type": "integer"
-          },
-          "paid": {
-            "title": "Paid",
-            "type": "integer"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "total",
-          "paid",
-          "bonus",
-          "generate_cost",
-          "edit_cost",
-          "motif_generate_cost",
-          "finalize_cost"
-        ],
-        "title": "TokenBalance",
-        "type": "object"
-      },
-      "TokenHistoryEntry": {
-        "properties": {
-          "amount": {
-            "title": "Amount",
-            "type": "integer"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          },
-          "expires_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expires At"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "source_order_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Order Id"
-          },
-          "token_class": {
-            "enum": [
-              "paid",
-              "bonus",
-              "free"
-            ],
-            "title": "Token Class",
-            "type": "string"
-          },
-          "type": {
-            "enum": [
-              "grant",
-              "use",
-              "refund",
-              "admin",
-              "purchase"
-            ],
-            "title": "Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "amount",
-          "type",
-          "token_class",
-          "description",
-          "source_order_id",
-          "expires_at",
-          "created_at"
-        ],
-        "title": "TokenHistoryEntry",
-        "type": "object"
-      },
-      "TokenOrderCreateRequest": {
-        "properties": {
-          "plan_key": {
-            "enum": [
-              "starter",
-              "popular",
-              "pro"
-            ],
-            "title": "Plan Key",
-            "type": "string"
-          }
-        },
-        "required": [
-          "plan_key"
-        ],
-        "title": "TokenOrderCreateRequest",
-        "type": "object"
-      },
-      "TokenOrderCreateResponse": {
-        "properties": {
-          "order_id": {
-            "format": "uuid",
-            "title": "Order Id",
-            "type": "string"
-          },
-          "order_number": {
-            "title": "Order Number",
-            "type": "string"
-          },
-          "payment_group_id": {
-            "format": "uuid",
-            "title": "Payment Group Id",
-            "type": "string"
-          },
-          "price": {
-            "title": "Price",
-            "type": "integer"
-          },
-          "token_amount": {
-            "title": "Token Amount",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "order_id",
-          "order_number",
-          "payment_group_id",
-          "price",
-          "token_amount"
-        ],
-        "title": "TokenOrderCreateResponse",
-        "type": "object"
-      },
-      "TokenPlan": {
-        "properties": {
-          "plan_key": {
-            "title": "Plan Key",
-            "type": "string"
-          },
-          "price": {
-            "title": "Price",
-            "type": "integer"
-          },
-          "token_amount": {
-            "title": "Token Amount",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "plan_key",
-          "price",
-          "token_amount"
-        ],
-        "title": "TokenPlan",
-        "type": "object"
-      },
-      "TokenRefundRequestIn": {
-        "properties": {
-          "order_id": {
-            "format": "uuid",
-            "title": "Order Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "order_id"
-        ],
-        "title": "TokenRefundRequestIn",
-        "type": "object"
-      },
-      "TokenRefundRequestOut": {
-        "properties": {
-          "bonus_token_amount": {
-            "title": "Bonus Token Amount",
-            "type": "integer"
-          },
-          "claim_id": {
-            "format": "uuid",
-            "title": "Claim Id",
-            "type": "string"
-          },
-          "claim_number": {
-            "title": "Claim Number",
-            "type": "string"
-          },
-          "paid_token_amount": {
-            "title": "Paid Token Amount",
-            "type": "integer"
-          },
-          "refund_amount": {
-            "title": "Refund Amount",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "claim_id",
-          "claim_number",
-          "refund_amount",
-          "paid_token_amount",
-          "bonus_token_amount"
-        ],
-        "title": "TokenRefundRequestOut",
-        "type": "object"
-      },
       "TokenResponse": {
         "properties": {
           "access_token": {
@@ -15948,62 +12894,6 @@
         "title": "UserCouponOut",
         "type": "object"
       },
-      "UserMotifImportRequest": {
-        "properties": {
-          "name": {
-            "maxLength": 100,
-            "minLength": 1,
-            "title": "Name",
-            "type": "string"
-          },
-          "svg": {
-            "maxLength": 2000000,
-            "title": "Svg",
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "svg"
-        ],
-        "title": "UserMotifImportRequest",
-        "type": "object"
-      },
-      "UserMotifOut": {
-        "properties": {
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "motif_id": {
-            "title": "Motif Id",
-            "type": "string"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "preview_svg": {
-            "title": "Preview Svg",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "motif_id",
-          "name",
-          "preview_svg",
-          "created_at"
-        ],
-        "title": "UserMotifOut",
-        "type": "object"
-      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -16119,705 +13009,6 @@
   },
   "openapi": "3.1.0",
   "paths": {
-    "/admin/authoring/candidates": {
-      "get": {
-        "operationId": "list_authoring_candidates",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "status",
-            "required": false,
-            "schema": {
-              "default": "pending",
-              "enum": [
-                "all",
-                "pending",
-                "hold",
-                "rejected",
-                "approved",
-                "duplicate",
-                "invalid"
-              ],
-              "title": "Status",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "family",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Family"
-            }
-          },
-          {
-            "in": "query",
-            "name": "q",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "maxLength": 200,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Q"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 20,
-              "maximum": 100,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Page_AuthoringCandidateSummaryOut_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "List Authoring Candidates",
-        "tags": [
-          "admin-authoring"
-        ]
-      }
-    },
-    "/admin/authoring/candidates/{candidate_id}": {
-      "get": {
-        "operationId": "get_authoring_candidate",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "candidate_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Candidate Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuthoringCandidateDetailOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Get Authoring Candidate",
-        "tags": [
-          "admin-authoring"
-        ]
-      }
-    },
-    "/admin/authoring/candidates/{candidate_id}/decision": {
-      "post": {
-        "operationId": "decide_authoring_candidate",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "candidate_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Candidate Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AuthoringCandidateDecisionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuthoringCandidateDetailOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Decide Authoring Candidate",
-        "tags": [
-          "admin-authoring"
-        ]
-      }
-    },
-    "/admin/authoring/examples": {
-      "get": {
-        "operationId": "list_authoring_examples",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "active",
-            "required": false,
-            "schema": {
-              "default": "all",
-              "enum": [
-                "all",
-                "active",
-                "inactive"
-              ],
-              "title": "Active",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "source",
-            "required": false,
-            "schema": {
-              "default": "all",
-              "enum": [
-                "all",
-                "bootstrap",
-                "promoted",
-                "authored"
-              ],
-              "title": "Source",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "family",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Family"
-            }
-          },
-          {
-            "in": "query",
-            "name": "q",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "maxLength": 200,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Q"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 20,
-              "maximum": 100,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Page_AuthoringExampleSummaryOut_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "List Authoring Examples",
-        "tags": [
-          "admin-authoring"
-        ]
-      },
-      "post": {
-        "operationId": "create_authoring_example",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AuthoringExampleCreateRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuthoringExampleDetailOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Create Authoring Example",
-        "tags": [
-          "admin-authoring"
-        ]
-      }
-    },
-    "/admin/authoring/examples/preview-batch": {
-      "get": {
-        "description": "목록 페이지의 타일 프리뷰를 한 번에 렌더한다.\n\n행마다 요청을 쏘면 페이지 크기 100에서 워커 렌더 101건이 동시에 몰린다 —\n한 요청으로 모아 렌더 동시성을 제한한다. 결과는 요청 순서를 보존한다.",
-        "operationId": "batch_authoring_example_previews",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "ids",
-            "required": true,
-            "schema": {
-              "items": {
-                "format": "uuid",
-                "type": "string"
-              },
-              "maxItems": 100,
-              "minItems": 1,
-              "title": "Ids",
-              "type": "array"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuthoringExamplePreviewBatchOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Batch Authoring Example Previews",
-        "tags": [
-          "admin-authoring"
-        ]
-      }
-    },
-    "/admin/authoring/examples/{example_id}": {
-      "delete": {
-        "operationId": "delete_authoring_example",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "example_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Example Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AuthoringExampleDeleteRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Delete Authoring Example",
-        "tags": [
-          "admin-authoring"
-        ]
-      },
-      "get": {
-        "operationId": "get_authoring_example",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "example_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Example Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuthoringExampleDetailOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Get Authoring Example",
-        "tags": [
-          "admin-authoring"
-        ]
-      },
-      "patch": {
-        "operationId": "update_authoring_example",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "example_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Example Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AuthoringExampleUpdateRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuthoringExampleDetailOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Update Authoring Example",
-        "tags": [
-          "admin-authoring"
-        ]
-      }
-    },
-    "/admin/authoring/examples/{example_id}/activation": {
-      "post": {
-        "operationId": "set_authoring_example_activation",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "example_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Example Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AuthoringExampleActivationRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuthoringExampleDetailOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Set Authoring Example Activation",
-        "tags": [
-          "admin-authoring"
-        ]
-      }
-    },
-    "/admin/authoring/preview": {
-      "post": {
-        "operationId": "preview_authoring_example",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AuthoringExamplePreviewRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuthoringExamplePreviewOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Preview Authoring Example",
-        "tags": [
-          "admin-authoring"
-        ]
-      }
-    },
     "/admin/capabilities": {
       "get": {
         "operationId": "get_admin_capabilities",
@@ -16906,8 +13097,7 @@
                 "all",
                 "cancel",
                 "return",
-                "exchange",
-                "token_refund"
+                "exchange"
               ],
               "title": "Claim Type",
               "type": "string"
@@ -18223,77 +14413,6 @@
         ]
       }
     },
-    "/admin/customers/{user_id}/tokens": {
-      "get": {
-        "operationId": "list_admin_customer_tokens",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "user_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "User Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 20,
-              "maximum": 100,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Page_AdminCustomerTokenOut_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "List Admin Customer Tokens",
-        "tags": [
-          "admin-customers"
-        ]
-      }
-    },
     "/admin/dashboard/overview": {
       "get": {
         "description": "대시보드 요약·추이·인기 상품 — 같은 기간 파라미터를 쓰는 세 조회를 한 요청으로.",
@@ -18344,7 +14463,6 @@
                 "sale",
                 "custom",
                 "repair",
-                "token",
                 "sample",
                 "manual"
               ],
@@ -18413,7 +14531,6 @@
                 "sale",
                 "custom",
                 "repair",
-                "token",
                 "sample",
                 "manual"
               ],
@@ -18545,51 +14662,6 @@
         "tags": [
           "admin-design-examples"
         ]
-      },
-      "post": {
-        "description": "run 하나를 예시로 등록한다 — 비공개 모티프를 쓰는 run은 공개할 수 없다.",
-        "operationId": "create_admin_design_example",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AdminDesignExampleCreateRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminDesignExampleOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Create Admin Design Example",
-        "tags": [
-          "admin-design-examples"
-        ]
       }
     },
     "/admin/design/examples/{example_id}": {
@@ -18686,375 +14758,6 @@
         "summary": "Update Admin Design Example",
         "tags": [
           "admin-design-examples"
-        ]
-      }
-    },
-    "/admin/generation/jobs": {
-      "get": {
-        "operationId": "list_admin_generation_jobs",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "job_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Job Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "kind",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "finalize",
-                    "export"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Kind"
-            }
-          },
-          {
-            "in": "query",
-            "name": "status",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "queued",
-                    "processing",
-                    "succeeded",
-                    "failed",
-                    "canceled"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Status"
-            }
-          },
-          {
-            "in": "query",
-            "name": "user_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "User Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "start",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date-time",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Start"
-            }
-          },
-          {
-            "in": "query",
-            "name": "end",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date-time",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "End"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 20,
-              "maximum": 100,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Page_GenerationJobSummaryOut_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "List Admin Generation Jobs",
-        "tags": [
-          "admin-generation"
-        ]
-      }
-    },
-    "/admin/generation/jobs/stats": {
-      "get": {
-        "operationId": "get_admin_generation_job_stats",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "job_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Job Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "kind",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "finalize",
-                    "export"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Kind"
-            }
-          },
-          {
-            "in": "query",
-            "name": "status",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "queued",
-                    "processing",
-                    "succeeded",
-                    "failed",
-                    "canceled"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Status"
-            }
-          },
-          {
-            "in": "query",
-            "name": "user_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "User Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "start",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date-time",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Start"
-            }
-          },
-          {
-            "in": "query",
-            "name": "end",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date-time",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "End"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GenerationJobStatsOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Get Admin Generation Job Stats",
-        "tags": [
-          "admin-generation"
-        ]
-      }
-    },
-    "/admin/generation/jobs/{job_id}": {
-      "get": {
-        "operationId": "get_admin_generation_job",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "job_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Job Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GenerationJobDetailOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Get Admin Generation Job",
-        "tags": [
-          "admin-generation"
         ]
       }
     },
@@ -20155,22 +15858,6 @@
         "parameters": [
           {
             "in": "query",
-            "name": "status",
-            "required": false,
-            "schema": {
-              "default": "pending",
-              "enum": [
-                "all",
-                "pending",
-                "approved",
-                "rejected"
-              ],
-              "title": "Status",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
             "name": "scope",
             "required": false,
             "schema": {
@@ -20417,63 +16104,6 @@
         ]
       }
     },
-    "/admin/motifs/{motif_id}/review": {
-      "post": {
-        "operationId": "review_admin_motif",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "motif_id",
-            "required": true,
-            "schema": {
-              "title": "Motif Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MotifReviewRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MotifDetailOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Review Admin Motif",
-        "tags": [
-          "admin-generation"
-        ]
-      }
-    },
     "/admin/orders": {
       "get": {
         "operationId": "list_all_orders",
@@ -20489,7 +16119,6 @@
                 "sale",
                 "custom",
                 "repair",
-                "token",
                 "sample"
               ],
               "title": "Order Type",
@@ -22843,102 +18472,6 @@
         ]
       }
     },
-    "/admin/token-refunds/{claim_id}/approve": {
-      "post": {
-        "operationId": "admin_approve_token_refund",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "claim_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Claim Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Admin Approve Token Refund",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Admin Approve Token Refund",
-        "tags": [
-          "tokens"
-        ]
-      }
-    },
-    "/admin/tokens/manage": {
-      "post": {
-        "operationId": "admin_manage_tokens",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AdminTokenManageRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminTokenManageResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Admin Manage Tokens",
-        "tags": [
-          "tokens"
-        ]
-      }
-    },
     "/auth/admin/login": {
       "post": {
         "operationId": "admin_login",
@@ -23210,32 +18743,6 @@
         ]
       }
     },
-    "/batch/authoring-promotion-candidates": {
-      "post": {
-        "operationId": "authoring_promotion_candidates",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuthoringPromotionBatchResult"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Authoring Promotion Candidates",
-        "tags": [
-          "batch"
-        ]
-      }
-    },
     "/batch/auto-confirm-orders": {
       "post": {
         "description": "배송완료/배송중 7일 경과 주문 자동 구매확정 (활성 클레임 제외).",
@@ -23312,33 +18819,6 @@
           }
         ],
         "summary": "Cleanup Images",
-        "tags": [
-          "batch"
-        ]
-      }
-    },
-    "/batch/recover-token-works": {
-      "post": {
-        "description": "기한이 지난 미완료 차감을 환불한다 — 프로세스 중단 복구 (money.md §6).\n\n대상은 api가 남긴 pending 기록뿐이다 — 기록 없는 오래된 차감은 자동 환불하지 않는다.\n외부 호출은 재실행하지 않으며, 회수 불가능한 provider 비용은 서비스가 부담한다.",
-        "operationId": "recover_token_works",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BatchResult"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Recover Token Works",
         "tags": [
           "batch"
         ]
@@ -23713,485 +19193,6 @@
         ]
       }
     },
-    "/design/export": {
-      "post": {
-        "description": "디자인 SVG를 PNG/TIFF로 변환해 바이너리로 반환 (워커 /export 프록시, 과금 없음).",
-        "operationId": "export_design",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DesignExportRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Export Design",
-        "tags": [
-          "design"
-        ]
-      }
-    },
-    "/design/generate": {
-      "post": {
-        "operationId": "generate_design",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DesignGenerateRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/DesignGenerateOut"
-                    },
-                    {
-                      "$ref": "#/components/schemas/DesignGenerateRejectedOut"
-                    }
-                  ],
-                  "title": "Response Generate Design"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Generate Design",
-        "tags": [
-          "design"
-        ]
-      }
-    },
-    "/design/ideas": {
-      "post": {
-        "description": "현재 작성 문맥만 전송하는 무과금 helper. 세션 턴과 토큰 원장에는 기록하지 않는다.",
-        "operationId": "create_design_ideas",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DesignIdeasRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DesignIdeasOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Create Design Ideas",
-        "tags": [
-          "design"
-        ]
-      }
-    },
-    "/design/jobs": {
-      "get": {
-        "operationId": "list_generation_jobs",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "kind",
-            "required": false,
-            "schema": {
-              "default": "finalize",
-              "enum": [
-                "finalize",
-                "export"
-              ],
-              "title": "Kind",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "status",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "queued",
-                    "processing",
-                    "succeeded",
-                    "failed",
-                    "canceled"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Status"
-            }
-          },
-          {
-            "in": "query",
-            "name": "session_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 20,
-              "maximum": 100,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/GenerationJobOut"
-                  },
-                  "title": "Response List Generation Jobs",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "List Generation Jobs",
-        "tags": [
-          "design"
-        ]
-      }
-    },
-    "/design/jobs/{job_id}": {
-      "delete": {
-        "description": "완성본을 삭제한다 — 동기 전환 후 잡은 항상 종결 상태다(성공만 기록).\n\n주문은 산출물을 복사본(Image)으로 참조하므로 삭제와 무관하다. 토큰은 이미\n소모된 것 — 삭제해도 환불하지 않는다(결과물은 이미 제공됐다).",
-        "operationId": "delete_generation_job",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "job_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Job Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Delete Generation Job",
-        "tags": [
-          "design"
-        ]
-      }
-    },
-    "/design/jobs/{job_id}/order-reference": {
-      "post": {
-        "description": "소유한 finalize 결과를 주문 첨부용 비공개 객체로 가져온다.\n\nfinalize 1건은 파일 2개(넥타이 실사 + 정본 타일)를 남긴다 — 화면은 여전히 카드\n1개로 본다(DesignOrderReferenceOut 주석).",
-        "operationId": "create_design_order_reference",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "job_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Job Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "kind",
-            "required": false,
-            "schema": {
-              "default": "custom_order",
-              "enum": [
-                "custom_order",
-                "quote_request"
-              ],
-              "title": "Kind",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DesignOrderReferenceOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Create Design Order Reference",
-        "tags": [
-          "design"
-        ]
-      }
-    },
-    "/design/motifs": {
-      "get": {
-        "operationId": "list_user_motifs",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 20,
-              "maximum": 100,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/UserMotifOut"
-                  },
-                  "title": "Response List User Motifs",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "List User Motifs",
-        "tags": [
-          "design"
-        ]
-      },
-      "post": {
-        "operationId": "import_user_motif",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UserMotifImportRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UserMotifOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Import User Motif",
-        "tags": [
-          "design"
-        ]
-      }
-    },
     "/design/motifs/photo-preview": {
       "post": {
         "operationId": "preview_photo_motif",
@@ -24233,147 +19234,6 @@
           }
         ],
         "summary": "Preview Photo Motif",
-        "tags": [
-          "design"
-        ]
-      }
-    },
-    "/design/motifs/text-preview": {
-      "post": {
-        "operationId": "preview_text_motif",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TextMotifPreviewRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MotifPreviewOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Preview Text Motif",
-        "tags": [
-          "design"
-        ]
-      }
-    },
-    "/design/motifs/{user_motif_id}": {
-      "delete": {
-        "operationId": "delete_user_motif",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "user_motif_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "User Motif Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Delete User Motif",
-        "tags": [
-          "design"
-        ]
-      }
-    },
-    "/design/sessions": {
-      "get": {
-        "operationId": "list_design_sessions",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/DesignSessionOut"
-                  },
-                  "title": "Response List Design Sessions",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "List Design Sessions",
-        "tags": [
-          "design"
-        ]
-      },
-      "post": {
-        "operationId": "create_design_session",
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DesignSessionOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Create Design Session",
         "tags": [
           "design"
         ]
@@ -24427,46 +19287,6 @@
       }
     },
     "/design/sessions/{session_id}": {
-      "delete": {
-        "description": "세션과 턴 이력을 삭제한다. finalize 결과물은 독립 소유라 남긴다.",
-        "operationId": "delete_design_session",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "session_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Session Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Delete Design Session",
-        "tags": [
-          "design"
-        ]
-      },
       "get": {
         "operationId": "get_design_session",
         "parameters": [
@@ -24514,9 +19334,10 @@
         ]
       }
     },
-    "/design/sessions/{session_id}/finalize": {
+    "/design/sessions/{session_id}/logo": {
       "post": {
-        "operationId": "create_finalize_job",
+        "description": "로고 한 번에 넣기 — 내 모티프 저장(멱등) + 로고 슬롯 교체 재렌더. 무과금.\n\n자리는 템플릿의 `logo_slots` 중 하나(`slot`, 생략하면 첫 자리)다. 템플릿이 자리를\n정하지 않았으면 서버 규칙 한 자리: 배치형(panel) 포인트 로고가 있으면 `\"logo\"`, 모티프\n레이어가 둘이면 2, 아니면 1.",
+        "operationId": "place_design_logo",
         "parameters": [
           {
             "in": "path",
@@ -24533,66 +19354,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/FinalizeRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GenerationJobOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Create Finalize Job",
-        "tags": [
-          "design"
-        ]
-      }
-    },
-    "/design/sessions/{session_id}/motifs/activate": {
-      "post": {
-        "description": "모티프 슬롯 교체 — 모티프 id만 바뀐 결정론 재렌더라 모델 호출도 과금도 없다.",
-        "operationId": "activate_motif",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "session_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Session Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MotifActivateRequest"
+                "$ref": "#/components/schemas/DesignLogoPlaceRequest"
               }
             }
           },
@@ -24625,290 +19387,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Activate Motif",
-        "tags": [
-          "design"
-        ]
-      }
-    },
-    "/design/sessions/{session_id}/motifs/generate": {
-      "post": {
-        "operationId": "generate_motif",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "session_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Session Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MotifGenerateRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MotifGenerateOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Generate Motif",
-        "tags": [
-          "design"
-        ]
-      }
-    },
-    "/design/sessions/{session_id}/motifs/search": {
-      "post": {
-        "description": "문장으로 카탈로그를 찾는다 — 워커가 이미지를 생성하지 않으므로 무과금.",
-        "operationId": "search_motifs",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "session_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Session Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MotifSearchRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MotifSearchOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Search Motifs",
-        "tags": [
-          "design"
-        ]
-      }
-    },
-    "/design/sessions/{session_id}/steps/activate": {
-      "post": {
-        "operationId": "activate_design_step",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "session_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Session Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DesignStepActivateRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DesignSessionOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Activate Design Step",
-        "tags": [
-          "design"
-        ]
-      }
-    },
-    "/design/sessions/{session_id}/turns": {
-      "get": {
-        "operationId": "list_design_turns",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "session_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Session Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/DesignTurnOut"
-                  },
-                  "title": "Response List Design Turns",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "List Design Turns",
-        "tags": [
-          "design"
-        ]
-      },
-      "post": {
-        "operationId": "append_design_turn",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "session_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Session Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DesignTurnCreateRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DesignTurnOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Append Design Turn",
+        "summary": "Place Design Logo",
         "tags": [
           "design"
         ]
@@ -25543,9 +20022,8 @@
                 {
                   "enum": [
                     "sale",
-                    "custom",
                     "repair",
-                    "token",
+                    "custom",
                     "sample"
                   ],
                   "type": "string"
@@ -27211,306 +21689,6 @@
         "summary": "Update Review",
         "tags": [
           "reviews"
-        ]
-      }
-    },
-    "/tokens/balance": {
-      "get": {
-        "operationId": "get_token_balance",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TokenBalance"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Get Token Balance",
-        "tags": [
-          "tokens"
-        ]
-      }
-    },
-    "/tokens/history": {
-      "get": {
-        "operationId": "list_token_history",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "maximum": 100,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "type",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "credit",
-                    "use",
-                    "refund"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Type"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/TokenHistoryEntry"
-                  },
-                  "title": "Response List Token History",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "List Token History",
-        "tags": [
-          "tokens"
-        ]
-      }
-    },
-    "/tokens/orders": {
-      "post": {
-        "operationId": "create_token_order",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TokenOrderCreateRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TokenOrderCreateResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Create Token Order",
-        "tags": [
-          "tokens"
-        ]
-      }
-    },
-    "/tokens/plans": {
-      "get": {
-        "operationId": "get_token_plans",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/TokenPlan"
-                  },
-                  "title": "Response Get Token Plans",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Get Token Plans",
-        "tags": [
-          "tokens"
-        ]
-      }
-    },
-    "/tokens/refund-requests": {
-      "post": {
-        "operationId": "request_token_refund",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TokenRefundRequestIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TokenRefundRequestOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Request Token Refund",
-        "tags": [
-          "tokens"
-        ]
-      }
-    },
-    "/tokens/refund-requests/{claim_id}/cancel": {
-      "post": {
-        "operationId": "cancel_token_refund",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "claim_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Claim Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Cancel Token Refund",
-        "tags": [
-          "tokens"
-        ]
-      }
-    },
-    "/tokens/refundable-orders": {
-      "get": {
-        "operationId": "list_refundable_token_orders",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/RefundableTokenOrder"
-                  },
-                  "title": "Response List Refundable Token Orders",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "List Refundable Token Orders",
-        "tags": [
-          "tokens"
         ]
       }
     },

@@ -71,7 +71,7 @@ export function ProtectedRoute({
       <GuardPage>
         <ContentPlaceholder
           title="접근 권한이 없습니다"
-          description="이 작업에 필요한 관리자 역할이 없습니다."
+          description="이 화면을 볼 권한이 없습니다. 필요하면 관리자에게 요청해 주세요."
         />
       </GuardPage>
     );

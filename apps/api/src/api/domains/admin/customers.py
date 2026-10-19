@@ -6,7 +6,6 @@ from typing import Annotated, Literal
 
 from db.models.auth import User
 from db.models.commerce import Coupon, Order, UserCoupon
-from db.models.tokens import DesignToken
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
@@ -15,7 +14,6 @@ from api.db import SessionDep
 from api.deps import AdminUser
 from api.domains.admin.helpers import kst_day_bounds
 from api.domains.admin.schemas import Page, SortDirection
-from api.domains.tokens import ledger
 from api.errors import DomainError, NotFoundError
 from api.schemas import ORMModel
 
@@ -46,7 +44,6 @@ class AdminCustomerSummaryOut(BaseModel):
     is_active: bool
     phone_verified: bool
     created_at: datetime
-    token_balance: int
     order_count: int
     active_coupon_count: int
 
@@ -57,8 +54,6 @@ class AdminCustomerDetailOut(AdminCustomerSummaryOut):
     notification_enabled: bool
     marketing_kakao_sms_consent: bool
     updated_at: datetime
-    paid_token_balance: int
-    bonus_token_balance: int
 
 
 class AdminCustomerOrderOut(ORMModel):
@@ -80,18 +75,6 @@ class AdminCustomerCouponOut(BaseModel):
     terms_snapshot: dict
     coupon_name: str
     coupon_display_name: str | None
-
-
-class AdminCustomerTokenOut(ORMModel):
-    id: uuid.UUID
-    amount: int
-    type: str
-    token_class: str
-    description: str | None
-    work_id: str | None
-    source_order_id: uuid.UUID | None
-    expires_at: datetime | None
-    created_at: datetime
 
 
 def _customer_filters(status: CustomerStatus):
@@ -117,15 +100,6 @@ def _summary_query(
     start_date: date | None = None,
     end_date: date | None = None,
 ):
-    token_total = (
-        select(func.coalesce(func.sum(DesignToken.amount), 0))
-        .where(
-            DesignToken.user_id == User.id,
-            or_(DesignToken.expires_at.is_(None), DesignToken.expires_at > func.now()),
-        )
-        .correlate(User)
-        .scalar_subquery()
-    )
     order_count = (
         select(func.count(Order.id))
         .where(Order.user_id == User.id)
@@ -144,7 +118,6 @@ def _summary_query(
     )
     query = select(
         User,
-        token_total.label("token_balance"),
         order_count.label("order_count"),
         active_coupon_count.label("active_coupon_count"),
     ).where(*_customer_filters(status))
@@ -193,11 +166,10 @@ async def _customer_page(
                 is_active=user.is_active,
                 phone_verified=user.phone_verified,
                 created_at=user.created_at,
-                token_balance=int(token_balance),
                 order_count=int(order_count),
                 active_coupon_count=int(active_coupon_count),
             )
-            for user, token_balance, order_count, active_coupon_count in rows
+            for user, order_count, active_coupon_count in rows
         ],
         total=total,
         limit=limit,
@@ -250,8 +222,7 @@ async def get_admin_customer(
 ) -> AdminCustomerDetailOut:
     user = await _customer_or_404(session, user_id)
     summary_row = (await session.execute(_summary_query("all").where(User.id == user.id))).one()
-    _, token_total, order_count, active_coupon_count = summary_row
-    balance = await ledger.get_balance(session, user.id)
+    _, order_count, active_coupon_count = summary_row
     return AdminCustomerDetailOut(
         id=user.id,
         email=user.email,
@@ -265,9 +236,6 @@ async def get_admin_customer(
         notification_consent=user.notification_consent,
         notification_enabled=user.notification_enabled,
         marketing_kakao_sms_consent=user.marketing_kakao_sms_consent,
-        token_balance=int(token_total),
-        paid_token_balance=balance["paid"],
-        bonus_token_balance=balance["bonus"],
         order_count=int(order_count),
         active_coupon_count=int(active_coupon_count),
     )
@@ -332,30 +300,6 @@ async def list_admin_customer_coupons(
             )
             for user_coupon, coupon in rows
         ],
-        total=total,
-        limit=limit,
-        offset=offset,
-    )
-
-
-@router.get("/{user_id}/tokens", response_model=Page[AdminCustomerTokenOut])
-async def list_admin_customer_tokens(
-    user_id: uuid.UUID,
-    session: SessionDep,
-    admin: AdminUser,
-    limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = DEFAULT_LIMIT,
-    offset: Annotated[int, Query(ge=0)] = 0,
-) -> Page[AdminCustomerTokenOut]:
-    await _customer_or_404(session, user_id)
-    base = select(DesignToken).where(DesignToken.user_id == user_id)
-    total = int(await session.scalar(select(func.count()).select_from(base.subquery())) or 0)
-    rows = await session.scalars(
-        base.order_by(DesignToken.created_at.desc(), DesignToken.id.desc())
-        .limit(limit)
-        .offset(offset)
-    )
-    return Page(
-        items=[AdminCustomerTokenOut.model_validate(row) for row in rows],
         total=total,
         limit=limit,
         offset=offset,

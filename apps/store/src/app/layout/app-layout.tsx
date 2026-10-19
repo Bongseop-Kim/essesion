@@ -19,7 +19,13 @@ import {
   UserIcon,
 } from "@heroicons/react/24/outline";
 import { type ReactNode, useEffect, useRef } from "react";
-import { Link, Outlet, useLocation, useNavigate } from "react-router";
+import {
+  Link,
+  Outlet,
+  ScrollRestoration,
+  useLocation,
+  useNavigate,
+} from "react-router";
 
 import { AuthGuardProvider } from "@/features/auth/ui/auth-guard-provider";
 import { LogoutButton } from "@/features/auth/ui/logout-button";
@@ -254,9 +260,7 @@ export function AppLayout() {
   const mainRef = useRef<HTMLElement>(null);
   const isPaymentResult = location.pathname.startsWith("/order/payment/");
   const isLogin = location.pathname === "/login";
-  const isImmersive =
-    location.pathname === "/design" || location.pathname === "/design/";
-  const isFocusedRoute = isPaymentResult || isLogin || isImmersive;
+  const isFocusedRoute = isPaymentResult || isLogin;
   // 개인정보가 렌더되는 화면은 세션 리플레이에서 통째로 가린다(규칙은 product-analytics).
   const isPrivateRoute = isReplayMaskedPath(location.pathname);
 
@@ -277,10 +281,7 @@ export function AppLayout() {
 
   return (
     <AuthGuardProvider>
-      <Layout
-        height={isImmersive ? "100dvh" : undefined}
-        overflow={isImmersive ? "hidden" : undefined}
-      >
+      <Layout>
         <Box
           as="a"
           href="#main-content"
@@ -305,8 +306,6 @@ export function AppLayout() {
           ref={mainRef}
           tabIndex={-1}
           flexGrow={1}
-          minHeight={isImmersive ? 0 : undefined}
-          overflow={isImmersive ? "hidden" : undefined}
           display="flex"
           flexDirection="column"
           className={
@@ -316,9 +315,10 @@ export function AppLayout() {
           }
         >
           <Outlet />
+          {/* 쿼리(탭·필터·페이지)만 바뀌면 스크롤을 유지하고 경로가 바뀔 때만 맨 위로 */}
+          <ScrollRestoration getKey={(location) => location.pathname} />
         </Box>
         {isFocusedRoute ? null : <StoreFooter />}
-        {/* 팝업 공지 — 디자인 페이지는 코치마크와 겹치니 띄우지 않는다 */}
         <PopupNoticeModal disabled={isFocusedRoute} />
         <SnackbarHost />
       </Layout>

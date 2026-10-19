@@ -59,10 +59,7 @@ function discountLabel(coupon: AdminCouponOut) {
 function CouponEditLoading() {
   return (
     <VStack gap="x6" alignItems="stretch" aria-busy="true">
-      <RouteHeading
-        title="쿠폰 수정"
-        description="쿠폰 정의를 불러오고 있습니다."
-      />
+      <RouteHeading title="쿠폰 수정" />
       <AdminCard title="쿠폰 정의">
         <VStack gap="x3" alignItems="stretch">
           <Skeleton width="60%" height={24} />
@@ -111,10 +108,10 @@ export function CouponEditPage() {
   if (!canManage) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading title="쿠폰 수정" description="쿠폰 정의를 수정합니다." />
+        <RouteHeading title="쿠폰 수정" />
         <ContentPlaceholder
           title="쿠폰 수정 권한이 없습니다"
-          description="관리자 역할만 쿠폰 정의를 수정할 수 있습니다."
+          description="관리자만 쿠폰을 수정할 수 있습니다."
           action={
             <ActionButton onClick={() => navigate(`/coupons/${couponId}`)}>
               상세로 돌아가기
@@ -129,10 +126,10 @@ export function CouponEditPage() {
   if (query.isError || coupon === undefined || initialDraft === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading title="쿠폰 수정" description="쿠폰 정의를 수정합니다." />
+        <RouteHeading title="쿠폰 수정" />
         <ContentPlaceholder
           title="쿠폰을 불러오지 못했습니다"
-          description="쿠폰 ID를 확인하거나 다시 시도해 주세요."
+          description="주소를 확인하거나 다시 시도해 주세요."
           action={
             <ActionButton onClick={() => void query.refetch()}>
               다시 시도
@@ -167,7 +164,7 @@ export function CouponEditPage() {
           variant="ghost"
           onClick={() => navigate(`/coupons/${coupon.id}`)}
         >
-          상세로
+          상세로 돌아가기
         </ActionButton>
       </HStack>
 
@@ -175,7 +172,7 @@ export function CouponEditPage() {
         initial={initialDraft}
         revision={coupon.updated_at}
         resetSignal={resetSignal}
-        submitLabel="쿠폰 변경 저장"
+        submitLabel="저장"
         pending={mutation.isPending}
         error={mutation.error}
         errorAction={
@@ -185,13 +182,13 @@ export function CouponEditPage() {
               loading={query.isFetching}
               onClick={() => void compareServer()}
             >
-              최신 서버 값 비교
+              최신 내용 보기
             </ActionButton>
             <ActionButton
               variant="ghost"
               onClick={() => setReloadConfirmOpen(true)}
             >
-              서버 값으로 초기화
+              최신 내용으로 되돌리기
             </ActionButton>
           </HStack>
         }
@@ -209,12 +206,12 @@ export function CouponEditPage() {
 
       {showServerComparison && (
         <AdminCard
-          title="현재 서버 값"
-          description={`서버 revision ${coupon.updated_at}`}
+          title="최신 저장 내용"
+          description={`마지막 저장 ${formatDateTime(coupon.updated_at)}`}
         >
           <DetailList
             items={[
-              { label: "이름", value: coupon.name },
+              { label: "쿠폰 이름", value: coupon.name },
               { label: "할인 조건", value: discountLabel(coupon) },
               {
                 label: "최대 할인액",
@@ -230,14 +227,14 @@ export function CouponEditPage() {
       <AlertDialog
         open={reloadConfirmOpen}
         onOpenChange={setReloadConfirmOpen}
-        title="입력한 변경을 서버 값으로 초기화할까요?"
-        description="현재 입력은 사라지고 최신 저장 값으로 돌아갑니다."
+        title="최신 내용으로 되돌릴까요?"
+        description="입력한 내용은 저장되지 않습니다."
         primaryActionProps={{
-          children: "서버 값 불러오기",
+          children: "되돌리기",
           variant: "criticalSolid",
           onClick: () => void resetFromServer(),
         }}
-        secondaryActionProps={{ children: "계속 편집" }}
+        secondaryActionProps={{ children: "계속 작성" }}
       />
     </VStack>
   );

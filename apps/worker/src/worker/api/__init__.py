@@ -1,3 +1,3 @@
-from worker.api.routes import finalize_router, generate_router, router
+from worker.api.routes import router
 
-__all__ = ["finalize_router", "generate_router", "router"]
+__all__ = ["router"]

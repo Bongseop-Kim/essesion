@@ -4,7 +4,6 @@ import uuid
 
 from db.models.design import DesignExample, DesignSessionTurn
 from db.models.seamless import Motif, SeamlessGenerationLog
-from db.models.tokens import DesignToken
 from sqlalchemy import func, select
 
 from .factories import auth_headers, make_admin, make_user
@@ -27,12 +26,19 @@ def _intent(motif_id: str | None = None) -> dict[str, object]:
 
 
 async def _make_run(
-    db_session, *, motif_id: str | None = None, status: str = "success"
+    db_session,
+    *,
+    motif_id: str | None = None,
+    status: str = "success",
+    panel_logo: str | None = None,
 ) -> uuid.UUID:
     intent = _intent(motif_id)
+    if panel_logo is not None:
+        intent["panel"] = [
+            {"type": "motif", "motif_id": panel_logo, "at": [890, 980], "size": 140, "role": "logo"}
+        ]
     log = SeamlessGenerationLog(
-        input_type="prompt",
-        prompt="네이비 도트",
+        input_type="intent",
         registry_version="0.1.0",
         engine_version="0.1.0",
         intent={"design": intent, "resolved_plan": {"colors": ["#10243A"], "layers": []}},
@@ -44,6 +50,7 @@ async def _make_run(
             "seed": 7,
             "svg": _SVG,
             "png_object_key": None,
+            "panel_svg": _SVG if panel_logo is not None else None,
             "intent": intent,
         },
         status=status,
@@ -61,9 +68,15 @@ async def _make_example(
     caption="네이비 · 대각 스트라이프",
     ordinal=0,
     published=True,
+    **template,
 ):
     example = DesignExample(
-        run_id=run_id, name=name, caption=caption, ordinal=ordinal, published=published
+        run_id=run_id,
+        name=name,
+        caption=caption,
+        ordinal=ordinal,
+        published=published,
+        **template,
     )
     db_session.add(example)
     await db_session.commit()
@@ -105,13 +118,54 @@ async def test_public_gallery_lists_published_examples_only(client, db_session):
         "name": "미드나잇 웨이브",
         "caption": "네이비 · 대각 스트라이프",
         "preview_svg": _SVG,
+        "panel_svg": None,
+        "logo_in_panel": False,
+        "category": None,
+        "point": "none",
+        "logo_slots": [{"slot": 1, "label": None}],
+        "photo_full_url": None,
+        "photo_detail_url": None,
+        "logo_preview_svg": None,
+        "colorways": [],
     }
 
 
-async def test_start_from_example_restores_design_without_charging(client, db_session, settings):
+async def test_public_gallery_exposes_template_data_and_logo_slot_preview(client, db_session):
+    """템플릿 데이터(시드가 쓴 값)와 로고 슬롯 모티프 미리보기 — 슬롯이 비면 null."""
+    await _seed_motif(db_session, "seed-bee", "seed")
+    with_logo = await _make_example(
+        db_session,
+        await _make_run(db_session, motif_id="seed-bee"),
+        name="포인트",
+        ordinal=0,
+        category="격자",
+        point="bottom",
+        logo_slots=[{"slot": 1, "label": "로고"}, {"slot": 2, "label": "작은 무늬"}],
+        photo_full_url="/templates/a/full.jpg",
+    )
+    empty_slot = await _make_example(
+        db_session, await _make_run(db_session), name="올패턴", ordinal=1, logo_slots=[{"slot": 2}]
+    )
+
+    listed = (await client.get("/design/examples")).json()
+
+    assert [item["id"] for item in listed] == [str(with_logo.id), str(empty_slot.id)]
+    first, second = listed
+    assert (first["category"], first["point"]) == ("격자", "bottom")
+    assert first["logo_slots"] == [
+        {"slot": 1, "label": "로고"},
+        {"slot": 2, "label": "작은 무늬"},
+    ]
+    assert (first["photo_full_url"], first["photo_detail_url"]) == ("/templates/a/full.jpg", None)
+    assert (
+        first["logo_preview_svg"].startswith("<svg ")
+        and "motif-seed-bee" in first["logo_preview_svg"]
+    )
+    assert second["logo_preview_svg"] is None
+
+
+async def test_start_from_example_restores_design(client, db_session, settings):
     user = await make_user(db_session)
-    db_session.add(DesignToken(user_id=user.id, amount=30, type="grant", token_class="free"))
-    await db_session.commit()
     headers = auth_headers(user, settings)
     example = await _make_example(db_session, await _make_run(db_session))
 
@@ -124,21 +178,26 @@ async def test_start_from_example_restores_design_without_charging(client, db_se
     assert started.status_code == 201, started.text
     body = started.json()
     assert body["current_intent"] == _intent()
-    assert body["current_plan"] == {"colors": ["#10243A"], "layers": []}
     assert (body["seed"], body["colorway"], body["registry_version"]) == (7, "default", "0.1.0")
+    # 색·로고 페이지가 포인트 위치·로고 슬롯을 템플릿에서 읽는 키.
+    assert body["example_id"] == str(example.id)
+    fetched = await client.get(f"/design/sessions/{body['id']}", headers=headers)
+    assert fetched.json()["example_id"] == str(example.id)
 
-    # 캔버스·이력·되돌리기가 프론트 변경 없이 동작하려면 턴 2개가 그대로 있어야 한다.
-    turns = (await client.get(f"/design/sessions/{body['id']}/turns", headers=headers)).json()
-    assert [(turn["role"], turn["payload"]["type"]) for turn in turns] == [
+    # 편집 포인터(activate 턴)가 예시 run을 가리켜야 색·로고 화면이 그 SVG를 그린다.
+    assert fetched.json()["preview_svg"] == _SVG
+    turns = list(
+        await db_session.scalars(
+            select(DesignSessionTurn)
+            .where(DesignSessionTurn.session_id == uuid.UUID(body["id"]))
+            .order_by(DesignSessionTurn.seq)
+        )
+    )
+    assert [(turn.role, turn.payload["type"]) for turn in turns] == [
         ("assistant", "generate"),
         ("user", "activate"),
     ]
-    assert turns[0]["payload"]["summary"] == "미드나잇 웨이브"
-    assert turns[0]["payload"]["response"]["design"]["svg"] == _SVG
-
-    # 렌더도 워커 호출도 없다 — 원장에 차감 행이 생기지 않는다.
-    assert await db_session.scalar(select(func.sum(DesignToken.amount))) == 30
-    assert await db_session.scalar(select(func.count()).select_from(DesignToken)) == 1
+    assert turns[0].payload["summary"] == "미드나잇 웨이브"
 
 
 async def test_start_from_example_rejects_unpublished_missing_and_anonymous(
@@ -166,40 +225,22 @@ async def test_start_from_example_rejects_unpublished_missing_and_anonymous(
     assert await db_session.scalar(select(func.count()).select_from(DesignSessionTurn)) == 0
 
 
-async def test_admin_registers_curates_and_deletes_examples(client, db_session, settings):
+async def test_admin_curates_and_deletes_examples(client, db_session, settings):
     admin = await make_admin(db_session)
     headers = auth_headers(admin, settings)
-    await _seed_motif(db_session, "seed-bee", "catalog")
-    run_id = await _make_run(db_session, motif_id="seed-bee")
+    run_id = await _make_run(db_session)
+    example = await _make_example(db_session, run_id, published=False)
+    example_id = str(example.id)
 
+    # 템플릿은 시드 코드로만 만든다 — admin 등록 API는 없다.
     created = await client.post(
-        "/admin/design/examples",
-        json={
-            "run_id": str(run_id),
-            "name": "미드나잇 웨이브",
-            "caption": "네이비 · 대각 스트라이프",
-            "ordinal": 3,
-        },
-        headers=headers,
+        "/admin/design/examples", json={"run_id": str(run_id), "name": "x"}, headers=headers
     )
-    assert created.status_code == 201, created.text
-    assert created.json()["published"] is False
-    assert created.json()["caption"] == "네이비 · 대각 스트라이프"
-    assert created.json()["preview_svg"] == _SVG
-    example_id = created.json()["id"]
-
-    # 같은 run을 두 번 등록할 수 없다(unique run_id).
-    duplicate = await client.post(
-        "/admin/design/examples",
-        json={"run_id": str(run_id), "name": "중복"},
-        headers=headers,
-    )
-    assert duplicate.status_code == 409
-    assert duplicate.json()["code"] == "duplicate_example_run"
+    assert created.status_code == 405
 
     published = await client.patch(
         f"/admin/design/examples/{example_id}",
-        json={"published": True, "ordinal": 1},
+        json={"published": True, "ordinal": 1, "caption": "네이비 · 대각 스트라이프"},
         headers=headers,
     )
     assert published.status_code == 200
@@ -219,6 +260,11 @@ async def test_admin_registers_curates_and_deletes_examples(client, db_session, 
     assert kept.json()["caption"] == "네이비 · 대각 스트라이프"
     assert cleared.json()["caption"] is None
 
+    customer = await client.delete(
+        f"/admin/design/examples/{example_id}",
+        headers=auth_headers(await make_user(db_session), settings),
+    )
+    assert customer.status_code == 403
     removed = await client.delete(f"/admin/design/examples/{example_id}", headers=headers)
     assert removed.status_code == 204
     assert (await client.get("/design/examples")).json() == []
@@ -255,33 +301,24 @@ async def test_admin_publish_rejects_over_cap(client, db_session, settings, monk
     assert freed.status_code == 200
 
 
-async def test_admin_registration_rejects_private_motifs_unknown_runs_and_non_admins(
-    client, db_session, settings
-):
-    admin = await make_admin(db_session)
-    headers = auth_headers(admin, settings)
-    await _seed_motif(db_session, "upload-333333333333", "user_upload")
-    private_run = await _make_run(db_session, motif_id="upload-333333333333")
+async def test_public_gallery_exposes_panel_svg_and_panel_logo(client, db_session):
+    """배치형 템플릿 — panel SVG와 panel 로고 미리보기, 반복형은 null·False."""
+    await _seed_motif(db_session, "seed-bee", "seed")
+    await _seed_motif(db_session, "seed-crest", "seed")
+    placed = await _make_example(
+        db_session,
+        await _make_run(db_session, motif_id="seed-bee", panel_logo="seed-crest"),
+        name="대각 분할",
+        ordinal=0,
+        point="bottom",
+        logo_slots=[{"slot": "logo", "label": "포인트 로고"}],
+    )
+    repeated = await _make_example(db_session, await _make_run(db_session), name="반복", ordinal=1)
 
-    private = await client.post(
-        "/admin/design/examples",
-        json={"run_id": str(private_run), "name": "비공개 모티프"},
-        headers=headers,
-    )
-    unknown = await client.post(
-        "/admin/design/examples",
-        json={"run_id": str(uuid.uuid4()), "name": "없는 런"},
-        headers=headers,
-    )
-    customer = await client.post(
-        "/admin/design/examples",
-        json={"run_id": str(private_run), "name": "고객 등록"},
-        headers=auth_headers(await make_user(db_session), settings),
-    )
+    first, second = (await client.get("/design/examples")).json()
 
-    assert private.status_code == 409
-    assert private.json()["code"] == "private_motif_example"
-    assert unknown.status_code == 409
-    assert unknown.json()["code"] == "design_result_unavailable"
-    assert customer.status_code == 403
-    assert await db_session.scalar(select(func.count()).select_from(DesignExample)) == 0
+    assert (first["id"], second["id"]) == (str(placed.id), str(repeated.id))
+    assert first["panel_svg"] == _SVG and first["logo_in_panel"] is True
+    # 첫 로고 자리가 panel 로고면 그 모티프를 미리보기로 쓴다.
+    assert "motif-seed-crest" in first["logo_preview_svg"]
+    assert (second["panel_svg"], second["logo_in_panel"]) == (None, False)

@@ -8,11 +8,6 @@ resource "google_service_account" "worker_generate" {
   display_name = "Cloud Run worker-generate"
 }
 
-resource "google_service_account" "worker_finalize" {
-  account_id   = "run-worker-finalize"
-  display_name = "Cloud Run worker-finalize"
-}
-
 # 롤 0건 — api가 공개(allUsers invoker)라 invoker 불요, 검증은 api 앱 레벨(email 클레임 고정).
 resource "google_service_account" "scheduler" {
   account_id   = "scheduler-invoker"
@@ -36,7 +31,6 @@ resource "google_project_iam_member" "api_roles" {
 resource "google_project_iam_member" "worker_cloudsql" {
   for_each = {
     generate = google_service_account.worker_generate.email
-    finalize = google_service_account.worker_finalize.email
   }
   project = var.project_id
   role    = "roles/cloudsql.client"
@@ -48,7 +42,6 @@ resource "google_secret_manager_secret_iam_member" "database_url" {
   for_each = {
     api      = google_service_account.api.email
     generate = google_service_account.worker_generate.email
-    finalize = google_service_account.worker_finalize.email
   }
   project   = var.project_id
   secret_id = google_secret_manager_secret.database_url.secret_id
@@ -69,7 +62,6 @@ resource "google_secret_manager_secret_iam_member" "api_secrets" {
 resource "google_secret_manager_secret_iam_member" "worker_generate_secrets" {
   for_each = toset([
     "sentry-dsn-worker",
-    "openai-api-key",
   ])
   project   = var.project_id
   secret_id = google_secret_manager_secret.app[each.value].secret_id
@@ -77,24 +69,11 @@ resource "google_secret_manager_secret_iam_member" "worker_generate_secrets" {
   member    = "serviceAccount:${google_service_account.worker_generate.email}"
 }
 
-resource "google_secret_manager_secret_iam_member" "worker_finalize_secrets" {
-  # openai-api-key: AI 실사화 컷오버(2026-08-20) — finalize가 gpt-image 편집을 호출한다.
-  for_each = toset([
-    "sentry-dsn-worker",
-    "openai-api-key",
-  ])
-  project   = var.project_id
-  secret_id = google_secret_manager_secret.app[each.value].secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.worker_finalize.email}"
-}
-
 # 공개 생성물은 content-addressed 키에 생성 전용 precondition으로 쓴다.
 # worker는 덮어쓰기·삭제·목록 조회가 불필요하므로 objectCreator만 부여한다.
 resource "google_storage_bucket_iam_member" "assets_worker_rw" {
   for_each = {
     generate = google_service_account.worker_generate.email
-    finalize = google_service_account.worker_finalize.email
   }
   bucket = google_storage_bucket.assets.name
   role   = "roles/storage.objectCreator"
@@ -131,13 +110,12 @@ resource "google_project_iam_member" "deployer_roles" {
   member  = "serviceAccount:${google_service_account.deployer.email}"
 }
 
-# CI는 OpenTofu가 미리 만든 세 서비스의 이미지만 갱신한다. 프로젝트 전체
+# CI는 OpenTofu가 미리 만든 두 서비스의 이미지만 갱신한다. 프로젝트 전체
 # run.admin 대신 각 서비스에 developer를 부여해 다른 Cloud Run 리소스를 격리한다.
 resource "google_cloud_run_v2_service_iam_member" "deployer_developer" {
   for_each = {
     api             = google_cloud_run_v2_service.api.name
     worker_generate = google_cloud_run_v2_service.worker_generate.name
-    worker_finalize = google_cloud_run_v2_service.worker_finalize.name
   }
   name     = each.value
   location = var.region
@@ -165,7 +143,6 @@ resource "google_service_account_iam_member" "deployer_actas" {
   for_each = {
     api             = google_service_account.api.name
     worker_generate = google_service_account.worker_generate.name
-    worker_finalize = google_service_account.worker_finalize.name
   }
   service_account_id = each.value
   role               = "roles/iam.serviceAccountUser"

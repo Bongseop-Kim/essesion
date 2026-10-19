@@ -14,8 +14,6 @@ from db.models.commerce import (
     Product,
     QuoteRequest,
 )
-from db.models.design import GenerationJob
-from db.models.tokens import DesignToken, TokenPurchase
 from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
@@ -277,6 +275,8 @@ def _summary(
         created_at=order.created_at,
         updated_at=order.updated_at,
         customer=AdminOrderCustomerOut.model_validate(customer),
+        recipient_name=(order.shipping_address_snapshot or {}).get("recipient_name"),
+        recipient_phone=(order.shipping_address_snapshot or {}).get("recipient_phone"),
         claim_summary=ClaimBadgeOut.model_validate(claim) if claim is not None else None,
         admin_actions=_admin_actions(
             order,
@@ -364,7 +364,7 @@ def _manual_order_filters(start: date, end: date) -> list[ColumnElement[bool]]:
 _MANUAL_ORDER_AMOUNT = ManualOrder.amount - ManualOrder.discount + ManualOrder.shipping_fee
 
 # 시계열 스택 막대의 구획. Order.order_type의 전체 값이며, 합은 order_amount와 같아야 한다.
-_ORDER_AMOUNT_TYPES = ("sale", "custom", "repair", "sample", "token")
+_ORDER_AMOUNT_TYPES = ("sale", "custom", "repair", "sample")
 
 # 수기 주문의 유형 분해 — 품목 중 하나라도 주문제작 스펙이 있으면 주문제작 수기로 센다.
 # 수기 주문은 금액이 주문 단위(품목별 금액이 없다)라 품목 배분 근거가 없다. JSONB 포함
@@ -502,23 +502,6 @@ async def dashboard_timeseries(
         )
         manual = {row[0]: (int(row[1]), int(row[2]), int(row[3])) for row in rows.all()}
     customers = await by_day(User.created_at, func.count(), filters=[User.role == "customer"])
-    generations = await by_day(
-        GenerationJob.created_at,
-        func.count(),
-        func.count().filter(GenerationJob.status == "failed"),
-        filters=[],
-    )
-    consumed = await by_day(
-        DesignToken.created_at,
-        func.coalesce(func.sum(-DesignToken.amount), 0),
-        filters=[DesignToken.amount < 0],
-    )
-    sold = await by_day(
-        TokenPurchase.created_at,
-        func.coalesce(func.sum(TokenPurchase.token_amount), 0),
-        filters=[TokenPurchase.status == "완료"],
-    )
-
     points: list[DashboardTimeseriesPointOut] = []
     empty_orders = (0, 0, *(0 for _ in _ORDER_AMOUNT_TYPES))
     day = start
@@ -530,7 +513,6 @@ async def dashboard_timeseries(
         manual_count, manual_amount, manual_custom_amount = manual.get(day, (0, 0, 0))
         order_count = int(order_count) + manual_count
         order_amount = int(order_amount) + manual_amount
-        generation_total, generation_failed = generations.get(day, (0, 0))
         points.append(
             DashboardTimeseriesPointOut(
                 day=day,
@@ -540,14 +522,9 @@ async def dashboard_timeseries(
                 custom_amount=by_type["custom"],
                 repair_amount=by_type["repair"],
                 sample_amount=by_type["sample"],
-                token_amount=by_type["token"],
                 manual_custom_amount=manual_custom_amount,
                 manual_repair_amount=manual_amount - manual_custom_amount,
                 new_customer_count=int(customers.get(day, (0,))[0]),
-                generation_total=int(generation_total),
-                generation_failed=int(generation_failed),
-                token_consumed=int(consumed.get(day, (0,))[0]),
-                token_sold=int(sold.get(day, (0,))[0]),
             )
         )
         day += timedelta(days=1)

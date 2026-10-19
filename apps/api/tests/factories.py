@@ -2,7 +2,7 @@
 
 import itertools
 import uuid
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from typing import Any
 
 from api.config import Settings
@@ -10,10 +10,8 @@ from api.security import create_access_token, password_hasher
 from db.models.auth import User
 from db.models.commerce import (
     AdminSetting,
-    Claim,
     Coupon,
     Order,
-    OrderItem,
     PricingConstant,
     Product,
     ShippingAddress,
@@ -191,36 +189,3 @@ async def make_user_coupon(
     await session.commit()
     await session.refresh(user_coupon)
     return user_coupon
-
-
-async def make_token_refund_claim(session: AsyncSession, user: User) -> Claim:
-    order = await make_order(session, user, order_type="token", status="완료")
-    item = OrderItem(
-        order_id=order.id,
-        item_id=f"token-order-{order.id}",
-        item_type="token",
-        item_data={"plan_key": "starter", "token_amount": 100},
-        quantity=1,
-        unit_price=order.total_price,
-    )
-    session.add(item)
-    await session.flush()
-    claim = Claim(
-        user_id=user.id,
-        order_id=order.id,
-        order_item_id=item.id,
-        claim_number=f"TKR-{datetime.now(UTC):%Y%m%d%H%M%S}-{uuid.uuid4().hex[:4]}",
-        type="token_refund",
-        status="접수",
-        reason="token_refund",
-        quantity=1,
-        refund_data={
-            "paid_token_amount": 100,
-            "bonus_token_amount": 0,
-            "refund_amount": order.total_price,
-        },
-    )
-    session.add(claim)
-    await session.commit()
-    await session.refresh(claim)
-    return claim

@@ -686,6 +686,8 @@ function ProductDetailSkeleton() {
 function MissingProduct({ onBack }: { onBack: () => void }) {
   return (
     <ContentLayout breadcrumbs={shopCrumbs()}>
+      {/* 200으로 응답하는 SPA라 noindex가 없으면 Google이 Soft 404로 분류한다 */}
+      <meta name="robots" content="noindex" />
       <ContentPlaceholder
         title="상품을 찾을 수 없습니다"
         action={

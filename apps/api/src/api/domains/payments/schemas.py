@@ -16,14 +16,12 @@ class ConfirmedOrder(BaseModel):
     order_number: str
     order_type: str
     status: str
-    token_amount: int | None = None
     coupon_issued: bool = False
 
 
 class PaymentConfirmResponse(BaseModel):
     success: bool = True
     orders: list[ConfirmedOrder]
-    token_amount: int | None = None
 
 
 class TossWebhookData(BaseModel):

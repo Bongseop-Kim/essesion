@@ -215,7 +215,7 @@ export function useCheckoutPayment<T>({
         }
         await widget.setAmount(payment.totalAmount);
         if (!mounted.current || currentOwner.current !== paymentOwner) return;
-        // 주문·토큰 결제 공통의 체크아웃 시작 지점 — orderId(paymentGroupId)는 넣지 않는다
+        // 주문 결제의 체크아웃 시작 지점 — orderId(paymentGroupId)는 넣지 않는다
         trackEvent("begin_checkout", {
           currency: "KRW",
           value: payment.totalAmount,

@@ -11,7 +11,7 @@ from api.domains.orders.schemas import (
 )
 from api.schemas import ORMModel
 
-ClaimTypeFilter = Literal["all", "cancel", "return", "exchange", "token_refund"]
+ClaimTypeFilter = Literal["all", "cancel", "return", "exchange"]
 ClaimStatusFilter = Literal[
     "all",
     "접수",
@@ -32,7 +32,7 @@ IncidentSort = Literal["created_at", "updated_at", "status", "incident_type"]
 
 
 class AdminClaimAction(BaseModel):
-    kind: Literal["advance", "reject", "rollback", "approve_refund"]
+    kind: Literal["advance", "reject", "rollback"]
     target_status: str | None = None
     label: str
     enabled: bool

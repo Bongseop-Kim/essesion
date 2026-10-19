@@ -20,6 +20,8 @@ export type ContentLayoutProps = {
   breadcrumbs?: { href?: string; label: string; key?: string }[];
   /** 우측 요약/결제 컬럼 — PC 1/3 sticky · 모바일 본문 아래로 스택. */
   sidebar?: ReactNode;
+  /** 모바일에서 사이드바를 본문 위에 — 사이드바가 입력(선택·업로드)이고 본문이 그 결과일 때. */
+  sidebarFirst?: boolean;
   /** 주문·결제 CTA — PC 사이드바 하단 · 모바일 하단 고정바. */
   actionBar?: ReactNode;
   /** 본문 하단 상세(설명·가이드) — 구분선 뒤 배치. */
@@ -35,6 +37,7 @@ export function ContentLayout({
   children,
   breadcrumbs,
   sidebar,
+  sidebarFirst = false,
   actionBar,
   detail,
 }: ContentLayoutProps) {
@@ -115,9 +118,11 @@ export function ContentLayout({
       <LayoutContent density="medium" py="x4">
         {crumbs}
         <VStack gap="x6">
+          {sidebarFirst && sidebar ? <Box>{sidebar}</Box> : null}
+          {sidebarFirst && sidebar ? <Divider /> : null}
           <Box>{children}</Box>
-          {sidebar ? <Divider /> : null}
-          {sidebar ? <Box>{sidebar}</Box> : null}
+          {!sidebarFirst && sidebar ? <Divider /> : null}
+          {!sidebarFirst && sidebar ? <Box>{sidebar}</Box> : null}
           {detail ? <Divider /> : null}
           {detail ? <Box>{detail}</Box> : null}
         </VStack>

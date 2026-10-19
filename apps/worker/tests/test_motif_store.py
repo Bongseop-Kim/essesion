@@ -1,22 +1,14 @@
-"""store DB 테스트 — 실제 Postgres(pgvector) (worker-motifs.md §1·§5).
+"""store DB 테스트 — 실제 Postgres (worker-motifs.md §1).
 
-upsert 멱등 · get_motifs bbox/anchor 변환 · global nearest 안정 정렬 · embedding NULL 제외 ·
-공개 embedding 초기 인덱싱.
+upsert 멱등 · get_motifs bbox/anchor 변환 · 지문 풀(approved 공개 모티프) · 고아 시드 정리.
 """
 
 from db.models.design import DesignSession, DesignSessionTurn, UserMotif
 from db.models.seamless import Motif
 from sqlalchemy import text
 from worker.motifs import store
-from worker.motifs.embeddings import index_missing_embeddings
 from worker.motifs.normalize import NormalizedMotif
 from worker.motifs.registry import MotifDef
-
-DIM = 1536
-
-
-def _vec(*head: float) -> list[float]:
-    return list(head) + [0.0] * (DIM - len(head))
 
 
 def _motif(mid: str) -> NormalizedMotif:
@@ -57,202 +49,35 @@ async def test_get_motifs_empty_ids_returns_empty(db_session):
     assert await store.get_motifs(db_session, []) == {}
 
 
-async def test_nearest_by_embedding_tie_breaks_on_lowest_id(db_session):
-    await _upsert(
-        db_session,
-        _motif("fixture-000000000002"),
-        facets={"scope": "whole"},
-        embedding=_vec(1.0),
-        status="approved",
-    )
-    await _upsert(
-        db_session,
-        _motif("fixture-000000000001"),
-        facets={"scope": "whole"},
-        embedding=_vec(1.0),
-        status="approved",
-    )
-    await db_session.commit()
-    matches = await store.nearest_by_embedding(db_session, _vec(1.0), top_k=1)
-    assert matches[0].id == "fixture-000000000001"  # 동점 → lowest id
-    assert matches[0].similarity == 1.0
-
-
-async def test_nearest_by_embedding_uses_halfvec_distance(db_session):
-    await _upsert(
-        db_session,
-        _motif("fixture-embed-near"),
-        facets={"scope": "whole"},
-        embedding=_vec(1.0),
-        status="approved",
-    )
-    await _upsert(
-        db_session,
-        _motif("fixture-embed-far"),
-        facets={"scope": "whole"},
-        embedding=_vec(0.0, 1.0),
-        status="approved",
-    )
-    await db_session.commit()
-
-    matches = await store.nearest_by_embedding(db_session, _vec(1.0), top_k=1)
-
-    assert matches[0].id == "fixture-embed-near"
-    assert matches[0].similarity == 1.0
-
-
-async def test_nearest_excludes_null_embedding(db_session):
-    await _upsert(
-        db_session,
-        _motif("fixture-nullembeddin"),
-        facets={"scope": "whole"},
-        status="approved",
-    )
-    await _upsert(
-        db_session,
-        _motif("fixture-hasembedding0"),
-        facets={"scope": "whole"},
-        embedding=_vec(1.0),
-        status="approved",
-    )
-    await db_session.commit()
-    matches = await store.nearest_by_embedding(db_session, _vec(1.0), top_k=1)
-    assert matches[0].id == "fixture-hasembedding0"
-
-
 async def test_user_upload_is_only_available_by_explicit_id(db_session):
     uploaded = _motif("upload-a1b2c3d4e5f6")
     await _upsert(
         db_session,
         uploaded,
         facets={"subject": "private", "scope": "whole"},
-        embedding=_vec(1.0),
         source=store.USER_UPLOAD_SOURCE,
     )
     await db_session.commit()
 
     assert (await store.get_motifs(db_session, [uploaded.id]))[uploaded.id].id == uploaded.id
     assert await store.approved_motif_ids(db_session) == []
-    assert await store.nearest_by_embedding(db_session, _vec(1.0), top_k=1) == []
 
 
-async def test_catalog_queries_only_expose_approved_motifs(db_session):
-    rows = [
-        ("fixture-gate-approved", "approved", _vec(1.0)),
-        ("fixture-gate-unembedded", "approved", None),
-        ("fixture-gate-pending", "pending", _vec(1.0)),
-        ("fixture-gate-rejected", "rejected", _vec(1.0)),
-    ]
-    for motif_id, status, embedding in rows:
+async def test_registry_pool_only_counts_approved_public_motifs(db_session):
+    for motif_id, status in (
+        ("fixture-gate-approved", "approved"),
+        ("fixture-gate-pending", "pending"),
+        ("fixture-gate-rejected", "rejected"),
+    ):
         await _upsert(
             db_session,
             _motif(motif_id),
             facets={"subject": "gate", "scope": "whole"},
-            embedding=embedding,
             status=status,
         )
     await db_session.commit()
 
-    approved_ids = {"fixture-gate-approved", "fixture-gate-unembedded"}
-    assert {row.id for row in await store.find_catalog(db_session)} == approved_ids
-    assert [
-        row.id for row in await store.nearest_by_embedding(db_session, _vec(1.0), top_k=10)
-    ] == ["fixture-gate-approved"]
-    assert [row.id for row in await store.missing_embedding_documents(db_session)] == [
-        "fixture-gate-unembedded"
-    ]
-    assert await store.public_embedding_counts(db_session) == (1, 2)
-    assert set(await store.approved_motif_ids(db_session)) == approved_ids
-    assert set(await store.get_motifs(db_session, [row[0] for row in rows])) == {
-        row[0] for row in rows
-    }
-
-
-async def test_global_nearest_does_not_filter_partial_scope(db_session):
-    await _upsert(
-        db_session,
-        _motif("fixture-partialmatch"),
-        facets={"scope": "partial"},
-        embedding=_vec(1.0),
-        status="approved",
-    )
-    await _upsert(
-        db_session,
-        _motif("fixture-wholemiss000"),
-        facets={"scope": "whole"},
-        embedding=_vec(0.0, 1.0),
-        status="approved",
-    )
-    await db_session.commit()
-
-    matches = await store.nearest_by_embedding(db_session, _vec(1.0), top_k=2)
-    assert matches[0].id == "fixture-partialmatch"
-
-
-async def test_embedding_index_updates_only_public_null_rows_and_is_idempotent(db_session):
-    await _upsert(
-        db_session,
-        _motif("fixture-public-null"),
-        facets={
-            "subject": "chess",
-            "scope": "whole",
-            "description": "chess king outline",
-            "tags": ["king"],
-        },
-        status="approved",
-    )
-    await _upsert(
-        db_session,
-        _motif("fixture-public-done"),
-        facets={"subject": "flower", "scope": "whole"},
-        embedding=_vec(0.0, 1.0),
-        status="approved",
-    )
-    await _upsert(
-        db_session,
-        _motif("upload-private-null"),
-        facets={"subject": "private", "scope": "whole"},
-        source=store.USER_UPLOAD_SOURCE,
-    )
-    await db_session.commit()
-
-    class _Embed:
-        def __init__(self):
-            self.texts: list[str] = []
-
-        async def embed_batch(self, texts: list[str]) -> list[list[float]]:
-            self.texts.extend(texts)
-            return [_vec(1.0) for _ in texts]
-
-    client = _Embed()
-    assert await index_missing_embeddings(db_session, client) == 1
-    assert client.texts == ["chess, chess king outline, king"]
-    assert await store.public_embedding_counts(db_session) == (2, 2)
-    assert await index_missing_embeddings(db_session, client) == 0
-    assert client.texts == ["chess, chess king outline, king"]
-
-
-async def test_pending_motif_stores_no_embedding_until_approved(db_session):
-    """승인 전 embedding 저장 금지 — 승인 후 인덱서가 DOCUMENT 임베딩을 채울 수 있어야 한다."""
-    m = _motif("fixture-pendingembed")
-    await _upsert(
-        db_session,
-        m,
-        facets={"subject": "owl", "scope": "whole"},
-        embedding=_vec(1.0),  # resolve_spec이 넘기던 query_vec — 무시돼야 한다
-    )
-    await db_session.commit()
-    row = await db_session.get(Motif, m.id)
-    assert row is not None
-    assert row.embedding_openai is None
-    assert await store.update_embedding_if_missing(db_session, m.id, _vec(1.0)) is False
-
-    row.status = "approved"
-    await db_session.commit()
-    assert [doc.id for doc in await store.missing_embedding_documents(db_session)] == [m.id]
-    assert await store.update_embedding_if_missing(db_session, m.id, _vec(1.0)) is True
-    await db_session.commit()
-    assert await store.public_embedding_counts(db_session) == (1, 1)
+    assert await store.approved_motif_ids(db_session) == ["fixture-gate-approved"]
 
 
 async def test_prune_stale_seeds_keeps_current_and_referenced(db_session):

@@ -65,7 +65,10 @@ async function requestRefresh(signal?: AbortSignal) {
     clearAdminAccessToken({ broadcast: true, notify: true });
     return null;
   }
-  throw result.error ?? new Error("관리자 세션을 갱신하지 못했습니다.");
+  throw (
+    result.error ??
+    new Error("로그인 상태를 확인하지 못했습니다. 다시 로그인해 주세요.")
+  );
 }
 
 /**

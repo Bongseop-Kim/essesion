@@ -243,7 +243,7 @@ export function SeamlessLogsPage() {
             validate={(value) =>
               SAFE_IDENTIFIER_PATTERN.test(value)
                 ? undefined
-                : "식별자 형식이 올바르지 않습니다."
+                : "ID 전체를 정확히 입력해 주세요."
             }
             onSubmit={(value) => {
               setIdentifier(value);
@@ -282,7 +282,7 @@ export function SeamlessLogsPage() {
           Number(status !== undefined) +
           Number(parsed.from !== undefined || parsed.to !== undefined)
         }
-        secondaryTitle="Seamless 상세 필터"
+        secondaryTitle="디자인 렌더 로그 필터"
         secondaryDescription="상태와 조회 기간을 한 번에 적용합니다."
         onResetSecondaryFilters={() => {
           setDraftStatus(status);
@@ -345,14 +345,17 @@ export function SeamlessLogsPage() {
   return (
     <VStack gap="x6" alignItems="stretch">
       <RouteHeading
-        title="Seamless 로그"
-        description="생성 1건 = 디자인 1개입니다. 상태·지연·정제된 오류를 조회합니다."
+        title="디자인 렌더 로그"
+        description="생성 1건 = 디자인 1개입니다. 상태·소요 시간·오류 요약을 조회합니다."
       />
 
-      <AdminCard title="Seamless 통계" description="현재 필터 기준 집계입니다.">
+      <AdminCard
+        title="디자인 렌더 통계"
+        description="현재 필터 기준 집계입니다."
+      >
         {statsQuery.isError ? (
           <ContentPlaceholder
-            title="Seamless 통계를 불러오지 못했습니다"
+            title="디자인 렌더 통계를 불러오지 못했습니다"
             description="목록과 별도로 통계 조회를 다시 시도할 수 있습니다."
             action={
               <ActionButton
@@ -372,7 +375,7 @@ export function SeamlessLogsPage() {
       </AdminCard>
 
       <RefreshStatus
-        label="Seamless 로그"
+        label="디자인 렌더 로그"
         lastUpdatedAt={lastSuccessfulRefreshAt}
         paused={autoRefreshPaused}
         description="화면이 보일 때 새 로그를 30초마다 갱신합니다."
@@ -380,8 +383,8 @@ export function SeamlessLogsPage() {
       />
 
       <PaginatedAdminTableCard
-        title="Seamless 로그 목록"
-        label="Seamless 로그 목록"
+        title="디자인 렌더 로그 목록"
+        label="디자인 렌더 로그 목록"
         columns={columns}
         rows={listQuery.data?.items}
         getRowKey={(row) => row.id}
@@ -400,11 +403,12 @@ export function SeamlessLogsPage() {
           void Promise.all([listQuery.refetch(), statsQuery.refetch()])
         }
         onRetry={() => void listQuery.refetch()}
-        emptyTitle="조건에 맞는 Seamless 로그가 없습니다"
+        emptyTitle="조건에 맞는 디자인 렌더 로그가 없습니다"
+        emptyDescription="검색어나 필터를 바꿔 보세요."
         page={Math.min(parsed.page, totalPages)}
         totalPages={totalPages}
         onPageChange={(page) => replaceQuery({ page })}
-        paginationLabel="Seamless 로그 목록 페이지"
+        paginationLabel="디자인 렌더 로그 목록 페이지"
         toolbar={toolbar}
       />
     </VStack>

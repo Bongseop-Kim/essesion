@@ -48,7 +48,6 @@ const ORDER_TYPES = [
   { value: "sale", label: "일반 주문" },
   { value: "custom", label: "주문 제작" },
   { value: "repair", label: "수선" },
-  { value: "token", label: "토큰" },
   { value: "sample", label: "샘플" },
   // 수기 주문은 orders가 아닌 별도 장부 — 지표에는 합산되고 '최근 주문' 표는 비운다.
   { value: "manual", label: "수기 주문" },
@@ -59,14 +58,14 @@ type OrderType = (typeof ORDER_TYPES)[number]["value"];
 const CAPABILITY_LABELS = {
   toss: "Toss 결제",
   solapi: "Solapi 알림",
-  worker: "이미지 생성 Worker",
-  batch_auth: "배치 OIDC 인증",
+  worker: "이미지 생성 서버",
+  batch_auth: "배치 작업 인증",
   oauth_google: "Google OAuth",
   oauth_kakao: "Kakao OAuth",
   oauth_naver: "Naver OAuth",
   oauth_apple: "Apple OAuth",
-  auth_secrets: "인증 시크릿",
-  edge_proxy: "API 엣지 프록시",
+  auth_secrets: "인증 키",
+  edge_proxy: "API 프록시",
 } as const;
 
 function kstDate(daysAgo = 0) {
@@ -188,9 +187,6 @@ const quoteColumns: readonly AdminTableColumn<DashboardRecentQuoteOut>[] = [
 ];
 
 const BRAND_COLOR = "var(--color-bg-brand-solid)";
-const POSITIVE_COLOR = "var(--color-bg-positive-solid)";
-const CRITICAL_COLOR = "var(--color-bg-critical-solid)";
-const INFORMATIVE_COLOR = "var(--color-bg-informative-solid)";
 
 /**
  * 매출 추이 스택 막대의 구획 — 순서·색 슬롯은 주문 유형에 고정한다.
@@ -199,25 +195,28 @@ const INFORMATIVE_COLOR = "var(--color-bg-informative-solid)";
  */
 const AMOUNT_SERIES = (
   [
-    { key: "sale_amount", label: "구매", color: "var(--color-bg-chart-1)" },
+    {
+      key: "sale_amount",
+      label: "일반 주문",
+      color: "var(--color-bg-chart-1)",
+    },
     {
       key: "custom_amount",
-      label: "주문제작",
+      label: "주문 제작",
       color: "var(--color-bg-chart-2)",
     },
     {
       key: "manual_custom_amount",
-      label: "주문제작 수기",
+      label: "주문 제작(수기)",
       color: "var(--color-bg-chart-3)",
     },
     { key: "sample_amount", label: "샘플", color: "var(--color-bg-chart-4)" },
     { key: "repair_amount", label: "수선", color: "var(--color-bg-chart-5)" },
     {
       key: "manual_repair_amount",
-      label: "수선 수기",
+      label: "수선(수기)",
       color: "var(--color-bg-chart-6)",
     },
-    { key: "token_amount", label: "토큰", color: "var(--color-bg-chart-7)" },
   ] as const
 ).map((item) => ({ ...item, kind: "bar" as const, stackId: "amount" }));
 
@@ -353,11 +352,7 @@ export function DashboardPage() {
     ]);
   };
 
-  // 생성 스택 차트용 파생값 — '비실패' = 실패 외(성공·대기·진행 포함)
-  const points = (timeseries.data?.points ?? []).map((point) => ({
-    ...point,
-    generation_not_failed: point.generation_total - point.generation_failed,
-  }));
+  const points = timeseries.data?.points ?? [];
   const rankedProducts = (topProducts.data?.items ?? []).map(
     (product, index) => ({ ...product, rank: index + 1 }),
   );
@@ -379,10 +374,7 @@ export function DashboardPage() {
   return (
     <VStack gap="x6" alignItems="stretch">
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title="대시보드"
-          description="주요 운영 지표와 처리 대기 업무를 확인합니다."
-        />
+        <RouteHeading title="대시보드" />
         <ActionButton
           variant="neutralOutline"
           loading={
@@ -432,7 +424,7 @@ export function DashboardPage() {
             <Callout
               tone="critical"
               title="외부 연동 상태를 확인하지 못했습니다"
-              description="금전·이미지·알림 관련 변경 전에 서버 준비 상태를 확인해 주세요."
+              description="결제·이미지·알림 작업 전에 다시 확인해 주세요."
               onClick={() => void capabilities.refetch()}
             />
           )}
@@ -440,7 +432,7 @@ export function DashboardPage() {
             <Callout
               tone="critical"
               title="필수 연동을 사용할 수 없습니다"
-              description={`${unavailableCapabilities.map(([label]) => label).join(", ")} 관련 작업은 실패 상태로 남습니다.`}
+              description={`${unavailableCapabilities.map(([label]) => label).join(", ")} 관련 작업이 실패합니다.`}
             />
           )}
           {fallbackCapabilities.length > 0 && (
@@ -513,7 +505,7 @@ export function DashboardPage() {
 
       <Text textStyle="caption" color="fg.neutral-muted" aria-live="polite">
         조회 기간 {startDate} ~ {endDate} · 기준 시각{" "}
-        {formatDateTime(data?.as_of)} · 모든 날짜 경계는 Asia/Seoul 기준
+        {formatDateTime(data?.as_of)} · 날짜는 한국 시간(KST) 기준
       </Text>
 
       {timeseries.isError ? (
@@ -563,71 +555,12 @@ export function DashboardPage() {
               valueFormatter={(value) => `${value.toLocaleString("ko")}명`}
             />
           </ChartCard>
-          <ChartCard title="이미지 생성" loading={timeseries.isLoading}>
-            <TrendChart
-              data={points}
-              series={[
-                {
-                  key: "generation_not_failed",
-                  label: "비실패",
-                  color: POSITIVE_COLOR,
-                  kind: "bar",
-                  stackId: "generation",
-                },
-                {
-                  key: "generation_failed",
-                  label: "실패",
-                  color: CRITICAL_COLOR,
-                  kind: "bar",
-                  stackId: "generation",
-                },
-              ]}
-              tooltipRows={(point) => [
-                {
-                  label: "전체",
-                  value: `${point.generation_total.toLocaleString("ko")}건`,
-                },
-                {
-                  label: "실패",
-                  value: `${point.generation_failed.toLocaleString("ko")}건`,
-                  color: CRITICAL_COLOR,
-                },
-                {
-                  label: "실패율",
-                  value:
-                    point.generation_total > 0
-                      ? `${Math.round((point.generation_failed / point.generation_total) * 100)}%`
-                      : "-",
-                },
-              ]}
-            />
-          </ChartCard>
-          <ChartCard title="토큰 판매·소모" loading={timeseries.isLoading}>
-            <TrendChart
-              data={points}
-              series={[
-                {
-                  key: "token_sold",
-                  label: "판매",
-                  color: POSITIVE_COLOR,
-                  kind: "line",
-                },
-                {
-                  key: "token_consumed",
-                  label: "소모",
-                  color: INFORMATIVE_COLOR,
-                  kind: "line",
-                },
-              ]}
-              valueFormatter={(value) => `${value.toLocaleString("ko")}개`}
-            />
-          </ChartCard>
         </Grid>
       )}
 
       <AdminCard
         title="인기 상품 TOP 5"
-        description="조회 기간 내 판매 수량 기준 (커스텀·수선 항목 제외)"
+        description="조회 기간 내 판매 수량 기준 (주문 제작·수선 제외)"
         action={<Link to="/products">전체 보기</Link>}
       >
         <AdminTable

@@ -37,7 +37,10 @@ const warning = new Set([
   "partial",
   "hold",
   "duplicate",
+  "발송확인중",
 ]);
+// 입고(고객→우리)는 무채색, 출고(배송중)는 기본 informative — 방향을 색으로도 가른다.
+const inbound = new Set(["발송대기", "발송중"]);
 const statusLabels: Readonly<Record<string, string>> = {
   active: "활성",
   inactive: "비활성",
@@ -47,7 +50,7 @@ const statusLabels: Readonly<Record<string, string>> = {
   sent: "발송 완료",
   failed: "실패",
   skipped: "발송 생략",
-  queued: "대기",
+  queued: "대기 중",
   processing: "처리 중",
   succeeded: "성공",
   success: "성공",
@@ -59,7 +62,6 @@ const statusLabels: Readonly<Record<string, string>> = {
   reserved: "예약",
   repair: "수선",
   sale: "일반 주문",
-  token: "토큰",
   safe: "안전",
   unsafe: "차단",
   approved: "승인",
@@ -70,8 +72,23 @@ const statusLabels: Readonly<Record<string, string>> = {
   DONE: "완료",
   CANCELED: "취소",
   견적발송: "견적 발송",
+  대기중: "대기 중",
+  결제중: "결제 중",
+  진행중: "진행 중",
+  제작중: "제작 중",
+  수선중: "수선 중",
+  처리중: "처리 중",
   협의중: "협의 중",
+  // 수선품은 고객→우리(입고), 완성품은 우리→고객(출고) — "발송/배송"만으로는 방향이 안 보인다.
+  발송대기: "입고 대기",
+  발송중: "입고 중",
+  발송확인중: "입고 확인 필요",
+  배송중: "출고 배송 중",
 };
+
+export function formatStatus(status: string) {
+  return statusLabels[status] ?? status;
+}
 
 export function StatusBadge({ status }: { status: string }) {
   const tone = positive.has(status)
@@ -80,8 +97,10 @@ export function StatusBadge({ status }: { status: string }) {
       ? "critical"
       : warning.has(status)
         ? "warning"
-        : "informative";
-  return <Badge tone={tone}>{statusLabels[status] ?? status}</Badge>;
+        : inbound.has(status)
+          ? "brand"
+          : "informative";
+  return <Badge tone={tone}>{formatStatus(status)}</Badge>;
 }
 
 export function ClaimStatusBadge({ claim }: { claim: ClaimBadgeOut }) {

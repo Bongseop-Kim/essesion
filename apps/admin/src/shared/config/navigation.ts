@@ -50,32 +50,17 @@ export const ADMIN_NAVIGATION_GROUPS: readonly AdminNavigationGroup[] = [
   },
   {
     key: "generation-assets",
-    label: "생성·에셋",
+    label: "디자인",
     items: [
       {
         key: "seamless-logs",
-        label: "Seamless 로그",
+        label: "디자인 렌더 로그",
         href: "/seamless-logs",
       },
-      {
-        key: "generation-jobs",
-        label: "생성 작업",
-        href: "/generation-jobs",
-      },
-      {
-        key: "few-shot-candidates",
-        label: "few-shot 후보",
-        href: "/few-shot-candidates",
-      },
-      {
-        key: "few-shot-examples",
-        label: "선별된 few-shot",
-        href: "/few-shot-examples",
-      },
-      { key: "motifs", label: "Motif SVG", href: "/motifs" },
+      { key: "motifs", label: "무늬·로고", href: "/motifs" },
       {
         key: "design-examples",
-        label: "디자인 예시",
+        label: "템플릿",
         href: "/design-examples",
       },
     ],

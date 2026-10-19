@@ -213,10 +213,7 @@ export function CouponIssuedHistory({
 
   return (
     <VStack gap="x5" alignItems="stretch">
-      <AdminCard
-        title="발급 이력"
-        description="발급 당시 금전 조건을 표시합니다."
-      >
+      <AdminCard title="발급 이력" description="발급 당시 할인 조건">
         <VStack gap="x4" alignItems="stretch">
           <FilterSelect
             label="발급 상태"
@@ -273,7 +270,7 @@ export function CouponIssuedHistory({
           <VStack gap="x4" alignItems="stretch">
             <Text textStyle="bodySm">
               현재 페이지에서 활성 발급 건{" "}
-              {selectedIds.length.toLocaleString("ko-KR")}개를 선택했습니다.
+              {selectedIds.length.toLocaleString("ko-KR")}건을 선택했습니다.
             </Text>
             <TextAreaField
               label="회수 사유"
@@ -298,7 +295,7 @@ export function CouponIssuedHistory({
                 title="쿠폰을 회수하지 못했습니다"
                 description={getErrorMessage(
                   revokeMutation.error,
-                  "선택과 사유는 유지됩니다. 오류 원인을 확인한 뒤 같은 회수 요청을 안전하게 다시 시도할 수 있습니다.",
+                  "선택과 사유는 그대로 있습니다. 다시 시도해 주세요.",
                 )}
               />
             )}

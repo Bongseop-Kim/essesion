@@ -76,7 +76,7 @@ function validateDraft(draft: CouponDraft): CouponDraftErrors {
   if (discountValue === undefined) {
     errors.discountValue = "0보다 큰 정수를 입력해 주세요.";
   } else if (draft.discountType === "percentage" && discountValue > 100) {
-    errors.discountValue = "할인율은 1에서 100 사이여야 합니다.";
+    errors.discountValue = "할인율은 1~100 사이로 입력해 주세요.";
   }
   if (
     draft.discountType === "percentage" &&
@@ -199,7 +199,7 @@ export function CouponDefinitionForm({
           )}
           <Grid columns={{ base: 1, md: 2 }} gap="x4">
             <TextField
-              label="관리용 쿠폰 이름"
+              label="쿠폰 이름"
               required
               maxLength={100}
               value={draft.name}
@@ -335,7 +335,7 @@ export function CouponDefinitionForm({
                 title="쿠폰을 저장하지 못했습니다"
                 description={getErrorMessage(
                   error,
-                  "다른 관리자의 수정 또는 입력 조건을 확인해 주세요. 입력 내용은 보존됩니다.",
+                  "다른 관리자가 먼저 수정했을 수 있습니다. 입력한 내용은 그대로 있으니 최신 내용과 비교해 주세요.",
                 )}
               />
               {errorAction}
@@ -354,7 +354,7 @@ export function CouponDefinitionForm({
                 setAttempted(false);
               }}
             >
-              변경 취소
+              수정 취소
             </ActionButton>
           </HStack>
         </VStack>
@@ -362,15 +362,15 @@ export function CouponDefinitionForm({
 
       <AlertDialog
         open={blocker.state === "blocked"}
-        title="저장하지 않은 쿠폰 변경을 버릴까요?"
-        description="입력한 쿠폰 조건이 사라집니다."
+        title="저장하지 않고 나갈까요?"
+        description="입력한 쿠폰 조건은 저장되지 않습니다."
         primaryActionProps={{
-          children: "변경 버리기",
+          children: "나가기",
           variant: "criticalSolid",
           onClick: () => blocker.proceed?.(),
         }}
         secondaryActionProps={{
-          children: "계속 편집",
+          children: "계속 작성",
           onClick: () => blocker.reset?.(),
         }}
       />

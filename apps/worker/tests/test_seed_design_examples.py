@@ -7,7 +7,6 @@ import json
 from pathlib import Path
 from types import ModuleType
 
-from worker.authoring.examples import load_example_set
 from worker.motifs.registry import MotifDef
 
 GOLDEN = Path(__file__).parent / "golden"
@@ -37,12 +36,10 @@ def _catalog() -> dict[str, MotifDef]:
 
 def test_every_curated_example_supplies_one_motif_subject_per_plan_input():
     seed = _seed_module()
-    plans = {example.example_id: example.plan for example in load_example_set()}
 
     assert len(seed.CURATED) == len({item.example_id for item in seed.CURATED})
     for curated in seed.CURATED:
-        assert curated.example_id in plans
-        inputs = [source for source in plans[curated.example_id].motifs if source.source == "input"]
+        inputs = [source for source in curated.plan.motifs if source.source == "input"]
         assert len(curated.motif_subjects) == len(inputs), curated.example_id
 
 
@@ -50,14 +47,15 @@ def test_seeded_runs_are_deterministic_and_carry_what_the_api_restores():
     # api `_resolve_design_run`은 로그의 design.intent/seed/colorway_id만 보고 세션을
     # 되살린다 — 시드가 그 셋을 빠뜨리면 갤러리 카드가 열리지 않는다.
     seed = _seed_module()
-    plans = {example.example_id: example.plan for example in load_example_set()}
     catalog = _catalog()
     motif_pool = sorted(catalog)
 
     for curated in seed.CURATED:
         motif_ids = motif_pool[: len(curated.motif_subjects)]
-        first = seed._compose_run(plans[curated.example_id], motif_ids=motif_ids, catalog=catalog)
-        second = seed._compose_run(plans[curated.example_id], motif_ids=motif_ids, catalog=catalog)
+        plan = curated.plan
+        kwargs = {"catalog": catalog, "color_names": (), "tile_scale": curated.tile_scale}
+        first = seed._compose_run(plan, motif_ids=motif_ids, **kwargs)
+        second = seed._compose_run(plan, motif_ids=motif_ids, **kwargs)
 
         assert first == second
         intent_log, design_log, _warnings = first
@@ -66,3 +64,31 @@ def test_seeded_runs_are_deterministic_and_carry_what_the_api_restores():
         assert isinstance(design_log["seed"], int)
         assert design_log["colorway_id"] == "default"
         assert design_log["svg"].startswith("<svg")
+
+
+def test_placement_templates_carry_panel_svg_and_one_logo():
+    # 배치형 템플릿 — panel이 intent·로그에 실리고 포인트 로고는 panel에 하나뿐이다.
+    # 로고 없는 panel(엠블럼 뒤 바탕색 받침)은 반복형 템플릿의 보조라 로고 수 검사에서 뺀다.
+    seed = _seed_module()
+    catalog = _catalog()
+    motif_id = sorted(catalog)[0]
+    placed = [
+        item
+        for item in seed.CURATED
+        if any(element.get("role") == "logo" for element in item.panel or ())
+    ]
+    assert len(placed) == 8
+    for curated in placed:
+        panel = [
+            {**{k: v for k, v in element.items() if k != "subject"}, "motif_id": motif_id}
+            if "subject" in element
+            else dict(element)
+            for element in curated.panel
+        ]
+        assert sum(1 for element in panel if element.get("role") == "logo") == 1
+        _intent, design_log, warnings = seed._compose_run(
+            curated.plan, motif_ids=[], catalog=catalog, color_names=(), panel=panel
+        )
+        assert warnings == [], curated.example_id
+        assert design_log["panel_svg"].startswith("<svg")
+        assert design_log["intent"]["panel"][0]["type"] == panel[0]["type"]

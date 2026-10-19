@@ -14,7 +14,7 @@ export const TEMPLATE_LABELS: Record<PopupTemplate, string> = {
 export const TEMPLATE_DESCRIPTIONS: Record<PopupTemplate, string> = {
   holiday: "마감·휴무·재개일을 넣으면 달력과 범례가 자동으로 그려집니다.",
   operation: "시행일·변경 내용처럼 라벨과 값을 표로 보여줍니다 (최대 4행).",
-  event: "배너 이미지가 주인공입니다. 링크가 필요합니다.",
+  event: "배너 이미지 중심의 팝업입니다. 링크가 필요합니다.",
 };
 
 export const MAX_OPERATION_ROWS = 4;
@@ -153,7 +153,7 @@ export function validateDraft(draft: PopupDraft): DraftErrors {
       !ordered
     ) {
       errors.resumeOn =
-        "마감일 ≤ 휴무 시작 ≤ 휴무 종료 < 재개일 순서여야 합니다.";
+        "마감일, 휴무 시작일, 휴무 종료일, 재개일 순서로 입력해 주세요.";
     }
   } else if (draft.template === "operation") {
     if (draft.rows.length === 0) errors.rows = "항목을 추가해 주세요.";
@@ -164,7 +164,7 @@ export function validateDraft(draft: PopupDraft): DraftErrors {
         errors[`rows.${index}.value`] = `${index + 1}행 값을 입력해 주세요.`;
     });
   } else {
-    if (!draft.image) errors.image = "배너 이미지를 올려 주세요.";
+    if (!draft.image) errors.image = "배너 이미지를 업로드해 주세요.";
     if (!draft.linkUrl.trim())
       errors.linkUrl = "이벤트 팝업은 링크가 필요합니다.";
   }

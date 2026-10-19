@@ -25,6 +25,8 @@ export function useFilePreviews(maxFiles: number) {
   useEffect(
     () => () => {
       for (const preview of previewsRef.current) preview.revoke();
+      // StrictMode 재마운트에서 처음 넣은 파일을 다시 넣을 수 있게 비운다.
+      previewsRef.current = [];
     },
     [],
   );

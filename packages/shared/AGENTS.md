@@ -61,7 +61,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 
 | 컴포넌트 | 트리거 | 피하기 / 대신 |
 |---|---|---|
-| ActionButton | **액션 실행**(제출·저장·이동·삭제·CTA). variant: `brandSolid`=핵심 CTA(화면당 1개) · `neutralWeak`=대부분의 액션 · `neutralOutline`=보조 · `criticalSolid`=되돌릴 수 없는 작업 · `ghost`=최소 강조 · `ai`=AI 실행 1개(디자인 페이지 실사화 전용, 그라디언트 예외) · `kakao`/`naver`/`apple`=소셜 로그인 전용 | 정보/선택 표시(→Chip/Badge). 한 줄에 4개+ 나열, Solid+Outline 혼용 |
+| ActionButton | **액션 실행**(제출·저장·이동·삭제·CTA). variant: `brandSolid`=핵심 CTA(화면당 1개) · `neutralWeak`=대부분의 액션 · `neutralOutline`=보조 · `criticalSolid`=되돌릴 수 없는 작업 · `ghost`=최소 강조 · `kakao`/`naver`/`apple`=소셜 로그인 전용 | 정보/선택 표시(→Chip/Badge). 한 줄에 4개+ 나열, Solid+Outline 혼용 |
 | Chip | pill 선택/토글 — 필터·옵션·추천·태그 선택(단일/다중), 탭 대체 | 액션 실행(→ActionButton), 정적 정보(→Badge) |
 
 ### 폼 (컨트롤 라벨·설명·에러는 Field가 배선)
@@ -122,7 +122,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | AspectRatio | 고정 비율 컨테이너로 프레이밍 — 자식은 `absolute inset-0`/`size-full` | 폴백이 필요한 이미지(→ImageFrame) |
 | ImageFrame | **모든 콘텐츠 이미지**(상품·업로드) — 비율 프레임+라운드, 누락/실패 시 실루엣 폴백. 오버레이는 children, `fill`로 부모 채움 | raw `<img>`. 장식/배경 이미지(→CSS background-image) |
 | Rating | 별점 표시·입력(0~5, 0.1 단위 부분 채움). `onChange` 없으면 읽기 전용 | 별 아이콘 직접 조합 |
-| TieCanvas | 디자인 SVG를 넥타이 실루엣(`tie`) 또는 타일 반복(`repeat`)으로 미리보기. 소비 앱의 `public/images/tie.svg`·`tie-shadow.png` 필요 | 마스크·그림자 기하를 앱에서 재현 |
+| TieCanvas | 디자인 SVG를 넥타이 실루엣(`tie`) 또는 타일 반복(`repeat`)으로 미리보기. `scanning`이면 실루엣 안에서만 대기 스캔 라인이 돈다. 소비 앱의 `public/images/tie-mask.png`·`tie-knot-mask.png`·`tie-shadow.webp` 필요(`silhouette="flat"`이면 `tie-flat-mask.png`·`tie-flat-shadow.webp`) | 마스크·그림자 기하를 앱에서 재현 |
 
 ### 콘텐츠
 

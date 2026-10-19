@@ -2,7 +2,7 @@
 
 `README.md`의 hero는 GPT Image built-in mode로 생성한 포트폴리오 콘셉트 비주얼이다. 실제 애플리케이션 스크린샷이나 worker 출력이 아니다. 3D로 드레이프된 원단은 생성된 flat tileable texture가 물리 제품에 적용되는 모습을 상상한 포트폴리오 표현이며, 벌 motif도 샘플 시각 요소이지 브랜드 로고가 아니다.
 
-프롬프트는 `../seamless-tile`의 대표 시나리오인 대각 repp stripe, lane을 따르는 motif, 벡터 반복에서 직조 원단으로 이어지는 finalize 개념을 참고했다.
+프롬프트는 `../seamless-tile`의 대표 시나리오인 대각 repp stripe, lane을 따르는 motif, 벡터 반복에서 직조 원단으로 이어지는 개념을 참고했다(그 실사화 기능은 2026-10-19 제거됐다).
 
 ```text
 Use case: stylized-concept

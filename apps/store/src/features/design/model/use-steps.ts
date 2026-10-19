@@ -1,53 +1,32 @@
-import { activateDesignStep, activateMotif } from "@essesion/api-client";
-import { getTokenBalanceQueryKey } from "@essesion/api-client/query";
+import { type DesignLogoSlotOut, placeDesignLogo } from "@essesion/api-client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { designSessionQueryKey, designTurnsQueryKey } from "./queries";
+import { designSessionQueryKey } from "./queries";
 
-/** 되돌리기 — 이력 썸네일 클릭이 편집 포인터를 그 스텝으로 옮긴다. 과금 없음. */
-export function useActivateDesignStep() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (input: { sessionId: string; runId: string }) => {
-      const { data } = await activateDesignStep({
-        path: { session_id: input.sessionId },
-        body: { run_id: input.runId },
-        throwOnError: true,
-      });
-      queryClient.setQueryData(designSessionQueryKey(input.sessionId), data);
-      await queryClient.invalidateQueries({
-        queryKey: designTurnsQueryKey(input.sessionId),
-      });
-      return data;
-    },
-  });
-}
-
-/** 모티프 슬롯 교체 — 모델 호출 없이 재렌더만 하므로 토큰이 들지 않는다. */
-export function useActivateMotifSlot() {
+/** 로고 넣기 — 서버가 내 모티프 저장과 로고 자리 교체를 한 번에 한다. 재렌더뿐이라 토큰이 들지 않는다. */
+export function usePlaceLogo() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (input: {
       sessionId: string;
-      slot: 1 | 2;
-      motifId: string;
+      name: string;
+      svg: string;
+      /** 템플릿 로고 자리 — 생략하면 서버가 첫 자리를 고른다. */
+      slot?: DesignLogoSlotOut["slot"];
     }) => {
-      const { data } = await activateMotif({
+      const { data } = await placeDesignLogo({
         path: { session_id: input.sessionId },
-        body: { slot: input.slot, motif_id: input.motifId },
+        body: {
+          name: input.name.trim().slice(0, 100),
+          svg: input.svg,
+          slot: input.slot,
+        },
         throwOnError: true,
       });
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: designSessionQueryKey(input.sessionId),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: designTurnsQueryKey(input.sessionId),
-        }),
-        queryClient.invalidateQueries({ queryKey: getTokenBalanceQueryKey() }),
-      ]);
+      await queryClient.invalidateQueries({
+        queryKey: designSessionQueryKey(input.sessionId),
+      });
       return data;
     },
   });

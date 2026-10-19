@@ -1,8 +1,6 @@
 import {
   completeDesignReferenceUpload,
   createUploadUrl,
-  importUserMotif,
-  type UserMotifOut,
 } from "@essesion/api-client";
 
 import { putIssued, validateImageFile } from "@/shared/lib/upload";
@@ -49,18 +47,4 @@ export async function readDesignMotifSvg(file: File): Promise<string> {
   } catch {
     throw new Error("SVG 파일은 올바른 UTF-8 텍스트여야 합니다.");
   }
-}
-
-export async function importDesignMotifSvg(
-  name: string,
-  svg: string,
-): Promise<UserMotifOut> {
-  const response = await importUserMotif({
-    body: {
-      name: name.trim().slice(0, 100),
-      svg,
-    },
-    throwOnError: true,
-  });
-  return response.data;
 }

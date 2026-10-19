@@ -47,6 +47,7 @@ import { downloadWorksheetPng } from "../../shared/lib/capture";
 import {
   formatAmountBreakdown,
   formatDateTime,
+  formatDeliveryRequest,
   formatFileSize,
   formatMoney,
   formatRepairReceiptReason,
@@ -59,7 +60,11 @@ import { type DetailItem, DetailList } from "../../shared/ui/detail-list";
 import { OptionPair } from "../../shared/ui/option-pair";
 import { PrivateAssetPreview } from "../../shared/ui/private-asset-preview";
 import { RouteHeading } from "../../shared/ui/route-heading";
-import { ClaimStatusBadge, StatusBadge } from "../../shared/ui/status-badge";
+import {
+  ClaimStatusBadge,
+  formatStatus,
+  StatusBadge,
+} from "../../shared/ui/status-badge";
 import { TechnicalDetails } from "../../shared/ui/technical-details";
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -79,6 +84,17 @@ function orderTabFrom(
   if (!ORDER_TABS.includes(value as OrderTab)) return "overview";
   if (value === "shipping" && !hasShippingTab) return "overview";
   return value as OrderTab;
+}
+
+// API 라벨은 원문 상태명("발송중 상태로 진행")이라 입고·출고 방향이 안 보인다 — 화면 라벨로 다시 짓는다.
+function withDisplayLabel(action: AdminAction): AdminAction {
+  if (action.target_status == null) return action;
+  const target = formatStatus(action.target_status);
+  if (action.kind === "advance")
+    return { ...action, label: `${target} 상태로 진행` };
+  if (action.kind === "rollback")
+    return { ...action, label: `${target} 상태로 되돌리기` };
+  return action;
 }
 
 function snapshotLabel(item: OrderItemOut) {
@@ -276,7 +292,7 @@ function OrderReferenceImage({
       metadata={
         <>
           {image.content_type ?? "이미지"} ·{" "}
-          {formatFileSize(image.size_bytes, "크기 미상")} ·{" "}
+          {formatFileSize(image.size_bytes, "크기 정보 없음")} ·{" "}
           {formatDateTime(image.created_at)}
         </>
       }
@@ -313,7 +329,7 @@ function RepairReceiptPhoto({
       metadata={
         <>
           {image.content_type ?? "이미지"} ·{" "}
-          {formatFileSize(image.size_bytes, "크기 미상")} ·{" "}
+          {formatFileSize(image.size_bytes, "크기 정보 없음")} ·{" "}
           {formatDateTime(image.created_at)}
         </>
       }
@@ -434,10 +450,7 @@ export function OrderDetailPage() {
   const actionPending = statusMutation.isPending || trackingMutation.isPending;
   const actionOpen = selectedAction !== undefined;
   const blocker = useDirtyFormBlocker(actionOpen, undefined, true);
-  const hasShippingTab =
-    data !== undefined &&
-    (data.order_type !== "token" ||
-      (data.shipping_address !== null && data.shipping_address !== undefined));
+  const hasShippingTab = data !== undefined;
   const tab = orderTabFrom(params, hasShippingTab);
 
   const setTab = (value: string) => {
@@ -459,10 +472,7 @@ export function OrderDetailPage() {
   if (query.isLoading) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading
-          title="주문 상세"
-          description="거래 시점 정보와 주문 처리 이력을 확인합니다."
-        />
+        <RouteHeading title="주문 상세" />
         <ContentPlaceholder title="주문 상세를 불러오고 있습니다" />
       </VStack>
     );
@@ -470,13 +480,10 @@ export function OrderDetailPage() {
   if (query.isError || data === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading
-          title="주문 상세"
-          description="거래 시점 정보와 주문 처리 이력을 확인합니다."
-        />
+        <RouteHeading title="주문 상세" />
         <ContentPlaceholder
           title="주문을 불러오지 못했습니다"
-          description="주문 ID를 확인하거나 다시 시도해 주세요."
+          description="주소를 확인하거나 다시 시도해 주세요."
           action={
             <ActionButton onClick={() => void query.refetch()}>
               다시 시도
@@ -553,11 +560,12 @@ export function OrderDetailPage() {
     ({ image }) =>
       image.order_item_id == null || !itemIds.has(image.order_item_id),
   );
+  const adminActions = (data.admin_actions ?? []).map(withDisplayLabel);
   const actionPanel = (
     <AdminCard title="운영 액션">
       <VStack gap="x4" alignItems="stretch">
         <HStack gap="x2" wrap>
-          {(data.admin_actions ?? []).map((action) => (
+          {adminActions.map((action) => (
             <ActionButton
               key={`${action.kind}-${action.target_status ?? ""}`}
               variant={action.destructive ? "criticalSolid" : "neutralOutline"}
@@ -569,7 +577,7 @@ export function OrderDetailPage() {
             </ActionButton>
           ))}
         </HStack>
-        {(data.admin_actions ?? [])
+        {adminActions
           .filter((action) => !action.enabled && action.blocking_reason)
           .map((action) => (
             <Text
@@ -594,7 +602,7 @@ export function OrderDetailPage() {
             <Callout
               tone="informative"
               title="현재 작업을 먼저 완료해 주세요"
-              description="입력 중인 내용이 가려지지 않도록 저장하거나 취소할 때까지 다른 탭을 잠갔습니다."
+              description="저장하거나 취소하면 다른 탭으로 이동할 수 있습니다."
             />
             {selectedAction.kind === "update_tracking" ? (
               <>
@@ -651,7 +659,7 @@ export function OrderDetailPage() {
                   ? "송장 정보 저장"
                   : selectedAction.destructive
                     ? `${selectedAction.label} 검토`
-                    : `${selectedAction.label} 적용`}
+                    : `${selectedAction.label} 실행`}
               </ActionButton>
               <ActionButton
                 type="button"
@@ -673,7 +681,7 @@ export function OrderDetailPage() {
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading
           title={`주문 ${data.order_number}`}
-          description={`${data.customer.name} · ${formatMoney(data.order_amount)} · 주문 ${formatDateTime(data.created_at)} · 마지막 변경 ${formatDateTime(data.updated_at)}`}
+          description={`${data.customer.name} · ${formatMoney(data.order_amount)} · 주문 ${formatDateTime(data.created_at)} · 마지막 수정 ${formatDateTime(data.updated_at)}`}
         />
         <HStack gap="x2" wrap>
           <StatusBadge status={data.status} />
@@ -752,6 +760,13 @@ export function OrderDetailPage() {
                           : "-",
                       },
                       {
+                        label: "배송 메모",
+                        value: formatDeliveryRequest(
+                          data.shipping_address?.delivery_request,
+                          data.shipping_address?.delivery_memo,
+                        ),
+                      },
+                      {
                         label: "회원",
                         value: (
                           <Link to={`/customers/${data.customer.id}`}>
@@ -777,7 +792,7 @@ export function OrderDetailPage() {
 
                 <AdminCard
                   title="주문 품목"
-                  description="상품·옵션·쿠폰은 주문 생성 시점 스냅샷을 우선합니다."
+                  description="상품·옵션·쿠폰은 주문 당시 정보로 표시합니다."
                 >
                   <VStack gap="x4" alignItems="stretch">
                     {orderItems.map((item) => (
@@ -911,7 +926,7 @@ export function OrderDetailPage() {
               <AdminCard title="배송 정보">
                 <DetailList
                   items={[
-                    // 수취인 이름·연락처·주소는 개요 카드에 있다 — 여기서 반복하지 않는다.
+                    // 수취인 이름·연락처·주소·배송 메모는 개요 카드에 있다 — 여기서 반복하지 않는다.
                     {
                       label: "고객 송장",
                       value:
@@ -929,22 +944,6 @@ export function OrderDetailPage() {
                           .filter(Boolean)
                           .join(" · ") || "-",
                     },
-                    ...(data.shipping_address?.delivery_request
-                      ? [
-                          {
-                            label: "배송 요청",
-                            value: data.shipping_address.delivery_request,
-                          },
-                        ]
-                      : []),
-                    ...(data.shipping_address?.delivery_memo
-                      ? [
-                          {
-                            label: "배송 메모",
-                            value: data.shipping_address.delivery_memo,
-                          },
-                        ]
-                      : []),
                   ]}
                 />
               </AdminCard>
@@ -1021,8 +1020,10 @@ export function OrderDetailPage() {
                       className="border-l-2 border-stroke-neutral-weak pl-x4"
                     >
                       <Text textStyle="labelSm">
-                        {log.previous_status} → {log.new_status}
-                        {log.is_rollback ? " (롤백)" : ""}
+                        {log.previous_status &&
+                          formatStatus(log.previous_status)}{" "}
+                        → {formatStatus(log.new_status)}
+                        {log.is_rollback ? " (되돌림)" : ""}
                       </Text>
                       <Text textStyle="bodySm" color="fg.neutral-muted">
                         {log.memo ?? "메모 없음"}
@@ -1053,8 +1054,12 @@ export function OrderDetailPage() {
       <AlertDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title={`${selectedAction?.label ?? "위험 작업"}을 실행할까요?`}
-        description={`주문 ${data.order_number} · 상태 ${data.status} → ${selectedAction?.target_status ?? "변경 없음"} · 변경 사유: ${memo.trim() || "없음"}`}
+        title={
+          selectedAction
+            ? `"${selectedAction.label}" 작업을 실행할까요?`
+            : "이 작업을 실행할까요?"
+        }
+        description={`주문 ${data.order_number} · 상태 ${formatStatus(data.status)} → ${selectedAction?.target_status ? formatStatus(selectedAction.target_status) : "변경 없음"} · 변경 사유: ${memo.trim() || "없음"}`}
         primaryActionProps={{
           children: selectedAction?.label ?? "주문 작업 실행",
           variant: "criticalSolid",
@@ -1065,10 +1070,10 @@ export function OrderDetailPage() {
       />
       <AlertDialog
         open={blocker.state === "blocked"}
-        title="작성 중인 주문 작업을 버릴까요?"
-        description="저장하지 않은 변경 사유 또는 송장 정보가 사라집니다."
+        title="저장하지 않고 나갈까요?"
+        description="입력한 변경 사유·송장 정보는 저장되지 않습니다."
         primaryActionProps={{
-          children: "주문 작업 버리기",
+          children: "나가기",
           variant: "criticalSolid",
           onClick: () => {
             cancelAction();

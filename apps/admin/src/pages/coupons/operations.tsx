@@ -195,10 +195,7 @@ export function CouponOperations({
 
   return (
     <VStack gap="x5" alignItems="stretch">
-      <AdminCard
-        title="고객군 미리보기"
-        description="고객군 계산은 서버에서 수행하며 고객 식별 정보는 URL에 저장하지 않습니다."
-      >
+      <AdminCard title="고객군 미리보기">
         <VStack gap="x4" alignItems="stretch">
           <HStack gap="x3" align="flex-end" wrap>
             <FilterSelect
@@ -282,17 +279,16 @@ export function CouponOperations({
       {!canManage ? (
         <AdminCard
           title="쿠폰 일괄 발급"
-          description="대상과 발급 조건을 검토한 뒤 한 번에 적용합니다."
+          description="대상과 발급 조건을 확인한 뒤 한 번에 발급합니다."
         >
           <Text textStyle="bodySm" color="fg.neutral-muted">
-            조회 전용 권한입니다. 고객군 일괄 발급은 admin 역할만 실행할 수
-            있습니다.
+            조회 전용 권한입니다. 고객군 일괄 발급은 관리자만 할 수 있습니다.
           </Text>
         </AdminCard>
       ) : (
         <AdminCard
           title="쿠폰 일괄 발급"
-          description="대상과 발급 조건을 검토한 뒤 한 번에 적용합니다."
+          description="대상과 발급 조건을 확인한 뒤 한 번에 발급합니다."
         >
           <VStack gap="x4" alignItems="stretch">
             {!couponActive && (
@@ -330,7 +326,7 @@ export function CouponOperations({
                 title="쿠폰을 발급하지 못했습니다"
                 description={getErrorMessage(
                   issueMutation.error,
-                  "입력은 유지됩니다. 오류 원인을 확인한 뒤 같은 발급 요청을 안전하게 다시 시도할 수 있습니다.",
+                  "입력한 내용은 그대로 있습니다. 다시 시도해 주세요.",
                 )}
               />
             )}
@@ -345,7 +341,7 @@ export function CouponOperations({
               loading={issueMutation.isPending}
               onClick={() => setConfirmOpen(true)}
             >
-              쿠폰 {targetCount.toLocaleString("ko-KR")}명 발급 검토
+              {targetCount.toLocaleString("ko-KR")}명에게 발급 검토
             </ActionButton>
           </VStack>
         </AdminCard>
@@ -355,7 +351,7 @@ export function CouponOperations({
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title={`${targetCount.toLocaleString("ko-KR")}명에게 쿠폰을 발급할까요?`}
-        description={`대상: ${selectedIds.length > 0 ? "직접 선택한 고객" : (AUDIENCE_SEGMENTS.find((item) => item.value === segment)?.label ?? segment)} ${targetCount.toLocaleString("ko-KR")}명\n중복 기준: ${excludeIssued ? "이미 발급된 고객 제외" : "기존 발급 여부와 관계없이 서버 중복 규칙 적용"}\n만료일: ${couponExpiry}\n사유: ${reason.trim()}`}
+        description={`대상: ${selectedIds.length > 0 ? "직접 선택한 고객" : (AUDIENCE_SEGMENTS.find((item) => item.value === segment)?.label ?? segment)} ${targetCount.toLocaleString("ko-KR")}명\n중복 기준: ${excludeIssued ? "이미 발급된 고객 제외" : "이미 발급된 고객 제외 안 함"}\n만료일: ${couponExpiry}\n사유: ${reason.trim()}`}
         primaryActionProps={{
           children: `${targetCount.toLocaleString("ko-KR")}명에게 쿠폰 발급`,
           loading: issueMutation.isPending,

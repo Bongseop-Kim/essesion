@@ -106,7 +106,7 @@ describe("ProductEditPage", () => {
     expect(
       await screen.findByRole("heading", { name: nextProduct.name }),
     ).toBeTruthy();
-    expect((screen.getByLabelText(/상품 이름/) as HTMLInputElement).value).toBe(
+    expect((screen.getByLabelText(/상품명/) as HTMLInputElement).value).toBe(
       nextProduct.name,
     );
   });
@@ -124,10 +124,10 @@ describe("ProductEditPage", () => {
     api.get.mockResolvedValueOnce(product).mockResolvedValueOnce(serverProduct);
     renderPage();
 
-    const name = await screen.findByLabelText(/상품 이름/);
+    const name = await screen.findByLabelText(/상품명/);
     await user.clear(name);
     await user.paste("내가 입력한 상품 이름");
-    await user.click(screen.getByRole("button", { name: "상품 변경 저장" }));
+    await user.click(screen.getByRole("button", { name: "저장" }));
 
     await waitFor(() =>
       expect(api.update).toHaveBeenCalledWith(
@@ -155,8 +155,8 @@ describe("ProductEditPage", () => {
     ).toBeTruthy();
     expect((name as HTMLInputElement).value).toBe("내가 입력한 상품 이름");
 
-    await user.click(screen.getByRole("button", { name: "최신 서버 값 비교" }));
-    expect(await screen.findByText("현재 서버 값")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "최신 내용과 비교" }));
+    expect(await screen.findByText("저장된 최신 내용")).toBeTruthy();
     expect(screen.getAllByText("서버에서 먼저 바뀐 이름")).toHaveLength(2);
     expect((name as HTMLInputElement).value).toBe("내가 입력한 상품 이름");
   });
@@ -164,16 +164,14 @@ describe("ProductEditPage", () => {
   it("동명 옵션을 클라이언트에서 막고 서버 mutation을 실행하지 않는다", async () => {
     const user = userEvent.setup();
     renderPage();
-    await screen.findByLabelText(/상품 이름/);
+    await screen.findByLabelText(/상품명/);
 
     await user.click(screen.getByRole("button", { name: "옵션 추가" }));
     const optionNames = screen.getAllByLabelText(/옵션 이름/);
     await user.type(optionNames[1] as HTMLInputElement, "긴 길이");
-    await user.click(screen.getByRole("button", { name: "상품 변경 저장" }));
+    await user.click(screen.getByRole("button", { name: "저장" }));
 
-    expect(
-      screen.getAllByText("같은 옵션 이름을 중복할 수 없습니다."),
-    ).toHaveLength(2);
+    expect(screen.getAllByText("이미 있는 옵션 이름입니다.")).toHaveLength(2);
     expect(api.update).not.toHaveBeenCalled();
   });
 });

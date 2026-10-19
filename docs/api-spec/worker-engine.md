@@ -17,6 +17,7 @@
 | palette | PaletteSpec | 필수 | slots 1..64 (id, hex, spot?, name?) |
 | colorways | list[ColorwaySpec] | 필수 | 1..32 (id, name?, mapping: slot→색) |
 | layers | list[Layer] | 필수 | 1..64, discriminator=type |
+| panel | list[PanelElement] \| None | None | 1..32, discriminator=type — 배치형(§2b). 없으면 None이라 기존 intent의 dump·layout_id가 바이트 그대로다 |
 
 레이어 공통: `id, type, params, z_order, opacity(0..1, 기본 1.0), clip?`. 종류:
 - **background**: params.color(슬롯 id)
@@ -28,6 +29,7 @@ Placement: `type ∈ {lattice, point_set, path_following, scatter}` + type별 sp
 - ScatterSpec: mode ∈ {poisson, sateen}, min_dist_mm?(gt0), count?(1..10000), sateen_n?(2..1024), sateen_step?(1..1024), seed_salt?(1..64자)
 - PointSetSpec: points 1..10000
 - path_following: host_layer+lane 또는 standalone path(PathSpec: kind ∈ {straight, wave}, angle?, wavelength?(gt0), amplitude?(ge0)) + spacing_mm(gt0), phase_mm=0, rotation ∈ {follow_path, fixed}?
+- 모든 placement의 `avoid_layer?`는 같은 intent에서 **먼저 그려지는**(`(z_order, id)` 정렬이 앞선) 모티프 레이어 id다. 그 레이어와 겹치는 자기 인스턴스를 뺀다(§3 "자리 비우기"). 없는 id·자기 자신·모티프가 아닌 레이어·뒤에 그려지는 레이어는 `IntentInvalid`다. 생략하면 dump에서 빠져 기존 intent가 바이트 그대로다(`seed_salt`와 같은 가산 선례).
 - 모든 placement의 `fixed_rotation_deg?`는 구성 patch가 사용하는 결정론적 각도다. 생략 시 기존과 동일하게 0°이며 canonical layout JSON에서도 빠져 기존 layout id·SVG 바이트를 보존한다. path-following에서 `rotation=follow_path`면 tangent가 우선한다.
 
 `validate_intent`의 결정론적 repair(경고 발생): dpi→ALLOWED_DPI(150,300,600) 최근접, off-grid stripe period→`tile/(k·hypot(p,q))` 스냅(밴드 비례, round 6자리), 다중밴드 bare lane(start/center/end/gap)→b0.*, ground-gap(coverage > 0.75) 축소·균등 배치. drop_fraction 허용값 `(0.5, 1/3, 0.25)`.
@@ -52,6 +54,33 @@ Placement: `type ∈ {lattice, point_set, path_following, scatter}` + type별 sp
 - **2MB 캡**: sanitize 재파싱 **전에** `len(doc.encode("utf-8")) > max_svg_bytes(2_000_000)` → ValueError → `design_invalid` 422.
 - **sanitize**(최종 게이트, byte-stable): defusedxml 파싱(DTD·외부엔티티 금지) + 태그/속성/href/color 화이트리스트 검증 후 **입력 문자열 그대로 반환**(재직렬화 금지). 허용 태그: svg,defs,symbol,pattern,g,rect,line,circle,ellipse,use,path,polygon,polyline (text 없음). color는 currentColor/none/transparent/inherit/#hex(3~8)/url(#내부)만.
 
+## 2b. panel — 배치형(한 번만 놓이는) 요소
+
+타일 반복으로 표현할 수 없는 "넥타이에 한 번만" 놓이는 무늬(대각·V 분할, 한쪽 곡선 띠, 세로 금선, 넝쿨
+가지, 붓 터치)와 **포인트 로고**. `engine/panel.py:compose_panel`이 타일과 **별개의 SVG 문서**
+(`ComposedDesign.panel_svg`, 응답 `design.panel_svg`)를 만든다. seamless 클론·불변식(§3)은 적용하지
+않고, panel이 없으면 None이다. 같은 intent+colorway → byte-identical.
+
+- **블레이드 프레임**(등방 단위): x 0..1000 = 어깨(끝이 좁아지기 시작하는 줄)에서의 블레이드 폭(왼→오),
+  y는 같은 단위로 위→아래, 어깨선이 y=1000, 끝 ≈ 1500. 문서 viewBox `0 -4600 1000 6200` — 위로는 실사
+  컷의 매듭 아래까지 담는다. 등방이라 평면 카드(블레이드 ≈ 1.3 폭)와 실사 컷(≈ 5.5 폭)에서 모양이 같고,
+  평면 카드는 y ≈ 210..1500만 보인다. 배경 투명.
+- **요소**(모두 `extra="forbid"`, 색은 팔레트 슬롯 id라 colorway·색 고르기가 그대로 적용된다):
+  - `region` `{points[3..64], color}` → `<polygon>` 채움.
+  - `line` `{points[2..64], width, color, end_dot?}` → `<polyline>` stroke, `end_dot`이면 끝점에 지름 end_dot 원.
+  - `curve_band` `{points[3n+1], width, color}` → 3차 베지어 `<path>` stroke. 겹띠는 여러 개를 겹친다.
+  - `motif` `{motif_id, at, size, rotation=0, anchor ∈ {center, bottom_right}, role ∈ {logo, decor}}` →
+    `<use>`. `size`는 **면적 기준**(같은 면적 정사각의 한 변) — 정규화 bbox는 늘 단위 박스라 실제 가로세로
+    비는 symbol geometry의 tight bbox로 잰다. `role=logo`는 폭 ≤ 2·size, 높이 ≤ 1.5·size로 자른다(사용자
+    로고는 아무 비율이나 온다). `bottom_right`는 그 모서리를 `at`에 둔다. **logo는 panel에 최대 1개**.
+- 문서 순서는 panel 목록 순서(뒤가 위). symbol은 최초 등장 순 defs. 마지막에 sanitize(§2).
+- 검증: region·line·curve_band의 color가 팔레트 슬롯이어야 한다(`panel[i] references unknown color slot`).
+  `iter_motif_ids`(카탈로그 범위)와 팔레트 정리(`ordered_slot_refs`)는 panel을 포함한다 — 빠지면
+  모티프가 카탈로그에서 빠지거나 panel 전용 슬롯이 지워진다.
+- **로고 교체**: `set_motif_slot(slot="logo")`가 panel 로고의 motif_id만 바꾼다(없으면 `ConstraintInvalid`).
+- **모티프 슬롯**: motif 레이어의 선택 필드 `slot`(1..) — 같은 슬롯 레이어는 한 모티프로 같이 바뀐다. 없으면 고유 motif_id 순서로 매기고(`patch.motif_layer_slots`), `set_motif_slot(1|2)`가 처음 바꿀 때 전부 박는다. None은 dump에서 빠져 기존 intent·layout_id가 그대로다.
+  레이어 슬롯(1|2) 교체·구성 patch는 panel을 그대로 둔다. 저작 모델은 panel을 만들지 않는다(시드 템플릿만).
+
 ## 3. placement 4종
 
 디스패치 `place(layer, host, tile_mm, seed)`:
@@ -63,6 +92,8 @@ Placement: `type ∈ {lattice, point_set, path_following, scatter}` + type별 sp
   - **`seed_salt`**: 있으면 `random.Random(stable_hash(f"{seed}:{seed_salt}"))`, 없으면 전역 `seed` 그대로. 같은 산개 설정을 받은 두 모티프 레이어가 같은 난수열을 써서 정확히 포개지는 것을 막는 축이다(격자의 `offset_x/y_mm`와 같은 역할). 구성 patch가 산개 배치를 새로 만들 때 **레이어 id**를 넣는다 — motif_id·레이어 순번·내장 `hash()`는 입력에 넣지 않는다(모티프 교체로 좌표가 바뀌면 안 된다). 값이 없는 기존 intent는 예전 좌표를 그대로 재현한다. 난수열 분리는 비겹침 보장이 아니다.
 - **path_following**: centerline은 host stripe lane 또는 standalone path. stripe lane은 밴드 i마다 `b{i}.start|center|end`와 `b{i}.gap`(밴드 i 끝과 다음 밴드 — 마지막 밴드면 다음 period의 첫 밴드 — 시작 사이 중점, 2026-09-07 "줄 사이에" 배치용)이며, 단일 밴드는 bare `start|center|end|gap`도 받는다. 각도 스냅 `snap_angle`(기울기 `Fraction.limit_denominator(16)`), 길이 `L=tile·hypot(p,q)`, `n=max(1,round(L/spacing)), spacing_eff=L/n`, `s=phase%L + k·spacing_eff (s < L-1e-9)`. straight: `x=offset·nx+s·dx`; wave: 법선방향 `amp·sin(2πs/λ)` 추가, tangent는 도함수 반영. rotation=follow_path면 tangent, 아니면 0.
 - **point_set**: `(x%tile, y%tile, fixed_rotation_deg 또는 0)`.
+
+**자리 비우기(avoid_layer)**: 배치 결과(경계 클론 전)에서, avoid 레이어가 **실제로 그린** 인스턴스(그 레이어도 avoid로 걸러졌으면 걸러진 뒤)와의 토러스 거리가 `(자기 size_mm + 상대 size_mm) / 2` 미만인 자기 인스턴스를 입력 순서대로 버린다 — 두 모티프의 외접 정사각을 원으로 근사한 겹침 판정이다. RNG를 쓰지 않는다. 전부 빠지면 `layer '<id>': avoid_layer '<id>' removed every instance` 경고(영문 진단, 고객 문구 없음). 구성 patch가 배치를 새로 만들어도 `avoid_layer`는 옮겨 담는다.
 
 **seamless 경계 클론**: 렌더 AABB(scale→rotate→translate 순 계산)가 타일 경계를 넘으면 `(dx,dy) ∈ {-1,0,1}²\{(0,0)}` 고정 순서로 시프트 복제(교차하는 것만), 원본 뒤에 append. 전제 size_mm ≤ tile_mm.
 
@@ -147,3 +178,12 @@ patch 축 개수 범위 MIN_AXIS_COUNT=2 / MAX_AXIS_COUNT=10.
 2. 모티프 symbol은 한 번만 등록하고 모든 인스턴스가 같은 concrete-color symbol을 참조한다.
 3. sanitize는 검증만 하고 문자열을 재직렬화하지 않는다.
 4. 결정론은 동일한 Pillow·렌더러·에셋 버전이 전제다. Pillow는 `uv.lock`으로 고정되지만 librsvg 시스템 패키지 버전 고정은 남아 있다(ARCHITECTURE §6·§8.2).
+
+## 10. 템플릿 플랜 (DesignPlan v3)
+
+스토어 템플릿은 시드 코드(`apps/worker/scripts/seed_design_examples.py`의 `CURATED`)에 DesignPlan v3로 적고, 컴파일러가 intent로 바꾼 뒤 이 엔진이 렌더한다.
+
+- 스키마: `worker.design_plan.schema.DesignPlanV3` (`plan_contract_version=3`)
+- 컴파일러: `worker.design_plan.compiler` (`compiler_revision=design-plan-v3.2`). 렌더 로그에 남는 이 값은 바꾸지 않는다 — 과거 로그와 비교가 끊긴다.
+- 컴파일러 회귀 픽스처: `apps/worker/tests/golden/json/*.json`(ID-파일명 규약으로 byte-identical 검증)
+- Plan에는 normalized ratio와 제한된 enum/template만 둔다. engine layer ID, motif content-hash ID, mm, SVG와 임의 좌표는 컴파일러 뒤에만 존재한다. motif source는 exact/private `input` 또는 검증된 `catalog`뿐이며 catalog grounding은 컴파일러와 최종 엔진 검증이 다시 강제한다.

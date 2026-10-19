@@ -71,11 +71,9 @@ describe("product form model", () => {
     );
 
     expect(errors.options.one).toMatchObject({
-      name: "같은 옵션 이름을 중복할 수 없습니다.",
-      stock: "재고는 0 이상의 정수여야 합니다.",
+      name: "이미 있는 옵션 이름입니다.",
+      stock: "재고는 0 이상의 정수로 입력해 주세요.",
     });
-    expect(errors.options.two?.name).toBe(
-      "같은 옵션 이름을 중복할 수 없습니다.",
-    );
+    expect(errors.options.two?.name).toBe("이미 있는 옵션 이름입니다.");
   });
 });

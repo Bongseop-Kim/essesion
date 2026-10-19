@@ -155,11 +155,6 @@ export function MyPage() {
                   description="주문 제작 견적 요청과 안내 내용을 확인합니다."
                   onClick={() => navigate("/my-page/quote-request")}
                 />
-                <ListItem
-                  title="토큰 내역"
-                  description="구매 및 환불에 따른 토큰 변동을 확인합니다."
-                  onClick={() => navigate("/my-page/token-history")}
-                />
               </List>
             </VStack>
             <VStack gap="x2" alignItems="stretch">

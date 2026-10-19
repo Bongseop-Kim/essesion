@@ -41,7 +41,6 @@ import { Navigate, useNavigate, useParams } from "react-router";
 import { type ClaimType, claimItemTitle } from "@/features/claims/model/config";
 import { ClaimFormModal } from "@/features/claims/ui/claim-form-modal";
 import { ClaimItemActions } from "@/features/claims/ui/claim-item-actions";
-import { TokenRefundSection } from "@/features/claims/ui/token-refund-section";
 import {
   canRegisterRepairShipment,
   orderStatusTone,
@@ -260,10 +259,6 @@ export function OrderDetailPage() {
             </VStack>
           ) : null}
 
-          {order.order_type === "token" ? (
-            <TokenRefundSection orderId={order.id} />
-          ) : null}
-
           {customerActions.includes("confirm_purchase") ? (
             <Box bg="bg.neutral-weak" borderRadius="r3" p="x4">
               <VStack gap="x3" alignItems="stretch">
@@ -288,7 +283,6 @@ export function OrderDetailPage() {
           ) : null}
 
           {order.order_type !== "sale" &&
-          order.order_type !== "token" &&
           (customerActions.includes("write_review") || order.review_id) ? (
             <Box bg="bg.neutral-weak" borderRadius="r3" p="x4">
               <VStack gap="x3" alignItems="stretch">

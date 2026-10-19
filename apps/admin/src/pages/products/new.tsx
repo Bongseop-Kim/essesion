@@ -59,7 +59,7 @@ export function ProductNewPage() {
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading
           title="상품 등록"
-          description="이미지 업로드를 완료한 뒤 상품·옵션·이미지 관계를 한 번에 저장합니다."
+          description="이미지를 모두 업로드한 뒤 저장해 주세요."
         />
         <ActionButton variant="ghost" onClick={() => navigate("/products")}>
           목록으로

@@ -1,7 +1,6 @@
 import type { OrderItemOut } from "@essesion/api-client";
 
 export type ClaimType = "cancel" | "return" | "exchange";
-export type ClaimListType = ClaimType | "token_refund";
 export type ClaimReason =
   | "change_mind"
   | "defect"
@@ -71,11 +70,9 @@ const REASON_LABELS: Record<string, string> = {
   size_mismatch: "사이즈 불일치",
   color_mismatch: "색상 불일치",
   other: "기타",
-  token_refund: "토큰 환불", // 서버가 token_refund 클레임의 reason에 기록하는 고정값
 };
 
 export function claimTypeLabel(type: string): string {
-  if (type === "token_refund") return "토큰 환불";
   return CLAIM_TYPE_CONFIG[type as ClaimType]?.label ?? type;
 }
 
@@ -119,7 +116,6 @@ export function claimItemTitle(item: OrderItemOut): string {
   if (item.item_type === "reform") return "넥타이 수선";
   if (item.item_type === "custom") return "맞춤 주문";
   if (item.item_type === "sample") return "샘플 주문";
-  if (item.item_type === "token") return "디자인 토큰";
   return (
     productSnapshotTitle(item.item_data) ??
     (item.product_id ? `상품 #${item.product_id}` : "상품")

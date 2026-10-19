@@ -132,7 +132,7 @@ const order: AdminOrderDetailOut = {
   admin_actions: [
     {
       kind: "advance",
-      label: "배송 시작",
+      label: "출고 배송 중 상태로 진행",
       target_status: "배송중",
       enabled: true,
       requires_memo: true,
@@ -179,14 +179,16 @@ describe("OrderDetailPage", () => {
     expect(
       await screen.findByRole("heading", { name: "주문 ORDER-001", level: 1 }),
     ).toBeTruthy();
-    expect(screen.getByText(/홍길동.*₩50,000.*마지막 변경/)).toBeTruthy();
+    expect(screen.getByText(/홍길동.*₩50,000.*마지막 수정/)).toBeTruthy();
     const tablist = screen.getByRole("tablist", { name: "주문 상세 메뉴" });
     expect(within(tablist).getAllByRole("tab")).toHaveLength(4);
     expect(
       screen.getByRole("tab", { name: "개요" }).getAttribute("aria-selected"),
     ).toBe("true");
     expect(screen.getByRole("tabpanel", { name: "개요" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "배송 시작" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "출고 배송 중 상태로 진행" }),
+    ).toBeTruthy();
     // 작업지시서 캡처가 한 화면에서 끝나야 하므로 품목 카드는 개요에 있다.
     expect(screen.getByRole("heading", { name: "주문 품목" })).toBeTruthy();
 
@@ -204,13 +206,14 @@ describe("OrderDetailPage", () => {
 
     await user.click(screen.getByRole("tab", { name: "개요" }));
     expect(screen.getByTestId("location-search").textContent).toBe("");
-    expect(screen.getByRole("button", { name: "배송 시작" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "출고 배송 중 상태로 진행" }),
+    ).toBeTruthy();
   });
 
-  it("활동 이력 딥링크를 복원하고 토큰 주문에는 불필요한 배송·수선 탭을 숨긴다", async () => {
+  it("활동 이력 딥링크를 복원한다", async () => {
     api.getOrder.mockResolvedValue({
       ...order,
-      order_type: "token",
       claim_summary: null,
       active_claim: null,
       admin_actions: [],
@@ -224,7 +227,6 @@ describe("OrderDetailPage", () => {
         .getAttribute("aria-selected"),
     ).toBe("true");
     expect(screen.getByRole("tabpanel", { name: "활동 이력" })).toBeTruthy();
-    expect(screen.queryByRole("tab", { name: "배송" })).toBeNull();
     expect(screen.getByText("기록된 상태 변경이 없습니다.")).toBeTruthy();
   });
 
@@ -319,7 +321,9 @@ describe("OrderDetailPage", () => {
     expect(
       await screen.findByRole("heading", { name: "주문 ORDER-001", level: 1 }),
     ).toBeTruthy();
-    expect(screen.getByRole("button", { name: "배송 시작" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "출고 배송 중 상태로 진행" }),
+    ).toBeTruthy();
     expect(screen.getByRole("heading", { name: "주문 품목" })).toBeTruthy();
     // 품목 카드가 수량·단가·클레임까지 안는다 — 같은 값을 표로 한 번 더 그리지 않는다.
     expect(screen.getByText("단가")).toBeTruthy();
@@ -361,7 +365,7 @@ describe("OrderDetailPage", () => {
     expect(
       (
         screen.getByRole("button", {
-          name: "배송중 상태로 진행",
+          name: "출고 배송 중 상태로 진행",
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
@@ -374,7 +378,7 @@ describe("OrderDetailPage", () => {
     ).toBe(true);
     expect(
       screen.getByText(
-        "배송중 상태로 진행: 취소 클레임이 완료되어 주문 상태를 변경할 수 없습니다",
+        "출고 배송 중 상태로 진행: 취소 클레임이 완료되어 주문 상태를 변경할 수 없습니다",
       ),
     ).toBeTruthy();
   });
@@ -400,7 +404,9 @@ describe("OrderDetailPage", () => {
     );
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "배송 시작" }));
+    await user.click(
+      await screen.findByRole("button", { name: "출고 배송 중 상태로 진행" }),
+    );
     expect(
       (screen.getByRole("tab", { name: "결제·클레임" }) as HTMLButtonElement)
         .disabled,
@@ -416,7 +422,9 @@ describe("OrderDetailPage", () => {
       ).disabled,
     ).toBe(true);
     expect((memo as HTMLTextAreaElement).value).toBe("출고 검수 완료");
-    await user.click(screen.getByRole("button", { name: "배송 시작 적용" }));
+    await user.click(
+      screen.getByRole("button", { name: "출고 배송 중 상태로 진행 실행" }),
+    );
 
     await waitFor(() => expect(api.updateStatus).toHaveBeenCalledTimes(1));
     expect(
@@ -424,8 +432,11 @@ describe("OrderDetailPage", () => {
         .disabled,
     ).toBe(true);
     expect(
-      (screen.getByRole("button", { name: "배송 시작" }) as HTMLButtonElement)
-        .disabled,
+      (
+        screen.getByRole("button", {
+          name: "출고 배송 중 상태로 진행",
+        }) as HTMLButtonElement
+      ).disabled,
     ).toBe(true);
 
     await act(async () => rejectMutation?.(new Error("상태 충돌")));
@@ -445,12 +456,16 @@ describe("OrderDetailPage", () => {
     const queryClient = renderPage();
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
 
-    await user.click(await screen.findByRole("button", { name: "배송 시작" }));
+    await user.click(
+      await screen.findByRole("button", { name: "출고 배송 중 상태로 진행" }),
+    );
     await user.type(
       screen.getByLabelText("변경 사유 (필수)"),
       "출고 검수 완료",
     );
-    await user.click(screen.getByRole("button", { name: "배송 시작 적용" }));
+    await user.click(
+      screen.getByRole("button", { name: "출고 배송 중 상태로 진행 실행" }),
+    );
 
     await waitFor(() => {
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ["order"] });
@@ -467,18 +482,18 @@ describe("OrderDetailPage", () => {
     });
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "배송 시작" }));
+    await user.click(
+      await screen.findByRole("button", { name: "출고 배송 중 상태로 진행" }),
+    );
     const memo = screen.getByLabelText("변경 사유 (필수)");
     await user.type(memo, "출고 검수");
     blocker.state = "blocked";
     await user.type(memo, " 완료");
 
     const dialog = await screen.findByRole("alertdialog", {
-      name: "작성 중인 주문 작업을 버릴까요?",
+      name: "저장하지 않고 나갈까요?",
     });
-    await user.click(
-      within(dialog).getByRole("button", { name: "주문 작업 버리기" }),
-    );
+    await user.click(within(dialog).getByRole("button", { name: "나가기" }));
 
     expect(blocker.proceed).toHaveBeenCalledTimes(1);
     expect(screen.queryByLabelText("변경 사유 (필수)")).toBeNull();
@@ -598,7 +613,7 @@ describe("OrderDetailPage", () => {
         postal_code: "04524",
         address: "서울시 중구",
         address_detail: "202호",
-        delivery_request: "경비실에 맡겨 주세요.",
+        delivery_request: "DELIVERY_REQUEST_2",
         delivery_memo: "오후 배송 희망",
       },
       repair_receipts: [
@@ -703,9 +718,10 @@ describe("OrderDetailPage", () => {
       expect.anything(),
     );
 
-    // 배송 탭에는 물류 정보만 남는다.
-    await user.click(screen.getByRole("tab", { name: "배송" }));
-    expect(screen.getByText("경비실에 맡겨 주세요.")).toBeTruthy();
-    expect(screen.getByText("오후 배송 희망")).toBeTruthy();
+    // 배송 메모는 작업지시서 캡처에 들어가도록 개요에 둔다.
+    await user.click(screen.getByRole("tab", { name: "개요" }));
+    expect(
+      screen.getByText("경비실에 맡겨 주세요. · 오후 배송 희망"),
+    ).toBeTruthy();
   });
 });

@@ -1,7 +1,4 @@
-import {
-  getTokenBalanceOptions,
-  listDesignExamplesOptions,
-} from "@essesion/api-client/query";
+import { listDesignExamplesOptions } from "@essesion/api-client/query";
 
 /**
  * store 전역 focus 정책과 별개로 이 값들은 항상 stale로 유지한다.
@@ -11,23 +8,6 @@ export const FOCUS_REFETCH = {
   staleTime: 0,
   refetchOnWindowFocus: true,
 } as const;
-
-/**
- * 토큰 잔액·단가.
- *
- * 잔액·단가를 표시하는 화면은 raw `getTokenBalanceOptions()`를 직접 스프레드하지 말 것 —
- * 전역 기본값을 타면 admin이 `design_edit_cost` 같은 단가를 바꿔도 탭 복귀 후 최대 5분간
- * 옛 단가가 남는다(e2e-02 FAIL 2가 이 경로에서 재발했다).
- *
- * @param authenticated 비로그인 호출을 막는다. ProtectedRoute 하위 화면이면 생략한다.
- */
-export function tokenBalanceQueryOptions(authenticated = true) {
-  return {
-    ...getTokenBalanceOptions(),
-    ...FOCUS_REFETCH,
-    enabled: authenticated,
-  };
-}
 
 /**
  * 첫 진입 디자인 예시 갤러리 — 공개 조회라 비로그인에도 뜬다.
