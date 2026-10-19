@@ -19,7 +19,13 @@ import {
   UserIcon,
 } from "@heroicons/react/24/outline";
 import { type ReactNode, useEffect, useRef } from "react";
-import { Link, Outlet, useLocation, useNavigate } from "react-router";
+import {
+  Link,
+  Outlet,
+  ScrollRestoration,
+  useLocation,
+  useNavigate,
+} from "react-router";
 
 import { AuthGuardProvider } from "@/features/auth/ui/auth-guard-provider";
 import { LogoutButton } from "@/features/auth/ui/logout-button";
@@ -309,6 +315,8 @@ export function AppLayout() {
           }
         >
           <Outlet />
+          {/* 쿼리(탭·필터·페이지)만 바뀌면 스크롤을 유지하고 경로가 바뀔 때만 맨 위로 */}
+          <ScrollRestoration getKey={(location) => location.pathname} />
         </Box>
         {isFocusedRoute ? null : <StoreFooter />}
         <PopupNoticeModal disabled={isFocusedRoute} />
