@@ -14,7 +14,7 @@
     "@essesion/shared": "workspace:*",
     "@heroicons/react": "catalog:",
     "@hookform/resolvers": "catalog:",
-    "@sentry/react": "^10.65.0",
+    "@sentry/react": "^11.0.0",
     "@tanstack/react-query": "catalog:",
     "@tosspayments/tosspayments-sdk": "catalog:",
     "posthog-js": "^1.418.1",
