@@ -1,7 +1,7 @@
 import json
 import uuid
 from datetime import datetime
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast, get_args
 
 from pydantic import AfterValidator, BaseModel, Field, field_validator
 
@@ -82,7 +82,24 @@ class CustomAmountRequest(BaseModel):
 class CustomAmountResponse(BaseModel):
     sewing_cost: int
     fabric_cost: int
+    point_cost: int
     total_cost: int
+
+
+# 참고 이미지 부위 — 주문서의 넥타이 전체·대검·매듭·소검 칸에 1장씩. 없으면(None) 추가 이미지.
+ReferencePart = Literal["full", "blade", "knot", "tail"]
+
+
+def as_reference_part(value: object) -> ReferencePart | None:
+    """저장된 JSON의 부위 값을 읽는다 — 모르는 값·과거 데이터는 None(추가 이미지)."""
+    return cast(ReferencePart, value) if value in get_args(ReferencePart) else None
+
+
+def _unique_reference_parts[T](images: list[T]) -> list[T]:
+    parts = [part for image in images if (part := getattr(image, "part", None))]
+    if len(parts) != len(set(parts)):
+        raise ValueError("참고 이미지 부위는 칸마다 1장만 올릴 수 있습니다")
+    return images
 
 
 class ReferenceImageIn(BaseModel):
@@ -90,19 +107,26 @@ class ReferenceImageIn(BaseModel):
         min_length=1,
         max_length=MAX_OBJECT_KEY_LENGTH,
     )  # GCS 서명 업로드로 올린 객체 키 (구 ImageKit url/fileId 대체)
+    part: ReferencePart | None = None
 
 
 class OrderReferenceImageIn(BaseModel):
     upload_id: uuid.UUID
+    part: ReferencePart | None = None
+
+
+OrderReferenceImages = Annotated[
+    list[OrderReferenceImageIn],
+    Field(max_length=MAX_REFERENCE_IMAGES),
+    AfterValidator(_unique_reference_parts),
+]
 
 
 class CustomOrderCreateRequest(BaseModel):
     shipping_address_id: uuid.UUID
     options: OptionsPayload
     quantity: int = Field(le=MAX_ORDER_QUANTITY)
-    reference_images: list[OrderReferenceImageIn] = Field(
-        default_factory=list, max_length=MAX_REFERENCE_IMAGES
-    )
+    reference_images: OrderReferenceImages = Field(default_factory=list)
     additional_notes: str = Field(default="", max_length=MAX_ADDITIONAL_NOTES_LENGTH)
     user_coupon_id: uuid.UUID | None = None
 
@@ -111,9 +135,7 @@ class SampleOrderCreateRequest(BaseModel):
     shipping_address_id: uuid.UUID
     sample_type: Literal["fabric", "sewing", "fabric_and_sewing"]
     options: OptionsPayload
-    reference_images: list[OrderReferenceImageIn] = Field(
-        default_factory=list, max_length=MAX_REFERENCE_IMAGES
-    )
+    reference_images: OrderReferenceImages = Field(default_factory=list)
     additional_notes: str = Field(default="", max_length=MAX_ADDITIONAL_NOTES_LENGTH)
     user_coupon_id: uuid.UUID | None = None
 

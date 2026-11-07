@@ -12,6 +12,7 @@ const initialValues: ReformSettingsValues = {
   automaticEnabled: true,
   mechanism: "zipper",
   wearerHeightCm: 175,
+  totalLengthCm: null,
   dimple: false,
   turnKnot: false,
   widthEnabled: false,
@@ -80,5 +81,31 @@ describe("ReformSettingsModal 추가 옵션", () => {
     expect(screen.queryByRole("checkbox", { name: "딤플" })).toBeNull();
     expect(checkbox("돌려묶기").checked).toBe(true);
     expect(checkbox("돌려묶기").disabled).toBe(false);
+  });
+
+  it("길이 입력으로 바꾸면 키를 비우고 길이만 저장한다", async () => {
+    const onApply = vi.fn();
+    render(
+      <ReformSettingsModal
+        open
+        title="수선 옵션"
+        initialValues={initialValues}
+        onOpenChange={vi.fn()}
+        onApply={onApply}
+      />,
+    );
+    screen.getByText("권장 넥타이 길이 51cm (매듭 포함)");
+
+    fireEvent.click(screen.getByRole("radio", { name: "길이" }));
+    fireEvent.change(screen.getByLabelText(/넥타이 길이/), {
+      target: { value: "48" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "변경" }));
+
+    await vi.waitFor(() =>
+      expect(onApply).toHaveBeenCalledWith(
+        expect.objectContaining({ wearerHeightCm: null, totalLengthCm: 48 }),
+      ),
+    );
   });
 });

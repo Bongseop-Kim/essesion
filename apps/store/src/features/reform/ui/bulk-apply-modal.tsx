@@ -7,6 +7,10 @@ import {
   Modal,
   RadioGroup,
   RadioGroupItem,
+  recommendedTieLengthCm,
+  SegmentedControl,
+  SegmentedControlItem,
+  Text,
   TextAreaField,
   TextField,
   VStack,
@@ -18,6 +22,7 @@ export type ReformSettingsValues = {
   automaticEnabled: boolean;
   mechanism: "" | "zipper" | "string";
   wearerHeightCm: number | null;
+  totalLengthCm: number | null;
   dimple: boolean;
   turnKnot: boolean;
   widthEnabled: boolean;
@@ -46,12 +51,23 @@ export function ReformSettingsModal({
   const [values, setValues] = useState(initialValues);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // 키 대신 넥타이 길이를 직접 받는 모드 — 저장된 길이가 있으면 길이 모드로 연다
+  const [lengthMode, setLengthMode] = useState(
+    initialValues.totalLengthCm != null,
+  );
 
   useEffect(() => {
     if (!open) return;
     setValues(initialValues);
+    setLengthMode(initialValues.totalLengthCm != null);
     setError(null);
   }, [initialValues, open]);
+
+  // 한쪽만 저장되도록 모드를 바꾸면 반대쪽 값은 비운다
+  const switchLengthMode = () => {
+    setLengthMode(!lengthMode);
+    setValues({ ...values, wearerHeightCm: null, totalLengthCm: null });
+  };
 
   const toggleService = (
     service: "automatic" | "width" | "restoration",
@@ -85,9 +101,14 @@ export function ReformSettingsModal({
     }
     if (
       values.automaticEnabled &&
-      (values.mechanism === "" || !isPositive(values.wearerHeightCm))
+      (values.mechanism === "" ||
+        !isPositive(lengthMode ? values.totalLengthCm : values.wearerHeightCm))
     ) {
-      setError("자동 수선 방식과 착용자 키를 확인해 주세요.");
+      setError(
+        lengthMode
+          ? "자동 수선 방식과 넥타이 길이를 확인해 주세요."
+          : "자동 수선 방식과 착용자 키를 확인해 주세요.",
+      );
       return;
     }
     if (values.widthEnabled && !isPositive(values.targetWidthCm)) {
@@ -166,22 +187,57 @@ export function ReformSettingsModal({
                     <RadioGroupItem value="string" label="끈" />
                   </RadioGroup>
                 </Field>
-                <TextField
-                  type="number"
-                  step="0.1"
-                  label="착용자 키"
-                  suffix="cm"
-                  placeholder="170"
-                  required
-                  value={values.wearerHeightCm ?? ""}
-                  onChange={(event) => {
-                    const value = event.currentTarget.value;
-                    setValues({
-                      ...values,
-                      wearerHeightCm: value === "" ? null : Number(value),
-                    });
-                  }}
-                />
+                <VStack gap="x1_5" alignItems="stretch">
+                  {/* 입력칸(h-10)과 같은 높이(40px)의 세그먼트 토글로 입력 방식을 바꾼다 */}
+                  <HStack gap="x2" align="flex-end">
+                    <Box flex={1}>
+                      <TextField
+                        type="number"
+                        step="0.1"
+                        label={lengthMode ? "넥타이 길이" : "착용자 키"}
+                        suffix="cm"
+                        placeholder={lengthMode ? "49" : "170"}
+                        required
+                        value={
+                          (lengthMode
+                            ? values.totalLengthCm
+                            : values.wearerHeightCm) ?? ""
+                        }
+                        onChange={(event) => {
+                          const raw = event.currentTarget.value;
+                          const value = raw === "" ? null : Number(raw);
+                          setValues(
+                            lengthMode
+                              ? { ...values, totalLengthCm: value }
+                              : { ...values, wearerHeightCm: value },
+                          );
+                        }}
+                      />
+                    </Box>
+                    <SegmentedControl
+                      aria-label="길이 입력 방식"
+                      value={lengthMode ? "length" : "height"}
+                      onValueChange={(mode) => {
+                        if ((mode === "length") !== lengthMode)
+                          switchLengthMode();
+                      }}
+                    >
+                      <SegmentedControlItem value="height">
+                        키
+                      </SegmentedControlItem>
+                      <SegmentedControlItem value="length">
+                        길이
+                      </SegmentedControlItem>
+                    </SegmentedControl>
+                  </HStack>
+                  <Text textStyle="caption" color="fg.neutral-muted">
+                    {lengthMode
+                      ? "매듭 위 끝부터 대검 끝까지, 매듭을 포함한 길이예요."
+                      : isPositive(values.wearerHeightCm)
+                        ? `권장 넥타이 길이 ${recommendedTieLengthCm(values.wearerHeightCm)}cm (매듭 포함)`
+                        : "키를 입력하면 권장 넥타이 길이로 맞춰 드려요."}
+                  </Text>
+                </VStack>
                 <Field label="추가 옵션">
                   <AutomaticAddonSelector
                     mechanism={values.mechanism}
@@ -276,6 +332,6 @@ function ServiceDetail({ children }: { children: ReactNode }) {
   );
 }
 
-function isPositive(value: number | null) {
+function isPositive(value: number | null): value is number {
   return value != null && Number.isFinite(value) && value > 0;
 }

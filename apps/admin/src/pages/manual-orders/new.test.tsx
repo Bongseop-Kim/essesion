@@ -258,7 +258,6 @@ describe("ManualOrderNewPage", () => {
     await fillOrderInfo(user);
 
     await user.click(screen.getByRole("radio", { name: "실크" }));
-    await user.click(screen.getByRole("radio", { name: "선염" }));
     await user.click(screen.getByRole("radio", { name: "자동" }));
     await user.click(screen.getByRole("radio", { name: "돌려묶기" }));
     await user.click(screen.getByRole("radio", { name: "딤플" }));

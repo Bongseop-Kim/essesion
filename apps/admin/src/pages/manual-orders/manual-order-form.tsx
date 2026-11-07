@@ -15,6 +15,7 @@ import {
   Grid,
   HStack,
   PhoneField,
+  recommendedTieLengthCm,
   SegmentedControl,
   SegmentedControlItem,
   Text,
@@ -39,7 +40,6 @@ import {
   getErrorMessage,
 } from "../../shared/lib/format";
 import type { ManualOrderKind } from "../../shared/lib/manual-order-kind";
-import { recommendedTieLengthCm } from "../../shared/lib/tie-length";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { NumberField } from "../../shared/ui/number-field";
@@ -117,7 +117,8 @@ function createItemDraft(
     hasCustom: false,
     fabricProvided: false,
     fabricType: "POLY",
-    designType: "PRINTING",
+    // 날염은 더 받지 않는다 — 새 품목은 선염. 기존 품목의 날염 값은 불러온 그대로 유지한다.
+    designType: "YARN_DYED",
     tieType: "MANUAL",
     customDimple: false,
     customTurnKnot: false,
@@ -197,7 +198,7 @@ export function manualOrderDraftFrom(order: ManualOrderOut): ManualOrderDraft {
         hasCustom: item.custom != null,
         fabricProvided: item.custom?.fabric_provided ?? false,
         fabricType: item.custom?.fabric_type ?? "POLY",
-        designType: item.custom?.design_type ?? "PRINTING",
+        designType: item.custom?.design_type ?? "YARN_DYED",
         tieType: item.custom?.tie_type ?? "MANUAL",
         customDimple: item.custom?.dimple ?? false,
         customTurnKnot: item.custom?.turn_knot ?? false,
@@ -1023,32 +1024,6 @@ export function ManualOrderForm({
                                 </SegmentedControlItem>
                                 <SegmentedControlItem value="SILK">
                                   실크
-                                </SegmentedControlItem>
-                              </SegmentedControl>
-                            </VStack>
-                          )}
-                          {!item.fabricProvided && (
-                            <VStack gap="x2" alignItems="stretch">
-                              <Text as="h4" textStyle="labelSm">
-                                [제작] 디자인
-                              </Text>
-                              <SegmentedControl
-                                aria-label="주문제작 디자인"
-                                value={item.designType}
-                                onValueChange={(value) =>
-                                  updateItem(index, {
-                                    designType:
-                                      value === "YARN_DYED"
-                                        ? "YARN_DYED"
-                                        : "PRINTING",
-                                  })
-                                }
-                              >
-                                <SegmentedControlItem value="PRINTING">
-                                  날염
-                                </SegmentedControlItem>
-                                <SegmentedControlItem value="YARN_DYED">
-                                  선염
                                 </SegmentedControlItem>
                               </SegmentedControl>
                             </VStack>

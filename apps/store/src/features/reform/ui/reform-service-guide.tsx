@@ -1,539 +1,1221 @@
+import type { ReformPricingOut } from "@essesion/api-client";
 import {
+  ActionButton,
   AspectRatio,
+  Badge,
   Box,
   cn,
-  Flex,
+  Float,
   Grid,
   HStack,
   ImageFrame,
+  recommendedTieLengthCm,
+  ScrollFog,
   Text,
   VStack,
 } from "@essesion/shared";
+import type { ReactNode } from "react";
 
-const HEIGHT_GUIDE = [
-  { height: "150cm", length: "41cm" },
-  { height: "155cm", length: "43cm" },
-  { height: "160cm", length: "45cm" },
-  { height: "165cm", length: "47cm" },
-  { height: "170cm", length: "49cm" },
-  { height: "175cm", length: "51cm" },
-  { height: "180cm", length: "53cm" },
-  { height: "185cm", length: "55cm" },
-  { height: "190cm", length: "57cm" },
+import { Link } from "react-router";
+
+import { krw } from "@/shared/lib/format";
+import {
+  Eyebrow,
+  GuideSection,
+  Lead,
+  SectionTitle,
+  SubTitle,
+  type SurfaceColor,
+} from "@/shared/ui/guide-section";
+
+const IMG = "/images/reform";
+
+// 안내표의 권장 길이는 admin·주문 상세와 같은 환산식(recommendedTieLengthCm)으로 계산한다.
+const HEIGHT_GUIDE = [150, 155, 160, 165, 170, 175, 180, 185, 190].map(
+  (height) => ({ height, length: recommendedTieLengthCm(height) }),
+);
+
+const CONCERNS = [
+  {
+    title: "폭이 넓어서 안 매게 돼요",
+    description:
+      "예전엔 9cm 넘는 넥타이가 흔했는데, 요즘 슬림한 정장에 매면 넥타이만 묵직해 보여요.",
+    image: "concern-wide",
+  },
+  {
+    title: "교복 넥타이, 자동으로 바꾸고 싶어요",
+    description:
+      "교복이나 유니폼 넥타이를 자동으로 바꿔 주는 곳, 막상 찾아보면 거의 없어요.",
+    image: "concern-school",
+  },
+  {
+    title: "매는 게 번거로워요",
+    description:
+      "솔직히 넥타이 맬 때마다 좀 답답하잖아요. 그래서 매듭째 걸어 두기도 하고요.",
+    image: "concern-knotted",
+  },
+  {
+    title: "잘못 빨아서 모양이 틀어졌어요",
+    description:
+      "세탁하고 나니 넥타이가 비틀리고 끝이 헤져서, 꺼내 매기 민망해졌어요.",
+    image: "concern-washed",
+  },
 ] as const;
 
-const REFORM_STEPS = [
+const RECOMMENDED = [
+  ["결혼식·상견례를 앞두고", "아버지가 아끼던 넥타이를 다시 매고 싶은 분"],
+  ["교복·유니폼 넥타이를", "매일 매야 하는 학생과 직장인"],
+  ["폭 넓은 명품 넥타이가", "유행이 지나 서랍에만 있는 분"],
+  ["매듭 매는 게 서툴러서", "넥타이 자리를 피하게 되는 분"],
+] as const;
+
+const TAGS = [
+  "#아버지넥타이",
+  "#혼주넥타이",
+  "#교복넥타이",
+  "#유니폼넥타이",
+  "#명품넥타이수선",
+];
+
+const REVIEWS = [
   {
-    title: "사진 업로드",
-    description:
-      "넥타이 사진을 등록해 항목을 구분합니다. 여러 개도 각각의 사진으로 쉽게 확인할 수 있습니다.",
+    quote: "“아버지가 아끼던 넥타이를 폭만 줄였는데 새 것 같아요”",
+    image: "review-1",
   },
   {
-    title: "수선 옵션 입력",
-    description:
-      "자동·폭·복원 수선을 고르고, 자동 수선 방식과 착용자 키 또는 희망 폭을 입력합니다.",
-  },
-  {
-    title: "일괄 적용 후 접수",
-    description:
-      "같은 요청은 선택 항목에 한 번에 적용하고 장바구니 또는 바로주문으로 접수합니다.",
+    quote:
+      "“아이 키에 맞춰 자동으로 바꿔 주셔서, 아침마다 넥타이 매 줄 일이 없어졌어요”",
+    image: "review-2",
   },
 ] as const;
 
-const MECHANISM_COMPARISON = [
+const STRUCTURES = [
   {
-    label: "Zipper",
+    title: "일반 넥타이",
+    cue: "꼭짓점까지 심지가 들어 있어요",
+    description:
+      "삼각 꼭짓점 끝까지 심지가 들어 있고, 우라(안감)가 심지를 감싸 마감해요.",
+    image: "structure-standard",
+  },
+  {
+    title: "7폴드",
+    cue: "원단이 여러 겹 접혀 있어요",
+    description: "심지 없이 원단 한 장을 일곱 번 접어 형태와 무게를 잡아요.",
+    image: "structure-7fold",
+  },
+  {
+    title: "스포데라토",
+    cue: "대검 끝에 심지를 두지 않아요",
+    description: "심지를 줄여 넥타이가 가볍고, 손봉제로 자연스럽게 마감해요.",
+    image: "structure-sfoderato",
+  },
+] as const;
+
+const AUTO_POINTS = [
+  {
+    title: "원단 그대로,\n구조만 바꿔요",
+    description: "쓰던 넥타이 원단을 그대로 써서 무늬가 살아 있어요",
+    video: "point-fabric.mp4",
+    poster: "point-fabric",
+    label: "넥타이 원단 작업 영상",
+  },
+  {
+    title: "해 주는 곳이 드문 이유,\n전용 몰드",
+    description:
+      "자동 넥타이에는 전용 몰드가 들어가는데, 이걸 갖춘 곳이 거의 없어요. 저희는 직접 개발해서 딤플까지 자연스럽게 잡혀요.",
+    video: "reform-vertical.mp4",
+    poster: "point-mold",
+    label: "자동 넥타이 몰드 작업 영상",
+  },
+  {
+    title: "지퍼와 끈 중에\n골라요",
+    description: "주문할 때 편한 방식으로 고르시면 돼요",
+    video: "point-mechanism.mp4",
+    poster: "point-mechanism",
+    label: "자동 넥타이 봉제 영상",
+  },
+] as const;
+
+const MECHANISMS = [
+  {
     title: "지퍼 방식",
-    description:
-      "슬라이더를 위로 올린 상태에서 길이를 조절하고, 아래로 내리면 고정됩니다.",
-    image: "/images/reform/zipper.webp",
+    description: "슬라이더를 올려 길이를 맞추고, 내리면 고정돼요.",
+    badge: "딤플 · 돌려묶기 추가 가능",
+    image: "mechanism-zipper",
   },
   {
-    label: "String",
     title: "끈 방식",
-    description:
-      "원터치 버튼을 누른 상태에서 길이를 조절하고, 손을 떼면 고정됩니다.",
-    image: "/images/reform/string.webp",
+    description: "원터치 버튼을 누른 채 길이를 맞추고, 손을 떼면 고정돼요.",
+    badge: "돌려묶기 추가 가능",
+    image: "mechanism-string",
   },
 ] as const;
 
-const KNOT_COMPARISON = [
+const KNOTS = [
+  { title: "기본", description: "매끈하고 단정한 매듭", image: "knot-basic" },
   {
-    label: "Back · Basic",
-    title: "기본 방식 뒷면",
-    description: "좌우가 대칭인 형태로 단정하게 고정됩니다.",
-    image: "/images/reform/zipper.webp",
-  },
-  {
-    label: "Back · Turn Knot",
-    title: "돌려묶기 뒷면",
-    description:
-      "원단을 돌려 묶어 제작자가 매듭의 균형과 방향을 조절할 수 있습니다.",
-    image: "/images/reform/knot.webp",
-  },
-  {
-    label: "Front · Basic",
-    title: "기본 방식 앞면",
-    description: "좌우가 고르게 정돈된 매듭 인상입니다.",
-    image: "/images/reform/zipper-front.webp",
-  },
-  {
-    label: "Front · Turn Knot",
-    title: "돌려묶기 앞면",
-    description:
-      "자세히 보면 자연스러운 비대칭과 손으로 묶은 듯한 인상이 드러납니다.",
-    image: "/images/reform/knot-front.webp",
-  },
-] as const;
-
-const DIMPLE_COMPARISON = [
-  {
-    label: "Basic",
-    title: "기본",
-    description: "매끈하고 단정한 매듭 느낌",
-    image: "/images/reform/normal.webp",
-  },
-  {
-    label: "Dimple",
     title: "딤플",
-    description: "중앙 홈이 살아 있는 입체적인 매듭 느낌",
-    image: "/images/reform/dimple.webp",
+    description: "매듭 아래 보조개 같은 주름",
+    image: "knot-dimple",
+  },
+  {
+    title: "돌려묶기",
+    description: "손으로 묶은 것처럼 자연스러운 매듭",
+    image: "knot-turn",
   },
 ] as const;
 
-const WIDTH_COMPARISON = [
+const WIDTH_POINTS = [
   {
-    label: "Before",
-    title: "수선 전",
-    description: "익숙하지만 다소 무겁게 보일 수 있는 기존 폭",
-    image: "/images/reform/wide.webp",
+    title: "원하는 폭을\n적어 주세요",
+    description: "주문할 때 희망 폭을 적어 주시면 그대로 맞춰요",
   },
   {
-    label: "After",
-    title: "폭 수선 후",
-    description: "같은 넥타이를 원하는 폭으로 다듬은 슬림한 인상",
-    image: "/images/reform/slim.webp",
+    title: "완전히 뜯어서\n다시 봉제해요",
+    description:
+      "처음부터 다시 지어서 두께도 무늬도 자연스러워요. 이 과정은 손으로만 할 수 있어요.",
+  },
+  {
+    title: "브랜드마다 다른 봉제,\n경험으로 맞춰요",
+    description:
+      "넥타이는 브랜드마다 봉제 방식이 조금씩 달라요. 30년 넥타이를 만들어 온 경험으로 원래 방식에 맞춰 다시 지어요.",
   },
 ] as const;
 
-// 실사 넥타이 컷(tie-mask.png·tie-shadow.webp, 794×2097) 기준 좌표. 오른쪽에 치수선 칸을 덧붙여
-// 한 viewBox로 그린다 — top·bottom은 매듭 위 끝·대검 끝, left는 실루엣 왼쪽 끝, knotRight·tipX는 보조선이
-// 출발하는 가장자리.
-const TIE_ART = {
-  width: 794,
-  height: 2097,
-  left: 240,
-  top: 37,
-  bottom: 2075,
-  knotRight: 520,
-  tipX: 420,
-} as const;
-const TIE_FIGURE_WIDTH = 900;
-const TIE_RULER_X = 850;
+const WIDTH_STEPS = [
+  { title: "치수대로 다시 재단", image: "width-cut" },
+  { title: "손으로 다시 봉제", image: "width-sew" },
+  { title: "다림질로 잡은 모양", image: "width-press" },
+] as const;
 
-const TIE_LAYER_STYLE = {
-  maskImage: "url(/images/tie-mask.png)",
-  maskSize: "100% 100%",
-  maskRepeat: "no-repeat",
-} as const;
+const WORKSHOP_STEPS = [
+  {
+    title: "받아서 확인",
+    description:
+      "도착하면 넥타이 상태부터 사진으로 남겨요. 주문하신 내용과 치수를 한 번 더 맞춰 보고 시작해요.",
+    image: "workshop-check",
+  },
+  {
+    title: "재단",
+    description:
+      "자를 대고 치수대로 잘라요. 실크는 조금만 삐뚤어져도 티가 나서 천천히 해요.",
+    image: "workshop-cut",
+  },
+  {
+    title: "손 봉제",
+    description:
+      "넥타이 봉제는 기계로 한 번에 끝낼 수 없어서 손이 꼭 들어가요. 얇고 미끄러운 원단이라 시접을 일정하게 잡는 데 신경을 많이 써요.",
+    image: "workshop-sew",
+  },
+  {
+    title: "다림질·마무리",
+    description:
+      "다림질로 모양을 잡고, 완성된 모습을 사진으로 남긴 뒤 보내 주신 포장 그대로 담아 돌려보내요.",
+    image: "workshop-press",
+  },
+] as const;
 
-/** "매듭 포함" 라벨 캡슐 — 치수선 가운데에 얹는다. */
-function KnotLabel() {
-  return (
-    <Box
-      bg="bg.layer-default"
-      borderWidth={1}
-      borderColor="stroke.neutral-weak"
-      borderRadius="full"
-      px="x2"
-      py="x0_5"
-    >
-      <Text
-        textStyle="captionSm"
-        color="fg.neutral"
-        className="whitespace-nowrap"
-      >
-        매듭 포함
-      </Text>
-    </Box>
+const HOW_STEPS = [
+  {
+    title: "사진 올리기",
+    description: "수선할 넥타이마다 사진을 올려요",
+    image: "how-upload",
+  },
+  {
+    title: "수선 고르기",
+    description: "수선 종류와 착용자 키·희망 폭을 입력해요",
+    image: "how-options",
+  },
+  {
+    title: "결제 후 보내기",
+    description: "결제하고 넥타이를 택배로 보내 주세요",
+    image: "how-ship",
+  },
+] as const;
+
+const NOTICES = [
+  "자동 넥타이로 바꾸면 원래대로 되돌릴 수 없어요. 원단을 잘라 다시 짓는 작업이에요.",
+  "폭 수선과 원상태 복원은 넥타이 상태에 따라 다시 손볼 수 있는지가 달라요. 필요하면 따로 말씀드릴게요.",
+  "원단이 찢어졌거나 얼룩이 남은 경우는 복구할 수 없고, 세탁도 하지 않아요.",
+  "작업 전에 요청하신 내용과 치수를 한 번 더 확인하고 시작해요. 그래도 저희 실수로 손상됐다면 수선비를 돌려드리고, 소비자분쟁해결기준에 따라 배상해요.",
+  "넥타이를 보내시기 전에는 전액 취소돼요.",
+];
+
+const FAQS = [
+  [
+    "얼마나 걸려요?",
+    "넥타이가 도착하면 영업일 기준 평균 2~4일 안에 작업을 마쳐요. 택배로 오가는 기간은 따로 걸려요.",
+  ],
+  [
+    "자동으로 바꾸면 길이는 어떻게 맞춰요?",
+    "주문할 때 착용하실 분 키를 적어 주시면 권장 길이에 맞춰요. 체형이나 매는 위치에 따라 상담하고 조정할 수도 있어요.",
+  ],
+  [
+    "여러 개 한꺼번에 맡겨도 되나요?",
+    "네. 넥타이마다 사진을 올리고, 같은 요청은 한 번에 적용해서 접수하시면 돼요.",
+  ],
+  [
+    "7폴드나 스포데라토 넥타이도 되나요?",
+    "네, 폭 수선·자동 넥타이 변환·원상태 복원 모두 가능하고 가격도 같아요. 구조가 달라서 그 구조에 맞춰 뜯고 다시 지어요.",
+  ],
+  [
+    "마음에 안 들면 되돌릴 수 있나요?",
+    "자동 넥타이로 바꾼 건 되돌릴 수 없어요. 폭 수선과 원상태 복원은 넥타이 상태에 따라 다시 손볼 수 있는 경우도 있어서, 먼저 문의해 주세요.",
+  ],
+  [
+    "세탁이나 얼룩 제거도 되나요?",
+    "세탁과 얼룩 제거는 하지 않아요. 다만 잘못 세탁해서 틀어진 넥타이는 원상태 복원으로 처음 상태에 가깝게 되돌릴 수 있어요. 원단이 찢어진 경우는 어려워요.",
+  ],
+] as const;
+
+const AUTO_ID = "reform-guide-automatic";
+const WIDTH_ID = "reform-guide-width";
+const RESTORE_ID = "reform-guide-restoration";
+
+const won = (value: number) => `${krw.format(value)}원`;
+
+/** 상세 "정보" 탭 — pen 시안 R-B v8. 가격은 하드코딩하지 않고 수선 요금 설정을 그대로 쓴다. */
+export function ReformServiceGuide({
+  pricing,
+  onStart,
+}: {
+  pricing: ReformPricingOut;
+  onStart: () => void;
+}) {
+  const services = [
+    {
+      id: AUTO_ID,
+      title: "자동 넥타이 변환",
+      description: "매듭을 고정해 두고\n목에 끼워 길이만 맞춰요",
+      price: pricing.automatic_cost,
+      image: "service-auto",
+    },
+    {
+      id: WIDTH_ID,
+      title: "폭 수선",
+      description: "다 뜯어서 원하는 폭으로\n다시 만들어요",
+      price: pricing.width_cost,
+      image: "service-width",
+    },
+    {
+      id: RESTORE_ID,
+      title: "원상태 복원",
+      description: "헤지고 틀어진 넥타이를\n처음 샀을 때처럼",
+      price: pricing.restoration_cost,
+      image: "service-restore",
+    },
+  ];
+  const bundles = [
+    { label: "폭 + 복원", price: pricing.width_restoration_cost },
+    { label: "자동 + 폭 또는 복원", price: pricing.automatic_combined_cost },
+  ];
+  const fromPrice = Math.min(
+    pricing.automatic_cost,
+    pricing.width_cost,
+    pricing.restoration_cost,
   );
-}
 
-/**
- * 세로로 선 넥타이 그림 — 오른쪽에 매듭 위 끝~대검 끝 치수선과 보조선. `label`이 거짓이면 라벨을
- * 빼고 그린다(눕혀 쓰는 모바일 — 라벨까지 돌리면 글자가 누우니 바깥에서 얹는다).
- */
-function TieDrawing({ label = true }: { label?: boolean }) {
-  const width = TIE_FIGURE_WIDTH;
   return (
-    <Box
-      position="relative"
-      width="full"
-      style={{ aspectRatio: `${width} / ${TIE_ART.height}` }}
-    >
-      <Box
-        position="absolute"
-        top={0}
-        bottom={0}
-        left={0}
-        style={{ width: `${(TIE_ART.width / width) * 100}%` }}
-      >
-        <Box
-          position="absolute"
-          inset={0}
-          bg="bg.brand-solid"
-          style={TIE_LAYER_STYLE}
+    <VStack gap={0} alignItems="stretch">
+      {/* 01 Hero */}
+      <GuideSection pt="x16" pb="x14">
+        <Eyebrow>넥타이 수선 · 영선산업 수선실</Eyebrow>
+        <Text as="h2" textStyle="display1" className="whitespace-pre-line">
+          {"서랍 속 넥타이,\n버리지 말고 보내 주세요"}
+        </Text>
+        <Lead>
+          {
+            "폭 줄임, 자동 넥타이 변환, 원상태 복원까지.\n30년 동안 넥타이를 만들어 온 영선산업이 직접 고쳐요. 사진 한 장이면 접수돼요."
+          }
+        </Lead>
+        <ReformVideo
+          src={`${IMG}/reform.mp4`}
+          poster={`${IMG}/hero-poster.webp`}
+          ratio={4 / 3}
+          label="넥타이 수선 작업 영상"
         />
-        {/* 명암도 실루엣 안에만 — 셔츠 깃까지 그리면 패널 위에서 탁해 보인다 */}
-        <Box
-          position="absolute"
-          inset={0}
-          style={{
-            ...TIE_LAYER_STYLE,
-            backgroundImage: "url(/images/tie-shadow.webp)",
-            backgroundSize: "100% 100%",
-          }}
-        />
-      </Box>
-      <svg
-        viewBox={`0 0 ${width} ${TIE_ART.height}`}
-        className="absolute inset-0 size-full overflow-visible text-fg-neutral-muted"
-        aria-hidden="true"
-      >
-        <g stroke="currentColor" fill="none">
-          {/* 보조선 — 매듭 위 끝·대검 끝에서 치수선까지 */}
-          <g strokeDasharray="2 3" opacity={0.6}>
-            <line
-              x1={TIE_ART.knotRight}
-              x2={TIE_RULER_X + 30}
-              y1={TIE_ART.top}
-              y2={TIE_ART.top}
-              vectorEffect="non-scaling-stroke"
-            />
-            <line
-              x1={TIE_ART.tipX}
-              x2={TIE_RULER_X + 30}
-              y1={TIE_ART.bottom}
-              y2={TIE_ART.bottom}
-              vectorEffect="non-scaling-stroke"
-            />
-          </g>
-          <line
-            x1={TIE_RULER_X}
-            x2={TIE_RULER_X}
-            y1={TIE_ART.top}
-            y2={TIE_ART.bottom}
-            vectorEffect="non-scaling-stroke"
-          />
-        </g>
-      </svg>
-      {label ? (
-        <Box
-          position="absolute"
-          top="50%"
-          style={{
-            left: `${(TIE_RULER_X / width) * 100}%`,
-            transform: "translate(-50%, -50%)",
-          }}
-        >
-          <KnotLabel />
-        </Box>
-      ) : null}
-    </Box>
-  );
-}
-
-/** 모바일: 데스크톱 그림을 -90° 눕힌다 — 매듭이 왼쪽, 치수선이 위. 라벨만 눕히지 않고 치수선 위에 얹는다. */
-function LyingTie() {
-  // 눕히면 그림의 x가 아래→위가 된다. 넥타이 왼쪽 가장자리(TIE_ART.left) 밖은 비어 있어 그만큼
-  // 아래를 잘라 바깥 높이를 잡는다 — 회전 상자는 위쪽(치수선)에 붙인다.
-  const lyingHeight = TIE_FIGURE_WIDTH - TIE_ART.left;
-  return (
-    <Box
-      position="relative"
-      width="full"
-      style={{ aspectRatio: `${TIE_ART.height} / ${lyingHeight}` }}
-    >
-      {/* 회전 전 상자의 폭 = 눕힌 뒤 높이 — 그 중심을 바깥 위에서 폭의 절반만큼 내려 돌린다 */}
-      <Box
-        position="absolute"
-        left="50%"
-        style={{
-          top: `${(TIE_FIGURE_WIDTH / 2 / lyingHeight) * 100}%`,
-          width: `${(TIE_FIGURE_WIDTH / TIE_ART.height) * 100}%`,
-          transform: "translate(-50%, -50%) rotate(-90deg)",
-        }}
-      >
-        <TieDrawing label={false} />
-      </Box>
-      {/* 눕히면 치수선 x가 위에서부터의 거리가 되고, 치수선 가운데 y가 왼쪽에서부터의 거리가 된다 */}
-      <Box
-        position="absolute"
-        style={{
-          top: `${((TIE_FIGURE_WIDTH - TIE_RULER_X) / lyingHeight) * 100}%`,
-          left: `${((TIE_ART.top + TIE_ART.bottom) / 2 / TIE_ART.height) * 100}%`,
-          transform: "translate(-50%, -50%)",
-        }}
-      >
-        <KnotLabel />
-      </Box>
-    </Box>
-  );
-}
-
-/**
- * 키→권장 길이 참조표.
- * 기본: 상세 가이드용 카드형 테이블. compact: 사이드바 요약 카드용 —
- * SummaryCard.Row와 같은 조용한 2열 리스트(보더·헤더 배경 없음).
- */
-export function ReformHeightGuide({ compact = false }: { compact?: boolean }) {
-  if (compact) {
-    return (
-      <VStack gap="x2" alignItems="stretch">
-        <HStack justify="space-between" gap="x4">
-          <Text textStyle="captionSm" color="fg.neutral-subtle">
-            착용자 키
-          </Text>
-          <Text textStyle="captionSm" color="fg.neutral-subtle">
-            권장 길이(매듭 포함)
-          </Text>
-        </HStack>
-        {HEIGHT_GUIDE.map((guide) => (
-          <HStack key={guide.height} justify="space-between" gap="x4">
-            <Text textStyle="bodySm" color="fg.neutral-muted">
-              {guide.height}
-            </Text>
-            <Text textStyle="labelSm">{guide.length}</Text>
-          </HStack>
-        ))}
-      </VStack>
-    );
-  }
-  return (
-    // 데스크톱: 재는 법 | 착용자 키 | 권장 길이 1:1:1, 그림 칸이 본문 행 전체를 세로로 차지한다.
-    // 모바일: 눕힌 넥타이를 카드 맨 위에 두고 아래는 2열 표.
-    <Box
-      overflow="hidden"
-      borderWidth={1}
-      borderColor="stroke.neutral-weak"
-      borderRadius="r3"
-    >
-      <Box
-        display={{ base: "block", md: "none" }}
-        px="x6"
-        py="x5"
-        className="border-b border-stroke-neutral-weak"
-        aria-hidden="true"
-      >
-        <LyingTie />
-      </Box>
-      <Grid columns={{ base: 2, md: 3 }} bg="bg.neutral-weak">
-        <Text
-          as="div"
-          display={{ base: "none", md: "block" }}
-          textStyle="labelSm"
-          px="x4"
-          py="x3"
-        >
-          재는 법
-        </Text>
-        <Text as="div" textStyle="labelSm" px="x4" py="x3">
-          착용자 키
-        </Text>
-        <Text as="div" textStyle="labelSm" px="x4" py="x3">
-          권장 넥타이 길이
-        </Text>
-      </Grid>
-      <Grid
-        columns={{ base: 1, md: 3 }}
-        className="border-t border-stroke-neutral-weak"
-      >
-        <Flex
-          display={{ base: "none", md: "flex" }}
-          justify="center"
-          align="center"
-          px="x6"
-          py="x5"
-          className="border-r border-stroke-neutral-weak"
-          aria-hidden="true"
-        >
-          <Box width={120}>
-            <TieDrawing />
-          </Box>
-        </Flex>
-        <Box className="md:col-span-2">
-          {HEIGHT_GUIDE.map((guide, index) => (
-            <Grid
-              key={guide.height}
-              templateColumns="1fr 1fr"
-              className={
-                index === 0 ? undefined : "border-t border-stroke-neutral-weak"
-              }
-            >
-              <Text as="div" textStyle="bodySm" px="x4" py="x3">
-                {guide.height}
+        <Grid columns={3} gap="x2" py="x5">
+          {[
+            ["수선 비용", `${won(fromPrice)}부터`],
+            ["작업 기간", "평균 2~4일"],
+            ["접수 방법", "전국 택배"],
+          ].map(([label, value]) => (
+            <VStack key={label} gap="x1" alignItems="center">
+              <Text textStyle="caption" color="fg.neutral-muted">
+                {label}
               </Text>
-              <Text
-                as="div"
-                textStyle="bodySm"
-                color="fg.neutral-muted"
-                px="x4"
-                py="x3"
-              >
-                {guide.length}
+              <Text textStyle="title3" align="center">
+                {value}
               </Text>
-            </Grid>
+            </VStack>
           ))}
-        </Box>
-      </Grid>
-    </Box>
-  );
-}
+        </Grid>
+        <Text textStyle="captionSm" color="fg.neutral-muted" align="center">
+          작업 기간은 넥타이가 도착한 뒤 영업일 기준이에요. 택배로 오가는 기간은
+          따로 걸려요.
+        </Text>
+      </GuideSection>
 
-export function ReformServiceGuide() {
-  return (
-    <VStack gap="x10" alignItems="stretch">
-      <ReformVideo
-        src="/images/reform/reform.mp4"
-        ratio={4 / 3}
-        label="넥타이 수선 서비스 소개 영상"
-      />
+      {/* 02 공감 */}
+      <GuideSection bg="bg.neutral-weak">
+        <Eyebrow>버리기 전에</Eyebrow>
+        <SectionTitle>{"이런 넥타이,\n하나쯤 있으시죠"}</SectionTitle>
+        <Grid columns={{ base: 1, sm: 2 }} gap="x4">
+          {CONCERNS.map((concern) => (
+            <Card key={concern.title} bg="bg.layer-default">
+              <ImageFrame
+                ratio={5 / 3}
+                borderRadius={0}
+                src={`${IMG}/${concern.image}.webp`}
+                alt=""
+              />
+              <CardText title={concern.title}>{concern.description}</CardText>
+            </Card>
+          ))}
+        </Grid>
+        <Text textStyle="title3" align="center">
+          버리기 전에 한 번 보내 보세요. 고칠 수 있는지 먼저 봐 드릴게요.
+        </Text>
+      </GuideSection>
 
-      <SectionHeading
-        eyebrow="Reform Service"
-        title="수동 넥타이를 자동 넥타이로 바꾸거나 원하는 폭으로 수선해 보세요"
-        description="사진 한 장으로 접수할 수 있고, 여러 개도 일괄 적용으로 빠르게 요청할 수 있습니다. 형태 복원이 필요한 넥타이도 함께 상담할 수 있습니다."
-      />
-
-      <VStack gap="x4" alignItems="stretch">
-        <SectionHeading
-          eyebrow="How It Works"
-          title="진행 방법"
-          description="복잡한 과정 없이 세 단계로 접수할 수 있습니다."
-          align="start"
-        />
-        <Grid columns={{ base: 1, md: 3 }} gap="x3">
-          {REFORM_STEPS.map((step, index) => (
-            <Box
-              key={step.title}
-              borderWidth={1}
-              borderColor="stroke.neutral-weak"
-              borderRadius="r3"
-              bg="bg.layer-default"
-              p="x4"
+      {/* 02-1 이런 분께 */}
+      <GuideSection>
+        <Eyebrow>이런 분께</Eyebrow>
+        <SectionTitle>
+          {"버리긴 아깝고,\n그냥 매기엔 아쉬운 넥타이가 있다면"}
+        </SectionTitle>
+        <VStack
+          gap={0}
+          alignItems="stretch"
+          borderRadius="r4"
+          overflow="hidden"
+        >
+          {RECOMMENDED.map(([context, who], index) => (
+            <HStack
+              key={who}
+              gap="x4"
+              px="x6"
+              py="x5"
+              bg={index % 2 ? "bg.layer-basement" : "bg.layer-default"}
             >
-              <VStack gap="x3" alignItems="stretch">
-                <Box
-                  display="flex"
-                  alignItems="center"
-                  justifyContent="center"
-                  width={32}
-                  height={32}
-                  borderRadius="full"
-                  bg="bg.brand-solid"
-                >
-                  <Text textStyle="labelSm" color="fg.contrast">
-                    {index + 1}
-                  </Text>
-                </Box>
-                <Text as="h3" textStyle="title3">
-                  {step.title}
-                </Text>
+              <NumberDot>✓</NumberDot>
+              <VStack gap="x0_5">
                 <Text textStyle="bodySm" color="fg.neutral-muted">
-                  {step.description}
+                  {context}
+                </Text>
+                <Text textStyle="title3">{who}</Text>
+              </VStack>
+            </HStack>
+          ))}
+        </VStack>
+        <HStack gap="x2" wrap>
+          {TAGS.map((tag) => (
+            <Badge key={tag}>{tag}</Badge>
+          ))}
+        </HStack>
+      </GuideSection>
+
+      {/* 02-2 리뷰 하이라이트 */}
+      <GuideSection>
+        <Eyebrow>실제 후기</Eyebrow>
+        <SectionTitle>맡겨 본 분들이 먼저 말해요</SectionTitle>
+        <HStack gap="x2">
+          <Text textStyle="body">★★★★★</Text>
+          <Text textStyle="label">5.0</Text>
+        </HStack>
+        <Grid columns={{ base: 1, sm: 2 }} gap="x4">
+          {REVIEWS.map((review) => (
+            <VStack key={review.image} gap="x3" alignItems="stretch">
+              <ImageFrame
+                ratio={0.825}
+                borderRadius="r4"
+                src={`${IMG}/${review.image}.webp`}
+                alt="고객 후기 사진"
+              />
+              <Text textStyle="captionSm">★★★★★</Text>
+              <Text textStyle="title3">{review.quote}</Text>
+            </VStack>
+          ))}
+        </Grid>
+      </GuideSection>
+
+      {/* 03 서비스 */}
+      <GuideSection bg="bg.neutral-weak" pb="x10">
+        <Eyebrow>서비스</Eyebrow>
+        <SectionTitle>어떤 수선이 필요하세요?</SectionTitle>
+        <Grid columns={{ base: 1, md: 3 }} gap="x3">
+          {services.map((service) => (
+            <Card key={service.id} bg="bg.layer-default">
+              <ImageFrame
+                ratio={0.79}
+                borderRadius={0}
+                src={`${IMG}/${service.image}.webp`}
+                alt=""
+              />
+              <CardText title={service.title}>{service.description}</CardText>
+              <HStack justify="space-between" px="x5" pt="x1">
+                <Text textStyle="title3">{won(service.price)}</Text>
+                <Text
+                  as="a"
+                  href={`#${service.id}`}
+                  textStyle="caption"
+                  color="fg.neutral-muted"
+                >
+                  자세히 ↓
+                </Text>
+              </HStack>
+            </Card>
+          ))}
+        </Grid>
+        <HStack
+          gap="x6"
+          px="x5"
+          py="x4"
+          justify="center"
+          wrap
+          bg="bg.layer-default"
+          borderRadius="r3"
+        >
+          <Text textStyle="bodySm" color="fg.neutral-muted">
+            같이 맡기시면
+          </Text>
+          {bundles.map((bundle) => (
+            <Text key={bundle.label} textStyle="labelSm">
+              {bundle.label} {won(bundle.price)}
+            </Text>
+          ))}
+        </HStack>
+      </GuideSection>
+
+      {/* 03-1 넥타이 구조 */}
+      <GuideSection bg="bg.neutral-weak" pt="x10">
+        <Eyebrow>넥타이 구조</Eyebrow>
+        <SectionTitle>
+          {"7폴드, 스포데라토도\n똑같이 맡기시면 돼요"}
+        </SectionTitle>
+        <Lead>
+          {
+            "넥타이 뒷면을 펼쳐 보면 구조를 알 수 있어요.\n어떤 구조든 폭 수선, 자동 넥타이 변환, 원상태 복원 모두 가능하고 가격도 같아요."
+          }
+        </Lead>
+        <Grid columns={{ base: 1, md: 3 }} gap="x3">
+          {STRUCTURES.map((structure) => (
+            <Card key={structure.title} bg="bg.layer-default">
+              <ImageFrame
+                ratio={0.79}
+                borderRadius={0}
+                src={`${IMG}/${structure.image}.webp`}
+                alt={`${structure.title} 뒷면`}
+              />
+              <CardText title={structure.title}>
+                <Badge tone="warning">{structure.cue}</Badge>
+                {"\n"}
+                {structure.description}
+              </CardText>
+            </Card>
+          ))}
+        </Grid>
+        <HStack gap="x2" justify="center" wrap>
+          {["폭 수선 ✓", "자동 넥타이 변환 ✓", "원상태 복원 ✓"].map((label) => (
+            <Box
+              key={label}
+              px="x3_5"
+              py="x2"
+              bg="bg.layer-default"
+              borderRadius="full"
+            >
+              <Text textStyle="labelSm">{label}</Text>
+            </Box>
+          ))}
+        </HStack>
+        <Text textStyle="caption" color="fg.neutral-muted" align="center">
+          구조를 잘 모르시겠다면 뒷면 사진을 함께 올려 주세요. 저희가 보고 알려
+          드릴게요.
+        </Text>
+      </GuideSection>
+
+      {/* 04 자동 넥타이 변환 */}
+      <GuideSection id={AUTO_ID}>
+        <Eyebrow>자동 넥타이 변환 · {won(pricing.automatic_cost)}</Eyebrow>
+        <SectionTitle>{"매듭은 저희가\n묶어 둘게요"}</SectionTitle>
+        <Lead>
+          {
+            "키에 맞게 넥타이를 재단하고, 직접 개발한 몰드에 매듭을 고정해요.\n원단은 그대로라 무늬도 그대로 남아요. 겉으로 봐선 자동 넥타이인지 잘 모르실 거예요."
+          }
+        </Lead>
+        <Grid columns={{ base: 1, sm: 3 }} gap="x5">
+          {AUTO_POINTS.map((point, index) => (
+            <VStack key={point.title} gap="x3_5" alignItems="stretch">
+              <ReformVideo
+                src={`${IMG}/${point.video}`}
+                poster={`${IMG}/${point.poster}.webp`}
+                ratio={9 / 16}
+                label={point.label}
+              />
+              <PointText index={index} title={point.title}>
+                {point.description}
+              </PointText>
+            </VStack>
+          ))}
+        </Grid>
+
+        <SubTitle>지퍼로 할까요, 끈으로 할까요?</SubTitle>
+        <Grid columns={{ base: 1, sm: 2 }} gap="x4">
+          {MECHANISMS.map((mechanism) => (
+            <Card key={mechanism.title} bg="bg.neutral-weak">
+              <ImageFrame
+                ratio={1.57}
+                borderRadius={0}
+                src={`${IMG}/${mechanism.image}.webp`}
+                alt={mechanism.title}
+              />
+              <CardText title={mechanism.title}>
+                {mechanism.description}
+              </CardText>
+              <Box px="x5">
+                <Badge variant="outline">{mechanism.badge}</Badge>
+              </Box>
+            </Card>
+          ))}
+        </Grid>
+
+        <SubTitle>매듭 모양도 골라 주세요</SubTitle>
+        <Grid columns={{ base: 1, sm: 3 }} gap="x3">
+          {KNOTS.map((knot) => (
+            // 모바일은 사진 왼쪽·설명 오른쪽 한 줄씩 — 3열이면 사진이 너무 작다
+            <Grid
+              key={knot.title}
+              columns={{ base: 2, sm: 1 }}
+              gap={{ base: "x4", sm: "x2" }}
+              alignItems="center"
+            >
+              <ImageFrame
+                ratio={1.06}
+                borderRadius="r3"
+                src={`${IMG}/${knot.image}.webp`}
+                alt={`${knot.title} 매듭`}
+              />
+              <VStack gap="x1" alignItems="stretch">
+                <Text as="h4" textStyle="title3">
+                  {knot.title}
+                </Text>
+                <Text textStyle="caption" color="fg.neutral-muted">
+                  {knot.description}
                 </Text>
               </VStack>
+            </Grid>
+          ))}
+        </Grid>
+
+        <SubTitle>키만 알려 주세요</SubTitle>
+        <Text textStyle="bodySm" color="fg.neutral-muted">
+          주문할 때 착용하실 분 키를 적어 주시면, 끝이 벨트 버클에 닿는 길이로
+          맞춰 드려요.
+        </Text>
+        <LengthTable />
+        <Text textStyle="caption" color="fg.neutral-muted">
+          체형과 매는 위치에 따라 실제 완성 길이는 상담 후 조정될 수 있어요.
+        </Text>
+        <Box px="x4" py="x3_5" bg="bg.warning-weak" borderRadius="r2">
+          <Text textStyle="labelSm" color="fg.warning">
+            한 번 자동으로 바꾸면 원래대로 되돌릴 수 없어요. 원단을 잘라서 다시
+            짓는 작업이라서요.
+          </Text>
+        </Box>
+
+        <VStack gap="x2_5" alignItems="stretch">
+          <Text as="h4" textStyle="title3">
+            실제 작업 사례
+          </Text>
+          <BeforeAfter
+            before="auto-before"
+            after="auto-after"
+            afterLabel="수선 후"
+          />
+          <PhotoRow images={["auto-detail-1", "review-2", "auto-detail-3"]} />
+        </VStack>
+      </GuideSection>
+
+      {/* 05 폭 수선 */}
+      <GuideSection id={WIDTH_ID} bg="bg.neutral-weak">
+        <Eyebrow>폭 수선 · {won(pricing.width_cost)}</Eyebrow>
+        <SectionTitle>{"폭만 줄였는데\n요즘 넥타이가 됐어요"}</SectionTitle>
+        <Lead>
+          {
+            "넓은 폭이 부담스러웠던 넥타이, 원하시는 폭으로 줄여 드려요.\n주문할 때 희망 폭을 적어 주시면 그대로 맞춰요."
+          }
+        </Lead>
+        <Grid columns={{ base: 1, sm: 2 }} gap="x3">
+          {[
+            [
+              "지금 넥타이 폭",
+              "예전 넥타이는 9cm를 넘는 게 많아서, 요즘 정장에 매면 가슴이 꽉 차 보여요",
+            ],
+            ["원하시는 폭", "적어 주신 폭 그대로 맞춰 다시 지어요"],
+          ].map(([title, description]) => (
+            <VStack
+              key={title}
+              gap="x1_5"
+              p="x6"
+              bg="bg.layer-default"
+              borderRadius="r3"
+            >
+              <Text as="h4" textStyle="title2">
+                {title}
+              </Text>
+              <Text textStyle="bodySm" color="fg.neutral-muted">
+                {description}
+              </Text>
+            </VStack>
+          ))}
+        </Grid>
+        <Grid columns={{ base: 1, md: 3 }} gap="x3">
+          {WIDTH_POINTS.map((point, index) => (
+            <Box
+              key={point.title}
+              p="x5"
+              bg="bg.layer-default"
+              borderRadius="r3"
+            >
+              <PointText index={index} title={point.title}>
+                {point.description}
+              </PointText>
             </Box>
           ))}
         </Grid>
-      </VStack>
+        <VStack
+          gap="x5"
+          alignItems="stretch"
+          p={{ base: "x6", md: "x8" }}
+          bg="bg.layer-default"
+          borderRadius="r4"
+        >
+          <Text as="h4" textStyle="title2" className="whitespace-pre-line">
+            {"폭 수선은\n처음부터 다시 짓는 일이에요"}
+          </Text>
+          <Text
+            textStyle="body"
+            color="fg.neutral-muted"
+            className="whitespace-pre-line"
+          >
+            {
+              "넥타이를 완전히 뜯어서 원하는 폭으로 다시 재단하고, 처음 만들 때처럼 손으로 다시 봉제해요.\n그래야 두께와 무늬 흐름이 원래 넥타이처럼 자연스러워요."
+            }
+          </Text>
+          <Grid columns={3} gap="x5">
+            {WIDTH_STEPS.map((step) => (
+              <VStack key={step.title} gap="x2_5" alignItems="center">
+                <Box
+                  width="full"
+                  maxWidth={160}
+                  borderRadius="full"
+                  overflow="hidden"
+                >
+                  <ImageFrame
+                    ratio={1}
+                    borderRadius={0}
+                    src={`${IMG}/${step.image}.webp`}
+                    alt=""
+                  />
+                </Box>
+                <Text textStyle="labelSm" align="center">
+                  {step.title}
+                </Text>
+              </VStack>
+            ))}
+          </Grid>
+        </VStack>
+      </GuideSection>
 
-      <VStack gap="x4" alignItems="stretch">
-        <SectionHeading
-          eyebrow="Length Guide"
-          title="내게 맞는 넥타이 길이"
-          description="착용자의 키를 기준으로 자동 수선 후 권장 길이를 확인해 주세요. 체형과 매는 위치에 따라 실제 완성 길이는 상담 후 조정될 수 있습니다."
-          align="start"
+      {/* 06 원상태 복원 */}
+      <GuideSection id={RESTORE_ID}>
+        <Eyebrow>원상태 복원 · {won(pricing.restoration_cost)}</Eyebrow>
+        <SectionTitle>
+          {"잘못 빨아서 틀어진 넥타이,\n처음 샀을 때처럼"}
+        </SectionTitle>
+        <Lead>
+          {
+            "헤지고 틀어진 넥타이, 잘못 세탁해서 모양이 무너진 넥타이를 처음 구매했을 때 상태로 되돌려 드려요.\n넥타이를 만드는 방식 그대로 다시 지어서 모양을 잡아요."
+          }
+        </Lead>
+        <BeforeAfter
+          before="restore-before"
+          after="restore-after"
+          afterLabel="복원 후"
         />
-        <ReformHeightGuide />
-      </VStack>
-
-      <Grid columns={{ base: 1, md: 2 }} gap="x6" alignItems="center">
-        <ReformVideo
-          src="/images/reform/reform-vertical.mp4"
-          ratio={3 / 4}
-          label="자동 넥타이 착용 예시 영상"
-        />
-        <VStack gap="x4" alignItems="stretch">
-          <SectionHeading
-            eyebrow="Automatic Reform"
-            title="자동 넥타이로 바꿔보세요"
-            description="매번 매듭을 만들지 않아도 빠르고 간편하게 착용할 수 있습니다."
-            align="start"
+        <HStack gap="x2" wrap>
+          {[
+            "헤진 가장자리",
+            "비틀리고 틀어진 모양",
+            "잘못된 세탁으로 무너진 형태",
+          ].map((label) => (
+            <Box
+              key={label}
+              px="x3_5"
+              py="x2"
+              bg="bg.neutral-weak"
+              borderRadius="full"
+            >
+              <Text textStyle="caption">{label}</Text>
+            </Box>
+          ))}
+        </HStack>
+        <Text as="h4" textStyle="title3">
+          실제 작업 사례
+        </Text>
+        <VStack gap="x1_5" alignItems="stretch">
+          <PhotoRow
+            images={["restore-case-1", "restore-case-2", "restore-case-3"]}
           />
-          <OptionNote
-            title="지퍼 방식"
-            description="딤플과 돌려묶기를 각각 추가할 수 있습니다."
+          <PhotoRow
+            images={["restore-case-4", "service-restore", "restore-case-5"]}
           />
-          <OptionNote
-            title="끈 방식"
-            description="돌려묶기를 추가할 수 있으며 딤플은 제공하지 않습니다."
+          <PhotoRow
+            images={["restore-case-6", "restore-case-7", "restore-case-8"]}
           />
         </VStack>
-      </Grid>
+        <Text
+          textStyle="bodySm"
+          color="fg.neutral-muted"
+          className="whitespace-pre-line"
+        >
+          {
+            "원단이 찢어졌거나 얼룩이 남은 경우는 되돌릴 수 없어요. 세탁도 하지 않고요.\n사진을 보내 주시면 가능한지 먼저 말씀드릴게요."
+          }
+        </Text>
+      </GuideSection>
 
-      <ComparisonSection
-        eyebrow="Zipper / String"
-        title="길이를 조절하는 방식이 다릅니다"
-        description="지퍼와 끈 모두 원하는 길이로 간편하게 조절한 뒤 고정할 수 있습니다."
-        items={MECHANISM_COMPARISON}
-      />
+      {/* 08 수선실 */}
+      <GuideSection>
+        <Eyebrow>수선실</Eyebrow>
+        <SectionTitle>
+          {"넥타이를 만들던 사람이\n넥타이를 고칩니다"}
+        </SectionTitle>
+        <Lead>
+          {
+            "영선산업은 30년 동안 손으로 넥타이를 만들어 왔어요. 수선을 시작한 지는 5년쯤 됐고, 해마다 잊지 않고 넥타이를 보내 주시는 분들이 있어요.\n넥타이는 봉제 과정과 구조가 독특해서, 직접 만들어 본 곳이어야 제대로 뜯고 다시 지을 수 있어요. 만드는 법을 아니까 고칠 수 있는 것과 없는 것도 솔직하게 말씀드려요."
+          }
+        </Lead>
+        <Grid columns={{ base: 1, sm: 2 }} gap="x4">
+          {WORKSHOP_STEPS.map((step, index) => (
+            <VStack key={step.title} gap="x2_5" alignItems="stretch">
+              <ImageFrame
+                ratio={0.775}
+                borderRadius="r3"
+                src={`${IMG}/${step.image}.webp`}
+                alt={`${step.title} 작업 사진`}
+              />
+              <HStack gap="x2_5">
+                <Text textStyle="labelSm" color="fg.neutral-muted">
+                  {String(index + 1).padStart(2, "0")}
+                </Text>
+                <Text as="h4" textStyle="title3">
+                  {step.title}
+                </Text>
+              </HStack>
+              <Text textStyle="bodySm" color="fg.neutral-muted">
+                {step.description}
+              </Text>
+            </VStack>
+          ))}
+        </Grid>
+      </GuideSection>
 
-      <ComparisonSection
-        eyebrow="Basic / Turn Knot"
-        title="기본 방식과 돌려묶기를 비교해 보세요"
-        description="앞면의 큰 차이는 없지만, 돌려묶기는 제작 단계에서 자연스러운 비대칭과 손매듭 같은 인상을 더할 수 있습니다."
-        items={KNOT_COMPARISON}
-      />
+      {/* 09 이용 방법 */}
+      <GuideSection>
+        <Eyebrow>이용 방법</Eyebrow>
+        <SectionTitle>{"사진 찍어 올리면\n접수 끝"}</SectionTitle>
+        <Lead>여러 개 맡기실 때는 같은 요청을 한 번에 적용할 수 있어요.</Lead>
+        <Grid columns={{ base: 1, sm: 3 }} gap="x3">
+          {HOW_STEPS.map((step, index) => (
+            <VStack key={step.title} gap="x3" alignItems="stretch">
+              <ImageFrame
+                // 주문 화면 캡처 원본 비율(600×1372) — 위아래가 잘려 보이지 않게 크롭하지 않는다
+                ratio={600 / 1372}
+                borderRadius="r3"
+                stroke
+                src={`${IMG}/${step.image}.webp`}
+                alt={`${step.title} 화면`}
+              />
+              <HStack gap="x2">
+                <NumberDot small>{index + 1}</NumberDot>
+                <Text as="h4" textStyle="title3">
+                  {step.title}
+                </Text>
+              </HStack>
+              <Text textStyle="bodySm" color="fg.neutral-muted">
+                {step.description}
+              </Text>
+            </VStack>
+          ))}
+        </Grid>
+        <Grid
+          columns={{ base: 1, sm: 3 }}
+          gap="x6"
+          alignItems="center"
+          p="x6"
+          bg="bg.neutral-weak"
+          borderRadius="r4"
+        >
+          <ImageFrame
+            ratio={3 / 4}
+            borderRadius="r3"
+            src={`${IMG}/packing.webp`}
+            alt="선물 상자에 다시 담은 수선 넥타이"
+          />
+          <VStack gap="x2_5" gridColumn={{ base: "auto", sm: "span 2" }}>
+            <Text as="h4" textStyle="title3">
+              보내 주신 포장 그대로 돌려드려요
+            </Text>
+            <Text
+              textStyle="body"
+              color="fg.neutral-muted"
+              className="whitespace-pre-line"
+            >
+              {
+                "선물 상자나 케이스에 담긴 넥타이라면, 그 상태 그대로 보내 주세요.\n수선을 마치면 같은 상자에 다시 담아서 보내 드려요."
+              }
+            </Text>
+          </VStack>
+        </Grid>
+      </GuideSection>
 
-      <ComparisonSection
-        eyebrow="Basic / Dimple"
-        title="기본과 딤플, 원하는 매듭 인상으로 선택해 보세요"
-        description="깔끔한 기본 스타일과 중앙 홈이 살아 있는 딤플 스타일을 사진으로 비교해 보세요."
-        items={DIMPLE_COMPARISON}
-      />
+      {/* 10 가격 */}
+      <GuideSection bg="bg.neutral-weak">
+        <Eyebrow>가격</Eyebrow>
+        <SectionTitle>넥타이 1개 기준 가격</SectionTitle>
+        <VStack
+          gap={0}
+          alignItems="stretch"
+          bg="bg.layer-default"
+          borderRadius="r4"
+          overflow="hidden"
+        >
+          <HStack
+            justify="space-between"
+            px="x7"
+            py="x4"
+            bg="bg.neutral-inverted"
+          >
+            <Text textStyle="labelSm" color="fg.contrast">
+              수선
+            </Text>
+            <Text textStyle="labelSm" color="fg.contrast">
+              가격
+            </Text>
+          </HStack>
+          {[
+            ...services.map((service) => ({
+              label: service.title,
+              price: service.price,
+              bundle: false,
+            })),
+            ...bundles.map((bundle) => ({ ...bundle, bundle: true })),
+          ].map((row, index) => (
+            <HStack
+              key={row.label}
+              justify="space-between"
+              gap="x3"
+              px="x7"
+              py="x5"
+              bg={index % 2 ? "bg.layer-basement" : "bg.layer-default"}
+            >
+              <HStack gap="x2" wrap>
+                <Text textStyle="label">{row.label}</Text>
+                {row.bundle ? <Badge tone="warning">함께 맡기면</Badge> : null}
+              </HStack>
+              <Text textStyle="title3">{won(row.price)}</Text>
+            </HStack>
+          ))}
+        </VStack>
+        <Grid columns={{ base: 1, sm: 3 }} gap="x3">
+          {[
+            ["보내실 때", "택배비 고객 부담"],
+            ["돌려드릴 때", `반환 배송비 ${won(pricing.shipping_cost)}`],
+            ["작업 기간 (택배 기간 제외)", "영업일 기준 평균 2~4일"],
+          ].map(([label, value]) => (
+            <VStack
+              key={label}
+              gap="x1"
+              p="x5"
+              bg="bg.layer-default"
+              borderRadius="r3"
+            >
+              <Text textStyle="caption" color="fg.neutral-muted">
+                {label}
+              </Text>
+              <Text textStyle="label">{value}</Text>
+            </VStack>
+          ))}
+        </Grid>
+      </GuideSection>
 
-      <ComparisonSection
-        eyebrow="Width Reform"
-        title="몇 밀리미터 차이가 인상을 바꿉니다"
-        description="현재보다 좁은 희망 폭을 입력해 주세요. 작은 폭 차이도 실루엣과 전체 인상을 다르게 만듭니다."
-        items={WIDTH_COMPARISON}
-      />
+      {/* 11 맡기기 전 확인 */}
+      <GuideSection pt="x14" pb="x14">
+        <VStack
+          gap="x3_5"
+          alignItems="stretch"
+          p="x7"
+          bg="bg.warning-weak"
+          borderRadius="r4"
+        >
+          <Text as="h3" textStyle="title3">
+            맡기시기 전에 꼭 읽어 주세요
+          </Text>
+          <VStack as="ul" gap="x3_5" alignItems="stretch">
+            {NOTICES.map((notice) => (
+              <HStack as="li" key={notice} gap="x2_5" align="flex-start">
+                <Text textStyle="label" color="fg.warning" aria-hidden>
+                  ·
+                </Text>
+                <Text textStyle="body" color="fg.neutral-muted">
+                  {notice}
+                </Text>
+              </HStack>
+            ))}
+          </VStack>
+          <Text
+            as={Link}
+            to="/refund-policy"
+            textStyle="labelSm"
+            color="fg.neutral-muted"
+          >
+            자세한 기준은 환불정책에서 확인할 수 있어요 →
+          </Text>
+        </VStack>
+      </GuideSection>
 
-      <Box
+      {/* 12 자주 묻는 질문 */}
+      <GuideSection bg="bg.neutral-weak">
+        <Eyebrow>자주 묻는 질문</Eyebrow>
+        <SectionTitle>자주 묻는 질문</SectionTitle>
+        {/* 항상 펼친 목록 — 마지막 항목 구분선은 카드 바닥과 겹치므로 지운다 */}
+        <Box bg="bg.layer-default" borderRadius="r4" overflow="hidden">
+          <VStack>
+            {FAQS.map(([question, answer]) => (
+              <VStack
+                key={question}
+                gap="x3"
+                px="x6"
+                py="x5"
+                className="border-b border-stroke-neutral-weak last:border-b-0"
+              >
+                <Text textStyle="label">Q. {question}</Text>
+                <Text textStyle="body" color="fg.neutral-muted">
+                  {answer}
+                </Text>
+              </VStack>
+            ))}
+          </VStack>
+        </Box>
+      </GuideSection>
+
+      {/* 13 CTA */}
+      <GuideSection bg="bg.neutral-inverted" alignItems="center">
+        <Text
+          as="h2"
+          textStyle="display1"
+          color="fg.contrast"
+          align="center"
+          className="whitespace-pre-line"
+        >
+          {"버리기 전에,\n한 번 보내 보세요"}
+        </Text>
+        <Text textStyle="body" color="fg.contrast" align="center">
+          고칠 수 있는지부터 봐 드릴게요. 사진 한 장이면 접수돼요.
+        </Text>
+        <ActionButton variant="neutralWeak" size="large" onClick={onStart}>
+          사진 올리고 수선 접수하기
+        </ActionButton>
+        <Text textStyle="caption" color="fg.contrast" align="center">
+          넥타이를 보내시기 전까지는 언제든 취소할 수 있어요.
+        </Text>
+      </GuideSection>
+    </VStack>
+  );
+}
+
+function Card({ bg, children }: { bg: SurfaceColor; children: ReactNode }) {
+  return (
+    <VStack
+      gap="x3"
+      alignItems="stretch"
+      pb="x5"
+      bg={bg}
+      borderRadius="r4"
+      overflow="hidden"
+    >
+      {children}
+    </VStack>
+  );
+}
+
+function CardText({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <VStack gap="x1_5" px="x5" pt="x1">
+      <Text as="h4" textStyle="title3">
+        {title}
+      </Text>
+      <Text
+        textStyle="bodySm"
+        color="fg.neutral-muted"
+        className="whitespace-pre-line"
+      >
+        {children}
+      </Text>
+    </VStack>
+  );
+}
+
+function PointText({
+  index,
+  title,
+  children,
+}: {
+  index: number;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <VStack gap="x1_5">
+      <Text textStyle="captionSm" color="fg.neutral-muted">
+        POINT {index + 1}
+      </Text>
+      <Text as="h4" textStyle="title3" className="whitespace-pre-line">
+        {title}
+      </Text>
+      <Text textStyle="caption" color="fg.neutral-muted">
+        {children}
+      </Text>
+    </VStack>
+  );
+}
+
+function NumberDot({
+  small = false,
+  children,
+}: {
+  small?: boolean;
+  children: ReactNode;
+}) {
+  const size = small ? 24 : 28;
+  return (
+    <HStack
+      justify="center"
+      flexShrink={0}
+      width={size}
+      height={size}
+      borderRadius="full"
+      bg="bg.neutral-inverted"
+      aria-hidden
+    >
+      <Text textStyle="captionSm" color="fg.contrast">
+        {children}
+      </Text>
+    </HStack>
+  );
+}
+
+function BeforeAfter({
+  before,
+  after,
+  afterLabel,
+}: {
+  before: string;
+  after: string;
+  afterLabel: string;
+}) {
+  return (
+    <Grid columns={2} gap="x1_5">
+      {[
+        { image: before, label: "수선 전", corner: "rounded-l-r3" },
+        { image: after, label: afterLabel, corner: "rounded-r-r3" },
+      ].map((side) => (
+        <Box key={side.image} overflow="hidden" className={side.corner}>
+          <ImageFrame
+            ratio={3 / 4}
+            borderRadius={0}
+            src={`${IMG}/${side.image}.webp`}
+            alt={side.label}
+          >
+            <Float placement="top-start" offsetX="x3_5" offsetY="x3_5">
+              <Badge variant="solid">{side.label}</Badge>
+            </Float>
+          </ImageFrame>
+        </Box>
+      ))}
+    </Grid>
+  );
+}
+
+function PhotoRow({ images }: { images: readonly string[] }) {
+  return (
+    <Grid columns={3} gap="x1_5">
+      {images.map((image) => (
+        <ImageFrame
+          key={image}
+          ratio={0.765}
+          src={`${IMG}/${image}.webp`}
+          alt="실제 작업 사례"
+        />
+      ))}
+    </Grid>
+  );
+}
+
+/** 키→권장 길이 가로표 — 모바일에서는 가로 스크롤(ScrollFog). */
+function LengthTable() {
+  const rows = [
+    { label: "키 (cm)", key: "height", bg: "bg.neutral-weak" },
+    { label: "권장 길이 (cm)", key: "length", bg: "bg.layer-default" },
+  ] as const;
+  return (
+    <ScrollFog>
+      <VStack
+        gap={0}
+        alignItems="stretch"
+        minWidth={560}
         borderWidth={1}
         borderColor="stroke.neutral-weak"
         borderRadius="r3"
-        bg="bg.neutral-weak"
-        p={{ base: "x5", md: "x6" }}
+        overflow="hidden"
       >
-        <SectionHeading
-          eyebrow="Restoration Reform"
-          title="형태와 마감을 복원하고 싶다면"
-          description="복원 수선은 손상 상태와 원단에 따라 가능한 작업이 달라집니다. 사진으로 먼저 접수하고 필요한 내용만 짧게 남겨 주세요. 메모가 없어도 상담 후 작업 범위와 진행 가능 여부를 안내합니다."
-          align="start"
-        />
-      </Box>
-    </VStack>
+        {rows.map((row) => (
+          <Grid
+            key={row.key}
+            templateColumns="110px repeat(9, minmax(0, 1fr))"
+            alignItems="center"
+            px="x4"
+            py="x3_5"
+            bg={row.bg}
+          >
+            <Text textStyle="caption" color="fg.neutral-muted">
+              {row.label}
+            </Text>
+            {HEIGHT_GUIDE.map((guide) => (
+              <Text
+                key={guide.height}
+                textStyle={row.key === "length" ? "labelSm" : "bodySm"}
+                align="center"
+              >
+                {guide[row.key]}
+              </Text>
+            ))}
+          </Grid>
+        ))}
+      </VStack>
+    </ScrollFog>
   );
 }
 
 function ReformVideo({
   src,
+  poster,
   ratio,
   label,
 }: {
   src: string;
+  poster?: string;
   ratio: number;
   label: string;
 }) {
@@ -541,9 +1223,13 @@ function ReformVideo({
     "(prefers-reduced-motion: reduce)",
   ).matches;
   return (
-    <AspectRatio ratio={ratio} className="rounded-r3 bg-bg-neutral-weak">
+    <AspectRatio
+      ratio={ratio}
+      className="overflow-hidden rounded-r4 bg-bg-neutral-weak"
+    >
       <video
         src={src}
+        poster={poster}
         aria-label={label}
         autoPlay={!reducedMotion}
         loop={!reducedMotion}
@@ -557,113 +1243,5 @@ function ReformVideo({
         )}
       />
     </AspectRatio>
-  );
-}
-
-function SectionHeading({
-  eyebrow,
-  title,
-  description,
-  align = "center",
-}: {
-  eyebrow: string;
-  title: string;
-  description: string;
-  align?: "start" | "center";
-}) {
-  return (
-    <VStack gap="x2" alignItems={align === "center" ? "center" : "stretch"}>
-      <Text textStyle="captionSm" color="fg.neutral-subtle" align={align}>
-        {eyebrow}
-      </Text>
-      <Text as="h2" textStyle="title2" align={align}>
-        {title}
-      </Text>
-      <Text textStyle="body" color="fg.neutral-muted" align={align}>
-        {description}
-      </Text>
-    </VStack>
-  );
-}
-
-function OptionNote({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <Box
-      borderWidth={1}
-      borderColor="stroke.neutral-weak"
-      borderRadius="r3"
-      p="x4"
-    >
-      <VStack gap="x1" alignItems="stretch">
-        <Text as="h3" textStyle="label">
-          {title}
-        </Text>
-        <Text textStyle="bodySm" color="fg.neutral-muted">
-          {description}
-        </Text>
-      </VStack>
-    </Box>
-  );
-}
-
-function ComparisonSection({
-  eyebrow,
-  title,
-  description,
-  items,
-}: {
-  eyebrow: string;
-  title: string;
-  description: string;
-  items: ReadonlyArray<{
-    label: string;
-    title: string;
-    description: string;
-    image: string;
-  }>;
-}) {
-  return (
-    <VStack gap="x5" alignItems="stretch">
-      <SectionHeading
-        eyebrow={eyebrow}
-        title={title}
-        description={description}
-      />
-      <Grid columns={{ base: 1, md: 2 }} gap="x4">
-        {items.map((item) => (
-          <VStack key={item.label} gap="x3" alignItems="stretch">
-            <ImageFrame
-              ratio={1}
-              src={item.image}
-              alt={item.title}
-              borderRadius="r3"
-              fit="cover"
-              stroke
-            />
-            <VStack gap="x1">
-              <Text
-                textStyle="captionSm"
-                color="fg.neutral-subtle"
-                align="center"
-              >
-                {item.label}
-              </Text>
-              <Text as="h3" textStyle="title3" align="center">
-                {item.title}
-              </Text>
-              <Text textStyle="bodySm" color="fg.neutral-muted" align="center">
-                {item.description}
-              </Text>
-            </VStack>
-          </VStack>
-        ))}
-      </Grid>
-    </VStack>
   );
 }

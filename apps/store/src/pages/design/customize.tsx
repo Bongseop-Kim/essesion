@@ -17,6 +17,7 @@ import {
   ListItem,
   Modal,
   ProgressCircle,
+  renderTieImage,
   ScrollFog,
   Skeleton,
   snackbar,
@@ -59,6 +60,7 @@ import {
   type TemplateShot,
   TemplateTieShot,
   TemplateWornShot,
+  templateEmblem,
 } from "@/features/design/ui/template-shots";
 import { designExamplesQueryOptions } from "@/shared/lib/live-queries";
 import { useSession } from "@/shared/store/session";
@@ -365,16 +367,45 @@ export function DesignCustomizePage() {
     }
   };
 
-  /** 지금 화면 디자인(고른 색 + 넣은 로고)을 PNG로 만들어 맞춤 주문 참고 이미지로 넘긴다. */
+  /**
+   * 지금 화면 디자인(고른 색 + 넣은 로고)을 맞춤 주문 참고 이미지로 넘긴다 — 주문서의 전체·대검·
+   * 소검·매듭 칸에 들어갈 넥타이 그림 4장과, 제작용 원본(무늬 타일·배치형 무늬)은 추가 이미지로.
+   */
   const order = async () => {
     if (!svg || !placedAny || busy) return;
     setOrdering(true);
     try {
-      const designFiles = await Promise.all([
+      const emblem = templateEmblem(layout);
+      const render = async (
+        name: string,
+        silhouette: "photo" | "flat" | "tail" | "knot",
+        withEmblem: boolean,
+      ) =>
+        new File(
+          [
+            await renderTieImage({
+              imageSrc: shot.imageSrc,
+              tileScale: shot.tileScale,
+              panelSrc: shot.panelSrc,
+              emblem: withEmblem ? emblem : undefined,
+              silhouette,
+            }),
+          ],
+          name,
+          { type: "image/png" },
+        );
+      const [full, blade, tail, knot, ...designFiles] = await Promise.all([
+        render("design-full.png", "photo", true),
+        render("design-blade.png", "flat", true),
+        // 포인트 로고는 대검에만 들어간다 — 소검 그림에는 얹지 않는다(화면의 소검 보기와 같다).
+        render("design-tail.png", "tail", false),
+        render("design-knot.png", "knot", true),
         svgToPngFile(svg, "design.png"),
         ...(panelSvg ? [svgToPngFile(panelSvg, "design-panel.png")] : []),
       ]);
-      navigate("/custom-order", { state: { designFiles } });
+      navigate("/custom-order", {
+        state: { designImages: { full, blade, tail, knot }, designFiles },
+      });
     } catch {
       snackbar("디자인을 준비하지 못했습니다.");
       setOrdering(false);
@@ -478,7 +509,7 @@ export function DesignCustomizePage() {
     </Chip>
   ));
 
-  // PC 보기 전환 — 세 보기를 작은 그림으로 미리보기 왼쪽 칸에 세로로 둔다(모바일은 캔버스 스와이프).
+  // PC 보기 전환 — 네 보기를 작은 그림으로 미리보기 왼쪽 칸에 세로로 둔다(모바일은 캔버스 스와이프).
   const viewThumbs = (
     <VStack
       role="group"
@@ -490,6 +521,7 @@ export function DesignCustomizePage() {
         [
           ["worn", "전체", TemplateWornShot, 1.8],
           ["flat", "대검", TemplateTieShot, 1],
+          ["tail", "소검", TemplateTailShot, 1],
           ["knot", "매듭", TemplateKnotShot, 1],
         ] as const
       ).map(([value, label, Thumb, zoom]) => (
@@ -668,14 +700,14 @@ export function DesignCustomizePage() {
         <MobileEditor
           canvas={
             <>
-              {/* 보기 전환 — 캔버스를 옆으로 밀어 전체 → 대검 → 매듭(상품 사진 넘기기처럼 캔버스를 가리지 않는다).
+              {/* 보기 전환 — 캔버스를 옆으로 밀어 전체 → 대검 → 소검 → 매듭(상품 사진 넘기기처럼 캔버스를 가리지 않는다).
                   넥타이는 칸에 맞춰 최대로 — 대검(4:5)·매듭(9:16)은 폭과 높이 중 좁은 쪽에 맞추고, 전체는
                   넥타이가 좁아 칸 높이에 맞춰 키운다(양옆 셔츠는 잘림). 전체·매듭은 깃이 캔버스 위에 붙는다. */}
               <Box position="absolute" inset={0}>
                 <ScrollFog
                   ref={swipeRef}
                   size={0}
-                  aria-label="미리보기 — 옆으로 밀어 전체·대검·매듭 보기"
+                  aria-label="미리보기 — 옆으로 밀어 전체·대검·소검·매듭 보기"
                   className="snap-x snap-mandatory"
                   style={{ height: "100%" }}
                   onScroll={(e) => {
@@ -700,7 +732,11 @@ export function DesignCustomizePage() {
                           inset={0}
                           overflow="hidden"
                           display="flex"
-                          alignItems={v === "flat" ? "center" : "flex-start"}
+                          alignItems={
+                            v === "flat" || v === "tail"
+                              ? "center"
+                              : "flex-start"
+                          }
                           justifyContent="center"
                           style={{ containerType: "size" }}
                         >
@@ -716,8 +752,12 @@ export function DesignCustomizePage() {
                             }}
                           >
                             {swap((s) =>
-                              v === "flat" ? (
-                                <TemplateTieShot shot={s} layout={layout} />
+                              v === "flat" || v === "tail" ? (
+                                <TemplateTieShot
+                                  shot={s}
+                                  layout={layout}
+                                  tail={v === "tail"}
+                                />
                               ) : v === "knot" ? (
                                 <TemplateKnotTallShot
                                   shot={s}
@@ -906,7 +946,7 @@ export function DesignCustomizePage() {
         <Grid templateColumns="72px minmax(0, 1fr)" gap="x3" alignItems="start">
           {viewThumbs}
           <Box minWidth={0}>
-            {view === "flat" || view === "knot" ? (
+            {view === "flat" || view === "tail" || view === "knot" ? (
               // 플랫·매듭은 칸을 꽉 채우면 PC에서 과하게 커진다 — 최대 폭을 두고 칸 높이는 플랫 넥타이에 맞춘다.
               // 매듭 컷은 그 높이를 위아래 여백 없이 꽉 채운다(깃이 위 끝, 넥타이가 아래 끝에서 잘린다).
               <Box
@@ -922,7 +962,13 @@ export function DesignCustomizePage() {
                   {view === "knot" ? (
                     <Box aria-hidden style={{ aspectRatio: "4 / 5" }} />
                   ) : (
-                    swap((s) => <TemplateTieShot shot={s} layout={layout} />)
+                    swap((s) => (
+                      <TemplateTieShot
+                        shot={s}
+                        layout={layout}
+                        tail={view === "tail"}
+                      />
+                    ))
                   )}
                 </Box>
                 {view === "knot" ? (
@@ -1023,8 +1069,14 @@ function ShotSwap({
 const MOBILE_VIEWS = [
   ["worn", "전체"],
   ["flat", "대검"],
+  ["tail", "소검"],
   ["knot", "매듭"],
 ] as const;
+
+/** 소검 보기 — 대검과 같은 칸에 폭만 절반인 소검(`TemplateTieShot tail`). */
+function TemplateTailShot(props: Parameters<typeof TemplateTieShot>[0]) {
+  return <TemplateTieShot {...props} tail />;
+}
 
 /**
  * 모바일 편집 화면 — 넥타이 캔버스가 남는 높이를 다 쓰고, 아래 패널(로고·CTA)이 제 높이만 차지한다.

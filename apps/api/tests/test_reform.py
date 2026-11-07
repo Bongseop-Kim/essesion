@@ -79,6 +79,26 @@ def test_reform_option_validation():
                 }
             }
         )
+    with pytest.raises(ValidationError):  # 키·길이 둘 다 없으면 불가
+        ReformDataIn.model_validate(
+            {
+                "tie": {
+                    "image": {"object_key": "uploads/reform_upload/tie.png"},
+                    "automatic": {"mechanism": "zipper"},
+                }
+            }
+        )
+    length_only = ReformDataIn.model_validate(
+        {
+            "tie": {
+                "image": {"object_key": "uploads/reform_upload/tie.png"},
+                "automatic": {"mechanism": "string", "total_length_cm": 48},
+            }
+        }
+    )
+    assert length_only.tie.automatic is not None
+    assert length_only.tie.automatic.total_length_cm == 48
+    assert length_only.tie.automatic.wearer_height_cm is None
     with pytest.raises(ValidationError):
         ReformDataIn.model_validate(
             {

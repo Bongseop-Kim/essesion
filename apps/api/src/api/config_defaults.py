@@ -55,6 +55,9 @@ PRICING: dict[str, tuple[int, str]] = {
     "WOOL_INTERLINING_COST": (600, "custom_order"),
     "BRAND_LABEL_COST": (300, "custom_order"),
     "CARE_LABEL_COST": (200, "custom_order"),
+    # 포인트(자수·열전사 필름) 개당 — 고르면 정해진 원단으로 만들어 원단비가 없다 (money.md §3).
+    "EMBROIDERY_COST": (5000, "custom_order"),
+    "HEAT_TRANSFER_COST": (3000, "custom_order"),
     "FABRIC_PRINTING_POLY": (8000, "fabric"),
     "FABRIC_PRINTING_SILK": (12000, "fabric"),
     "FABRIC_YARN_DYED_POLY": (12000, "fabric"),

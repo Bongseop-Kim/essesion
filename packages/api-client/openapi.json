@@ -2234,6 +2234,23 @@
             ],
             "title": "Order Item Id"
           },
+          "part": {
+            "anyOf": [
+              {
+                "enum": [
+                  "full",
+                  "blade",
+                  "knot",
+                  "tail"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part"
+          },
           "size_bytes": {
             "anyOf": [
               {
@@ -3563,6 +3580,23 @@
             "title": "Id",
             "type": "string"
           },
+          "part": {
+            "anyOf": [
+              {
+                "enum": [
+                  "full",
+                  "blade",
+                  "knot",
+                  "tail"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part"
+          },
           "size_bytes": {
             "anyOf": [
               {
@@ -4124,6 +4158,7 @@
       },
       "AutomaticReform": {
         "additionalProperties": false,
+        "description": "자동수선 — 착용자 키 또는 넥타이 길이 중 하나 이상.\n\n키만 오면 작업 시 키 기준 권장 길이로 맞춘다.",
         "properties": {
           "dimple": {
             "default": false,
@@ -4138,20 +4173,38 @@
             "title": "Mechanism",
             "type": "string"
           },
+          "total_length_cm": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Length Cm"
+          },
           "turn_knot": {
             "default": false,
             "title": "Turn Knot",
             "type": "boolean"
           },
           "wearer_height_cm": {
-            "exclusiveMinimum": 0.0,
-            "title": "Wearer Height Cm",
-            "type": "number"
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wearer Height Cm"
           }
         },
         "required": [
-          "mechanism",
-          "wearer_height_cm"
+          "mechanism"
         ],
         "title": "AutomaticReform",
         "type": "object"
@@ -5377,6 +5430,10 @@
             "title": "Fabric Cost",
             "type": "integer"
           },
+          "point_cost": {
+            "title": "Point Cost",
+            "type": "integer"
+          },
           "sewing_cost": {
             "title": "Sewing Cost",
             "type": "integer"
@@ -5389,6 +5446,7 @@
         "required": [
           "sewing_cost",
           "fabric_cost",
+          "point_cost",
           "total_cost"
         ],
         "title": "CustomAmountResponse",
@@ -8910,6 +8968,23 @@
       },
       "OrderReferenceImageIn": {
         "properties": {
+          "part": {
+            "anyOf": [
+              {
+                "enum": [
+                  "full",
+                  "blade",
+                  "knot",
+                  "tail"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part"
+          },
           "upload_id": {
             "format": "uuid",
             "title": "Upload Id",
@@ -10366,7 +10441,7 @@
             "items": {
               "$ref": "#/components/schemas/PricingUpdateItem"
             },
-            "maxItems": 27,
+            "maxItems": 29,
             "minItems": 1,
             "title": "Items",
             "type": "array"
@@ -10838,7 +10913,7 @@
             "items": {
               "$ref": "#/components/schemas/ReferenceImageIn"
             },
-            "maxItems": 5,
+            "maxItems": 10,
             "title": "Reference Images",
             "type": "array"
           },
@@ -11049,6 +11124,23 @@
             "minLength": 1,
             "title": "Object Key",
             "type": "string"
+          },
+          "part": {
+            "anyOf": [
+              {
+                "enum": [
+                  "full",
+                  "blade",
+                  "knot",
+                  "tail"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part"
           }
         },
         "required": [

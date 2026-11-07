@@ -1,4 +1,8 @@
-import type { ShippingAddressOut } from "@essesion/api-client";
+import type {
+  OrderReferenceImageIn,
+  ReferenceImageIn,
+  ShippingAddressOut,
+} from "@essesion/api-client";
 import {
   createQuoteMutation,
   listAddressesOptions,
@@ -13,6 +17,7 @@ import {
   Checkbox,
   ContentPlaceholder,
   Divider,
+  Field,
   Grid,
   HelpBubbleTrigger,
   HStack,
@@ -57,12 +62,16 @@ import {
   DEFAULT_CUSTOM_ORDER_OPTIONS,
   DEFAULT_QUOTE_CONTACT,
   invalidCustomOrderSection,
-  MAX_CUSTOM_ORDER_QUANTITY,
   type QuoteContact,
   TIE_WIDTH_ERROR,
 } from "@/features/custom-order/model/options";
 import { useCustomQuote } from "@/features/custom-order/model/use-custom-quote";
 import { CustomOrderServiceGuide } from "@/features/custom-order/ui/custom-order-service-guide";
+import {
+  REFERENCE_SLOTS,
+  type ReferenceSlotFiles,
+  ReferenceSlots,
+} from "@/features/custom-order/ui/reference-slots";
 import { InquirySection } from "@/features/inquiry/ui/inquiry-section";
 import { ReviewListSection } from "@/features/reviews/ui/review-list-section";
 import { AddressSelectModal } from "@/features/shipping/ui/address-select-modal";
@@ -73,6 +82,7 @@ import { hasStateKey } from "@/shared/lib/guards";
 import { useFilePreviews } from "@/shared/lib/use-file-previews";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
+import { ScrollTopButton, scrollToTop } from "@/shared/ui/scroll-top-button";
 import { StickySectionNav } from "@/shared/ui/sticky-section-nav";
 import { SummaryCard } from "@/shared/ui/summary-card";
 
@@ -130,8 +140,12 @@ function CustomOrderPageContent({
     removeFile: removePreviewFile,
   } = useFilePreviews(MAX_IMAGES);
   const files = previewUrls.map(({ file }) => file);
-  // 색·로고 화면의 "바로 주문하기" — 꾸민 디자인 PNG가 참고 이미지로 들어온다.
+  // 색·로고 화면의 "바로 주문하기" — 넥타이 그림 4장은 전체·대검·매듭·소검 칸에, 제작용 원본
+  // (무늬 타일·배치형 무늬)은 추가 이미지로 들어온다.
   const [designFiles] = useState(() => readDesignFiles(location.state));
+  const [slotFiles, setSlotFiles] = useState<ReferenceSlotFiles>(() =>
+    readDesignImages(location.state),
+  );
   useEffect(() => {
     addPreviewFiles(designFiles);
   }, [designFiles]);
@@ -268,7 +282,8 @@ function CustomOrderPageContent({
     return true;
   };
 
-  const hasAttachments = files.length > 0;
+  const hasAttachments =
+    files.length > 0 || Object.values(slotFiles).some(Boolean);
 
   // 로그인으로 흐름이 끊기기 전에 현재 입력을 익명 키에 남긴다 — 로그인 뒤 어느 경로로
   // 돌아와도 /custom-order 진입 시 계정 키로 이관된다. 파일 선택이 차단된 경우
@@ -302,11 +317,36 @@ function CustomOrderPageContent({
     else void submitOrderDraft();
   };
 
+  // 칸 사진은 부위(part)를 달고, 추가 이미지는 부위 없이 올린다.
+  const referenceUploads = () => [
+    ...REFERENCE_SLOTS.flatMap(({ part }) => {
+      const file = slotFiles[part];
+      return file ? [{ file, part }] : [];
+    }),
+    ...files.map((file) => ({ file, part: undefined })),
+  ];
+
   const uploadOrderImages = () =>
-    Promise.all(files.map((file) => uploadOrderImage(file, "custom_order")));
+    Promise.all(
+      referenceUploads().map(async ({ file, part }) => ({
+        ...((await uploadOrderImage(
+          file,
+          "custom_order",
+        )) as OrderReferenceImageIn),
+        ...(part ? { part } : {}),
+      })),
+    );
 
   const uploadQuoteImages = () =>
-    Promise.all(files.map((file) => uploadOrderImage(file, "quote_request")));
+    Promise.all(
+      referenceUploads().map(async ({ file, part }) => ({
+        ...((await uploadOrderImage(
+          file,
+          "quote_request",
+        )) as ReferenceImageIn),
+        ...(part ? { part } : {}),
+      })),
+    );
 
   const submitOrderDraft = async () => {
     if (!amount || !calculation.isCurrent || submitting) return;
@@ -374,6 +414,10 @@ function CustomOrderPageContent({
 
   const summary = customOrderSummary(options);
   const totalCost = amount?.total_cost ?? 0;
+  // 입력이 유효한데 금액을 계산 중일 때만 막는다 — 수량 미달 등은 눌러야 검증 문구가 보인다.
+  const priceReady = !!amount && calculation.isCurrent;
+  const calculating =
+    !priceReady && !invalidCustomOrderSection(options, contact, isQuoteMode);
 
   return (
     <>
@@ -391,7 +435,9 @@ function CustomOrderPageContent({
             <SummaryCard.Section
               title={isQuoteMode ? "견적 요약" : "주문 요약"}
               description={`선택한 사양을 기준으로 서버가 계산한 예상 금액입니다. ${
-                options.fabricProvided ? "봉제" : "봉제·원단"
+                options.fabricProvided || options.pointEnabled
+                  ? "봉제"
+                  : "봉제·원단"
               } 샘플 제작비가 포함되어 있습니다.`}
             />
             <Divider />
@@ -410,6 +456,14 @@ function CustomOrderPageContent({
               label="원단 비용"
               value={amount ? `${krw.format(amount.fabric_cost)}원` : "계산 중"}
             />
+            {options.pointEnabled ? (
+              <SummaryCard.Row
+                label="포인트 비용"
+                value={
+                  amount ? `${krw.format(amount.point_cost)}원` : "계산 중"
+                }
+              />
+            ) : null}
             <SummaryCard.Total
               label={isQuoteMode ? "예상 견적" : "결제 예상 금액"}
               value={amount ? `${krw.format(totalCost)}원` : "-"}
@@ -440,12 +494,14 @@ function CustomOrderPageContent({
               size="large"
               width="full"
               loading={submitting}
-              disabled={!amount || !calculation.isCurrent}
+              disabled={calculating}
               onClick={requestSubmit}
             >
               {isQuoteMode
                 ? "견적 요청하기"
-                : `${krw.format(totalCost)}원 주문하기`}
+                : priceReady
+                  ? `${krw.format(totalCost)}원 주문하기`
+                  : "주문하기"}
             </Box>
             {isQuoteMode ? (
               <Text textStyle="caption" color="fg.neutral-muted" align="center">
@@ -461,7 +517,7 @@ function CustomOrderPageContent({
               {
                 id: "custom-order-info",
                 label: "정보",
-                content: <CustomOrderServiceGuide />,
+                content: <CustomOrderServiceGuide onStart={scrollToTop} />,
               },
               {
                 id: "custom-order-inquiry",
@@ -503,7 +559,6 @@ function CustomOrderPageContent({
                         fabricProvided: checked,
                         reorder: checked ? false : current.reorder,
                         fabricType: checked ? "POLY" : current.fabricType,
-                        designType: checked ? "PRINTING" : current.designType,
                       }));
                     }}
                   />
@@ -513,6 +568,14 @@ function CustomOrderPageContent({
                     disabled={options.fabricProvided}
                     onChange={(event) =>
                       update("reorder", event.currentTarget.checked)
+                    }
+                  />
+                  {/* 원단 직접 제공·재주문과 함께 고를 수 있다 — 정해진 원단으로 만들어 원단 단계 대신 포인트 방식 단계가 나온다 */}
+                  <Checkbox
+                    label="자수·필름"
+                    checked={options.pointEnabled}
+                    onChange={(event) =>
+                      update("pointEnabled", event.currentTarget.checked)
                     }
                   />
                 </HStack>
@@ -564,10 +627,11 @@ function CustomOrderPageContent({
                   ref={quantityRef}
                   label="수량 직접 입력"
                   type="number"
-                  min={4}
-                  max={MAX_CUSTOM_ORDER_QUANTITY}
+                  inputMode="numeric"
                   step={1}
-                  value={options.quantity}
+                  // 입력 중에는 보정하지 않는다 — 4개 이상·최대 수량은 주문하기 때 검증한다.
+                  value={options.quantity || ""}
+                  placeholder="4개 이상"
                   errorMessage={
                     validationError?.field === "quantity"
                       ? validationError.message
@@ -575,15 +639,6 @@ function CustomOrderPageContent({
                   }
                   onChange={(event) =>
                     update("quantity", Number(event.currentTarget.value))
-                  }
-                  onBlur={() =>
-                    update(
-                      "quantity",
-                      Math.min(
-                        MAX_CUSTOM_ORDER_QUANTITY,
-                        Math.max(4, Math.round(options.quantity || 4)),
-                      ),
-                    )
                   }
                 />
               </VStack>
@@ -656,8 +711,33 @@ function CustomOrderPageContent({
             </VStack>
           </OrderSection>
 
-          {!options.fabricProvided ? (
-            <OrderSection id="fabric" title="2. 원단 조합">
+          {options.pointEnabled ? (
+            <OrderSection id="point" title="2. 포인트 방식">
+              <SelectBox
+                name="custom-order-point"
+                value={options.pointType}
+                columns={{ base: 1, sm: 2 }}
+                aria-label="포인트 방식"
+                onValueChange={(value) =>
+                  update("pointType", value as CustomOrderOptions["pointType"])
+                }
+              >
+                <SelectBoxItem
+                  value="EMBROIDERY"
+                  label="자수"
+                  description="실을 촘촘히 박아 넣어 도톰하게 올라와요"
+                />
+                <SelectBoxItem
+                  value="HEAT_TRANSFER"
+                  label="열전사 필름"
+                  description="인쇄한 필름을 열로 눌러 얇고 매끈하게 붙여요"
+                />
+              </SelectBox>
+            </OrderSection>
+          ) : null}
+
+          {!options.fabricProvided && !options.pointEnabled ? (
+            <OrderSection id="fabric" title="2. 원단">
               <VStack gap="x3" alignItems="stretch">
                 {options.reorder ? (
                   <Text textStyle="caption" color="fg.neutral-muted">
@@ -667,43 +747,26 @@ function CustomOrderPageContent({
                 ) : null}
                 <SelectBox
                   name="custom-order-fabric"
-                  value={`${options.fabricType}-${options.designType}`}
+                  value={options.fabricType}
                   columns={{ base: 1, sm: 2 }}
-                  aria-label="원단 조합"
+                  aria-label="원단"
                   onValueChange={(nextValue) => {
-                    const [fabricType, designType] = String(nextValue).split(
-                      "-",
-                    ) as [
-                      CustomOrderOptions["fabricType"],
-                      CustomOrderOptions["designType"],
-                    ];
                     setValidationError(null);
                     setOptions((current) => ({
                       ...current,
-                      fabricType,
-                      designType,
+                      fabricType: nextValue as CustomOrderOptions["fabricType"],
                     }));
                   }}
                 >
                   <SelectBoxItem
-                    value="POLY-PRINTING"
-                    label="폴리 · 날염"
-                    description="폴리 원단에 디자인을 인쇄하는 방식"
+                    value="POLY"
+                    label="폴리"
+                    description="염색한 폴리 실로 무늬를 짜는 선염 원단"
                   />
                   <SelectBoxItem
-                    value="POLY-YARN_DYED"
-                    label="폴리 · 선염"
-                    description="염색한 폴리 실로 무늬를 구성하는 방식"
-                  />
-                  <SelectBoxItem
-                    value="SILK-PRINTING"
-                    label="실크 · 날염"
-                    description="실크 원단에 디자인을 인쇄하는 방식"
-                  />
-                  <SelectBoxItem
-                    value="SILK-YARN_DYED"
-                    label="실크 · 선염"
-                    description="염색한 실크 실로 무늬를 구성하는 방식"
+                    value="SILK"
+                    label="실크"
+                    description="염색한 실크 실로 무늬를 짜는 선염 원단"
                   />
                 </SelectBox>
               </VStack>
@@ -934,9 +997,31 @@ function CustomOrderPageContent({
 
           <OrderSection id="attachment" title="6. 추가 정보">
             <VStack gap="x4" alignItems="stretch">
-              <AttachmentDisplayField
+              <Field
                 label="참고 이미지"
-                description="JPG, PNG, WebP · 파일당 10MB 이하"
+                description="넥타이 부위별로 1장씩 올려 주세요. JPG, PNG, WebP · 파일당 10MB 이하"
+              >
+                <ReferenceSlots
+                  files={slotFiles}
+                  accept={CUSTOM_IMAGE_ACCEPT}
+                  onPick={(part, file) => {
+                    if (!requireAuth({ path: "/custom-order" })) {
+                      saveDraftBeforeLogin(true);
+                      return;
+                    }
+                    setSlotFiles((current) => ({ ...current, [part]: file }));
+                  }}
+                  onRemove={(part) =>
+                    setSlotFiles((current) => {
+                      const { [part]: _removed, ...rest } = current;
+                      return rest;
+                    })
+                  }
+                />
+              </Field>
+              <AttachmentDisplayField
+                label="추가 이미지"
+                description="원하는 무늬·로고 등 더 보여 줄 사진이 있으면 올려 주세요."
                 items={attachmentItems}
                 previewable
                 max={MAX_IMAGES}
@@ -999,6 +1084,7 @@ function CustomOrderPageContent({
           secondaryActionProps={{ children: "취소", variant: "neutralOutline" }}
         />
       </ContentLayout>
+      <ScrollTopButton />
     </>
   );
 }
@@ -1033,6 +1119,18 @@ function focusSection(section: CustomOrderSectionId) {
   document
     .getElementById(`custom-order-${section}`)
     ?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function readDesignImages(state: unknown): ReferenceSlotFiles {
+  if (!hasStateKey(state, "designImages")) return {};
+  const images = state.designImages;
+  if (typeof images !== "object" || images === null) return {};
+  return Object.fromEntries(
+    REFERENCE_SLOTS.flatMap(({ part }) => {
+      const file = (images as Record<string, unknown>)[part];
+      return file instanceof File ? [[part, file]] : [];
+    }),
+  );
 }
 
 function readDesignFiles(state: unknown): File[] {

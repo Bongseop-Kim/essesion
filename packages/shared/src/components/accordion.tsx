@@ -197,7 +197,11 @@ export function AccordionContent({
       aria-labelledby={`${idPrefix}-${value}-trigger`}
       aria-hidden={open ? undefined : true}
       inert={open ? undefined : true}
-      className={cn("px-x4 pb-x4 text-t4 text-fg-neutral-muted", className)}
+      // 트리거 호버 배경과 본문이 붙지 않게 위 여백을 둔다
+      className={cn(
+        "px-x4 pt-x3 pb-x4 text-t4 text-fg-neutral-muted",
+        className,
+      )}
       {...props}
     >
       {children}

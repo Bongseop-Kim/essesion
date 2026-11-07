@@ -42,6 +42,7 @@ from api.domains.orders.schemas import (
     CustomOrderCreateRequest,
     OrderCreateRequest,
     OrderItemIn,
+    OrderReferenceImageIn,
     RepairNoTrackingRequest,
     RepairShippingReceiptOut,
     RepairTrackingRequest,
@@ -60,6 +61,13 @@ logger = logging.getLogger(__name__)
 
 KST = ZoneInfo("Asia/Seoul")
 
+# 포인트 옵션(options.point) → 개당 가격 키. 빈 문자열은 포인트 없음.
+POINT_PRICING_KEYS = {
+    "": None,
+    "EMBROIDERY": "EMBROIDERY_COST",
+    "HEAT_TRANSFER": "HEAT_TRANSFER_COST",
+}
+
 CUSTOM_PRICING_KEYS = [
     "SEWING_PER_COST",
     "AUTO_TIE_COST",
@@ -72,6 +80,8 @@ CUSTOM_PRICING_KEYS = [
     "WOOL_INTERLINING_COST",
     "BRAND_LABEL_COST",
     "CARE_LABEL_COST",
+    "EMBROIDERY_COST",
+    "HEAT_TRANSFER_COST",
     # 주문제작은 샘플비 포함가다 — 봉제는 항상, 원단은 우리가 만들 때만 (money.md §3).
     "SAMPLE_SEWING_COST",
     "SAMPLE_FABRIC_PRINTING_COST",
@@ -597,6 +607,19 @@ async def _relink_reform_images(
             raise DomainError("Reform image not found or not owned", code="invalid_reform_image")
 
 
+def _reference_image_refs(
+    requested: list[OrderReferenceImageIn], staged: list[Image]
+) -> list[dict[str, str]]:
+    """item_data.reference_images — 이미지 id와 부위(전체·대검·매듭·소검, 추가 이미지는 생략).
+
+    claim_completed_order_images는 요청 순서대로 돌려준다.
+    """
+    return [
+        {"image_id": str(image.id), **({"part": ref.part} if ref.part else {})}
+        for ref, image in zip(requested, staged, strict=True)
+    ]
+
+
 # ---- 맞춤 주문 (custom) ----
 
 
@@ -608,6 +631,9 @@ async def calculate_custom_amounts(
 
     tie_type = options.get("tie_type") or ""
     interlining = options.get("interlining") or ""
+    point = options.get("point") or ""
+    if point not in POINT_PRICING_KEYS:
+        raise DomainError("Invalid point option", code="invalid_options")
     if tie_type not in ("", "AUTO"):
         raise DomainError("Invalid tie_type option", code="invalid_options")
     if interlining not in ("", "WOOL"):
@@ -623,7 +649,8 @@ async def calculate_custom_amounts(
 
     fabric_key = None
     design_type = None
-    if not options.get("fabric_provided"):
+    # 포인트(자수·열전사)는 정해진 원단으로만 만들어 원단 선택·원단비가 없다.
+    if not options.get("fabric_provided") and not point:
         design_type, fabric_type = options.get("design_type"), options.get("fabric_type")
         if not design_type or not fabric_type:
             raise DomainError(
@@ -675,10 +702,13 @@ async def calculate_custom_amounts(
         # FABRIC_ 조회를 통과했으므로 design_type은 PRINTING·YARN_DYED 중 하나다.
         fabric_cost += constants[f"SAMPLE_FABRIC_{design_type}_COST"]
 
+    point_cost = constants[POINT_PRICING_KEYS[point]] * quantity if point else 0
+
     return {
         "sewing_cost": sewing_cost,
         "fabric_cost": fabric_cost,
-        "total_cost": sewing_cost + fabric_cost,
+        "point_cost": point_cost,
+        "total_cost": sewing_cost + fabric_cost + point_cost,
     }
 
 
@@ -735,7 +765,7 @@ async def create_custom_order(
                 "custom_order": True,
                 "quantity": body.quantity,
                 "options": body.options,
-                "reference_images": [{"image_id": str(image.id)} for image in staged_images],
+                "reference_images": _reference_image_refs(body.reference_images, staged_images),
                 "additional_notes": body.additional_notes,
                 "pricing": {**amounts, "unit_price_remainder": remainder},
                 "coupon": coupon_snapshot,
@@ -828,7 +858,7 @@ async def create_sample_order(
             item_data={
                 "sample_type": body.sample_type,
                 "options": body.options,
-                "reference_images": [{"image_id": str(image.id)} for image in staged_images],
+                "reference_images": _reference_image_refs(body.reference_images, staged_images),
                 "additional_notes": body.additional_notes,
                 "pricing": {"total_cost": total_cost},
                 "coupon": coupon_snapshot,

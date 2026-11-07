@@ -56,6 +56,8 @@ const SESSION = {
 vi.mock("@essesion/shared", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@essesion/shared")>()),
   snackbar: ui.snackbar,
+  // jsdom엔 canvas·Image.decode가 없다 — 부위별 넥타이 그림은 빈 PNG로 대신한다.
+  renderTieImage: async () => new Blob(["png"], { type: "image/png" }),
 }));
 vi.mock("@essesion/api-client", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@essesion/api-client")>()),
@@ -85,8 +87,21 @@ import { DesignCustomizePage } from "./customize";
 
 function OrderStub() {
   const { state } = useLocation();
-  const files = (state as { designFiles: File[] }).designFiles;
-  return <p>주문 {files.map((file) => file.name).join(",")}</p>;
+  const { designFiles, designImages } = state as {
+    designFiles: File[];
+    designImages: Record<string, File>;
+  };
+  return (
+    <>
+      <p>주문 {designFiles.map((file) => file.name).join(",")}</p>
+      <p>
+        칸{" "}
+        {Object.entries(designImages)
+          .map(([part, file]) => `${part}:${file.name}`)
+          .join(",")}
+      </p>
+    </>
+  );
 }
 
 /** 주문으로 넘긴 디자인 PNG의 원본 SVG */
@@ -231,6 +246,10 @@ describe("DesignCustomizePage", () => {
     fireEvent.click(screen.getByRole("button", { name: "바로 주문하기" }));
 
     await screen.findByText("주문 design.png");
+    // 주문서의 전체·대검·소검·매듭 칸을 채울 넥타이 그림 4장도 함께 넘긴다.
+    screen.getByText(
+      "칸 full:design-full.png,blade:design-blade.png,tail:design-tail.png,knot:design-knot.png",
+    );
     // 고른 색이 이미지에 들어간다 — 서버 색 적용 없이.
     expect(orderedSvg()).toContain("#123ABC");
   });

@@ -131,8 +131,16 @@ async def make_order(
 async def seed_pricing(
     session: AsyncSession, values: dict[str, int], category: str = "custom_order"
 ) -> None:
+    # 데이터 마이그레이션이 넣은 행(예: EMBROIDERY_COST)이 남아 있을 수 있어 upsert한다.
     for key, amount in values.items():
-        session.add(PricingConstant(key=key, amount=amount, category=category))
+        await session.execute(
+            pg_insert(PricingConstant)
+            .values(key=key, amount=amount, category=category)
+            .on_conflict_do_update(
+                index_elements=[PricingConstant.key],
+                set_={"amount": amount, "category": category},
+            )
+        )
     await session.commit()
 
 

@@ -24,6 +24,7 @@ const OPTION_LABELS: Record<string, string> = {
   spoderato: "스포데라토",
   brand_label: "브랜드 라벨",
   care_label: "케어 라벨",
+  point: "포인트",
 };
 
 const OPTION_VALUES: Record<string, string> = {
@@ -36,6 +37,8 @@ const OPTION_VALUES: Record<string, string> = {
   WOOL: "울",
   ADULT: "성인용",
   CHILD: "아동용",
+  EMBROIDERY: "자수",
+  HEAT_TRANSFER: "열전사 필름",
 };
 
 const FINISHING_OPTIONS = new Set([
@@ -109,6 +112,7 @@ export function decodeTieSpec(itemData: unknown) {
     automatic: automatic && {
       mechanismLabel: MECHANISM_LABELS[String(automatic.mechanism)] ?? "미지정",
       wearerHeightCm: cm(automatic.wearer_height_cm),
+      totalLengthCm: cm(automatic.total_length_cm),
       turnKnot: automatic.turn_knot === true,
       dimple: automatic.dimple === true,
     },
@@ -169,6 +173,12 @@ export function decodeOrderItemContent(
         value: `${tie.automatic.wearerHeightCm}cm`,
       });
     }
+    if (tie.automatic.totalLengthCm !== null) {
+      rows.push({
+        label: "넥타이 길이",
+        value: `${tie.automatic.totalLengthCm}cm`,
+      });
+    }
     if (tie.automatic.dimple) tags.push("딤플");
     if (tie.automatic.turnKnot) tags.push("돌려묶기");
   }
@@ -180,3 +190,11 @@ export function decodeOrderItemContent(
     ? { typeLabel: "수선", rows, tags, memo }
     : null;
 }
+
+/** 주문서 참고 이미지 칸(API `part`) 이름 — store 주문서·admin 상세가 같이 쓴다. */
+export const REFERENCE_PART_LABELS = {
+  full: "전체",
+  blade: "대검",
+  knot: "매듭",
+  tail: "소검",
+} as const;

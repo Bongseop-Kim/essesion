@@ -7,7 +7,11 @@ export type CustomOrderOptions = {
   fabricProvided: boolean;
   reorder: boolean;
   fabricType: "POLY" | "SILK";
+  /** 날염은 더 받지 않는다 — 새 주문은 항상 선염. 지난 견적 표기용으로만 PRINTING을 읽는다. */
   designType: "PRINTING" | "YARN_DYED";
+  /** 포인트(자수·열전사 필름) — 고르면 정해진 원단으로 만들어 원단 선택·원단비가 없다 */
+  pointEnabled: boolean;
+  pointType: "EMBROIDERY" | "HEAT_TRANSFER";
   tieType: "MANUAL" | "AUTO";
   interlining: "POLY" | "WOOL";
   sizeType: "ADULT" | "CHILD";
@@ -43,7 +47,9 @@ export const DEFAULT_CUSTOM_ORDER_OPTIONS: CustomOrderOptions = {
   fabricProvided: false,
   reorder: false,
   fabricType: "POLY",
-  designType: "PRINTING",
+  designType: "YARN_DYED",
+  pointEnabled: false,
+  pointType: "EMBROIDERY",
   tieType: "MANUAL",
   interlining: "WOOL",
   sizeType: "ADULT",
@@ -76,11 +82,12 @@ function normalizedTieOptions(options: CustomOrderOptions) {
 }
 
 export function customOrderApiOptions(options: CustomOrderOptions) {
-  const noFabricCharge = options.fabricProvided;
+  const noFabricCharge = options.fabricProvided || options.pointEnabled;
   const tie = normalizedTieOptions(options);
   return {
     fabric_provided: noFabricCharge,
     reorder: options.reorder,
+    point: options.pointEnabled ? options.pointType : null,
     fabric_type: noFabricCharge ? null : options.fabricType,
     design_type: noFabricCharge ? null : options.designType,
     tie_type: options.tieType === "AUTO" ? "AUTO" : "",
@@ -102,6 +109,7 @@ export function customOrderApiOptions(options: CustomOrderOptions) {
 export type CustomOrderSectionId =
   | "quantity"
   | "fabric"
+  | "point"
   | "sewing"
   | "spec"
   | "finishing"
@@ -196,19 +204,30 @@ function validContact(contact: QuoteContact | undefined) {
   return /^[0-9+()\-\s]{8,20}$/.test(value);
 }
 
+export const POINT_TYPE_LABELS = {
+  EMBROIDERY: "자수",
+  HEAT_TRANSFER: "열전사 필름",
+} as const;
+
 export function customOrderSummary(options: CustomOrderOptions) {
+  const ownFabric = `${options.fabricType === "SILK" ? "실크" : "폴리"} · ${
+    options.designType === "YARN_DYED" ? "선염" : "날염"
+  }`;
   const fabric = options.fabricProvided
     ? "원단 직접 제공"
-    : options.reorder
-      ? `재주문 · ${options.fabricType === "SILK" ? "실크" : "폴리"} · ${
-          options.designType === "YARN_DYED" ? "선염" : "날염"
-        }`
-      : `${options.fabricType === "SILK" ? "실크" : "폴리"} · ${
-          options.designType === "YARN_DYED" ? "선염" : "날염"
-        }`;
+    : options.pointEnabled
+      ? options.reorder
+        ? "재주문 · 정해진 원단"
+        : "정해진 원단"
+      : options.reorder
+        ? `재주문 · ${ownFabric}`
+        : ownFabric;
   return [
     { label: "수량", value: `${options.quantity}개` },
     { label: "원단", value: fabric },
+    ...(options.pointEnabled
+      ? [{ label: "포인트", value: POINT_TYPE_LABELS[options.pointType] }]
+      : []),
     {
       label: "타이",
       value: `${options.tieType === "AUTO" ? "자동 타이" : "수동 타이"}${

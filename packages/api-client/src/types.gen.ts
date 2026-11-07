@@ -1200,6 +1200,10 @@ export type AdminOrderReferenceImageOut = {
      */
     order_item_id?: string | null;
     /**
+     * Part
+     */
+    part?: 'full' | 'blade' | 'knot' | 'tail' | null;
+    /**
      * Size Bytes
      */
     size_bytes: number | null;
@@ -1896,6 +1900,10 @@ export type AdminQuoteImageOut = {
      */
     id: string;
     /**
+     * Part
+     */
+    part?: 'full' | 'blade' | 'knot' | 'tail' | null;
+    /**
      * Size Bytes
      */
     size_bytes: number | null;
@@ -2197,6 +2205,10 @@ export type AffectedResponse = {
 
 /**
  * AutomaticReform
+ *
+ * 자동수선 — 착용자 키 또는 넥타이 길이 중 하나 이상.
+ *
+ * 키만 오면 작업 시 키 기준 권장 길이로 맞춘다.
  */
 export type AutomaticReform = {
     /**
@@ -2208,13 +2220,17 @@ export type AutomaticReform = {
      */
     mechanism: 'zipper' | 'string';
     /**
+     * Total Length Cm
+     */
+    total_length_cm?: number | null;
+    /**
      * Turn Knot
      */
     turn_knot?: boolean;
     /**
      * Wearer Height Cm
      */
-    wearer_height_cm: number;
+    wearer_height_cm?: number | null;
 };
 
 /**
@@ -2841,6 +2857,10 @@ export type CustomAmountResponse = {
      * Fabric Cost
      */
     fabric_cost: number;
+    /**
+     * Point Cost
+     */
+    point_cost: number;
     /**
      * Sewing Cost
      */
@@ -4765,6 +4785,10 @@ export type OrderOut = {
  */
 export type OrderReferenceImageIn = {
     /**
+     * Part
+     */
+    part?: 'full' | 'blade' | 'knot' | 'tail' | null;
+    /**
      * Upload Id
      */
     upload_id: string;
@@ -6028,6 +6052,10 @@ export type ReferenceImageIn = {
      * Object Key
      */
     object_key: string;
+    /**
+     * Part
+     */
+    part?: 'full' | 'blade' | 'knot' | 'tail' | null;
 };
 
 /**

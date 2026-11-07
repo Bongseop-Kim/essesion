@@ -28,6 +28,7 @@ from api.domains.admin.quote_schemas import (
     SignedReadUrlOut,
 )
 from api.domains.admin.schemas import AdminOrderCustomerOut, Page, SortDirection
+from api.domains.orders.schemas import as_reference_part
 from api.domains.quotes import service
 from api.errors import DomainError, NotFoundError
 
@@ -110,11 +111,12 @@ def _sort(sort: QuoteSort, direction: SortDirection) -> tuple[Any, Any]:
     return column.desc().nulls_last(), QuoteRequest.id.desc()
 
 
-def _reference_keys(quote: QuoteRequest) -> list[str]:
-    keys: list[str] = []
+def _reference_keys(quote: QuoteRequest) -> dict[str, str | None]:
+    """object_key → 주문서 칸(전체·대검·매듭·소검, 추가 이미지는 None) — 요청 순서 유지."""
+    keys: dict[str, str | None] = {}
     for value in quote.reference_images or []:
         if isinstance(value, dict) and isinstance(key := value.get("object_key"), str):
-            keys.append(key)
+            keys[key] = value.get("part")
     return keys
 
 
@@ -127,7 +129,7 @@ async def _quote_images(session: AsyncSession, quote: QuoteRequest) -> list[Admi
             select(Image).where(
                 Image.entity_type == "quote_request",
                 Image.entity_id == str(quote.id),
-                Image.object_key.in_(keys),
+                Image.object_key.in_(list(keys)),
                 Image.upload_completed_at.is_not(None),
                 Image.deleted_at.is_(None),
             )
@@ -137,11 +139,12 @@ async def _quote_images(session: AsyncSession, quote: QuoteRequest) -> list[Admi
     return [
         AdminQuoteImageOut(
             id=image.id,
+            part=as_reference_part(part),
             content_type=image.content_type,
             size_bytes=image.size_bytes,
             created_at=image.created_at,
         )
-        for key in keys
+        for key, part in keys.items()
         if (image := by_key.get(key)) is not None
     ]
 

@@ -5,7 +5,7 @@ from typing import Any, Literal
 from pydantic import AwareDatetime, BaseModel, Field
 
 from api.domains.admin.schemas import AdminOrderCustomerOut
-from api.domains.orders.schemas import OrderShippingAddressOut
+from api.domains.orders.schemas import OrderShippingAddressOut, ReferencePart
 
 QuoteStatus = Literal["요청", "견적발송", "협의중", "확정", "종료"]
 QuoteStatusFilter = Literal["all", "요청", "견적발송", "협의중", "확정", "종료"]
@@ -37,6 +37,8 @@ class AdminQuoteSummaryOut(BaseModel):
 
 class AdminQuoteImageOut(BaseModel):
     id: uuid.UUID
+    # 주문서 칸(전체·대검·매듭·소검) — 추가 이미지와 과거 데이터는 None.
+    part: ReferencePart | None = None
     content_type: str | None
     size_bytes: int | None
     created_at: datetime
