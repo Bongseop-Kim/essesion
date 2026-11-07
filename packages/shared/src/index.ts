@@ -170,7 +170,13 @@ export { TextAreaField, TextField } from "./components/text-field";
 export type {
   DesignPreviewMode,
   TieCanvasProps,
+  TieImageOptions,
 } from "./components/tie-canvas";
-export { TieCanvas } from "./components/tie-canvas";
+export { renderTieImage, TieCanvas } from "./components/tie-canvas";
 export type { OrderContentRow, OrderItemContent } from "./order-content";
-export { decodeOrderItemContent, decodeTieSpec } from "./order-content";
+export {
+  decodeOrderItemContent,
+  decodeTieSpec,
+  REFERENCE_PART_LABELS,
+} from "./order-content";
+export { recommendedTieLengthCm } from "./tie-length";

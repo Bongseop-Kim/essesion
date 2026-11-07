@@ -26,6 +26,8 @@ import {
   decodeTieSpec,
   formatPhoneNumber,
   HStack,
+  REFERENCE_PART_LABELS,
+  recommendedTieLengthCm,
   Skeleton,
   snackbar,
   TabContent,
@@ -53,7 +55,6 @@ import {
   formatRepairReceiptReason,
   getErrorMessage,
 } from "../../shared/lib/format";
-import { recommendedTieLengthCm } from "../../shared/lib/tie-length";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { type DetailItem, DetailList } from "../../shared/ui/detail-list";
@@ -113,8 +114,8 @@ function snapshotLabel(item: OrderItemOut) {
 }
 
 // 수기 주문 상세(manual-orders/detail.tsx)의 품목 표기와 동일한 형식.
-// 스토어 수선은 넥타이 길이 대신 착용자 키를 받고(reform 스키마) recommendedTieLengthCm로
-// 권장 길이를 환산해 보여준다. 품목별 특이사항이 없다.
+// 스토어 수선은 착용자 키·넥타이 길이 중 하나 이상을 받는다(reform 스키마). 길이가 없으면
+// recommendedTieLengthCm로 키 기준 권장 길이를 환산해 보여준다. 품목별 특이사항이 없다.
 function repairItemDetailItems(item: OrderItemOut): DetailItem[] {
   const tie = decodeTieSpec(item.item_data);
   const categories = [
@@ -160,17 +161,20 @@ function repairItemDetailItems(item: OrderItemOut): DetailItem[] {
         ),
       },
     );
-    if (tie.automatic.wearerHeightCm !== null) {
-      items.push(
-        {
-          label: "[자동] 키",
-          value: `${tie.automatic.wearerHeightCm}cm`,
-        },
-        {
-          label: "[자동] 넥타이 길이",
-          value: `${recommendedTieLengthCm(tie.automatic.wearerHeightCm)}cm (키 기준 권장)`,
-        },
-      );
+    const { wearerHeightCm, totalLengthCm } = tie.automatic;
+    if (wearerHeightCm !== null) {
+      items.push({ label: "[자동] 키", value: `${wearerHeightCm}cm` });
+    }
+    if (totalLengthCm !== null) {
+      items.push({
+        label: "[자동] 넥타이 길이",
+        value: `${totalLengthCm}cm (고객 입력)`,
+      });
+    } else if (wearerHeightCm !== null) {
+      items.push({
+        label: "[자동] 넥타이 길이",
+        value: `${recommendedTieLengthCm(wearerHeightCm)}cm (키 기준 권장)`,
+      });
     }
   }
   if (tie?.width?.targetWidthCm != null) {
@@ -291,6 +295,7 @@ function OrderReferenceImage({
       alt={`주문 첨부 이미지 ${index + 1}`}
       metadata={
         <>
+          {image.part ? `${REFERENCE_PART_LABELS[image.part]} · ` : ""}
           {image.content_type ?? "이미지"} ·{" "}
           {formatFileSize(image.size_bytes, "크기 정보 없음")} ·{" "}
           {formatDateTime(image.created_at)}

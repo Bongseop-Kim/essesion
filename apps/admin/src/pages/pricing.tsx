@@ -62,6 +62,8 @@ const PRICING_LABELS: Record<string, string> = {
   WOOL_INTERLINING_COST: "울 심지 추가",
   BRAND_LABEL_COST: "브랜드 라벨",
   CARE_LABEL_COST: "케어 라벨",
+  EMBROIDERY_COST: "포인트 자수 (개당)",
+  HEAT_TRANSFER_COST: "포인트 열전사 필름 (개당)",
   FABRIC_PRINTING_POLY: "날염 원단 (폴리)",
   FABRIC_PRINTING_SILK: "날염 원단 (실크)",
   FABRIC_YARN_DYED_POLY: "선염 원단 (폴리)",

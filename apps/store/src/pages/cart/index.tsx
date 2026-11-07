@@ -1035,6 +1035,7 @@ function reformSettingsFromTie(
     automaticEnabled: tie.automaticEnabled,
     mechanism: tie.mechanism,
     wearerHeightCm: tie.wearerHeightCm,
+    totalLengthCm: tie.totalLengthCm,
     dimple: tie.dimple,
     turnKnot: tie.turnKnot,
     widthEnabled: tie.widthEnabled,

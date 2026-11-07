@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   customOrderApiOptions,
+  customOrderSummary,
   DEFAULT_CUSTOM_ORDER_OPTIONS,
   invalidCustomOrderSection,
 } from "./options";
@@ -27,8 +28,29 @@ describe("custom order options", () => {
       fabric_provided: false,
       reorder: true,
       fabric_type: "POLY",
-      design_type: "PRINTING",
+      design_type: "YARN_DYED",
     });
+  });
+
+  it("자수·열전사는 원단 없이 포인트만 서버로 보내고 재주문과 함께 고를 수 있다", () => {
+    const options = {
+      ...DEFAULT_CUSTOM_ORDER_OPTIONS,
+      reorder: true,
+      pointEnabled: true,
+      pointType: "HEAT_TRANSFER" as const,
+    };
+    expect(customOrderApiOptions(options)).toMatchObject({
+      reorder: true,
+      point: "HEAT_TRANSFER",
+      fabric_type: null,
+      design_type: null,
+    });
+    expect(customOrderSummary(options)).toEqual(
+      expect.arrayContaining([
+        { label: "원단", value: "재주문 · 정해진 원단" },
+        { label: "포인트", value: "열전사 필름" },
+      ]),
+    );
   });
 
   it("수동 타이의 딤플과 범위 밖 규격을 막는다", () => {

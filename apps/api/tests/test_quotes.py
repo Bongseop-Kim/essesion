@@ -56,7 +56,7 @@ async def test_create_quote_and_validation(app, client, db_session, settings):
         json=_quote_body(
             address,
             reference_images=[
-                {"object_key": f"uploads/quote_request/{index:032d}.png"} for index in range(6)
+                {"object_key": f"uploads/quote_request/{index:032d}.png"} for index in range(11)
             ],
         ),
         headers=headers,

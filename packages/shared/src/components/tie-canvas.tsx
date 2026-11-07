@@ -7,7 +7,7 @@ import { Flex } from "./flex";
 export type DesignPreviewMode = "repeat" | "tie";
 
 // 소비하는 앱의 public/images에 tie-mask.png·tie-knot-mask.png·tie-shadow.webp가 있어야 한다(store·admin 모두 보유).
-// `silhouette="flat"`은 tie-flat-mask.png·tie-flat-shadow.webp,
+// `silhouette="flat"`은 tie-flat-mask.png·tie-flat-shadow.webp, `tail`은 tie-tail-mask.png·tie-tail-shadow.webp,
 // `silhouette="knot"`은 tie-knot-closeup-{mask,knot-mask}.png·tie-knot-closeup-shadow.webp,
 // `knotTall`은 tie-knot-closeup-tall-*도 필요하다(store만 보유).
 
@@ -44,8 +44,9 @@ export type TieCanvasProps = {
    * 정면 컷(템플릿 목록) — 매듭이 없어 `knot` 자리는 몸통 윗부분이다. `knot` = 실사 사진을 매듭
    * 둘레만 4:5로 자른 확대 컷(색·로고의 매듭 보기) — 셔츠가 칸을 꽉 채워 안쪽 여백이 없다.
    * `knotTall` = 같은 매듭 컷을 9:16으로 덜 확대해 몸통을 길게 담은 모바일용.
+   * `tail` = 소검 — `flat`과 같은 아트 박스에서 폭만 절반으로 좁힌 컷(무늬 크기는 대검과 같다).
    */
-  silhouette?: "photo" | "flat" | "knot" | "knotTall";
+  silhouette?: "photo" | "flat" | "knot" | "knotTall" | "tail";
   /** 대기 표시 — 넥타이 실루엣 안에서만 빛줄기가 위→아래로 훑는다(셔츠·배경은 그대로). */
   scanning?: boolean;
   className?: string;
@@ -122,6 +123,36 @@ const SILHOUETTES = {
         y: 0.585,
         size: 0.13,
         maxW: 0.26,
+        maxH: 0.2,
+      },
+    },
+    focus: { zoom: 1.8, y: { knot: 0.22, blade: 0.45, tip: 0.78 } },
+  },
+  // 소검 — flat 마스크·명암에서 만든 컷. 몸통은 폭 60%로 좁혀 세로로 늘리고, 끝 삼각형은 가로세로를
+  // 같이 60%로 줄여 대검과 같은 각도를 둔다(폭만 줄이면 끝이 뾰족해진다). 타일은 아트 폭 기준이라
+  // flat과 같게 둬야 무늬의 실제 크기가 대검과 같다. 블레이드·엠블럼 x는 flat 값을 x' = 0.2 + 0.6x로 옮긴 값.
+  tail: {
+    mask: "/images/tie-tail-mask.png",
+    knotMask: null,
+    shadow: "/images/tie-tail-shadow.webp",
+    aspect: 928 / 1172,
+    tile: 0.37,
+    blade: { left: 0.2274, right: 0.771, shoulder: 0.748 },
+    emblem: {
+      knot: {
+        anchor: "center",
+        x: 0.5,
+        y: 0.2,
+        size: 0.18,
+        maxW: 0.3,
+        maxH: 0.4,
+      },
+      tip: {
+        anchor: "bottom-right",
+        x: 0.71,
+        y: 0.735,
+        size: 0.13,
+        maxW: 0.16,
         maxH: 0.2,
       },
     },
@@ -482,4 +513,142 @@ export function TieCanvas({
       )}
     </Box>
   );
+}
+
+export type TieImageOptions = {
+  /** Sanitized SVG data URI — TieCanvas `imageSrc`와 같다. */
+  imageSrc: string;
+  tileScale?: number;
+  panelSrc?: string;
+  emblem?: { svg: string; at: "knot" | "tip" };
+  silhouette?: NonNullable<TieCanvasProps["silhouette"]>;
+  /** 결과 이미지 폭(px). 높이는 실루엣 아트 박스 비율을 따른다. */
+  width?: number;
+};
+
+function loadImage(src: string) {
+  const image = new Image();
+  image.crossOrigin = "anonymous";
+  image.src = src;
+  return image.decode().then(() => image);
+}
+
+/** 로고 `<symbol>`의 실제 외곽 — TieCanvas와 같은 getBBox 실측(화면 밖 SVG에서). */
+function measureEmblem(svg: string): Rect {
+  const id = /id="([^"]+)"/.exec(svg)?.[1];
+  if (!id) return UNIT_RECT;
+  const host = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  host.setAttribute(
+    "style",
+    "position:absolute;width:0;height:0;overflow:hidden",
+  );
+  host.innerHTML = `${svg}<use href="#${id}"/>`;
+  document.body.append(host);
+  try {
+    const use = host.querySelector("use");
+    const box = use?.getBBox();
+    return box && box.width > 0 && box.height > 0
+      ? { x: box.x, y: box.y, width: box.width, height: box.height }
+      : UNIT_RECT;
+  } finally {
+    host.remove();
+  }
+}
+
+/**
+ * TieCanvas(`mode="tie"`, 확대 없음)와 같은 레이어 — 무늬 타일·실루엣 마스크·매듭 반전 무늬·
+ * 배치형 무늬·포인트 로고·명암 — 를 캔버스에 그려 PNG로 만든다. 주문 참고 이미지(전체·대검·
+ * 소검·매듭)용이며 배경은 흰색이다. 기하는 화면과 같은 SILHOUETTES·panelBox·emblemBox를 쓴다.
+ */
+export async function renderTieImage({
+  imageSrc,
+  tileScale = 1,
+  panelSrc,
+  emblem,
+  silhouette = "photo",
+  width = 1200,
+}: TieImageOptions): Promise<Blob> {
+  const geom = SILHOUETTES[silhouette];
+  const w = width;
+  const h = Math.round(width / geom.aspect);
+  const [pattern, mask, knotMask, shadow, panel] = await Promise.all([
+    loadImage(imageSrc),
+    loadImage(geom.mask),
+    geom.knotMask ? loadImage(geom.knotMask) : null,
+    loadImage(geom.shadow),
+    panelSrc ? loadImage(panelSrc) : null,
+  ]);
+
+  const canvas = (cw: number, ch: number) => {
+    const el = document.createElement("canvas");
+    el.width = cw;
+    el.height = ch;
+    const context = el.getContext("2d");
+    if (!context) throw new Error("canvas를 쓸 수 없습니다");
+    return [el, context] as const;
+  };
+
+  // 무늬 한 겹 — background-size 타일 폭(아트 폭 비), background-position center, 마스크 안만.
+  const layer = (shape: HTMLImageElement, mirror: boolean) => {
+    const [el, context] = canvas(w, h);
+    const tileW = w * geom.tile * tileScale;
+    const tileH = tileW * (pattern.naturalHeight / pattern.naturalWidth || 1);
+    context.save();
+    if (mirror) {
+      context.translate(w, 0);
+      context.scale(-1, 1);
+    }
+    const startX = (((w - tileW) / 2) % tileW) - tileW;
+    const startY = (((h - tileH) / 2) % tileH) - tileH;
+    for (let y = startY; y < h; y += tileH) {
+      for (let x = startX; x < w; x += tileW) {
+        context.drawImage(pattern, x, y, tileW, tileH);
+      }
+    }
+    context.restore();
+    if (panel && !mirror) {
+      const box = panelBox(geom.blade, geom.aspect);
+      context.drawImage(
+        panel,
+        box.left * w,
+        box.top * h,
+        box.width * w,
+        box.height * h,
+      );
+    }
+    context.globalCompositeOperation = "destination-in";
+    context.drawImage(shape, 0, 0, w, h);
+    return el;
+  };
+
+  const [out, context] = canvas(w, h);
+  context.fillStyle = "white";
+  context.fillRect(0, 0, w, h);
+  context.drawImage(layer(mask, false), 0, 0);
+  if (knotMask) context.drawImage(layer(knotMask, true), 0, 0);
+
+  if (emblem) {
+    const rect = measureEmblem(emblem.svg);
+    const box = emblemBox(geom.emblem[emblem.at], rect, geom.aspect);
+    const id = /id="([^"]+)"/.exec(emblem.svg)?.[1] ?? "";
+    const logo = await loadImage(
+      `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${rect.x} ${rect.y} ${rect.width} ${rect.height}" width="${Math.round(box.width * w)}" height="${Math.round(box.height * h)}" style="color:black;overflow:visible">${emblem.svg}<use href="#${id}" xlink:href="#${id}"/></svg>`,
+      )}`,
+    );
+    context.drawImage(
+      logo,
+      box.left * w,
+      box.top * h,
+      box.width * w,
+      box.height * h,
+    );
+  }
+
+  context.drawImage(shadow, 0, 0, w, h);
+  const blob = await new Promise<Blob | null>((resolve) =>
+    out.toBlob(resolve, "image/png"),
+  );
+  if (!blob) throw new Error("PNG로 바꾸지 못했습니다");
+  return blob;
 }

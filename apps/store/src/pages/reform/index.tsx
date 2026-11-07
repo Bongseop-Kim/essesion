@@ -1,10 +1,6 @@
 import { createReadUrl } from "@essesion/api-client";
 import { getReformPricingOptions } from "@essesion/api-client/query";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
   ActionButton,
   AlertDialog,
   Box,
@@ -46,15 +42,13 @@ import {
   ReformSettingsModal,
   type ReformSettingsValues,
 } from "@/features/reform/ui/bulk-apply-modal";
-import {
-  ReformHeightGuide,
-  ReformServiceGuide,
-} from "@/features/reform/ui/reform-service-guide";
+import { ReformServiceGuide } from "@/features/reform/ui/reform-service-guide";
 import { TieItemForm } from "@/features/reform/ui/tie-item-form";
 import { ReviewListSection } from "@/features/reviews/ui/review-list-section";
 import { mapWithConcurrency } from "@/shared/lib/async";
 import { PageMeta } from "@/shared/seo/page-meta";
 import { ContentLayout } from "@/shared/ui/content-layout";
+import { ScrollTopButton, scrollToTop } from "@/shared/ui/scroll-top-button";
 import { StickySectionNav } from "@/shared/ui/sticky-section-nav";
 import { SummaryCard } from "@/shared/ui/summary-card";
 
@@ -65,6 +59,7 @@ const BULK_INITIAL_VALUES: ReformSettingsValues = {
   automaticEnabled: true,
   mechanism: "zipper",
   wearerHeightCm: null,
+  totalLengthCm: null,
   dimple: false,
   turnKnot: false,
   widthEnabled: false,
@@ -184,6 +179,7 @@ export function ReformPage() {
     form.setValue(`ties.${index}.automaticEnabled`, next.automaticEnabled);
     form.setValue(`ties.${index}.mechanism`, next.mechanism);
     form.setValue(`ties.${index}.wearerHeightCm`, next.wearerHeightCm);
+    form.setValue(`ties.${index}.totalLengthCm`, next.totalLengthCm);
     form.setValue(`ties.${index}.dimple`, next.dimple);
     form.setValue(`ties.${index}.turnKnot`, next.turnKnot);
     form.setValue(`ties.${index}.widthEnabled`, next.widthEnabled);
@@ -375,16 +371,8 @@ export function ReformPage() {
             />
             <Callout
               title="발송 안내"
-              description="예상 수선 기간은 영업일 기준 7~14일입니다. 결제 후 수선품을 택배로 발송해 주세요."
+              description="수선품이 도착하면 영업일 기준 평균 2~4일 안에 작업합니다(택배로 오가는 기간 제외). 결제 후 수선품을 택배로 발송해 주세요."
             />
-            <Accordion type="single">
-              <AccordionItem value="length-guide">
-                <AccordionTrigger>내게 맞는 넥타이 길이</AccordionTrigger>
-                <AccordionContent>
-                  <ReformHeightGuide compact />
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
           </SummaryCard.Root>
         }
         actionBar={
@@ -421,7 +409,12 @@ export function ReformPage() {
               {
                 id: "reform-info",
                 label: "정보",
-                content: <ReformServiceGuide />,
+                content: (
+                  <ReformServiceGuide
+                    pricing={pricingQuery.data}
+                    onStart={scrollToTop}
+                  />
+                ),
               },
               {
                 id: "reform-inquiry",
@@ -542,11 +535,6 @@ export function ReformPage() {
       <ReformSettingsModal
         open={settingsTarget != null}
         title={settingsTarget === "new" ? "넥타이 추가" : "수선 옵션 변경"}
-        description={
-          settingsTarget === "new"
-            ? "수선 옵션을 입력하면 목록에 추가됩니다. 사진은 추가된 항목에서 등록해 주세요."
-            : undefined
-        }
         submitLabel={settingsTarget === "new" ? "추가" : "변경"}
         initialValues={settingsInitial}
         onOpenChange={(open) => {
@@ -597,6 +585,7 @@ export function ReformPage() {
         }}
         secondaryActionProps={{ children: "취소" }}
       />
+      <ScrollTopButton />
     </FormProvider>
   );
 }
@@ -621,6 +610,7 @@ function tieSettings(tie: ReformTieForm): ReformSettingsValues {
     automaticEnabled: tie.automaticEnabled,
     mechanism: tie.mechanism,
     wearerHeightCm: tie.wearerHeightCm,
+    totalLengthCm: tie.totalLengthCm,
     dimple: tie.dimple,
     turnKnot: tie.turnKnot,
     widthEnabled: tie.widthEnabled,
@@ -636,6 +626,7 @@ function normalizeSettings(values: ReformSettingsValues): ReformSettingsValues {
     automaticEnabled: values.automaticEnabled,
     mechanism: values.automaticEnabled ? values.mechanism : "",
     wearerHeightCm: values.automaticEnabled ? values.wearerHeightCm : null,
+    totalLengthCm: values.automaticEnabled ? values.totalLengthCm : null,
     dimple:
       values.automaticEnabled && values.mechanism === "zipper" && values.dimple,
     turnKnot:

@@ -66,7 +66,8 @@ export function sessionLayout(
   };
 }
 
-function templateEmblem({ point, emblemSvg }: TemplateLayout) {
+/** 포인트 로고 자리 — 화면 샷과 주문 참고 이미지(renderTieImage)가 같은 규칙을 쓴다. */
+export function templateEmblem({ point, emblemSvg }: TemplateLayout) {
   return point === "none" || !emblemSvg
     ? undefined
     : ({ svg: emblemSvg, at: point === "top" ? "knot" : "tip" } as const);
@@ -96,14 +97,17 @@ function Fill({ children }: { children: ReactNode }) {
 
 /**
  * 템플릿 목록 카드의 사진 — 매듭 없는 평면 넥타이(`silhouette="flat"`) 한 장, 4:5 회색 칸.
- * 포인트 템플릿이면 그 자리(매듭·끝)에 엠블럼을 얹는다.
+ * 포인트 템플릿이면 그 자리(매듭·끝)에 엠블럼을 얹는다. `tail`이면 같은 칸에 소검(폭 절반)을
+ * 그리고, 포인트 로고는 대검에만 들어가므로 엠블럼을 얹지 않는다.
  */
 export function TemplateTieShot({
   shot,
   layout,
+  tail = false,
 }: {
   shot: TemplateShot;
   layout: TemplateLayout;
+  tail?: boolean;
 }) {
   return (
     <Box
@@ -123,8 +127,8 @@ export function TemplateTieShot({
         <TieCanvas
           {...shot}
           mode="tie"
-          silhouette="flat"
-          emblem={templateEmblem(layout)}
+          silhouette={tail ? "tail" : "flat"}
+          emblem={tail ? undefined : templateEmblem(layout)}
         />
       </Box>
     </Box>

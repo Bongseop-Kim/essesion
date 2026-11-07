@@ -16,6 +16,7 @@ import {
   ContentPlaceholder,
   formatPhoneNumber,
   HStack,
+  REFERENCE_PART_LABELS,
   Skeleton,
   snackbar,
   TabContent,
@@ -87,6 +88,7 @@ const OPTION_LABELS: Record<string, string> = {
   spoderato: "스포데라토",
   brand_label: "브랜드 라벨",
   care_label: "케어 라벨",
+  point: "포인트",
 };
 
 const OPTION_VALUES: Record<string, string> = {
@@ -101,6 +103,8 @@ const OPTION_VALUES: Record<string, string> = {
   WOOL: "울",
   ADULT: "성인용",
   CHILD: "아동용",
+  EMBROIDERY: "자수",
+  HEAT_TRANSFER: "열전사 필름",
 };
 
 const QUOTE_ACTION_LABELS: Partial<
@@ -154,6 +158,7 @@ function QuoteImage({
       alt="견적 참고 자료"
       metadata={
         <>
+          {image.part ? `${REFERENCE_PART_LABELS[image.part]} · ` : ""}
           {image.content_type ?? "파일"} · {formatDateTime(image.created_at)}
         </>
       }

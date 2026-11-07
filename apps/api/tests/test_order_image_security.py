@@ -30,6 +30,8 @@ CUSTOM_PRICING = {
     "WOOL_INTERLINING_COST": 0,
     "BRAND_LABEL_COST": 0,
     "CARE_LABEL_COST": 0,
+    "EMBROIDERY_COST": 5000,
+    "HEAT_TRANSFER_COST": 3000,
     "SAMPLE_FABRIC_PRINTING_COST": 0,
     "SAMPLE_FABRIC_YARN_DYED_COST": 0,
 }
@@ -262,6 +264,7 @@ async def test_admin_order_and_claim_hide_private_keys_and_verify_image_relation
             "id": upload_id,
             # 상세가 품목 카드 안에 그리려면 어느 품목 사진인지 알아야 한다.
             "order_item_id": str(item.id),
+            "part": None,
             "content_type": "image/png",
             "size_bytes": 100,
             "created_at": images.json()[0]["created_at"],
@@ -273,9 +276,13 @@ async def test_admin_order_and_claim_hide_private_keys_and_verify_image_relation
         f"/orders/{order_id}/reference-images", headers=customer_headers
     )
     assert customer_images.status_code == 200, customer_images.text
-    # 고객 응답에는 품목 링크가 없다 — admin 상세 표시용 필드다.
+    # 고객 응답에는 품목 링크·주문서 칸이 없다 — admin 상세 표시용 필드다.
     assert customer_images.json() == [
-        {key: value for key, value in images.json()[0].items() if key != "order_item_id"}
+        {
+            key: value
+            for key, value in images.json()[0].items()
+            if key not in ("order_item_id", "part")
+        }
     ]
     assert object_key not in customer_images.text
 

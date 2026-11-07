@@ -207,43 +207,28 @@ export function SampleOrderPage() {
           </SampleSection>
 
           {options.sampleType !== "sewing" ? (
-            <SampleSection title="2. 원단 조합">
+            <SampleSection title="2. 원단">
               <SelectBox
                 name="sample-order-fabric"
-                value={`${options.fabricType}-${options.designType}`}
+                value={options.fabricType}
                 columns={{ base: 1, sm: 2 }}
-                aria-label="원단 조합"
-                onValueChange={(value) => {
-                  const [fabricType, designType] = String(value).split("-") as [
-                    SampleOrderOptions["fabricType"],
-                    SampleOrderOptions["designType"],
-                  ];
+                aria-label="원단"
+                onValueChange={(value) =>
                   setOptions((current) => ({
                     ...current,
-                    fabricType,
-                    designType,
-                  }));
-                }}
+                    fabricType: value as SampleOrderOptions["fabricType"],
+                  }))
+                }
               >
                 <SelectBoxItem
-                  value="POLY-PRINTING"
-                  label="폴리 · 날염"
-                  description="폴리 원단에 디자인을 인쇄하는 방식"
+                  value="POLY"
+                  label="폴리"
+                  description="염색한 폴리 실로 무늬를 짜는 선염 원단"
                 />
                 <SelectBoxItem
-                  value="POLY-YARN_DYED"
-                  label="폴리 · 선염"
-                  description="염색한 폴리 실로 무늬를 구성하는 방식"
-                />
-                <SelectBoxItem
-                  value="SILK-PRINTING"
-                  label="실크 · 날염"
-                  description="실크 원단에 디자인을 인쇄하는 방식"
-                />
-                <SelectBoxItem
-                  value="SILK-YARN_DYED"
-                  label="실크 · 선염"
-                  description="염색한 실크 실로 무늬를 구성하는 방식"
+                  value="SILK"
+                  label="실크"
+                  description="염색한 실크 실로 무늬를 짜는 선염 원단"
                 />
               </SelectBox>
             </SampleSection>

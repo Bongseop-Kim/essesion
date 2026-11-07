@@ -12,7 +12,9 @@ export type ReformTieForm = {
   uploadedImage: ReformImageIn | null;
   automaticEnabled: boolean;
   mechanism: "" | "zipper" | "string";
+  /** 착용자 키·넥타이 길이 중 하나만 입력한다 — 키면 작업 시 권장 길이로 환산 */
   wearerHeightCm: number | null;
+  totalLengthCm: number | null;
   dimple: boolean;
   turnKnot: boolean;
   widthEnabled: boolean;
@@ -32,6 +34,7 @@ export function createReformTie(): ReformTieForm {
     automaticEnabled: true,
     mechanism: "zipper",
     wearerHeightCm: null,
+    totalLengthCm: null,
     dimple: false,
     turnKnot: false,
     widthEnabled: false,
@@ -51,7 +54,7 @@ export function reformDataFromForm(tie: ReformTieForm): ReformDataIn {
       automatic: tie.automaticEnabled
         ? {
             mechanism: requireMechanism(tie.mechanism),
-            wearer_height_cm: requirePositive(tie.wearerHeightCm),
+            ...requireHeightOrLength(tie.wearerHeightCm, tie.totalLengthCm),
             dimple,
             turn_knot: tie.turnKnot || dimple,
           }
@@ -82,6 +85,7 @@ export function reformFormFromData(
     automaticEnabled: !!tie.automatic,
     mechanism: tie.automatic?.mechanism ?? "",
     wearerHeightCm: tie.automatic?.wearer_height_cm ?? null,
+    totalLengthCm: tie.automatic?.total_length_cm ?? null,
     dimple: tie.automatic?.dimple ?? false,
     turnKnot: tie.automatic?.turn_knot ?? false,
     widthEnabled: !!tie.width,
@@ -128,6 +132,7 @@ type ReformServicePartsInput = {
   automatic?: {
     mechanism: string | null;
     wearerHeightCm: number | null;
+    totalLengthCm: number | null;
     dimple?: boolean;
     turnKnot?: boolean;
   } | null;
@@ -145,9 +150,11 @@ export function reformServiceParts(tie: ReformServicePartsInput): string[] {
         : tie.automatic.mechanism === "string"
           ? "끈"
           : null,
-      tie.automatic.wearerHeightCm != null
-        ? `착용자 ${tie.automatic.wearerHeightCm}cm`
-        : null,
+      tie.automatic.totalLengthCm != null
+        ? `넥타이 길이 ${tie.automatic.totalLengthCm}cm`
+        : tie.automatic.wearerHeightCm != null
+          ? `착용자 ${tie.automatic.wearerHeightCm}cm`
+          : null,
       tie.automatic.dimple ? "딤플" : null,
       tie.automatic.turnKnot ? "돌려묶기" : null,
     ].filter((value): value is string => value != null);
@@ -174,7 +181,8 @@ export function reformServiceLabel(data: ReformDataIn | ReformDataOut) {
     automatic: data.tie.automatic
       ? {
           mechanism: data.tie.automatic.mechanism,
-          wearerHeightCm: data.tie.automatic.wearer_height_cm,
+          wearerHeightCm: data.tie.automatic.wearer_height_cm ?? null,
+          totalLengthCm: data.tie.automatic.total_length_cm ?? null,
           dimple: data.tie.automatic.dimple,
           turnKnot: data.tie.automatic.turn_knot,
         }
@@ -193,6 +201,16 @@ function requirePositive(value: number | null) {
     throw new Error("필수 숫자 입력을 확인해 주세요.");
   }
   return value;
+}
+
+/** 길이를 직접 넣었으면 길이만, 아니면 키만 보낸다 — 둘 다 비면 API 422 전에 막는다. */
+function requireHeightOrLength(
+  heightCm: number | null,
+  lengthCm: number | null,
+) {
+  return lengthCm != null
+    ? { wearer_height_cm: null, total_length_cm: requirePositive(lengthCm) }
+    : { wearer_height_cm: requirePositive(heightCm), total_length_cm: null };
 }
 
 function requireMechanism(value: ReformTieForm["mechanism"]) {

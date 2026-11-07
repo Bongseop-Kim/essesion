@@ -45,6 +45,7 @@ function isValidQuotePayload(payload: CustomAmountRequest) {
     payload.quantity >= 4 &&
     payload.quantity <= 10_000 &&
     (payload.options.fabric_provided === true ||
+      !!payload.options.point ||
       (!!payload.options.design_type && !!payload.options.fabric_type))
   );
 }

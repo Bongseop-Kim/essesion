@@ -51,7 +51,11 @@ describe("custom order draft", () => {
       parseCustomOrderDraft({
         ...formDraft,
         options: { ...formDraft.options, tieWidth: 8 },
-        imageRefs: [{ upload_id: "89dc3b35-9ca2-4b18-a0e0-02a099d76a23" }],
+        // 칸 사진(part)과 추가 이미지(part 없음)가 섞여 넘어온다
+        imageRefs: [
+          { upload_id: "89dc3b35-9ca2-4b18-a0e0-02a099d76a23", part: "blade" },
+          { upload_id: "0b04b9c7-28e2-452f-866f-de101ba1cde4" },
+        ],
         totalCost: 120_000,
       }),
     ).not.toBeNull();

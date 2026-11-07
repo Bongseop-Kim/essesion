@@ -8,6 +8,7 @@ from api.domains.orders.schemas import (
     ClaimBadgeOut,
     OrderItemOut,
     OrderShippingAddressOut,
+    ReferencePart,
     RepairShippingReceiptOut,
 )
 from api.schemas import ORMModel
@@ -185,6 +186,8 @@ class AdminOrderReferenceImageOut(BaseModel):
     # 품목별로 올린 사진이다 — 어느 품목 것인지 알려야 상세가 품목 안에 그릴 수 있다.
     # 매칭에 실패한 과거 데이터는 None으로 남는다(상세가 품목 밖에 따로 노출).
     order_item_id: uuid.UUID | None = None
+    # 주문서 칸(전체·대검·매듭·소검) — 추가 이미지와 과거 데이터는 None.
+    part: ReferencePart | None = None
     content_type: str | None
     size_bytes: int | None
     created_at: datetime

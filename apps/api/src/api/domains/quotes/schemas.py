@@ -1,14 +1,16 @@
 import uuid
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field
 
 from api.domains.orders.schemas import (
     MAX_ADDITIONAL_NOTES_LENGTH,
     MAX_ORDER_QUANTITY,
+    MAX_REFERENCE_IMAGES,
     OptionsPayload,
     ReferenceImageIn,
+    _unique_reference_parts,
 )
 from api.schemas import ORMModel
 
@@ -22,7 +24,11 @@ class QuoteCreateRequest(BaseModel):
     contact_value: str = Field(max_length=320)
     business_name: str = Field(default="", max_length=200)
     additional_notes: str = Field(default="", max_length=MAX_ADDITIONAL_NOTES_LENGTH)
-    reference_images: list[ReferenceImageIn] = Field(default_factory=list, max_length=5)
+    reference_images: Annotated[
+        list[ReferenceImageIn],
+        Field(max_length=MAX_REFERENCE_IMAGES),
+        AfterValidator(_unique_reference_parts),
+    ] = Field(default_factory=list)
 
 
 class QuoteOut(ORMModel):

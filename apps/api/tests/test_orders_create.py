@@ -296,6 +296,8 @@ async def test_custom_calculate_rules(client, db_session):
             "WOOL_INTERLINING_COST": 600,
             "BRAND_LABEL_COST": 200,
             "CARE_LABEL_COST": 100,
+            "EMBROIDERY_COST": 5000,
+            "HEAT_TRANSFER_COST": 3000,
             "SAMPLE_SEWING_COST": 50000,
             "SAMPLE_FABRIC_PRINTING_COST": 60000,
             "SAMPLE_FABRIC_YARN_DYED_COST": 80000,
@@ -336,7 +338,12 @@ async def test_custom_calculate_rules(client, db_session):
         },
     )
     assert res.status_code == 200
-    assert res.json() == {"sewing_cost": 97000, "fabric_cost": 85000, "total_cost": 182000}
+    assert res.json() == {
+        "sewing_cost": 97000,
+        "fabric_cost": 85000,
+        "point_cost": 0,
+        "total_cost": 182000,
+    }
 
     # 폴리 원단 가격 키도 날염·선염 모두 계산 가능해야 한다.
     # 원단비 = round(4*단가/4) + 원단 샘플비 → 날염 8000+60000, 선염 12000+80000
@@ -355,6 +362,7 @@ async def test_custom_calculate_rules(client, db_session):
         assert res.json() == {
             "sewing_cost": 62000,
             "fabric_cost": expected_fabric_cost,
+            "point_cost": 0,
             "total_cost": 62000 + expected_fabric_cost,
         }
 
@@ -364,7 +372,36 @@ async def test_custom_calculate_rules(client, db_session):
         json={"options": {"fabric_provided": True}, "quantity": 4},
     )
     assert res.status_code == 200
-    assert res.json() == {"sewing_cost": 62000, "fabric_cost": 0, "total_cost": 62000}
+    assert res.json() == {
+        "sewing_cost": 62000,
+        "fabric_cost": 0,
+        "point_cost": 0,
+        "total_cost": 62000,
+    }
+
+    # 포인트(자수·열전사)는 정해진 원단으로 만들어 원단 선택·원단비가 없고, 개당 포인트비가 붙는다.
+    # 원단 직접 제공·재주문과도 함께 고를 수 있다.
+    for options, expected_point in (
+        ({"point": "EMBROIDERY"}, 5000 * 4),
+        ({"point": "HEAT_TRANSFER", "fabric_provided": True}, 3000 * 4),
+        ({"point": "EMBROIDERY", "reorder": True}, 5000 * 4),
+    ):
+        res = await client.post(
+            "/orders/custom/calculate", json={"options": options, "quantity": 4}
+        )
+        assert res.status_code == 200
+        assert res.json() == {
+            "sewing_cost": 62000,
+            "fabric_cost": 0,
+            "point_cost": expected_point,
+            "total_cost": 62000 + expected_point,
+        }
+
+    res = await client.post(
+        "/orders/custom/calculate", json={"options": {"point": "STICKER"}, "quantity": 4}
+    )
+    assert res.status_code == 400
+    assert res.json()["code"] == "invalid_options"
 
 
 async def test_custom_order_creates_with_remainder(app, client, db_session, settings):
@@ -385,34 +422,62 @@ async def test_custom_order_creates_with_remainder(app, client, db_session, sett
             "WOOL_INTERLINING_COST": 0,
             "BRAND_LABEL_COST": 0,
             "CARE_LABEL_COST": 0,
+            "EMBROIDERY_COST": 5000,
+            "HEAT_TRANSFER_COST": 3000,
             "SAMPLE_FABRIC_PRINTING_COST": 0,
             "SAMPLE_FABRIC_YARN_DYED_COST": 0,
         },
     )
     headers = auth_headers(user, settings)
-    issued = await client.post(
-        "/images/upload-url",
+    upload_ids = []
+    for _ in range(2):
+        issued = await client.post(
+            "/images/upload-url",
+            json={
+                "kind": "custom_order",
+                "filename": "reference.png",
+                "content_type": "image/png",
+                "size_bytes": 100,
+            },
+            headers=headers,
+        )
+        upload_ids.append(issued.json()["upload_id"])
+    await simulate_uploads(app)
+    for upload_id in upload_ids:
+        completed = await client.post(
+            f"/images/order-uploads/{upload_id}/complete", headers=headers
+        )
+        assert completed.status_code == 200, completed.text
+    blade_id, extra_id = upload_ids
+
+    body = {
+        "shipping_address_id": str(address.id),
+        "options": {"fabric_provided": True},
+        "quantity": 3,
+        "additional_notes": "메모",
+    }
+    # 주문서 칸(대검 등)은 칸마다 1장 — 같은 부위가 두 장이면 거절한다.
+    duplicated = await client.post(
+        "/orders/custom",
         json={
-            "kind": "custom_order",
-            "filename": "reference.png",
-            "content_type": "image/png",
-            "size_bytes": 100,
+            **body,
+            "reference_images": [
+                {"upload_id": blade_id, "part": "blade"},
+                {"upload_id": extra_id, "part": "blade"},
+            ],
         },
         headers=headers,
     )
-    upload_id = issued.json()["upload_id"]
-    await simulate_uploads(app)
-    completed = await client.post(f"/images/order-uploads/{upload_id}/complete", headers=headers)
-    assert completed.status_code == 200, completed.text
+    assert duplicated.status_code == 422
 
     res = await client.post(
         "/orders/custom",
         json={
-            "shipping_address_id": str(address.id),
-            "options": {"fabric_provided": True},
-            "quantity": 3,
-            "reference_images": [{"upload_id": upload_id}],
-            "additional_notes": "메모",
+            **body,
+            "reference_images": [
+                {"upload_id": blade_id, "part": "blade"},
+                {"upload_id": extra_id},
+            ],
         },
         headers=headers,
     )
@@ -423,7 +488,11 @@ async def test_custom_order_creates_with_remainder(app, client, db_session, sett
     item = detail["items"][0]
     assert item["unit_price"] == 3366
     assert item["item_data"]["pricing"]["unit_price_remainder"] == 1
-    assert item["item_data"]["reference_images"] == [{"image_id": upload_id}]
+    # 부위는 칸 사진에만 남고, 추가 이미지는 부위 없이 저장된다.
+    assert item["item_data"]["reference_images"] == [
+        {"image_id": blade_id, "part": "blade"},
+        {"image_id": extra_id},
+    ]
 
 
 async def test_sample_order_pricing(client, db_session, settings):

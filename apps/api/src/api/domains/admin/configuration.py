@@ -36,6 +36,8 @@ PRICE_CATEGORIES: dict[str, str] = {
     "WOOL_INTERLINING_COST": "custom_order",
     "BRAND_LABEL_COST": "custom_order",
     "CARE_LABEL_COST": "custom_order",
+    "EMBROIDERY_COST": "custom_order",
+    "HEAT_TRANSFER_COST": "custom_order",
     "FABRIC_PRINTING_POLY": "fabric",
     "FABRIC_PRINTING_SILK": "fabric",
     "FABRIC_YARN_DYED_POLY": "fabric",

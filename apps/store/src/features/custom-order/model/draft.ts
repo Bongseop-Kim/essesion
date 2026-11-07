@@ -17,7 +17,12 @@ const optionsSchema = z
     fabricProvided: z.boolean(),
     reorder: z.boolean(),
     fabricType: z.enum(["POLY", "SILK"]),
-    designType: z.enum(["PRINTING", "YARN_DYED"]),
+    // 날염 선택이 있던 시절 임시 저장도 선염으로 맞춘다
+    designType: z
+      .enum(["PRINTING", "YARN_DYED"])
+      .transform(() => "YARN_DYED" as const),
+    pointEnabled: z.boolean().default(false),
+    pointType: z.enum(["EMBROIDERY", "HEAT_TRANSFER"]).default("EMBROIDERY"),
     tieType: z.enum(["MANUAL", "AUTO"]),
     interlining: z.enum(["POLY", "WOOL"]),
     sizeType: z.enum(["ADULT", "CHILD"]),
@@ -66,7 +71,15 @@ const orderDraftSchema = z
   .object({
     options: orderOptionsSchema,
     contact: contactSchema,
-    imageRefs: z.array(z.object({ upload_id: z.string().uuid() }).strict()),
+    imageRefs: z.array(
+      z
+        .object({
+          upload_id: z.string().uuid(),
+          // 주문서 칸(전체·대검·매듭·소검) — 추가 이미지는 없다
+          part: z.enum(["full", "blade", "knot", "tail"]).optional(),
+        })
+        .strict(),
+    ),
     totalCost: z.number().int().nonnegative(),
   })
   .strict();

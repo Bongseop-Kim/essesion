@@ -9,6 +9,7 @@ import { hasStateKey } from "@/shared/lib/guards";
 export type SampleOrderOptions = {
   sampleType: "fabric" | "sewing" | "fabric_and_sewing";
   fabricType: "POLY" | "SILK";
+  /** 날염은 더 받지 않는다 — 항상 선염 */
   designType: "PRINTING" | "YARN_DYED";
   tieType: "MANUAL" | "AUTO";
   interlining: "POLY" | "WOOL";
@@ -24,7 +25,7 @@ export type SampleOrderDraft = {
 export const DEFAULT_SAMPLE_ORDER_OPTIONS: SampleOrderOptions = {
   sampleType: "fabric",
   fabricType: "POLY",
-  designType: "PRINTING",
+  designType: "YARN_DYED",
   tieType: "AUTO",
   interlining: "WOOL",
   additionalNotes: "",
@@ -59,7 +60,9 @@ const sampleOrderDraftSchema = z.object({
   options: z.object({
     sampleType: z.enum(["fabric", "sewing", "fabric_and_sewing"]),
     fabricType: z.enum(["POLY", "SILK"]),
-    designType: z.enum(["PRINTING", "YARN_DYED"]),
+    designType: z
+      .enum(["PRINTING", "YARN_DYED"])
+      .transform(() => "YARN_DYED" as const),
     tieType: z.enum(["MANUAL", "AUTO"]),
     interlining: z.enum(["POLY", "WOOL"]),
     additionalNotes: z.string(),

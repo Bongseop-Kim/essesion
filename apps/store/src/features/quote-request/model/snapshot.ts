@@ -9,6 +9,10 @@ export function quoteCustomOrderOptions(
     reorder: readBoolean(options.reorder, false),
     fabricType: options.fabric_type === "SILK" ? "SILK" : "POLY",
     designType: options.design_type === "YARN_DYED" ? "YARN_DYED" : "PRINTING",
+    pointEnabled:
+      options.point === "EMBROIDERY" || options.point === "HEAT_TRANSFER",
+    pointType:
+      options.point === "HEAT_TRANSFER" ? "HEAT_TRANSFER" : "EMBROIDERY",
     tieType: options.tie_type === "AUTO" ? "AUTO" : "MANUAL",
     interlining: options.interlining === "WOOL" ? "WOOL" : "POLY",
     sizeType: options.size_type === "CHILD" ? "CHILD" : "ADULT",
