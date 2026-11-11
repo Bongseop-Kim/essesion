@@ -1,12 +1,22 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended",
-    "group:allNonMajor",
-    ":timezone(Asia/Seoul)"
-  ],
-  "lockFileMaintenance": { "enabled": true },
+  "extends": ["config:recommended", ":timezone(Asia/Seoul)"],
+  "schedule": ["* * 1 * *"],
+  "osvVulnerabilityAlerts": true,
+  "lockFileMaintenance": { "enabled": true, "schedule": ["* * 1 * *"] },
   "packageRules": [
+    {
+      "description": "마이너·패치·다이제스트는 월 1회 PR 하나로 묶는다 — 낱개 PR마다 CI·배포가 돌지 않게",
+      "matchPackageNames": ["*"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin", "pinDigest"],
+      "groupName": "all non-major dependencies",
+      "groupSlug": "all-minor-patch"
+    },
+    {
+      "description": "메이저는 PR을 자동으로 만들지 않는다 — Dependency Dashboard 이슈에서 체크할 때만 생성",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
     {
       "description": "vtracer 0.6의 cp314 휠이 임포트 시 세그폴트한다 — vtracer 0.7 이후 해제",
       "matchPackageNames": ["python"],
