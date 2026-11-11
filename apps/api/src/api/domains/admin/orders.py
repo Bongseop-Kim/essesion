@@ -575,6 +575,8 @@ async def dashboard_top_products(
                 amount=int(item_amount),
             )
             for product_id, name, item_quantity, item_amount in rows
+            # Product와 inner join이라 항상 값이 있다 — nullable 컬럼 타입만 좁힌다.
+            if product_id is not None
         ],
         start_date=start,
         end_date=end,

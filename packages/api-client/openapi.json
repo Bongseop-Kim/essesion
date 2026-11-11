@@ -867,7 +867,6 @@
             "type": "string"
           },
           "discount_value": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Discount Value",
             "type": "string"
           },
@@ -903,7 +902,6 @@
           "max_discount_amount": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -5099,7 +5097,6 @@
             "type": "string"
           },
           "discount_value": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Discount Value",
             "type": "string"
           },
@@ -5131,7 +5128,6 @@
           "max_discount_amount": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {

@@ -17,7 +17,9 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest>=8"]
+# numpy는 에셋 추출 스크립트(scripts/extract_tie_*.py) 전용 — 런타임은 쓰지 않는다.
+# pgvector 0.5가 numpy 의존을 뺀 뒤로 직접 선언한다.
+dev = ["pytest>=8", "numpy>=2"]
 
 [tool.uv.sources]
 essesion-obs = { workspace = true }
