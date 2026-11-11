@@ -5,3 +5,6 @@
   X-Frame-Options: DENY
   Permissions-Policy: camera=(), geolocation=(), microphone=(), payment=(self), usb=()
   Cross-Origin-Opener-Policy: same-origin-allow-popups
+
+/images/*
+  Cache-Control: public, max-age=86400

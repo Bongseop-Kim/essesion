@@ -14,7 +14,7 @@ import {
   Text,
   VStack,
 } from "@essesion/shared";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 
 import { Link } from "react-router";
 
@@ -551,6 +551,7 @@ export function ReformServiceGuide({
                 poster={`${IMG}/${point.poster}.webp`}
                 ratio={9 / 16}
                 label={point.label}
+                lazy
               />
               <PointText index={index} title={point.title}>
                 {point.description}
@@ -1213,30 +1214,46 @@ function ReformVideo({
   poster,
   ratio,
   label,
+  lazy = false,
 }: {
   src: string;
   poster?: string;
   ratio: number;
   label: string;
+  /** 첫 화면 밖 영상 — 화면에 들어올 때만 받아서 재생한다 (autoPlay는 preload를 무시하고 즉시 받는다). */
+  lazy?: boolean;
 }) {
   const reducedMotion = window.matchMedia(
     "(prefers-reduced-motion: reduce)",
   ).matches;
+  const videoRef = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!lazy || reducedMotion || !video) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      // play()는 자동재생 정책으로 거부될 수 있다 — 포스터가 남으므로 무시한다.
+      if (entry?.isIntersecting) video.play().catch(() => {});
+      else video.pause();
+    });
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, [lazy, reducedMotion]);
   return (
     <AspectRatio
       ratio={ratio}
       className="overflow-hidden rounded-r4 bg-bg-neutral-weak"
     >
       <video
+        ref={videoRef}
         src={src}
         poster={poster}
         aria-label={label}
-        autoPlay={!reducedMotion}
+        autoPlay={!reducedMotion && !lazy}
         loop={!reducedMotion}
         muted
         playsInline
         controls={reducedMotion}
-        preload="metadata"
+        preload={lazy ? "none" : "metadata"}
         className={cn(
           "absolute inset-0 size-full object-cover",
           !reducedMotion && "pointer-events-none",

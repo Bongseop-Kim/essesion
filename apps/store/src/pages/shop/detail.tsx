@@ -37,6 +37,7 @@ import { useCartActions } from "@/features/cart/model/use-cart";
 import { InquirySection } from "@/features/inquiry/ui/inquiry-section";
 import { ReviewListSection } from "@/features/reviews/ui/review-list-section";
 import { trackEvent } from "@/shared/lib/analytics";
+import { resizedImage } from "@/shared/lib/image-url";
 import { PageMeta } from "@/shared/seo/page-meta";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
@@ -369,7 +370,9 @@ export function ShopDetailPage() {
       >
         <ImageFrame
           ratio={1}
-          src={product.image}
+          {...resizedImage(product.image, 1200)}
+          loading="eager"
+          fetchPriority="high"
           alt={product.name}
           borderRadius="r3"
           fit="cover"
@@ -631,7 +634,7 @@ function ProductDetail({
             <ImageFrame
               key={`${src}-${index}`}
               ratio="auto"
-              src={src}
+              {...resizedImage(src, 1200)}
               alt={`${product.name} 상세 이미지 ${index + 1}`}
               borderRadius="r2"
               stroke

@@ -15,6 +15,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 
+import { resizedImage } from "@/shared/lib/image-url";
+
 import { splitBold } from "../model/bold-markup";
 import {
   dismissForToday,
@@ -137,7 +139,7 @@ function PopupBody({ popup }: { popup: PopupNoticeOut }) {
       <ImageFrame
         ratio={4 / 3}
         borderRadius="r3"
-        src={fields.image_url}
+        {...resizedImage(fields.image_url, 1200)}
         alt=""
       />
       <PopupHeading popup={popup} />
