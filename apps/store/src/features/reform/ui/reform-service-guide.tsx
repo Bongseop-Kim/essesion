@@ -1230,8 +1230,13 @@ function ReformVideo({
   useEffect(() => {
     const video = videoRef.current;
     if (!lazy || reducedMotion || !video) return;
+    // play()는 자동재생 정책으로 거부될 수 있다 — 포스터가 남으므로 무시한다.
+    if (typeof IntersectionObserver === "undefined") {
+      // 관찰할 수 없는 환경 — 지연 없이 바로 재생한다 (StickySectionNav와 같은 폴백).
+      video.play().catch(() => {});
+      return;
+    }
     const observer = new IntersectionObserver(([entry]) => {
-      // play()는 자동재생 정책으로 거부될 수 있다 — 포스터가 남으므로 무시한다.
       if (entry?.isIntersecting) video.play().catch(() => {});
       else video.pause();
     });
