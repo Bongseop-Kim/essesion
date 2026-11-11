@@ -30,7 +30,13 @@ services:
       - gcsdata:/data
     # `up -d --wait`가 리스닝까지 기다리도록 — CI에서 테스트가 먼저 붙는 레이스 방지
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:4443/storage/v1/b?project=local"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "-qO-",
+          "http://localhost:4443/storage/v1/b?project=local",
+        ]
       interval: 2s
       timeout: 2s
       retries: 15
