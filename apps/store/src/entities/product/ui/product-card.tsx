@@ -10,6 +10,7 @@ import {
 import { Link } from "react-router";
 
 import { krw } from "@/shared/lib/format";
+import { resizedImage } from "@/shared/lib/image-url";
 
 export function ProductCard({ product }: { product: ProductOut }) {
   return (
@@ -23,7 +24,7 @@ export function ProductCard({ product }: { product: ProductOut }) {
         <ImageFrame
           ratio={1}
           borderRadius="r2"
-          src={product.image}
+          {...resizedImage(product.image, 600)}
           alt={product.name}
           loading="lazy"
         />

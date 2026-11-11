@@ -14,6 +14,7 @@ import {
 import { useInfiniteQuery } from "@tanstack/react-query";
 
 import { formatDate } from "@/shared/lib/format";
+import { resizedImage } from "@/shared/lib/image-url";
 
 const PAGE_SIZE = 20;
 
@@ -121,7 +122,7 @@ export function ReviewListSection({
                       <ImageFrame
                         ratio={1}
                         stroke
-                        src={photo.url}
+                        {...resizedImage(photo.url, 600)}
                         alt={`${review.author_name}님의 후기 사진 ${index + 1}`}
                       />
                     </Box>

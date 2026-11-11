@@ -189,6 +189,8 @@ export function CustomOrderServiceGuide({ onStart }: { onStart: () => void }) {
         <ImageFrame
           ratio={1.735}
           src={`${IMG}/hero.webp`}
+          loading="eager"
+          fetchPriority="high"
           alt="같은 넥타이를 맨 단체 착용 모습"
         />
         <HStack gap="x2" wrap>

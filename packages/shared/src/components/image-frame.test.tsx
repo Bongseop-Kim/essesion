@@ -34,6 +34,27 @@ describe("ImageFrame", () => {
     );
   });
 
+  it("fallbackSrc가 있으면 한 번 대체 URL을 시도하고, 그것도 실패하면 폴백을 보인다", () => {
+    render(
+      <ImageFrame
+        src="/resized.webp"
+        fallbackSrc="/original.png"
+        alt="변환 이미지"
+        fallback={<span>이미지 없음</span>}
+      />,
+    );
+
+    const img = screen.getByRole("img", { name: "변환 이미지" });
+    expect(img.getAttribute("loading")).toBe("lazy");
+    fireEvent.error(img);
+    expect(
+      screen.getByRole("img", { name: "변환 이미지" }).getAttribute("src"),
+    ).toBe("/original.png");
+
+    fireEvent.error(screen.getByRole("img", { name: "변환 이미지" }));
+    expect(screen.getByText("이미지 없음")).toBeTruthy();
+  });
+
   it('ratio="auto"는 비율 박스 없이 이미지 원본 높이를 따른다', () => {
     render(<ImageFrame ratio="auto" src="/tall.webp" alt="상세" />);
 

@@ -28,6 +28,8 @@ export type ImageFrameProps = Omit<ComponentPropsWithRef<"img">, "children"> & {
   fill?: boolean;
   /** 로드 실패·소스 부재 시 렌더 (기본: 이미지 실루엣 면) */
   fallback?: ReactNode;
+  /** src 로드 실패 시 한 번 더 시도할 대체 URL (예: CDN 변환 실패 → 원본). 이것도 실패하면 fallback */
+  fallbackSrc?: string;
   /** 오버레이 슬롯 (Float 등) — 프레임이 absolute 컨텍스트를 제공 */
   children?: ReactNode;
 };
@@ -39,6 +41,7 @@ export function ImageFrame({
   stroke = false,
   fill = false,
   fallback,
+  fallbackSrc,
   children,
   className,
   src,
@@ -46,8 +49,12 @@ export function ImageFrame({
   onError,
   ...props
 }: ImageFrameProps) {
-  const [failedSrc, setFailedSrc] = useState<string>();
-  const showFallback = src == null || failedSrc === src;
+  const [failure, setFailure] = useState<{ src?: string; both: boolean }>();
+  const primaryFailed = failure?.src === src;
+  const retrySrc = fallbackSrc !== src ? fallbackSrc : undefined;
+  const activeSrc = primaryFailed && retrySrc ? retrySrc : src;
+  const showFallback =
+    src == null || (primaryFailed && (!retrySrc || failure?.both === true));
 
   const inner = (
     <>
@@ -58,14 +65,18 @@ export function ImageFrame({
           className={
             // fill은 부모를 채우는 게 목적 — auto 비율이어도 원본 높이를 따르지 않는다.
             ratio === "auto" && !fill
-              ? "block w-full"
+              ? // 로드 전에는 정사각으로 자리를 잡고(lazy 판정·레이아웃 밀림 방지), 로드되면 원본 비율.
+                "block w-full [aspect-ratio:auto_1/1]"
               : cn("absolute inset-0 size-full", objectFits[fit])
           }
-          src={src}
+          src={activeSrc}
           alt={alt}
+          // 기본은 지연 로딩 — 첫 화면 이미지는 호출부에서 loading="eager"로 덮어쓴다.
+          loading="lazy"
+          decoding="async"
           {...props}
           onError={(event) => {
-            setFailedSrc(src);
+            setFailure({ src, both: primaryFailed });
             onError?.(event);
           }}
         />
