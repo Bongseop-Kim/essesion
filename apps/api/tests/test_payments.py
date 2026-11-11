@@ -616,6 +616,14 @@ async def test_webhook_cancel_restores_reserved_coupon(client, db_session, setti
     assert order.status == "취소"
     assert user_coupon.status == "active"
 
+    # 중복 수신(신·구 웹훅 이중 등록)도 상태를 바꾸지 않고 incident를 만들지 않는다.
+    again = await client.post("/payments/webhook", json={"paymentKey": payment_key})
+    assert again.status_code == 200 and again.json()["orders"] == 0
+    await db_session.refresh(order)
+    await db_session.refresh(user_coupon)
+    assert order.status == "취소" and user_coupon.status == "active"
+    assert await db_session.scalar(select(PaymentIncident)) is None
+
 
 @respx.mock
 async def test_webhook_cancel_payment_key_mismatch_keeps_order_and_opens_incident(
@@ -1259,4 +1267,11 @@ async def test_webhook_confirm_sends_payment_done_alimtalk(app, client, db_sessi
     )
 
     assert res.json()["action"] == "confirmed"
+    assert len(_alimtalk_sent(app)) == 1
+
+    # 도메인 이전 중 신·구 웹훅이 같은 이벤트를 두 번 보내도 알림은 한 번만 간다.
+    again = await client.post(
+        "/payments/webhook", json={"data": {"paymentKey": "webhook-notify-key"}}
+    )
+    assert again.status_code == 200 and again.json()["action"] != "confirmed"
     assert len(_alimtalk_sent(app)) == 1

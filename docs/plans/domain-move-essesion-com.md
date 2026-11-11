@@ -51,8 +51,10 @@ D0를 잡기 전에 아래 답을 받는다. 답이 없으면 실행하지 말�
 - DB에 `assets.essesion.shop` 절대 URL이 저장돼 있는지. 있으면 5단계에서 CSP·이미지 변환 허용 목록에 구
   호스트를 남긴다.
 - Toss 웹훅 처리의 중복 수신 안전성. 신·구 웹훅을 함께 등록한 기간에 같은 이벤트가 두 번 온다.
-  `docs/api-spec/money.md:125`는 조회 API 재검증 후 불일치만 교정이라 적고 있어 안전할 것으로 추정 —
-  핸들러 테스트로 확인한다.
+  **확인 완료(2026-11-11)**: DONE·CANCELED 중복 수신 시 상태·쿠폰·incident 변화 없고 알림톡도 1회
+  (`apps/api/tests/test_payments.py`의 `test_webhook_confirm_sends_payment_done_alimtalk`,
+  `test_webhook_cancel_restores_reserved_coupon`). 중복 CANCELED는 `action: canceled, orders: 0`으로 ack한다.
+- 2026-11-11 whois: `essesion.com` 미등록(구매 가능), `essesion.shop` MX 없음(구 도메인 수신 메일 없음 → 2-5 해당).
 
 ## 절차
 
