@@ -12,7 +12,7 @@ import asyncio
 import base64
 import os
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import httpx
@@ -141,7 +141,7 @@ async def _ensure_product_image(session, gcs, settings, product: Product) -> Non
             content_type="image/png",
             size_bytes=len(PLACEHOLDER_PNG),
             original_filename=f"{product.code.lower()}.png",
-            upload_completed_at=datetime.now(timezone.utc),
+            upload_completed_at=datetime.now(UTC),
         )
         session.add(image)
         print(f"  product image: {product.code}")
@@ -150,7 +150,7 @@ async def _ensure_product_image(session, gcs, settings, product: Product) -> Non
 
 async def _ensure_test_coupon(session) -> None:
     expiry_date = date.today() + timedelta(days=365)
-    expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=365)
+    expires_at = datetime.now(UTC).replace(tzinfo=None) + timedelta(days=365)
     coupon_values = {
         "display_name": "로컬 테스트 5,000원 할인",
         "discount_type": "fixed",
@@ -273,7 +273,7 @@ async def _ensure_content_visibility_orders(session) -> None:
     if customer is None:
         return
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     address = {
         "id": "00000000-0000-4000-8000-000000000201",
         "recipient_name": "로컬고객",
