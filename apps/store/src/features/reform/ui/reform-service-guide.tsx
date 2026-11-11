@@ -1236,8 +1236,9 @@ function ReformVideo({
       video.play().catch(() => {});
       return;
     }
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry?.isIntersecting) video.play().catch(() => {});
+    const observer = new IntersectionObserver((entries) => {
+      // 빠른 스크롤로 진입·이탈이 한 번에 묶여 오면 마지막 항목이 현재 상태다.
+      if (entries.at(-1)?.isIntersecting) video.play().catch(() => {});
       else video.pause();
     });
     observer.observe(video);
