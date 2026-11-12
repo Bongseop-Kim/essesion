@@ -7,7 +7,7 @@ from typing import Annotated, Any
 from db.models.auth import User
 from db.models.commerce import QuoteRequest, QuoteRequestStatusLog
 from db.models.images import Image
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Query, Request
 from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -205,6 +205,12 @@ async def get_quote_detail(session: AsyncSession, quote_id: uuid.UUID) -> AdminQ
     )
 
 
+QUOTE_SENT_FALLBACK = (
+    "[ESSE SION] 요청하신 견적이 준비되었습니다.\n"
+    "견적번호 {quote_number} / 견적금액 {amount}원\n{origin}/my-page/quote-request"
+)
+
+
 @router.get("", response_model=Page[AdminQuoteSummaryOut])
 async def list_admin_quotes(
     session: SessionDep,
@@ -251,8 +257,10 @@ async def update_admin_quote_status(
     body: AdminQuoteStatusRequest,
     session: SessionDep,
     admin: AdminUser,
+    request: Request,
+    background: BackgroundTasks,
 ) -> AdminQuoteDetailOut:
-    await service.admin_update_status(
+    quote = await service.admin_update_status(
         session,
         admin,
         quote_id,
@@ -263,6 +271,29 @@ async def update_admin_quote_status(
         admin_memo=body.admin_memo,
         memo=body.memo,
     )
+    # 견적 도착 알림톡 — best-effort. 종료에서 되돌아오는 전이가 없어 견적당 1회다.
+    settings = request.app.state.settings
+    if body.new_status == "견적발송" and settings.solapi_template_quote_sent:
+        user = await session.get(User, quote.user_id)
+        if (
+            user is not None
+            and user.notification_consent
+            and user.notification_enabled
+            and user.phone_verified
+            and user.phone
+        ):
+            amount = f"{quote.quoted_amount:,}"
+            background.add_task(
+                request.app.state.solapi.send_alimtalk,
+                user.phone,
+                settings.solapi_template_quote_sent,
+                {"#{견적번호}": quote.quote_number, "#{견적금액}": amount},
+                QUOTE_SENT_FALLBACK.format(
+                    quote_number=quote.quote_number,
+                    amount=amount,
+                    origin=settings.frontend_origin,
+                ),
+            )
     return await get_quote_detail(session, quote_id)
 
 

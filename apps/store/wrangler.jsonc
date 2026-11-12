@@ -16,6 +16,8 @@
   // 그 레코드가 남은 채로 custom_domain을 걸면 등록이 충돌해 배포가 실패한다.
   "routes": [
     { "pattern": "essesion.shop", "custom_domain": true },
+    // 도메인 이전 동시 운영 — docs/plans/domain-move-essesion-com.md B단계.
+    { "pattern": "essesion.com", "custom_domain": true },
     { "pattern": "app.essesion.shop", "custom_domain": true }
   ]
 }

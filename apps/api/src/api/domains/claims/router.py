@@ -85,8 +85,8 @@ async def admin_update_claim_status(
     result = await service.admin_update_status(
         session, admin, claim_id, body.new_status, body.memo, body.is_rollback
     )
-    # 롤백이 아닌 완료/거부 전이만 알림 (실패해도 상태 변경엔 영향 없음 — best effort)
-    if not body.is_rollback and body.new_status in ("완료", "거부"):
+    # 롤백이 아닌 완료/거부/수거요청 전이만 알림 (실패해도 상태 변경엔 영향 없음 — best effort)
+    if not body.is_rollback and body.new_status in service.NOTIFY_STATUSES:
         app = request.app
 
         async def _notify() -> None:

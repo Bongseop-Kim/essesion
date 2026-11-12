@@ -53,7 +53,10 @@ describe("api-proxy edge worker", () => {
       const res = await worker.fetch(
         request("https://api.essesion.com/v1/orders", {
           // 호출자가 위조 헤더를 보내도 엣지에서 덮어써야 한다.
-          headers: { "X-Essesion-Edge-Secret": "attacker-supplied" },
+          headers: {
+            "X-Essesion-Edge-Secret": "attacker-supplied",
+            "X-Essesion-Forwarded-Host": "evil.example.com",
+          },
         }),
         { ORIGIN: OK_ORIGIN, EDGE_SHARED_SECRET: "real-secret" },
       );
@@ -65,6 +68,9 @@ describe("api-proxy edge worker", () => {
       expect(url.host).toBe("api-123.asia-northeast3.run.app");
       expect(url.pathname).toBe("/v1/orders");
       expect(proxied.headers.get("X-Essesion-Edge-Secret")).toBe("real-secret");
+      expect(proxied.headers.get("X-Essesion-Forwarded-Host")).toBe(
+        "api.essesion.com",
+      );
     } finally {
       vi.unstubAllGlobals();
     }

@@ -10,6 +10,8 @@ public_api_origin = "https://api.essesion.shop"
 #   FRONTEND_ORIGIN  = "https://app.essesion.shop"
 #   ADMIN_FRONTEND_ORIGIN = "https://admin.essesion.shop"
 #   CORS_ORIGINS     = "[\"https://app.essesion.shop\", \"https://admin.essesion.shop\"]"
+#   # 도메인 이전 동시 운영 동안만 — 공개 API origin → 프론트 origin 허용 쌍 (docs/plans/domain-move-essesion-com.md)
+#   ALT_SITE_ORIGINS = "{\"https://api.essesion.com\": \"https://essesion.com\"}"
 #   GOOGLE_CLIENT_ID = "..."
 #   KAKAO_CLIENT_ID  = "..."
 #   NAVER_CLIENT_ID  = "..."
@@ -21,10 +23,13 @@ public_api_origin = "https://api.essesion.shop"
 #   SOLAPI_TEMPLATE_CLAIM_DONE = "..."
 #   SOLAPI_TEMPLATE_CLAIM_REJECTED = "..."
 #   SOLAPI_TEMPLATE_QUOTE_RECEIVED = "..."
-#   # 아래 3개는 /readyz의 solapi capability가 보지 않는다 — 비어도 초록불이다.
+#   # 아래 6개는 /readyz의 solapi capability가 보지 않는다 — 비어도 초록불이다.
 #   SOLAPI_TEMPLATE_PHONE_CODE = "..."     # 비면 인증번호가 알림톡 대신 평문 SMS로 나간다
 #   SOLAPI_TEMPLATE_PAYMENT_DONE = "..."   # 비면 결제완료 알림이 로그도 없이 미발송된다
 #   SOLAPI_TEMPLATE_SHIPPING_STARTED = "..."  # 비면 배송중 알림이 로그도 없이 미발송된다
+#   SOLAPI_TEMPLATE_QUOTE_SENT = "..."        # 비면 견적 도착 알림이 미발송된다
+#   SOLAPI_TEMPLATE_CLAIM_PICKUP = "..."      # 비면 수거 안내 알림이 outbox skipped로 닫힌다
+#   SOLAPI_TEMPLATE_REPAIR_RECEIVED = "..."   # 비면 수선 상품 도착 알림이 미발송된다
 # }
 
 # Plan v3는 단일 런타임 경로이며 별도 배포 mode가 없다.

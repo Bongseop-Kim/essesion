@@ -332,3 +332,38 @@ async def test_admin_repair_receipt_photo_signed_read_requires_receipt_relation(
         headers=headers,
     )
     assert unrelated.status_code == 404
+
+
+async def test_quote_sent_alimtalk(app, client, db_session, settings):
+    """견적발송 전이 시 견적 도착 알림톡 1건 — 견적번호·금액 포함."""
+    settings.solapi_template_quote_sent = "KA01TP-QUOTE-SENT-TEST"
+    customer = await make_user(db_session, email="quote-notify@test.local", phone="01099998888")
+    customer.phone_verified = True
+    customer.notification_consent = True
+    await db_session.commit()
+    admin = await make_admin(db_session, email="quote-notify-admin@test.local")
+    address = await make_address(db_session, customer)
+    admin_headers = auth_headers(admin, settings)
+
+    created = await client.post(
+        "/quotes", json=_quote_body(address), headers=auth_headers(customer, settings)
+    )
+    assert created.status_code == 201, created.text
+    quote_id = created.json()["id"]
+    detail = await client.get(f"/admin/quotes/{quote_id}", headers=admin_headers)
+
+    res = await client.post(
+        f"/admin/quotes/{quote_id}/status",
+        json={
+            "expected_updated_at": detail.json()["updated_at"],
+            "new_status": "견적발송",
+            "quoted_amount": 250000,
+        },
+        headers=admin_headers,
+    )
+    assert res.status_code == 200, res.text
+    sent = [m for m in app.state.solapi.sent if m.get("template_id") == "KA01TP-QUOTE-SENT-TEST"]
+    assert len(sent) == 1
+    assert sent[0]["to"] == "01099998888"
+    assert "250,000원" in sent[0]["text"]
+    assert detail.json()["quote_number"] in sent[0]["text"]
