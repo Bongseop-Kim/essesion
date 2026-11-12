@@ -8,6 +8,11 @@
     {
       "pattern": "api.essesion.shop",
       "custom_domain": true
+    },
+    // 도메인 이전 동시 운영 — docs/plans/domain-move-essesion-com.md B단계.
+    {
+      "pattern": "api.essesion.com",
+      "custom_domain": true
     }
   ]
 }

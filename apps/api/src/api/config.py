@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:3001"]
     # OAuth provider에 등록한 Cloudflare 공개 API origin. run.app 직통 주소 금지.
     public_api_origin: str = ""
+    # 도메인 이전 동안만 쓰는 추가 사이트 쌍 {공개 API origin: 프론트 origin}.
+    # 요청이 들어온 API 호스트가 여기 있으면 OAuth 콜백·복귀 주소가 그 쌍을 따른다.
+    # 비어 있으면 public_api_origin ↔ frontend_origin 한 쌍으로 고정된다.
+    alt_site_origins: dict[str, str] = {}
 
     # Auth
     jwt_secret: str = "dev-jwt-secret-only-for-local-32b!"  # HS256 최소 32바이트
@@ -72,6 +76,9 @@ class Settings(BaseSettings):
     solapi_template_phone_code: str = ""  # 비면 인증번호를 알림톡 대신 평문 SMS로 보낸다
     solapi_template_payment_done: str = ""  # 비면 결제완료 알림을 건너뛴다
     solapi_template_shipping_started: str = ""  # 비면 배송중 알림을 건너뛴다
+    solapi_template_quote_sent: str = ""  # 비면 견적 도착 알림을 건너뛴다
+    solapi_template_claim_pickup: str = ""  # 비면 수거 안내 알림을 건너뛴다(outbox skipped)
+    solapi_template_repair_received: str = ""  # 비면 수선 상품 도착 알림을 건너뛴다
     gcs_upload_bucket: str = ""  # 비공개 업로드 버킷 (공개 생성물 assets와 분리 — ARCHITECTURE §5)
     gcs_assets_bucket: str = ""  # 공개 상품·생성물 버킷
     # 공개 자산 서빙 origin — 설정하면 storage.googleapis.com 직통 대신 이 origin으로
@@ -95,32 +102,53 @@ class Settings(BaseSettings):
         if self.env in ("local", "test"):
             return self
 
-        origin = self.public_api_origin.removesuffix("/")
-        try:
-            parsed = urlsplit(origin)
-            _ = parsed.port  # 잘못된 port 표현도 설정 시점에 거부한다.
-        except ValueError as exc:
-            raise ValueError("PUBLIC_API_ORIGIN must be a valid public HTTPS origin") from exc
-
-        hostname = parsed.hostname or ""
-        if (
-            parsed.scheme != "https"
-            or not hostname
-            or parsed.username is not None
-            or parsed.password is not None
-            or parsed.path
-            or parsed.query
-            or parsed.fragment
-            or "?" in origin
-            or "#" in origin
-            or hostname in ("localhost", "127.0.0.1", "::1")
-            or hostname.endswith(".localhost")
-            or hostname.endswith(".run.app")
-        ):
-            raise ValueError("PUBLIC_API_ORIGIN must be a public HTTPS origin, not a run.app URL")
-
-        self.public_api_origin = origin
+        self.public_api_origin = _public_https_origin(self.public_api_origin, "PUBLIC_API_ORIGIN")
+        self.alt_site_origins = {
+            _public_https_origin(api, "ALT_SITE_ORIGINS"): _public_https_origin(
+                frontend, "ALT_SITE_ORIGINS"
+            )
+            for api, frontend in self.alt_site_origins.items()
+        }
         return self
+
+    def site_pair(self, forwarded_host: str | None) -> tuple[str, str]:
+        """요청이 들어온 공개 API 호스트에 대응하는 (API origin, 프론트 origin).
+
+        허용 목록(alt_site_origins)에 없는 호스트는 기본 쌍으로 떨어진다 — 요청 값으로
+        리다이렉트 주소를 조립하지 않는다.
+        """
+        api_origin = f"https://{forwarded_host}" if forwarded_host else ""
+        frontend = self.alt_site_origins.get(api_origin)
+        if frontend is not None:
+            return api_origin, frontend
+        return self.public_api_origin, self.frontend_origin
+
+
+def _public_https_origin(value: str, name: str) -> str:
+    origin = value.removesuffix("/")
+    try:
+        parsed = urlsplit(origin)
+        _ = parsed.port  # 잘못된 port 표현도 설정 시점에 거부한다.
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a valid public HTTPS origin") from exc
+
+    hostname = parsed.hostname or ""
+    if (
+        parsed.scheme != "https"
+        or not hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path
+        or parsed.query
+        or parsed.fragment
+        or "?" in origin
+        or "#" in origin
+        or hostname in ("localhost", "127.0.0.1", "::1")
+        or hostname.endswith(".localhost")
+        or hostname.endswith(".run.app")
+    ):
+        raise ValueError(f"{name} must be a public HTTPS origin, not a run.app URL")
+    return origin
 
 
 @lru_cache

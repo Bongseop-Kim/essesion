@@ -177,7 +177,7 @@ async def oauth_login(
     redirect_uri = (
         str(request.url_for("oauth_callback", provider=provider))
         if settings.env in ("local", "test")
-        else f"{settings.public_api_origin}/auth/{provider}/callback"
+        else f"{_site_pair(request, settings)[0]}/auth/{provider}/callback"
     )
     # 네이버앱 자동로그인(개발가이드 §5.1) — authorize URL에 auth_type=autologin을 붙인다.
     # 네이버 전용 파라미터라 다른 provider에서는 무시한다.
@@ -185,14 +185,20 @@ async def oauth_login(
     return await client.authorize_redirect(request, redirect_uri, **extra)
 
 
-def _oauth_failure_redirect(settings: Settings, provider: str, code: str) -> RedirectResponse:
+def _site_pair(request: Request, settings: Settings) -> tuple[str, str]:
+    # api-proxy가 신뢰 경계에서 덮어쓰는 접속 호스트. EdgeBoundaryMiddleware가 edge secret
+    # 없는 요청을 막으므로 호출자가 직접 넣은 값은 여기까지 오지 않는다.
+    return settings.site_pair(request.headers.get("x-essesion-forwarded-host"))
+
+
+def _oauth_failure_redirect(frontend_origin: str, provider: str, code: str) -> RedirectResponse:
     """콜백은 브라우저 최상위 내비게이션의 종착지 — 실패해도 JSON을 반환하지 않는다.
 
     JSON을 반환하면 API 콜백 URL에 응답 본문이 그대로 화면에 노출된다. 실패 사유는
     프론트가 문구를 고를 수 있는 코드로만 넘긴다 (docs/api-spec/domains.md §1).
     """
     return RedirectResponse(
-        f"{settings.frontend_origin}/auth/callback?provider={provider}&error={code}",
+        f"{frontend_origin}/auth/callback?provider={provider}&error={code}",
         status_code=303,
     )
 
@@ -200,6 +206,7 @@ def _oauth_failure_redirect(settings: Settings, provider: str, code: str) -> Red
 async def _complete_oauth(
     provider: str, request: Request, session, settings: Settings
 ) -> RedirectResponse:
+    frontend_origin = _site_pair(request, settings)[1]
     stage = "provider"
     try:
         client = get_oauth_client(request, provider)
@@ -220,15 +227,15 @@ async def _complete_oauth(
         # provider 단계 = 동의창 취소·네이버앱 자동로그인 실패(§5.1.5) 등 error 콜백,
         # account 단계 = 비활성·비고객 계정 거부. 둘은 프론트 문구가 달라야 한다.
         return _oauth_failure_redirect(
-            settings,
+            frontend_origin,
             provider,
             "access_denied" if stage == "provider" else "account_unavailable",
         )
     except Exception:
         logger.exception("oauth 콜백 실패 (provider=%s, stage=%s)", provider, stage)
-        return _oauth_failure_redirect(settings, provider, "server_error")
+        return _oauth_failure_redirect(frontend_origin, provider, "server_error")
     response = RedirectResponse(
-        f"{settings.frontend_origin}/auth/callback?provider={provider}", status_code=303
+        f"{frontend_origin}/auth/callback?provider={provider}", status_code=303
     )
     _set_refresh_cookie(response, raw, settings)
     return response
@@ -254,7 +261,7 @@ async def apple_oauth_callback(
     # 동의창 취소(error=user_cancelled_authorize)를 여기서 걸러 토큰 교환 왕복을 막는다.
     form = await request.form()
     if form.get("error"):
-        return _oauth_failure_redirect(settings, "apple", "access_denied")
+        return _oauth_failure_redirect(_site_pair(request, settings)[1], "apple", "access_denied")
     return await _complete_oauth("apple", request, session, settings)
 
 

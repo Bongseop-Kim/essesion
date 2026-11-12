@@ -1107,6 +1107,9 @@ async def admin_update_status(
     # 송장이 아직 없으면 admin_update_tracking 쪽이 보낸다.
     if not is_rollback and new_status == "배송중" and _shipment_ready(order):
         await _notify_shipping_started(session, order, solapi, settings, background)
+    # 수선 상품 입고 확인(→접수) → 도착 알림톡. custom·sample의 접수는 결제 직후라 제외.
+    if not is_rollback and order.order_type == "repair" and new_status == "접수":
+        await _notify_repair_received(session, order, solapi, settings, background)
     return {"success": True, "previous_status": previous, "new_status": new_status}
 
 
@@ -1165,7 +1168,11 @@ async def admin_update_tracking(
 
 SHIPPING_STARTED_FALLBACK = (
     "[ESSE SION] 접수하신 {kind} 상품의 배송이 시작되었습니다.\n"
-    "주문번호 {order_number}\n{courier} {tracking}\nhttps://essesion.shop/my-page/orders"
+    "주문번호 {order_number}\n{courier} {tracking}\n{origin}/my-page/orders"
+)
+REPAIR_RECEIVED_FALLBACK = (
+    "[ESSE SION] 보내주신 수선 상품이 도착했습니다.\n"
+    "주문번호 {order_number}\n{origin}/my-page/orders"
 )
 # 템플릿 본문 "접수하신 #{처리유형} 상품" 자리에 들어가는 명사구.
 SHIPPING_KIND_LABEL = {
@@ -1208,6 +1215,67 @@ async def _notify_shipping_started(
     courier, tracking = _outbound_shipment(order)
     if kind is None or not courier or not tracking:
         return
+    await _send_order_alimtalk(
+        session,
+        order,
+        solapi,
+        background,
+        settings.solapi_template_shipping_started,
+        {
+            "#{처리유형}": kind,
+            "#{주문번호}": order.order_number,
+            "#{택배사}": courier,
+            "#{송장번호}": tracking,
+        },
+        SHIPPING_STARTED_FALLBACK.format(
+            kind=kind,
+            order_number=order.order_number,
+            courier=courier,
+            tracking=tracking,
+            origin=settings.frontend_origin,
+        ),
+        "배송 시작",
+    )
+
+
+async def _notify_repair_received(
+    session: AsyncSession,
+    order: Order,
+    solapi: SolapiClient | None,
+    settings: Settings | None,
+    background: BackgroundTasks | None,
+) -> None:
+    """수선 상품 도착 알림톡 — best-effort, 커밋 뒤 호출.
+
+    이력 테이블 없음 — 접수를 롤백했다 다시 접수하면 재발송된다(재입고 확인이라 의도).
+    """
+    if solapi is None or settings is None or not settings.solapi_template_repair_received:
+        return
+    await _send_order_alimtalk(
+        session,
+        order,
+        solapi,
+        background,
+        settings.solapi_template_repair_received,
+        {"#{주문번호}": order.order_number},
+        REPAIR_RECEIVED_FALLBACK.format(
+            order_number=order.order_number, origin=settings.frontend_origin
+        ),
+        "수선 상품 도착",
+    )
+
+
+async def _send_order_alimtalk(
+    session: AsyncSession,
+    order: Order,
+    solapi: SolapiClient,
+    background: BackgroundTasks | None,
+    template_id: str,
+    variables: dict[str, str],
+    fallback: str,
+    label: str,
+) -> None:
+    """주문 알림톡 공통 — 수신 4조건 확인 뒤 best-effort 발송. 실패는 로그만 남긴다."""
     user = await session.get(User, order.user_id)
     if user is None or not (
         user.notification_consent
@@ -1218,28 +1286,15 @@ async def _notify_shipping_started(
         return
     phone = user.phone
     order_number = order.order_number
-    template_id = settings.solapi_template_shipping_started
 
     async def _send() -> None:
         try:
-            sent = await solapi.send_alimtalk(
-                phone,
-                template_id,
-                {
-                    "#{처리유형}": kind,
-                    "#{주문번호}": order_number,
-                    "#{택배사}": courier,
-                    "#{송장번호}": tracking,
-                },
-                SHIPPING_STARTED_FALLBACK.format(
-                    kind=kind, order_number=order_number, courier=courier, tracking=tracking
-                ),
-            )
+            sent = await solapi.send_alimtalk(phone, template_id, variables, fallback)
         except Exception:
-            logger.exception("배송 시작 알림톡 발송 예외: order_number=%s", order_number)
+            logger.exception("%s 알림톡 발송 예외: order_number=%s", label, order_number)
             return
         if not sent:
-            logger.warning("배송 시작 알림톡 발송 실패: order_number=%s", order_number)
+            logger.warning("%s 알림톡 발송 실패: order_number=%s", label, order_number)
 
     if background is not None:
         background.add_task(_send)  # 관리자 응답을 solapi HTTP 뒤로 미루지 않는다

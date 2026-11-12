@@ -85,6 +85,43 @@ async def test_oauth_login_uses_public_origin_behind_cloud_run_proxy_host(
     }
 
 
+@pytest.mark.parametrize(
+    ("forwarded_host", "expected_api_origin"),
+    [
+        ("api.essesion.com", "https://api.essesion.com"),  # 허용 목록의 추가 쌍
+        ("api.essesion.shop", "https://api.essesion.shop"),  # 기본 쌍
+        ("evil.example.com", "https://api.essesion.shop"),  # 목록에 없으면 기본 쌍으로
+        (None, "https://api.essesion.shop"),
+    ],
+)
+async def test_oauth_login_redirect_uri_follows_allowlisted_forwarded_host(
+    app, client, settings, monkeypatch, forwarded_host, expected_api_origin
+):
+    captured: dict[str, str] = {}
+
+    class FakeOAuthClient:
+        async def authorize_redirect(self, request, redirect_uri):
+            captured["redirect_uri"] = redirect_uri
+            return RedirectResponse("https://provider.example/authorize")
+
+    monkeypatch.setattr(
+        "api.domains.auth.router.get_oauth_client",
+        lambda _request, _provider: FakeOAuthClient(),
+    )
+    settings.env = "staging"
+    settings.public_api_origin = "https://api.essesion.shop"
+    settings.alt_site_origins = {"https://api.essesion.com": "https://essesion.com"}
+
+    headers = {"X-Essesion-Forwarded-Host": forwarded_host} if forwarded_host else {}
+    await client.get(
+        "https://api-project-hash.a.run.app/auth/kakao/login",
+        headers=headers,
+        follow_redirects=False,
+    )
+
+    assert captured["redirect_uri"] == f"{expected_api_origin}/auth/kakao/callback"
+
+
 def test_apple_client_secret_is_valid_es256_jwt(settings):
     private_key = ECKey.generate_key("P-256")
     settings.apple_client_id = "com.essesion.web"
@@ -1160,6 +1197,42 @@ async def test_oauth_callback_redirects_instead_of_leaking_json_on_unexpected_er
     assert res.status_code == 303
     assert (
         res.headers["location"]
+        == f"{settings.frontend_origin}/auth/callback?provider=google&error=server_error"
+    )
+
+
+async def test_oauth_callback_returns_to_frontend_paired_with_forwarded_api_host(
+    client, settings, monkeypatch
+):
+    """동시 운영 — 콜백이 들어온 API 호스트의 짝 프론트로 돌려보낸다 (domains.md §1)."""
+
+    class _BrokenClient:
+        async def authorize_access_token(self, request: Request) -> dict:
+            raise RuntimeError("token endpoint down")
+
+    monkeypatch.setattr(
+        "api.domains.auth.router.get_oauth_client",
+        lambda _request, _provider: _BrokenClient(),
+    )
+    settings.alt_site_origins = {"https://api.essesion.com": "https://essesion.com"}
+
+    paired = await client.get(
+        "/auth/google/callback?code=x&state=y",
+        headers={"X-Essesion-Forwarded-Host": "api.essesion.com"},
+        follow_redirects=False,
+    )
+    unlisted = await client.get(
+        "/auth/google/callback?code=x&state=y",
+        headers={"X-Essesion-Forwarded-Host": "evil.example.com"},
+        follow_redirects=False,
+    )
+
+    assert (
+        paired.headers["location"]
+        == "https://essesion.com/auth/callback?provider=google&error=server_error"
+    )
+    assert (
+        unlisted.headers["location"]
         == f"{settings.frontend_origin}/auth/callback?provider=google&error=server_error"
     )
 

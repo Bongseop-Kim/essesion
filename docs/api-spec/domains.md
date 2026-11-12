@@ -18,7 +18,10 @@
 
 Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10초. 헤더 `Authorization: HMAC-SHA256 apiKey=.., date=<ISO now>, salt=<uuid>, signature=HMAC_SHA256(secret, date+salt) hex`. SMS body `{message:{to, from, text, type:"SMS"}}`. 알림톡 `type:"ATA"` + `kakaoOptions:{pfId, templateId, variables, disableSms:false}`(실패 시 SMS 자동 대체, text=fallback). 실패는 throw 없이 false.
 
-- 배송 시작 알림톡(`SOLAPI_TEMPLATE_SHIPPING_STARTED`, 비면 미발송): 변수 `#{처리유형}`(sale 주문 / custom 주문 제작 / sample 샘플 제작 / repair 수선)·`#{주문번호}`·`#{택배사}`·`#{송장번호}`. fallback: `[ESSE SION] 접수하신 {처리유형} 상품의 배송이 시작되었습니다.\n주문번호 {주문번호}\n{택배사} {송장번호}\nhttps://essesion.shop/my-page/orders` (90바이트 초과라 LMS 대체). 발송 조건은 money.md §8.
+- 배송 시작 알림톡(`SOLAPI_TEMPLATE_SHIPPING_STARTED`, 비면 미발송): 변수 `#{처리유형}`(sale 주문 / custom 주문 제작 / sample 샘플 제작 / repair 수선)·`#{주문번호}`·`#{택배사}`·`#{송장번호}`. fallback: `[ESSE SION] 접수하신 {처리유형} 상품의 배송이 시작되었습니다.\n주문번호 {주문번호}\n{택배사} {송장번호}\n{FRONTEND_ORIGIN}/my-page/orders` (90바이트 초과라 LMS 대체). 발송 조건은 money.md §8.
+- 수선 상품 도착 알림톡(`SOLAPI_TEMPLATE_REPAIR_RECEIVED`, 비면 미발송): 변수 `#{주문번호}`. fallback: `[ESSE SION] 보내주신 수선 상품이 도착했습니다.\n주문번호 {주문번호}\n{FRONTEND_ORIGIN}/my-page/orders`. 발송 조건은 money.md §8.
+- 견적 도착 알림톡(`SOLAPI_TEMPLATE_QUOTE_SENT`, 비면 미발송): 관리자 견적 전이 `요청→견적발송` 커밋 직후 best-effort 1회(되돌아오는 전이가 없다). 수신 4조건. 변수 `#{견적번호}`·`#{견적금액}`(천 단위 콤마). fallback: `[ESSE SION] 요청하신 견적이 준비되었습니다.\n견적번호 {견적번호} / 견적금액 {견적금액}원\n{FRONTEND_ORIGIN}/my-page/quote-request`.
+- 알림 문구의 링크는 고정 도메인이 아니라 `FRONTEND_ORIGIN`으로 조립한다 — 도메인 이전 시 설정만 바꾸면 따라간다.
 
 ## 2. 인증·프로필
 
@@ -26,6 +29,7 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 - **네이버페이 배송지 연계**: 네이버 OAuth callback에서 `GET openapi.naver.com/v1/nid/payaddress`(방금 발급된 access token)로 대표 배송지를 1회 조회해, **저장 배송지가 0건인 사용자에게만** 기본 배송지로 수입한다(매핑: receiverName→recipient_name, zipCode→postal_code, baseAddress→address, detailAddress→address_detail, telNo→recipient_phone 정규화). 0건 확인과 INSERT는 사용자 advisory lock 안에서 직렬화한다. 미동의(403)·네이버페이 비회원(404)·유선번호·기타 실패는 전부 조용히 건너뛴다 — **배송지 실패가 로그인을 막으면 안 된다**. 네이버 토큰은 저장하지 않는다.
 - **네이버앱 자동로그인**(개발가이드 §5.1): `GET /auth/naver/login?auth_type=autologin` — authorize URL에 `auth_type=autologin`을 붙인다(네이버 전용, 타 provider는 무시). 시도 조건은 store가 판단: 네이버앱 UA(`NAVER(inapp; search;`) + 과거 네이버 로그인 이력(localStorage) + 브라우저 세션당 1회(sessionStorage). provider가 오류(동의 취소·자동로그인 실패)로 콜백하면 `?provider=naver&error=access_denied`(아래 콜백 계약) — store는 자동로그인 시도였으면 조용히 홈으로, 수동 취소였으면 안내 후 로그인 페이지로.
 - **소셜 콜백 계약**: OAuth 콜백은 브라우저 최상위 내비게이션의 종착지라 성공은 `{frontend_origin}/auth/callback?provider=<provider>`, 실패는 `{frontend_origin}/auth/callback?provider=<provider>&error=<code>`로 303하며 **어떤 실패도 JSON을 반환하지 않는다**(반환하면 API 콜백 URL에 응답 본문이 그대로 화면에 뜬다). code는 `access_denied`(provider 단계 — 동의 취소·자동로그인 실패·토큰 교환 실패) / `account_unavailable`(계정 단계 — 비활성·비고객 계정 거부) / `server_error`(그 외 전부; 상세는 서버 로그에만). store는 code로 문구를 고르고, Naver 자동로그인 pending은 provider가 `naver`인 콜백만 소진한다.
+  - **사이트 쌍(도메인 이전 동시 운영)**: `frontend_origin`과 OAuth `redirect_uri`의 API origin은 기본적으로 설정값 한 쌍(`PUBLIC_API_ORIGIN` ↔ `FRONTEND_ORIGIN`)이다. `ALT_SITE_ORIGINS`(공개 API origin → 프론트 origin 허용 목록)가 설정돼 있고 요청이 들어온 공개 API 호스트(api-proxy가 신뢰 경계에서 덮어쓰는 `X-Essesion-Forwarded-Host`)가 그 목록에 있으면, login의 `redirect_uri`는 그 API origin으로, callback의 303은 그 쌍의 프론트 origin으로 간다. 목록에 없는 호스트는 항상 기본 쌍 — 요청 값으로 리다이렉트 주소를 조립하지 않는다. 이전이 끝나면 목록을 비워 다시 고정 주소로 돌린다.
 - 유저 생성 시 name 우선순위: 소셜 `name` → `full_name` → `nickname` → 이메일 로컬파트 → `'사용자'`. role은 항상 customer.
 - 관리자 로그인: **이메일/비밀번호 전용**, role ∈ {admin, manager} 아니면 거부(`관리자 권한이 없습니다.`).
 - 프로필 본인 수정 허용 필드: name, phone, birth, marketing_kakao_sms_consent만. phone_verified/notification_*/role은 전용 엔드포인트·관리자만.
@@ -45,9 +49,10 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
   - 중복 방지: 주문당 활성({접수,처리중,수거요청,수거완료,재발송}) 1건 + 아이템·타입당 1건(완료 포함) — 부분 unique 2종이 최후 방어(IntegrityError→한국어 메시지).
 - cancel(고객): '접수' 상태만, **DELETE**(로그 CASCADE).
 - admin 전이: cancel(접수→처리중→완료), return(접수→수거요청→수거완료→완료), exchange(접수→수거요청→수거완료→재발송→완료), 거부는 각 단계에서 가능(exchange는 재발송에서도). 롤백: `거부→접수`(전 타입) + cancel 처리중→접수, return/exchange 수거요청→접수. 롤백 memo 필수. 비활성→활성 재진입 시 주문당 단일 활성 가드 재검사.
-- 알림(notify): 상태 {완료, 거부}만, 수신 조건 4종(notification_consent && phone_verified && notification_enabled && phone) 전부 충족 시 알림톡. claim_notification_logs UNIQUE(claim_id,status)로 1회 발송. 롤백 변경은 알림 안 함. fallback 문구:
-  - 완료: `[ESSE SION] 클레임이 처리 완료되었습니다.\nhttps://essesion.shop/order/claim-list`
-  - 거부: `[ESSE SION] 클레임 요청이 거부되었습니다. 자세한 내용은 아래 링크에서 확인해주세요.\n(동일 링크)`
+- 알림(notify): 상태 {완료, 거부, 수거요청}만(수거요청은 return/exchange에만 있는 전이), 수신 조건 4종(notification_consent && phone_verified && notification_enabled && phone) 전부 충족 시 알림톡. claim_notification_logs UNIQUE(claim_id,status)로 상태당 1회 발송 — 수거요청을 롤백했다 다시 올려도 재발송하지 않는다. 롤백 변경은 알림 안 함. 변수는 3종 공통 `#{처리유형}`(cancel 취소 / return 반품 / exchange 교환 — 영문 type을 그대로 내보내지 않는다)·`#{주문번호}`. 수거요청 템플릿(`SOLAPI_TEMPLATE_CLAIM_PICKUP`)이 비어 있으면 outbox를 `skipped`(`template_not_configured`)로 닫는다. fallback 문구:
+  - 완료: `[ESSE SION] 요청하신 {처리유형} 처리가 완료되었습니다.\n{FRONTEND_ORIGIN}/my-page/claims`
+  - 거부: `[ESSE SION] 요청하신 {처리유형} 건은 진행이 어려워 안내드립니다. 자세한 내용은 아래 링크에서 확인해주세요.\n(동일 링크)`
+  - 수거요청: `[ESSE SION] 요청하신 {처리유형} 상품의 수거가 접수되었습니다. 상품을 포장해 준비해 주세요.\n(동일 링크)`
 
 ## 5. 장바구니
 

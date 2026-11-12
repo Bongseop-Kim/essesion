@@ -459,6 +459,9 @@ async def test_notify_conditions_and_dedupe(app, db_session, settings):
     solapi = app.state.solapi
     assert await notify_status(db_session, solapi, settings, claim.id) == "sent"
     assert len(solapi.sent) == 1
+    # 고객 문구는 한글 유형 + 설정된 프론트 origin (영문 type·고정 도메인 금지)
+    assert "취소" in solapi.sent[0]["text"] and "cancel" not in solapi.sent[0]["text"]
+    assert f"{settings.frontend_origin}/my-page/claims" in solapi.sent[0]["text"]
     # 같은 상태 재알림 방지
     assert await notify_status(db_session, solapi, settings, claim.id) == "already_sent"
     assert len(solapi.sent) == 1
@@ -469,3 +472,43 @@ async def test_notify_conditions_and_dedupe(app, db_session, settings):
     claim.status = "거부"
     await db_session.commit()
     assert await notify_status(db_session, solapi, settings, claim.id) == "recipient_opted_out"
+
+
+async def test_notify_pickup_requested(app, db_session, settings):
+    """수거요청 알림 — 템플릿 설정 시 1회 발송, 미설정이면 outbox skipped."""
+    user = await make_user(db_session, phone="01012345555")
+    user.notification_consent = True
+    user.notification_enabled = True
+    user.phone_verified = True
+    solapi = app.state.solapi
+
+    async def _pickup_claim(number: str, claim_type: str) -> Claim:
+        order, item = await _order_with_item(db_session, user, status="배송완료")
+        claim = Claim(
+            user_id=user.id,
+            order_id=order.id,
+            order_item_id=item.id,
+            claim_number=number,
+            type=claim_type,
+            status="수거요청",
+            reason="other",
+            quantity=1,
+        )
+        db_session.add(claim)
+        await db_session.commit()
+        return claim
+
+    settings.solapi_template_claim_pickup = ""
+    skipped = await _pickup_claim("CLM-TEST-P01", "exchange")
+    assert (
+        await notify_status(db_session, solapi, settings, skipped.id) == "template_not_configured"
+    )
+    assert solapi.sent == []
+
+    settings.solapi_template_claim_pickup = "KA01TP-CLAIM-PICKUP-TEST"
+    claim = await _pickup_claim("CLM-TEST-P02", "return")
+    assert await notify_status(db_session, solapi, settings, claim.id) == "sent"
+    assert len(solapi.sent) == 1
+    assert solapi.sent[0]["template_id"] == "KA01TP-CLAIM-PICKUP-TEST"
+    assert "반품 상품의 수거" in solapi.sent[0]["text"]
+    assert await notify_status(db_session, solapi, settings, claim.id) == "already_sent"

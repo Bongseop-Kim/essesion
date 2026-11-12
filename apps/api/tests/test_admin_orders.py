@@ -890,3 +890,35 @@ async def test_shipping_alimtalk_repair_uses_company_shipment(app, client, db_se
     assert "한진택배 company-888" in sent[0]["text"]
     assert "customer-777" not in sent[0]["text"]
     assert "접수하신 수선 상품" in sent[0]["text"]
+
+
+async def test_repair_received_alimtalk(app, client, db_session, settings):
+    """수선 상품 입고 확인(→접수) 시 도착 알림톡. custom의 접수 전이는 보내지 않는다."""
+    settings.solapi_template_repair_received = "KA01TP-REPAIR-RECEIVED-TEST"
+    admin = await make_admin(db_session)
+    user = await make_user(db_session, phone="01055554444")
+    user.phone_verified = True
+    user.notification_consent = True
+    await db_session.commit()
+
+    def _sent() -> list[dict]:
+        return [
+            m
+            for m in app.state.solapi.sent
+            if m.get("template_id") == "KA01TP-REPAIR-RECEIVED-TEST"
+        ]
+
+    custom = await make_order(db_session, user, order_type="custom", status="대기중")
+    assert (
+        await _status_update(client, settings, admin, custom.id, {"new_status": "접수"})
+    ).status_code == 200
+    assert _sent() == []
+
+    repair = await make_order(db_session, user, order_type="repair", status="발송확인중")
+    assert (
+        await _status_update(client, settings, admin, repair.id, {"new_status": "접수"})
+    ).status_code == 200
+    sent = _sent()
+    assert len(sent) == 1
+    assert sent[0]["to"] == "01055554444"
+    assert repair.order_number in sent[0]["text"]

@@ -106,5 +106,6 @@ variable "upload_cors_origins" {
     "http://localhost:3001",
     "https://app.essesion.shop",
     "https://admin.essesion.shop",
+    "https://essesion.com",
   ]
 }

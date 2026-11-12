@@ -203,7 +203,7 @@ async def admin_update_status(
         )
     )
     claim.status = new_status
-    if not is_rollback and new_status in ("완료", "거부"):
+    if not is_rollback and new_status in NOTIFY_STATUSES:
         await session.execute(
             pg_insert(ClaimNotificationLog)
             .values(
@@ -220,6 +220,22 @@ async def admin_update_status(
     return {"success": True, "previous_status": previous, "new_status": new_status}
 
 
+# 알림 대상 상태 — 수거요청은 return/exchange에만 있는 전이다.
+NOTIFY_STATUSES = ("완료", "거부", "수거요청")
+CLAIM_TYPE_LABEL = {"cancel": "취소", "return": "반품", "exchange": "교환"}
+CLAIM_FALLBACK = {
+    "완료": "[ESSE SION] 요청하신 {kind} 처리가 완료되었습니다.\n{origin}/my-page/claims",
+    "거부": (
+        "[ESSE SION] 요청하신 {kind} 건은 진행이 어려워 안내드립니다. "
+        "자세한 내용은 아래 링크에서 확인해주세요.\n{origin}/my-page/claims"
+    ),
+    "수거요청": (
+        "[ESSE SION] 요청하신 {kind} 상품의 수거가 접수되었습니다. "
+        "상품을 포장해 준비해 주세요.\n{origin}/my-page/claims"
+    ),
+}
+
+
 async def notify_status(
     session: AsyncSession,
     solapi: SolapiClient,
@@ -232,7 +248,7 @@ async def notify_status(
     upsert는 migration 이전 terminal row와 테스트 fixture를 위한 복구 경로다.
     """
     claim = await session.get(Claim, claim_id)
-    if claim is None or claim.status not in ("완료", "거부"):
+    if claim is None or claim.status not in NOTIFY_STATUSES:
         return "not_applicable"
 
     await session.execute(
@@ -277,7 +293,7 @@ async def deliver_notification(
         return "already_skipped"
 
     claim = await session.get(Claim, notification.claim_id)
-    if claim is None or claim.status != notification.status or claim.status not in ("완료", "거부"):
+    if claim is None or claim.status != notification.status or claim.status not in NOTIFY_STATUSES:
         notification.delivery_status = "skipped"
         notification.last_error = "claim_status_changed"
         await session.commit()
@@ -295,17 +311,22 @@ async def deliver_notification(
         await session.commit()
         return "recipient_opted_out"
 
-    if claim.status == "완료":
-        template = settings.solapi_template_claim_done
-        variables = {"#{처리유형}": claim.type}
-        fallback = "[ESSE SION] 클레임이 처리 완료되었습니다.\nhttps://essesion.shop/my-page/claims"
-    else:
-        template = settings.solapi_template_claim_rejected
-        variables = {}
-        fallback = (
-            "[ESSE SION] 클레임 요청이 거부되었습니다. 자세한 내용은 아래 링크에서 확인해주세요."
-            "\nhttps://essesion.shop/my-page/claims"
-        )
+    template = {
+        "완료": settings.solapi_template_claim_done,
+        "거부": settings.solapi_template_claim_rejected,
+        "수거요청": settings.solapi_template_claim_pickup,
+    }[claim.status]
+    # 수거요청 템플릿만 선택 설정이다 — 완료/거부는 solapi capability의 필수 설정이라
+    # 비어 있으면 건너뛰지 않고 발송 실패(failed, 재시도 가능)로 남긴다.
+    if claim.status == "수거요청" and not template:
+        notification.delivery_status = "skipped"
+        notification.last_error = "template_not_configured"
+        await session.commit()
+        return "template_not_configured"
+    order = await session.get(Order, claim.order_id)
+    kind = CLAIM_TYPE_LABEL[claim.type]
+    variables = {"#{처리유형}": kind, "#{주문번호}": order.order_number if order else ""}
+    fallback = CLAIM_FALLBACK[claim.status].format(kind=kind, origin=settings.frontend_origin)
 
     notification.attempts += 1
     try:
