@@ -84,16 +84,16 @@ describe("product-analytics", () => {
       properties: {
         // paymentKey·OAuth code가 URL을 타고 나가면 안 된다
         $current_url:
-          "https://essesion.shop/order/payment/success?paymentKey=SECRET&orderId=ORD-1",
-        $referrer: "https://essesion.shop/login?code=SECRET#state",
+          "https://essesion.com/order/payment/success?paymentKey=SECRET&orderId=ORD-1",
+        $referrer: "https://essesion.com/login?code=SECRET#state",
         $other: "손대지 않는다",
       },
     }) as { properties: Record<string, string> };
 
     expect(event.properties.$current_url).toBe(
-      "https://essesion.shop/order/payment/success",
+      "https://essesion.com/order/payment/success",
     );
-    expect(event.properties.$referrer).toBe("https://essesion.shop/login");
+    expect(event.properties.$referrer).toBe("https://essesion.com/login");
     expect(event.properties.$other).toBe("손대지 않는다");
   });
 });

@@ -16,21 +16,21 @@ const HOME_JSON_LD = {
   "@graph": [
     {
       "@type": "Organization",
-      "@id": "https://essesion.shop/#organization",
+      "@id": "https://essesion.com/#organization",
       name: "영선산업",
       alternateName: ["ESSE SION", "essesion"],
-      url: "https://essesion.shop",
-      logo: "https://essesion.shop/logo/logo.png",
+      url: "https://essesion.com",
+      logo: "https://essesion.com/logo/logo.png",
       telephone: "0507-1381-7422",
       address: { "@type": "PostalAddress", addressCountry: "KR" },
     },
     {
       "@type": "WebSite",
-      "@id": "https://essesion.shop/#website",
-      url: "https://essesion.shop",
+      "@id": "https://essesion.com/#website",
+      url: "https://essesion.com",
       name: "영선산업",
       alternateName: ["ESSE SION"],
-      publisher: { "@id": "https://essesion.shop/#organization" },
+      publisher: { "@id": "https://essesion.com/#organization" },
     },
   ],
 };
@@ -47,8 +47,8 @@ export function Home() {
       />
       <meta property="og:description" content={DESCRIPTION} />
       <meta property="og:type" content="website" />
-      <meta property="og:url" content="https://essesion.shop" />
-      <link rel="canonical" href="https://essesion.shop" />
+      <meta property="og:url" content="https://essesion.com" />
+      <link rel="canonical" href="https://essesion.com" />
       <script type="application/ld+json">{JSON.stringify(HOME_JSON_LD)}</script>
 
       {/* 히어로는 배너별 h3 캐로셀이라 문서 h1은 핵심 문구로 별도 제공 (route-error·not-found와 같은 sr-only 패턴) */}

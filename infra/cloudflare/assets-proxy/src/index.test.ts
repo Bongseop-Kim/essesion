@@ -5,7 +5,7 @@ import worker from "./index";
 const BUCKET = "ysindustry-assets";
 
 function request(
-  url = "https://assets.essesion.shop/fabric/abc123.png",
+  url = "https://assets.essesion.com/fabric/abc123.png",
   init?: RequestInit,
 ) {
   return new Request(url, init);
@@ -40,7 +40,7 @@ describe("assets-proxy edge worker", () => {
       }),
     );
     const res = await worker.fetch(
-      request("https://assets.essesion.shop/fabric/abc123.png?x=1"),
+      request("https://assets.essesion.com/fabric/abc123.png?x=1"),
       { BUCKET },
     );
     expect(proxied?.url).toBe(

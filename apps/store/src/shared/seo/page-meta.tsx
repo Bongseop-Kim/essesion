@@ -3,7 +3,7 @@
  * index.html의 정적 기본값 위에 페이지별 title/description/canonical/og를 덧붙인다.
  */
 
-const ORIGIN = "https://essesion.shop";
+const ORIGIN = "https://essesion.com";
 
 type PageMetaProps = {
   title: string;

@@ -426,8 +426,8 @@ function CustomOrderPageContent({
       <meta property="og:title" content="맞춤 넥타이 제작 주문 | 영선산업" />
       <meta property="og:description" content={DESCRIPTION} />
       <meta property="og:type" content="website" />
-      <meta property="og:url" content="https://essesion.shop/custom-order" />
-      <link rel="canonical" href="https://essesion.shop/custom-order" />
+      <meta property="og:url" content="https://essesion.com/custom-order" />
+      <link rel="canonical" href="https://essesion.com/custom-order" />
       <ContentLayout
         breadcrumbs={[{ label: "홈", href: "/" }, { label: "주문 제작" }]}
         sidebar={

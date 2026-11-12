@@ -1,11 +1,11 @@
 // 공개 assets 버킷 이미지를 Cloudflare Image Transformations로 리사이즈·WebP/AVIF 서빙한다
 // (docs/plans/image-loading-performance.md 2번). 원본은 1~3MB PNG라 그대로 쓰면 안 된다.
 // ponytail: 너비는 용도별 고정값 둘뿐 — srcSet은 이득(20~40KB)보다 sizes 오류 위험이 크다.
-// ponytail: 도메인 이전 동안 두 호스트를 모두 받는다 — DB의 이미지 주소를 .com으로 갱신한 뒤
-// 이전 정리 때 .shop을 지운다 (docs/plans/domain-move-essesion-com.md E-4).
+// ponytail: 구 호스트(.shop)는 DB의 이미지 주소를 .com으로 갱신하기 전까지만 받는다 —
+// 이전 정리 때 지운다 (docs/plans/domain-move-essesion-com.md E-4).
 const ASSETS_ORIGINS = [
-  "https://assets.essesion.shop/",
   "https://assets.essesion.com/",
+  "https://assets.essesion.shop/",
 ];
 
 type ImageWidth = 600 | 1200;
