@@ -10,6 +10,11 @@
     {
       "pattern": "assets.essesion.shop",
       "custom_domain": true
+    },
+    // 도메인 이전 — 전환 전에 새 호스트를 먼저 띄운다 (docs/plans/domain-move-essesion-com.md).
+    {
+      "pattern": "assets.essesion.com",
+      "custom_domain": true
     }
   ]
 }

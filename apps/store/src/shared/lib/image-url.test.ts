@@ -11,6 +11,13 @@ describe("resizedImage", () => {
     });
   });
 
+  it("새 assets 호스트(.com) 이미지도 변환한다", () => {
+    const url = "https://assets.essesion.com/products/a.png";
+    expect(resizedImage(url, 1200).src).toBe(
+      `/cdn-cgi/image/width=1200,format=auto,quality=80,onerror=redirect/${url}`,
+    );
+  });
+
   it("그 외 출처와 빈 값은 그대로 둔다", () => {
     const local = "http://localhost:4443/assets/products/a.png";
     expect(resizedImage(local, 1200)).toEqual({ src: local });
