@@ -54,7 +54,7 @@ variable "api_min_instances" {
 variable "public_api_origin" {
   description = "OAuth callback에 사용할 Cloudflare 공개 API origin (Cloud Run run.app 직통 금지)"
   type        = string
-  default     = "https://api.essesion.shop"
+  default     = "https://api.essesion.com"
 
   validation {
     condition = (
@@ -104,8 +104,7 @@ variable "upload_cors_origins" {
   default = [
     "http://localhost:3000",
     "http://localhost:3001",
-    "https://app.essesion.shop",
-    "https://admin.essesion.shop",
     "https://essesion.com",
+    "https://admin.essesion.com",
   ]
 }

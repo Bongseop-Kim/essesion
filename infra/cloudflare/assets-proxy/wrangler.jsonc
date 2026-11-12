@@ -8,12 +8,12 @@
   // custom_domain — wrangler가 DNS 레코드와 인증서까지 만든다 (api-proxy와 동일).
   "routes": [
     {
-      "pattern": "assets.essesion.shop",
+      "pattern": "assets.essesion.com",
       "custom_domain": true
     },
-    // 도메인 이전 — 전환 전에 새 호스트를 먼저 띄운다 (docs/plans/domain-move-essesion-com.md).
+    // 구 호스트 — DB의 이미지 주소 갱신과 이전 정리(docs/plans/domain-move-essesion-com.md E-4) 전까지 유지.
     {
-      "pattern": "assets.essesion.com",
+      "pattern": "assets.essesion.shop",
       "custom_domain": true
     }
   ]

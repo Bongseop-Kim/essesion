@@ -54,7 +54,7 @@ import {
 } from "./constants";
 
 function absoluteImageUrl(image: string) {
-  return image.startsWith("http") ? image : `https://essesion.shop${image}`;
+  return image.startsWith("http") ? image : `https://essesion.com${image}`;
 }
 
 // schema.org Product 구조화 데이터 — 검색 결과 리치스니펫(가격·재고)
@@ -69,7 +69,7 @@ function productJsonLd(product: ProductOut, soldOut: boolean) {
     brand: { "@type": "Brand", name: "ESSE SION" },
     offers: {
       "@type": "Offer",
-      url: `https://essesion.shop/shop/${product.id}`,
+      url: `https://essesion.com/shop/${product.id}`,
       priceCurrency: "KRW",
       price: product.price,
       availability: soldOut

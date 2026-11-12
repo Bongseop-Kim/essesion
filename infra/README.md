@@ -94,7 +94,7 @@ gh variable set GCP_WIF_PROVIDER -b "$(tofu -chdir=infra output -raw wif_provide
 gh variable set GCP_DEPLOYER_SA -b "$(tofu -chdir=infra output -raw deployer_sa)"
 gh variable set CLOUDFLARE_ACCOUNT_ID -b <account-id>
 gh secret set CLOUDFLARE_API_TOKEN
-gh variable set VITE_API_BASE_URL -b https://api.essesion.shop
+gh variable set VITE_API_BASE_URL -b https://api.essesion.com
 gh variable set VITE_TOSS_CLIENT_KEY -b <production-Toss-client-key>
 gh variable set VITE_SENTRY_DSN -b <store-Sentry-DSN>
 gh variable set VITE_SENTRY_ENVIRONMENT -b production
@@ -116,7 +116,7 @@ sentry.io에서 api·worker·store 프로젝트 3개를 만든다. api·worker D
 첫 비로컬 API 배포 **전에** 프록시를 개통해야 한다. 비로컬 api는 일반 HTTP 전체에서 정확한
 edge 헤더를 필수로 검사하며 `/healthz`와 자체 OIDC를 검증하는 `/batch/*`만 예외다.
 
-1. Cloudflare에 `essesion.shop` zone 추가(네임서버 이전).
+1. Cloudflare에 `essesion.com` zone 추가(네임서버 이전).
 2. edge secret 주입 — 값을 파일·셸 기록·커밋에 남기지 않도록 파이프로 전달한다.
 
 ```bash
@@ -124,7 +124,7 @@ gcloud secrets versions access latest --secret=edge-proxy-secret --project=ysind
   | pnpm -C infra/cloudflare/api-proxy exec wrangler secret put EDGE_SHARED_SECRET
 ```
 
-3. 첫 API 이미지 배포 전에 프록시를 선배포한다. `api.essesion.shop`은 `api-proxy/wrangler.jsonc`에
+3. 첫 API 이미지 배포 전에 프록시를 선배포한다. `api.essesion.com`은 `api-proxy/wrangler.jsonc`에
    **custom_domain**으로 고정돼 있어 wrangler가 DNS 레코드와 인증서까지 만든다(일반 route는 DNS를
    만들지 않아 더미 레코드가 따로 필요하다 — store·admin과 같은 방식으로 통일). Cloud Run URL은
    파일에 저장하지 않고 배포 시 `ORIGIN`으로 주입한다. DNS 전파에 1~2분 걸린다.
@@ -138,7 +138,7 @@ pnpm -C infra/cloudflare/api-proxy exec wrangler deploy \
    (`apps/api/src/api/domains/auth/rate_limit.py`)가 담당하고, zone이 Free 플랜이라 edge 규칙으로는
    같은 한도를 표현할 수 없다. 판단 근거는 [기록](../docs/reviews/cloudflare-waf-rate-limits-2026-08-14.md).
 
-5. Toss 웹훅과 OAuth redirect URI는 처음부터 `https://api.essesion.shop` 기준으로만 등록한다. Cloud Run `run.app` URL을 외부 콘솔에 등록하지 않는다.
+5. Toss 웹훅과 OAuth redirect URI는 처음부터 `https://api.essesion.com` 기준으로만 등록한다. Cloud Run `run.app` URL을 외부 콘솔에 등록하지 않는다.
 6. 프론트 배포 뒤 `apps/store`·`apps/admin`의 고정 custom-domain route 연결을 확인한다.
 
 ## 스키마 마이그레이션 (Cloud Run job `migrate`)
@@ -166,8 +166,8 @@ gcloud run jobs execute migrate --region asia-northeast3 --wait
 
 ```bash
 # 공개 프록시 200 / 직통 403 대조
-curl -fsS 'https://api.essesion.shop/readyz'
-curl -fsS 'https://api.essesion.shop/products?limit=1'
+curl -fsS 'https://api.essesion.com/readyz'
+curl -fsS 'https://api.essesion.com/products?limit=1'
 curl -sS -o /dev/null -w '%{http_code}\n' "$(tofu -chdir=infra output -raw api_url)/products?limit=1"   # 403
 
 # worker는 비공개 — database=ready 확인.
