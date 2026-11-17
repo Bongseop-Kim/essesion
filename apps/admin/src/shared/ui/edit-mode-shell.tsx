@@ -2,7 +2,8 @@ import { Box, HStack, Text, VStack } from "@essesion/shared";
 import type { ReactNode } from "react";
 
 type EditModeShellProps = {
-  children: ReactNode;
+  /** 생략하면 하단 고정 바만 그린다 — 폼 안 마지막 자리에 둔다. */
+  children?: ReactNode;
   status: string;
   actions: ReactNode;
 };

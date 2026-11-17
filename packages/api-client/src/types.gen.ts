@@ -5257,7 +5257,7 @@ export type PaymentIncidentDetailOut = {
     /**
      * Claim Number
      */
-    claim_number: string | null;
+    claim_number?: string | null;
     /**
      * Created At
      */
@@ -5295,7 +5295,7 @@ export type PaymentIncidentDetailOut = {
     /**
      * Order Number
      */
-    order_number: string | null;
+    order_number?: string | null;
     /**
      * Request Id
      */
@@ -5335,6 +5335,10 @@ export type PaymentIncidentSummaryOut = {
      */
     claim_id: string | null;
     /**
+     * Claim Number
+     */
+    claim_number?: string | null;
+    /**
      * Created At
      */
     created_at: string;
@@ -5362,6 +5366,10 @@ export type PaymentIncidentSummaryOut = {
      * Order Id
      */
     order_id: string | null;
+    /**
+     * Order Number
+     */
+    order_number?: string | null;
     /**
      * Request Id
      */

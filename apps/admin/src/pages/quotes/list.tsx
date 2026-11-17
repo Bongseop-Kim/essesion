@@ -5,7 +5,11 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
-import { formatDateTime, formatMoney } from "../../shared/lib/format";
+import {
+  formatDate,
+  formatDateTime,
+  formatMoney,
+} from "../../shared/lib/format";
 import {
   useAdminListPageCorrection,
   useAdminListUrlState,
@@ -142,6 +146,12 @@ export function QuotesPage() {
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
+        compactRow={(row) => ({
+          title: `${row.customer.name} · ${row.business_name}`,
+          trailing: formatMoney(row.quoted_amount, "미책정"),
+          meta: `${row.quote_number} · ${formatDate(row.created_at)}`,
+          status: <StatusBadge status={row.status} />,
+        })}
         onRowClick={(row) => navigate(`/quote-requests/${row.id}`)}
         status={
           query.isLoading || query.isPlaceholderData

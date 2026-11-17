@@ -5,7 +5,6 @@ import {
   Callout,
   Checkbox,
   Grid,
-  HStack,
   Text,
   TextAreaField,
   TextField,
@@ -24,6 +23,7 @@ import {
 import { getErrorMessage } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
+import { EditModeShell } from "../../shared/ui/edit-mode-shell";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { NumberField } from "../../shared/ui/number-field";
 import {
@@ -627,24 +627,29 @@ export function ProductForm({
           </VStack>
         )}
 
-        <HStack gap="x2" wrap>
-          <ActionButton type="submit" loading={pending || uploading > 0}>
-            {mode === "create" ? "상품 등록" : "저장"}
-          </ActionButton>
-          <ActionButton
-            variant="ghost"
-            disabled={!dirty || pending || uploading > 0}
-            onClick={() => {
-              discardStaged();
-              draftRef.current = baseDraft;
-              setDraft(baseDraft);
-              setAttempted(false);
-              setUploadError(undefined);
-            }}
-          >
-            {mode === "create" ? "입력 취소" : "수정 취소"}
-          </ActionButton>
-        </HStack>
+        <EditModeShell
+          status={dirty ? "저장하지 않은 변경이 있습니다" : "변경 없음"}
+          actions={
+            <>
+              <ActionButton
+                variant="ghost"
+                disabled={!dirty || pending || uploading > 0}
+                onClick={() => {
+                  discardStaged();
+                  draftRef.current = baseDraft;
+                  setDraft(baseDraft);
+                  setAttempted(false);
+                  setUploadError(undefined);
+                }}
+              >
+                {mode === "create" ? "입력 취소" : "수정 취소"}
+              </ActionButton>
+              <ActionButton type="submit" loading={pending || uploading > 0}>
+                {mode === "create" ? "상품 등록" : "저장"}
+              </ActionButton>
+            </>
+          }
+        />
       </VStack>
 
       <AlertDialog

@@ -61,6 +61,7 @@ import {
 } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
+import { BackToListButton } from "../../shared/ui/back-to-list-button";
 import { type DetailItem, DetailList } from "../../shared/ui/detail-list";
 import { OptionPair } from "../../shared/ui/option-pair";
 import { PrivateAssetPreview } from "../../shared/ui/private-asset-preview";
@@ -708,7 +709,9 @@ export function OrderDetailPage() {
             <ClaimStatusBadge claim={data.claim_summary} />
           ) : null}
           {actionButtons}
+          {/* 내보내기는 상시 작업이라 강조하지 않는다 — 화면에서 가장 센 버튼은 취소 같은 되돌릴 수 없는 액션뿐 */}
           <ActionButton
+            variant="neutralOutline"
             onClick={() => {
               const node = captureRef.current;
               if (node === null) return;
@@ -722,6 +725,7 @@ export function OrderDetailPage() {
           >
             작업지시서 이미지 저장
           </ActionButton>
+          <BackToListButton to="/orders" />
         </HStack>
       </HStack>
 
@@ -774,13 +778,13 @@ export function OrderDetailPage() {
                 <AdminCard title="주문 정보">
                   <DetailList
                     items={[
-                      // 물건이 실제로 가는 곳은 배송지의 수취인이다 — 개요만 보고 발송한다.
+                      // 물건이 실제로 가는 곳은 배송지의 받는 분이다 — 개요만 보고 발송한다.
                       {
-                        label: "수취인",
+                        label: "받는 분",
                         value: data.shipping_address?.recipient_name ?? "-",
                       },
                       {
-                        label: "수취인 연락처",
+                        label: "받는 분 연락처",
                         value: data.shipping_address?.recipient_phone
                           ? formatPhoneNumber(
                               data.shipping_address.recipient_phone,
@@ -788,7 +792,7 @@ export function OrderDetailPage() {
                           : "-",
                       },
                       {
-                        label: "수취인 주소",
+                        label: "받는 분 주소",
                         value: data.shipping_address
                           ? `${data.shipping_address.postal_code} ${data.shipping_address.address} ${data.shipping_address.address_detail ?? ""}`.trim()
                           : "-",
@@ -801,7 +805,7 @@ export function OrderDetailPage() {
                         ),
                       },
                       {
-                        label: "회원",
+                        label: "주문자",
                         value: (
                           <Link to={`/customers/${data.customer.id}`}>
                             {data.customer.name}
@@ -960,7 +964,7 @@ export function OrderDetailPage() {
               <AdminCard title="배송 정보">
                 <DetailList
                   items={[
-                    // 수취인 이름·연락처·주소·배송 메모는 개요 카드에 있다 — 여기서 반복하지 않는다.
+                    // 받는 분 이름·연락처·주소·배송 메모는 개요 카드에 있다 — 여기서 반복하지 않는다.
                     {
                       label: isRepair ? "입고 송장" : "발송 송장",
                       value:

@@ -5,6 +5,7 @@ import { AdminCard } from "../../shared/ui/admin-card";
 import {
   AdminTable,
   type AdminTableColumn,
+  type AdminTableCompactRow,
   type AdminTableSort,
 } from "./admin-table";
 import { Pagination } from "./pagination";
@@ -24,6 +25,7 @@ type PaginatedAdminTableCardProps<Row> = {
   sort?: AdminTableSort;
   onSort?: (sort: AdminTableSort) => void;
   onRowClick?: (row: Row) => void;
+  compactRow?: (row: Row) => AdminTableCompactRow;
   refreshing: boolean;
   onRefresh: () => void;
   onRetry?: () => void;
@@ -52,6 +54,7 @@ export function PaginatedAdminTableCard<Row>({
   sort,
   onSort,
   onRowClick,
+  compactRow,
   refreshing,
   onRefresh,
   onRetry,
@@ -96,12 +99,13 @@ export function PaginatedAdminTableCard<Row>({
           sort={sort}
           onSort={onSort}
           onRowClick={onRowClick}
+          compactRow={compactRow}
           onRetry={onRetry ?? onRefresh}
           emptyTitle={emptyTitle}
           emptyDescription={emptyDescription}
           errorDescription={errorDescription}
         />
-        {status === "success" && (
+        {status === "success" && (total ?? 0) > 0 && (
           <Pagination
             page={page}
             totalPages={totalPages}

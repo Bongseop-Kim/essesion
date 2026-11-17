@@ -137,6 +137,14 @@ export function CouponsPage() {
         columns={columns}
         rows={query.data?.items}
         getRowKey={(coupon) => coupon.id}
+        compactRow={(coupon) => ({
+          title: coupon.name,
+          trailing: discountLabel(coupon),
+          meta: `만료 ${formatDate(coupon.expiry_date)}`,
+          status: (
+            <StatusBadge status={coupon.is_active ? "active" : "inactive"} />
+          ),
+        })}
         onRowClick={(coupon) => navigate(`/coupons/${coupon.id}`)}
         status={
           query.isLoading || query.isPlaceholderData

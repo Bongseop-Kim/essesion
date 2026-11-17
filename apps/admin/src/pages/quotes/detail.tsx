@@ -40,6 +40,7 @@ import {
 } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
+import { BackToListButton } from "../../shared/ui/back-to-list-button";
 import { DetailList } from "../../shared/ui/detail-list";
 import { NumberField } from "../../shared/ui/number-field";
 import { PrivateAssetPreview } from "../../shared/ui/private-asset-preview";
@@ -305,7 +306,10 @@ export function QuoteDetailPage() {
     <VStack gap="x6" alignItems="stretch">
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading title={`견적 ${data.quote_number}`} />
-        <StatusBadge status={data.status} />
+        <HStack gap="x2" wrap>
+          <StatusBadge status={data.status} />
+          <BackToListButton to="/quote-requests" />
+        </HStack>
       </HStack>
       <AdminCard title="진행 단계">
         <HStack

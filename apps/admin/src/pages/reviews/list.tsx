@@ -24,7 +24,7 @@ import {
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 
-import { formatDateTime } from "../../shared/lib/format";
+import { formatDate, formatDateTime } from "../../shared/lib/format";
 import {
   parseAdminListQuery,
   serializeAdminListQuery,
@@ -190,6 +190,21 @@ export function ReviewsPage() {
         label="후기 목록"
         columns={columns}
         rows={query.data?.items}
+        compactRow={(row) => ({
+          title: row.content,
+          trailing: `${row.rating}점`,
+          meta: `${row.author_name} · ${ORDER_TYPE_LABELS[row.order_type]} · ${formatDate(row.created_at)}`,
+          status: (
+            <ActionButton
+              type="button"
+              variant="ghost"
+              size="small"
+              onClick={() => setDeleteTarget(row)}
+            >
+              삭제
+            </ActionButton>
+          ),
+        })}
         getRowKey={(row) => row.id}
         status={
           query.isLoading || query.isPlaceholderData

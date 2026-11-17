@@ -73,6 +73,7 @@ const columns: readonly AdminTableColumn<MotifSummaryOut>[] = [
   {
     key: "metadata",
     header: "메타데이터",
+    visibility: "medium",
     render: (motif) =>
       [motif.scope, motif.style]
         .filter((value) => value !== null)
@@ -81,6 +82,7 @@ const columns: readonly AdminTableColumn<MotifSummaryOut>[] = [
   {
     key: "source",
     header: "소스",
+    visibility: "medium",
     render: (motif) => motif.source,
   },
   {

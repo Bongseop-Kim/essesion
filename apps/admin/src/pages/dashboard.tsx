@@ -14,7 +14,6 @@ import {
 import {
   ActionButton,
   Badge,
-  Box,
   Callout,
   ContentPlaceholder,
   Grid,
@@ -290,63 +289,22 @@ function RecentCard({
       description={compact ? undefined : "조회 기간과 무관한 최신 5건"}
       action={<Link to={href}>전체 보기</Link>}
     >
-      {compact && status === "success" ? (
-        rows?.length ? (
-          <VStack
-            as="ul"
-            gap={0}
-            alignItems="stretch"
-            className="m-0 list-none p-0"
-          >
-            {rows.map((row) => (
-              <Box
-                as="li"
-                key={row.id}
-                className="border-t border-stroke-neutral-weak"
-              >
-                <VStack
-                  as={Link}
-                  to={row.href}
-                  gap="x0_5"
-                  py="x1_5"
-                  alignItems="stretch"
-                  className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
-                >
-                  <HStack justify="space-between" gap="x3">
-                    <Text textStyle="labelSm" maxLines={1}>
-                      {row.customer}
-                    </Text>
-                    <Text textStyle="labelSm" className="shrink-0 tabular-nums">
-                      {row.amount}
-                    </Text>
-                  </HStack>
-                  <HStack justify="space-between" gap="x3">
-                    <Text textStyle="caption" color="fg.neutral-muted">
-                      {row.date}
-                    </Text>
-                    {row.status}
-                  </HStack>
-                </VStack>
-              </Box>
-            ))}
-          </VStack>
-        ) : (
-          <Text textStyle="caption" color="fg.neutral-muted">
-            표시할 데이터가 없습니다
-          </Text>
-        )
-      ) : (
-        <AdminTable
-          label={title}
-          columns={recentColumns}
-          rows={rows}
-          getRowKey={(row) => row.id}
-          onRowClick={(row) => navigate(row.href)}
-          status={status}
-          total={total}
-          onRetry={() => void query.refetch()}
-        />
-      )}
+      <AdminTable
+        label={title}
+        columns={recentColumns}
+        rows={rows}
+        getRowKey={(row) => row.id}
+        onRowClick={(row) => navigate(row.href)}
+        compactRow={(row) => ({
+          title: row.customer,
+          trailing: row.amount,
+          meta: row.date,
+          status: row.status,
+        })}
+        status={status}
+        total={total}
+        onRetry={() => void query.refetch()}
+      />
     </AdminCard>
   );
 }

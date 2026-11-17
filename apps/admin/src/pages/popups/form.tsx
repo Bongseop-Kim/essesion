@@ -48,7 +48,6 @@ type PopupFormProps = {
   submitLabel: string;
   submitting: boolean;
   onSubmit: (draft: PopupDraft) => void;
-  onCancel: () => void;
 };
 
 function PopupForm({
@@ -56,7 +55,6 @@ function PopupForm({
   submitLabel,
   submitting,
   onSubmit,
-  onCancel,
 }: PopupFormProps) {
   const [draft, setDraft] = useState<PopupDraft>(initial);
   const [attempted, setAttempted] = useState(false);
@@ -405,9 +403,6 @@ function PopupForm({
         </VStack>
       )}
       <HStack gap="x2" justify="flex-end">
-        <ActionButton type="button" variant="ghost" onClick={onCancel}>
-          취소
-        </ActionButton>
         <ActionButton type="submit" loading={submitting} disabled={uploading}>
           {submitLabel}
         </ActionButton>
@@ -447,7 +442,6 @@ export function PopupNewPage() {
         initial={EMPTY_DRAFT}
         submitLabel="비활성으로 등록"
         submitting={create.isPending}
-        onCancel={() => navigate("/popups")}
         onSubmit={(draft) => create.mutate({ body: requestFromDraft(draft) })}
       />
     </VStack>
@@ -504,7 +498,6 @@ export function PopupEditPage() {
           initial={draftFromPopup(popup)}
           submitLabel="저장"
           submitting={update.isPending}
-          onCancel={() => navigate("/popups")}
           onSubmit={(draft) =>
             update.mutate({
               path: { popup_id: popup.id },

@@ -8,6 +8,8 @@ import {
   ScrollFog,
   Skeleton,
   Text,
+  useBreakpoint,
+  VStack,
 } from "@essesion/shared";
 import {
   ChevronDownIcon,
@@ -30,6 +32,14 @@ export type AdminTableColumn<Row> = {
   visibility?: "always" | "medium" | "large";
 };
 
+/** md 미만에서 표 대신 그리는 두 줄 행 — 윗줄 제목·값, 아랫줄 보조 정보·상태. */
+export type AdminTableCompactRow = {
+  title: ReactNode;
+  trailing?: ReactNode;
+  meta?: ReactNode;
+  status?: ReactNode;
+};
+
 export type AdminTableProps<Row> = {
   label: string;
   columns: readonly AdminTableColumn<Row>[];
@@ -40,6 +50,11 @@ export type AdminTableProps<Row> = {
   sort?: AdminTableSort;
   onSort?: (sort: AdminTableSort) => void;
   onRowClick?: (row: Row) => void;
+  /**
+   * 지정하면 md 미만에서 표 대신 촘촘한 목록으로 그린다. 표는 열이 3개만 넘어도 휴대폰 폭을
+   * 넘겨 금액·상태가 가로 스크롤 뒤로 숨는다.
+   */
+  compactRow?: (row: Row) => AdminTableCompactRow;
   onRetry?: () => void;
   emptyTitle?: string;
   emptyDescription?: string;
@@ -89,11 +104,14 @@ export function AdminTable<Row>({
   sort,
   onSort,
   onRowClick,
+  compactRow,
   onRetry,
   emptyTitle = "표시할 데이터가 없습니다",
   emptyDescription,
   errorDescription = "잠시 후 다시 시도해 주세요.",
 }: AdminTableProps<Row>) {
+  const breakpoint = useBreakpoint();
+  const compact = breakpoint === "base" || breakpoint === "sm";
   if (status === "error") {
     return (
       <ContentPlaceholder
@@ -111,8 +129,73 @@ export function AdminTable<Row>({
   }
 
   if (status === "success" && rows.length === 0) {
+    // 카드 안의 빈 목록은 한두 줄이면 충분하다 — 큰 빈 상태는 화면 전체가 빌 때만 쓴다.
     return (
-      <ContentPlaceholder title={emptyTitle} description={emptyDescription} />
+      <Box py="x2">
+        <Text textStyle="bodySm" color="fg.neutral-muted">
+          {emptyTitle}
+        </Text>
+        {emptyDescription !== undefined && (
+          <Text textStyle="caption" color="fg.neutral-muted">
+            {emptyDescription}
+          </Text>
+        )}
+      </Box>
+    );
+  }
+
+  if (compactRow !== undefined && compact && status === "success") {
+    return (
+      <VStack
+        as="ul"
+        aria-label={label}
+        gap={0}
+        alignItems="stretch"
+        className="m-0 list-none p-0"
+      >
+        {rows.map((row) => {
+          const item = compactRow(row);
+          return (
+            <Box
+              as="li"
+              key={getRowKey(row)}
+              className="border-t border-stroke-neutral-weak"
+            >
+              <VStack
+                as={onRowClick === undefined ? "div" : "button"}
+                {...(onRowClick !== undefined && {
+                  type: "button",
+                  onClick: () => onRowClick(row),
+                })}
+                width="full"
+                gap="x0_5"
+                py="x1_5"
+                alignItems="stretch"
+                className="text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
+              >
+                <HStack justify="space-between" gap="x3">
+                  <Text textStyle="labelSm" maxLines={1}>
+                    {item.title}
+                  </Text>
+                  <Text textStyle="labelSm" className="shrink-0 tabular-nums">
+                    {item.trailing}
+                  </Text>
+                </HStack>
+                <HStack justify="space-between" gap="x3">
+                  <Text
+                    textStyle="caption"
+                    color="fg.neutral-muted"
+                    maxLines={1}
+                  >
+                    {item.meta}
+                  </Text>
+                  {item.status}
+                </HStack>
+              </VStack>
+            </Box>
+          );
+        })}
+      </VStack>
     );
   }
 
@@ -138,7 +221,8 @@ export function AdminTable<Row>({
         <Box
           as="table"
           width="full"
-          minWidth={720}
+          // md 미만은 always 열만 남으므로 화면 폭에 맞춘다 — 720을 강제하면 금액·상태가 스크롤 뒤로 숨는다
+          minWidth={{ base: 0, md: 720 }}
           bg="bg.layer-default"
           className="border-collapse"
         >
@@ -256,7 +340,10 @@ export function AdminTable<Row>({
                           column.align === "end" && "text-right tabular-nums",
                         )}
                       >
-                        {column.render(row)}
+                        {/* admin 표 본문은 bodySm(14px) — 16px이면 1280에서도 날짜·번호가 줄바꿈된다 */}
+                        <Text as="div" textStyle="bodySm">
+                          {column.render(row)}
+                        </Text>
                       </Box>
                     ))}
                   </Box>

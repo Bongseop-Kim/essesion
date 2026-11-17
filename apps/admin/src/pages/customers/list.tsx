@@ -59,7 +59,7 @@ const columns: readonly AdminTableColumn<AdminCustomerSummaryOut>[] = [
     key: "status",
     header: "상태",
     render: (customer) => (
-      <StatusBadge status={customer.is_active ? "활성" : "비활성"} />
+      <StatusBadge status={customer.is_active ? "active" : "inactive"} />
     ),
   },
   {
@@ -175,6 +175,14 @@ export function CustomersPage() {
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
+        compactRow={(row) => ({
+          title: row.name,
+          trailing: `주문 ${row.order_count.toLocaleString("ko-KR")}건`,
+          meta: row.email ?? (row.phone ? formatPhoneNumber(row.phone) : "-"),
+          status: (
+            <StatusBadge status={row.is_active ? "active" : "inactive"} />
+          ),
+        })}
         onRowClick={(row) => navigate(`/customers/${row.id}`)}
         status={
           query.isLoading || query.isPlaceholderData

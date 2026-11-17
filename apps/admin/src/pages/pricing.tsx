@@ -245,7 +245,7 @@ export function PricingPage() {
 
   const pricingTabs = (
     <Tabs value={tab} onValueChange={setTab}>
-      <TabList aria-label="가격 분류 선택" triggerLayout="fill">
+      <TabList aria-label="가격 분류 선택">
         {CATEGORY_TABS.map((category) => (
           <TabTrigger key={category.value} value={category.value}>
             {category.label}

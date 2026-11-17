@@ -8,7 +8,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
-import { formatDateTime } from "../../shared/lib/format";
+import { formatDate, formatDateTime } from "../../shared/lib/format";
 import {
   parseAdminListQuery,
   serializeAdminListQuery,
@@ -156,6 +156,12 @@ export function InquiriesPage() {
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
+        compactRow={(row) => ({
+          title: row.title,
+          trailing: row.category,
+          meta: `${row.customer?.name ?? "탈퇴·비회원 고객"} · ${formatDate(row.created_at)}`,
+          status: <StatusBadge status={row.status} />,
+        })}
         onRowClick={(row) => navigate(`/inquiries/${row.id}`)}
         status={
           query.isLoading || query.isPlaceholderData

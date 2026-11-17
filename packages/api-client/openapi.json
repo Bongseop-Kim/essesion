@@ -9827,9 +9827,7 @@
           "created_at",
           "updated_at",
           "details",
-          "resolution_memo",
-          "order_number",
-          "claim_number"
+          "resolution_memo"
         ],
         "title": "PaymentIncidentDetailOut",
         "type": "object"
@@ -9859,6 +9857,17 @@
               }
             ],
             "title": "Claim Id"
+          },
+          "claim_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claim Number"
           },
           "created_at": {
             "format": "date-time",
@@ -9904,6 +9913,17 @@
               }
             ],
             "title": "Order Id"
+          },
+          "order_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Number"
           },
           "request_id": {
             "title": "Request Id",

@@ -5,7 +5,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
-import { formatDateTime } from "../../shared/lib/format";
+import { formatDate, formatDateTime } from "../../shared/lib/format";
 import {
   useAdminListPageCorrection,
   useAdminListUrlState,
@@ -162,6 +162,12 @@ export function ClaimsPage() {
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
+        compactRow={(row) => ({
+          title: row.customer.name,
+          trailing: claimTypeLabel(row.type),
+          meta: `${row.claim_number} · ${formatDate(row.created_at)}`,
+          status: <StatusBadge status={row.status} />,
+        })}
         onRowClick={(row) => navigate(`/claims/${row.id}`)}
         status={
           query.isLoading || query.isPlaceholderData

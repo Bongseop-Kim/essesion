@@ -30,6 +30,7 @@ import {
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { useAdminSession } from "../../shared/session/admin-session";
 import { AdminCard } from "../../shared/ui/admin-card";
+import { BackToListButton } from "../../shared/ui/back-to-list-button";
 import { DetailList } from "../../shared/ui/detail-list";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { formatStatus, StatusBadge } from "../../shared/ui/status-badge";
@@ -222,8 +223,100 @@ export function IncidentDetailPage() {
         <RouteHeading
           title={`결제 이상 ${incidentTypeLabel(data.incident_type)}`}
         />
-        <StatusBadge status={data.status} />
+        <HStack gap="x2" wrap>
+          <StatusBadge status={data.status} />
+          {/* 주문 상세와 같은 배치 — 액션은 헤더, 고른 액션의 입력 폼은 헤더 바로 아래 */}
+          {isAdmin &&
+            (data.admin_actions ?? []).map((action) => (
+              <ActionButton
+                key={action.kind}
+                variant={
+                  action.destructive ? "criticalSolid" : "neutralOutline"
+                }
+                disabled={
+                  !action.enabled ||
+                  actionPending ||
+                  selectedAction !== undefined
+                }
+                title={action.blocking_reason ?? undefined}
+                onClick={() => selectAction(action)}
+              >
+                {action.label}
+              </ActionButton>
+            ))}
+          <BackToListButton to="/incidents" />
+        </HStack>
       </HStack>
+
+      {!isAdmin ? (
+        <Text textStyle="caption" color="fg.neutral-muted">
+          대사·해결은 관리자만 할 수 있습니다. 매니저는 조회만 가능합니다.
+        </Text>
+      ) : (
+        (data.admin_actions ?? [])
+          .filter((action) => !action.enabled && action.blocking_reason)
+          .map((action) => (
+            <Text
+              key={action.kind}
+              textStyle="caption"
+              color="fg.neutral-muted"
+            >
+              {action.label}: {action.blocking_reason}
+            </Text>
+          ))
+      )}
+
+      {isAdmin && selectedAction !== undefined && (
+        <AdminCard title={selectedAction.label}>
+          <VStack
+            as="form"
+            gap="x3"
+            alignItems="stretch"
+            onSubmit={submitAction}
+          >
+            {selectedAction.kind === "resolve" && (
+              <TextAreaField
+                label="해결 근거 (필수)"
+                description="외부 결제 조회 결과와 내부 반영 판단을 남겨 주세요."
+                value={memo}
+                maxLength={1000}
+                errorMessage={validationError}
+                onChange={(event) => {
+                  resetFailedResolveOperation();
+                  setMemo(event.currentTarget.value);
+                }}
+              />
+            )}
+            {(reconcileMutation.isError || resolveMutation.isError) && (
+              <Callout
+                role="alert"
+                tone="critical"
+                title="관리자 작업을 완료하지 못했습니다"
+                description={getErrorMessage(
+                  reconcileMutation.error ?? resolveMutation.error,
+                  "권한과 현재 상태를 확인한 뒤 다시 시도해 주세요.",
+                )}
+              />
+            )}
+            <HStack gap="x2">
+              <ActionButton type="submit" loading={actionPending}>
+                {selectedAction.label} 검토
+              </ActionButton>
+              <ActionButton
+                type="button"
+                variant="ghost"
+                disabled={actionPending}
+                onClick={() => {
+                  setSelectedAction(undefined);
+                  setMemo("");
+                }}
+              >
+                취소
+              </ActionButton>
+            </HStack>
+          </VStack>
+        </AdminCard>
+      )}
 
       <Callout
         tone={amountSummary.difference === 0 ? "positive" : "warning"}
@@ -275,100 +368,6 @@ export function IncidentDetailPage() {
             { label: "해결 메모", value: data.resolution_memo ?? "-" },
           ]}
         />
-      </AdminCard>
-
-      <AdminCard title="운영 액션">
-        {!isAdmin ? (
-          <Text textStyle="bodySm" color="fg.neutral-muted">
-            대사·해결은 관리자만 할 수 있습니다. 매니저는 조회만 가능합니다.
-          </Text>
-        ) : (
-          <VStack gap="x4" alignItems="stretch">
-            <HStack gap="x2" wrap>
-              {(data.admin_actions ?? []).map((action) => (
-                <ActionButton
-                  key={action.kind}
-                  variant={
-                    action.destructive ? "criticalSolid" : "neutralOutline"
-                  }
-                  disabled={
-                    !action.enabled ||
-                    actionPending ||
-                    selectedAction !== undefined
-                  }
-                  title={action.blocking_reason ?? undefined}
-                  onClick={() => selectAction(action)}
-                >
-                  {action.label}
-                </ActionButton>
-              ))}
-            </HStack>
-            {(data.admin_actions ?? [])
-              .filter((action) => !action.enabled && action.blocking_reason)
-              .map((action) => (
-                <Text
-                  key={action.kind}
-                  textStyle="caption"
-                  color="fg.neutral-muted"
-                >
-                  {action.label}: {action.blocking_reason}
-                </Text>
-              ))}
-
-            {selectedAction !== undefined && (
-              <VStack
-                as="form"
-                gap="x3"
-                alignItems="stretch"
-                onSubmit={submitAction}
-              >
-                <Text as="h3" textStyle="label">
-                  {selectedAction.label}
-                </Text>
-                {selectedAction.kind === "resolve" && (
-                  <TextAreaField
-                    label="해결 근거 (필수)"
-                    description="외부 결제 조회 결과와 내부 반영 판단을 남겨 주세요."
-                    value={memo}
-                    maxLength={1000}
-                    errorMessage={validationError}
-                    onChange={(event) => {
-                      resetFailedResolveOperation();
-                      setMemo(event.currentTarget.value);
-                    }}
-                  />
-                )}
-                {(reconcileMutation.isError || resolveMutation.isError) && (
-                  <Callout
-                    role="alert"
-                    tone="critical"
-                    title="관리자 작업을 완료하지 못했습니다"
-                    description={getErrorMessage(
-                      reconcileMutation.error ?? resolveMutation.error,
-                      "권한과 현재 상태를 확인한 뒤 다시 시도해 주세요.",
-                    )}
-                  />
-                )}
-                <HStack gap="x2">
-                  <ActionButton type="submit" loading={actionPending}>
-                    {selectedAction.label} 검토
-                  </ActionButton>
-                  <ActionButton
-                    type="button"
-                    variant="ghost"
-                    disabled={actionPending}
-                    onClick={() => {
-                      setSelectedAction(undefined);
-                      setMemo("");
-                    }}
-                  >
-                    취소
-                  </ActionButton>
-                </HStack>
-              </VStack>
-            )}
-          </VStack>
-        )}
       </AdminCard>
 
       <TechnicalDetails
