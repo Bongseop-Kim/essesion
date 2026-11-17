@@ -14,18 +14,22 @@ import {
 import {
   ActionButton,
   Badge,
+  Box,
   Callout,
   ContentPlaceholder,
-  formatPhoneNumber,
   Grid,
   HStack,
+  Icon,
+  Modal,
   Skeleton,
   Text,
   TextField,
+  useBreakpoint,
   VStack,
 } from "@essesion/shared";
+import { SignalIcon } from "@heroicons/react/24/outline";
 import { useQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
 import { formatDate, formatDateTime, formatMoney } from "../shared/lib/format";
@@ -74,117 +78,67 @@ function kstDate(daysAgo = 0) {
   }).format(new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000));
 }
 
-const orderColumns: readonly AdminTableColumn<AdminOrderSummaryOut>[] = [
-  {
-    key: "number",
-    header: "주문번호",
-    render: (order) => (
-      <Link to={`/orders/${order.id}`}>{order.order_number}</Link>
-    ),
-  },
+/** 최근 주문·견적·수기 주문의 공통 행 — 세 목록 모두 날짜·고객·금액·상태만 보여 준다(번호는 상세에서). */
+type RecentRow = {
+  id: string;
+  href: string;
+  date: string;
+  customer: string;
+  amount: string;
+  status: ReactNode;
+};
+
+const recentColumns: readonly AdminTableColumn<RecentRow>[] = [
+  { key: "date", header: "날짜", render: (row) => row.date },
   {
     key: "customer",
     header: "고객",
-    render: (order) => order.customer.name,
+    render: (row) => <Link to={row.href}>{row.customer}</Link>,
   },
-  {
-    key: "type",
-    header: "유형",
-    render: (order) => order.order_type,
-    visibility: "medium",
-  },
-  {
-    key: "amount",
-    header: "주문 금액",
-    align: "end",
-    render: (order) => formatMoney(order.order_amount),
-  },
-  {
-    key: "status",
-    header: "상태",
-    render: (order) => <StatusBadge status={order.status} />,
-  },
+  { key: "amount", header: "금액", align: "end", render: (row) => row.amount },
+  { key: "status", header: "상태", render: (row) => row.status },
 ];
 
-const manualOrderColumns: readonly AdminTableColumn<ManualOrderOut>[] = [
-  {
-    key: "order_date",
-    header: "날짜",
-    render: (order) => formatDate(order.order_date),
-  },
-  {
-    key: "customer",
-    header: "고객",
-    render: (order) => (
-      <VStack gap="x0_5">
-        <Link to={manualOrderPath(manualOrderKind(order), order.id)}>
-          {order.customer_name}
-        </Link>
-        <Text textStyle="caption" color="fg.neutral-muted">
-          {formatPhoneNumber(order.phone)}
-        </Text>
-      </VStack>
-    ),
-  },
-  {
-    key: "amount",
-    header: "금액",
-    align: "end",
-    render: (order) =>
-      formatMoney(order.amount - order.discount + order.shipping_fee),
-  },
-  {
-    key: "status",
-    header: "상태",
-    render: (order) => (
-      <HStack gap="x1" wrap>
-        {(
-          [
-            ["접수", order.is_received],
-            ["결제", order.is_paid],
-            ["확인", order.is_confirmed],
-          ] as const
-        ).map(([label, checked]) => (
-          <Badge key={label} tone={checked ? "positive" : "neutral"}>
-            {label}
-          </Badge>
-        ))}
-      </HStack>
-    ),
-  },
-];
+const orderRow = (order: AdminOrderSummaryOut): RecentRow => ({
+  id: order.id,
+  href: `/orders/${order.id}`,
+  date: formatDate(order.created_at),
+  customer: order.customer.name,
+  amount: formatMoney(order.order_amount),
+  status: <StatusBadge status={order.status} />,
+});
 
-const quoteColumns: readonly AdminTableColumn<DashboardRecentQuoteOut>[] = [
-  {
-    key: "number",
-    header: "견적번호",
-    render: (quote) => (
-      <Link to={`/quote-requests/${quote.id}`}>{quote.quote_number}</Link>
-    ),
-  },
-  {
-    key: "customer",
-    header: "고객",
-    render: (quote) => quote.customer.name,
-  },
-  {
-    key: "business",
-    header: "업체명",
-    render: (quote) => quote.business_name,
-    visibility: "medium",
-  },
-  {
-    key: "amount",
-    header: "견적 금액",
-    align: "end",
-    render: (quote) => formatMoney(quote.quoted_amount, "미책정"),
-  },
-  {
-    key: "status",
-    header: "상태",
-    render: (quote) => <StatusBadge status={quote.status} />,
-  },
-];
+const quoteRow = (quote: DashboardRecentQuoteOut): RecentRow => ({
+  id: quote.id,
+  href: `/quote-requests/${quote.id}`,
+  date: formatDate(quote.created_at),
+  customer: quote.customer.name,
+  amount: formatMoney(quote.quoted_amount, "미책정"),
+  status: <StatusBadge status={quote.status} />,
+});
+
+const manualOrderRow = (order: ManualOrderOut): RecentRow => ({
+  id: order.id,
+  href: manualOrderPath(manualOrderKind(order), order.id),
+  date: formatDate(order.order_date),
+  customer: order.customer_name,
+  amount: formatMoney(order.amount - order.discount + order.shipping_fee),
+  status: (
+    <HStack gap="x1" wrap>
+      {(
+        [
+          ["접수", order.is_received],
+          ["결제", order.is_paid],
+          ["확인", order.is_confirmed],
+        ] as const
+      ).map(([label, checked]) => (
+        <Badge key={label} tone={checked ? "positive" : "neutral"}>
+          {label}
+        </Badge>
+      ))}
+    </HStack>
+  ),
+});
 
 const BRAND_COLOR = "var(--color-bg-brand-solid)";
 
@@ -269,23 +223,130 @@ function MetricCard({
   label,
   value,
   loading,
+  todo = false,
 }: {
   label: string;
   value: string;
   loading: boolean;
+  /** 처리할 일이 남았다(1건 이상) — 카드를 경고색으로 강조한다. */
+  todo?: boolean;
 }) {
   return (
-    <AdminCard>
-      <VStack gap="x2">
-        <Text textStyle="labelSm" color="fg.neutral-muted">
+    <AdminCard
+      p={{ base: "x3", md: "x4" }}
+      {...(todo && {
+        bg: "bg.critical-weak",
+        className: "border border-stroke-critical",
+      })}
+    >
+      <VStack gap="x1">
+        <Text
+          textStyle="caption"
+          color={todo ? "fg.critical" : "fg.neutral-muted"}
+          maxLines={1}
+        >
           {label}
         </Text>
         {loading ? (
-          <Skeleton width={100} height={32} />
+          <Skeleton width={64} height={24} />
         ) : (
-          <Text textStyle="title2">{value}</Text>
+          <Text textStyle="title3" color={todo ? "fg.critical" : undefined}>
+            {value}
+          </Text>
         )}
       </VStack>
+    </AdminCard>
+  );
+}
+
+/**
+ * 최근 목록 카드 — md 이상은 표, 그 미만은 두 줄짜리 촘촘한 목록(고객·금액 / 날짜·상태).
+ * 표는 최소 폭 720이라 모바일에서는 금액·상태가 가로 스크롤 뒤로 숨는다.
+ */
+function RecentCard({
+  title,
+  href,
+  rows,
+  total,
+  query,
+}: {
+  title: string;
+  href: string;
+  rows: readonly RecentRow[] | undefined;
+  total: number | undefined;
+  query: { isLoading: boolean; isError: boolean; refetch: () => unknown };
+}) {
+  const navigate = useNavigate();
+  const breakpoint = useBreakpoint();
+  const compact = breakpoint === "base" || breakpoint === "sm";
+  const status = query.isLoading
+    ? "loading"
+    : query.isError
+      ? "error"
+      : "success";
+  return (
+    <AdminCard
+      title={title}
+      description={compact ? undefined : "조회 기간과 무관한 최신 5건"}
+      action={<Link to={href}>전체 보기</Link>}
+    >
+      {compact && status === "success" ? (
+        rows?.length ? (
+          <VStack
+            as="ul"
+            gap={0}
+            alignItems="stretch"
+            className="m-0 list-none p-0"
+          >
+            {rows.map((row) => (
+              <Box
+                as="li"
+                key={row.id}
+                className="border-t border-stroke-neutral-weak"
+              >
+                <VStack
+                  as={Link}
+                  to={row.href}
+                  gap="x0_5"
+                  py="x1_5"
+                  alignItems="stretch"
+                  className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
+                >
+                  <HStack justify="space-between" gap="x3">
+                    <Text textStyle="labelSm" maxLines={1}>
+                      {row.customer}
+                    </Text>
+                    <Text textStyle="labelSm" className="shrink-0 tabular-nums">
+                      {row.amount}
+                    </Text>
+                  </HStack>
+                  <HStack justify="space-between" gap="x3">
+                    <Text textStyle="caption" color="fg.neutral-muted">
+                      {row.date}
+                    </Text>
+                    {row.status}
+                  </HStack>
+                </VStack>
+              </Box>
+            ))}
+          </VStack>
+        ) : (
+          <Text textStyle="caption" color="fg.neutral-muted">
+            표시할 데이터가 없습니다
+          </Text>
+        )
+      ) : (
+        <AdminTable
+          label={title}
+          columns={recentColumns}
+          rows={rows}
+          getRowKey={(row) => row.id}
+          onRowClick={(row) => navigate(row.href)}
+          status={status}
+          total={total}
+          onRetry={() => void query.refetch()}
+        />
+      )}
     </AdminCard>
   );
 }
@@ -293,6 +354,10 @@ function MetricCard({
 export function DashboardPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const breakpoint = useBreakpoint();
+  const wide = breakpoint === "lg" || breakpoint === "xl";
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [capabilitiesOpen, setCapabilitiesOpen] = useState(false);
   // 기본 조회 기간은 최근 7일 — '오늘'만 보면 지표 0건과 최근 주문 목록이 어긋나 보인다
   const startDate = searchParams.get("from") ?? kstDate(6);
   const endDate = searchParams.get("to") ?? kstDate();
@@ -375,66 +440,92 @@ export function DashboardPage() {
     <VStack gap="x6" alignItems="stretch">
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading title="대시보드" />
-        <ActionButton
-          variant="neutralOutline"
-          loading={
-            summary.isFetching ||
-            timeseries.isFetching ||
-            topProducts.isFetching ||
-            recentOrders.isFetching ||
-            recentQuotes.isFetching ||
-            capabilities.isFetching
-          }
-          onClick={refresh}
-        >
-          새로고침
-        </ActionButton>
+        <HStack gap="x2">
+          <ActionButton
+            variant="neutralOutline"
+            aria-expanded={filterOpen}
+            onClick={() => setFilterOpen((open) => !open)}
+          >
+            필터
+          </ActionButton>
+          <ActionButton
+            variant="neutralOutline"
+            iconOnly
+            aria-label="외부 연동 상태"
+            onClick={() => setCapabilitiesOpen(true)}
+          >
+            <Icon svg={<SignalIcon />} size={20} />
+          </ActionButton>
+          <ActionButton
+            variant="neutralOutline"
+            loading={
+              summary.isFetching ||
+              timeseries.isFetching ||
+              topProducts.isFetching ||
+              recentOrders.isFetching ||
+              recentQuotes.isFetching ||
+              capabilities.isFetching
+            }
+            onClick={refresh}
+          >
+            새로고침
+          </ActionButton>
+        </HStack>
       </HStack>
 
-      <AdminCard title="조회 기준">
-        <HStack gap="x3" align="flex-end" wrap>
-          <TextField
-            type="date"
-            label="시작일 (KST)"
-            value={startDate}
-            max={endDate}
-            onChange={(event) =>
-              updateFilter("from", event.currentTarget.value)
-            }
-          />
-          <TextField
-            type="date"
-            label="종료일 (KST)"
-            value={endDate}
-            min={startDate}
-            onChange={(event) => updateFilter("to", event.currentTarget.value)}
-          />
-          <FilterSelect
-            label="주문 유형"
-            value={orderType}
-            options={ORDER_TYPES}
-            onValueChange={(value) => updateFilter("type", value)}
-          />
-        </HStack>
-      </AdminCard>
+      {filterOpen && (
+        <AdminCard title="조회 기준">
+          <HStack gap="x3" align="flex-end" wrap>
+            <TextField
+              type="date"
+              label="시작일 (KST)"
+              value={startDate}
+              max={endDate}
+              onChange={(event) =>
+                updateFilter("from", event.currentTarget.value)
+              }
+            />
+            <TextField
+              type="date"
+              label="종료일 (KST)"
+              value={endDate}
+              min={startDate}
+              onChange={(event) =>
+                updateFilter("to", event.currentTarget.value)
+              }
+            />
+            <FilterSelect
+              label="주문 유형"
+              value={orderType}
+              options={ORDER_TYPES}
+              onValueChange={(value) => updateFilter("type", value)}
+            />
+          </HStack>
+        </AdminCard>
+      )}
 
-      <AdminCard title="외부 연동 상태">
+      {/* 연동 상태 상세는 모달로 숨기되, 작업이 실패하는 상태는 항상 화면에 남긴다 */}
+      {capabilities.isError && (
+        <Callout
+          tone="critical"
+          title="외부 연동 상태를 확인하지 못했습니다"
+          description="결제·이미지·알림 작업 전에 다시 확인해 주세요."
+          onClick={() => void capabilities.refetch()}
+        />
+      )}
+      {unavailableCapabilities.length > 0 && (
+        <Callout
+          tone="critical"
+          title="필수 연동을 사용할 수 없습니다"
+          description={`${unavailableCapabilities.map(([label]) => label).join(", ")} 관련 작업이 실패합니다.`}
+        />
+      )}
+      <Modal
+        open={capabilitiesOpen}
+        onOpenChange={setCapabilitiesOpen}
+        title="외부 연동 상태"
+      >
         <VStack gap="x3" alignItems="stretch">
-          {capabilities.isError && (
-            <Callout
-              tone="critical"
-              title="외부 연동 상태를 확인하지 못했습니다"
-              description="결제·이미지·알림 작업 전에 다시 확인해 주세요."
-              onClick={() => void capabilities.refetch()}
-            />
-          )}
-          {unavailableCapabilities.length > 0 && (
-            <Callout
-              tone="critical"
-              title="필수 연동을 사용할 수 없습니다"
-              description={`${unavailableCapabilities.map(([label]) => label).join(", ")} 관련 작업이 실패합니다.`}
-            />
-          )}
           {fallbackCapabilities.length > 0 && (
             <Text textStyle="caption" color="fg.neutral-muted">
               로컬·대체 연동 모드 —{" "}
@@ -458,7 +549,7 @@ export function DashboardPage() {
             </Grid>
           )}
         </VStack>
-      </AdminCard>
+      </Modal>
 
       {summary.isError ? (
         <ContentPlaceholder
@@ -474,32 +565,40 @@ export function DashboardPage() {
           }
         />
       ) : (
-        <Grid columns={{ base: 1, sm: 2, lg: 5 }} gap="x3">
-          <MetricCard
-            label="주문 금액"
-            value={formatMoney(data?.order_amount)}
-            loading={summary.isLoading}
-          />
-          <MetricCard
-            label="주문 수"
-            value={`${data?.order_count ?? 0}건`}
-            loading={summary.isLoading}
-          />
-          <MetricCard
-            label="미처리 클레임"
-            value={`${data?.open_claim_count ?? 0}건`}
-            loading={summary.isLoading}
-          />
-          <MetricCard
-            label="미답변 문의"
-            value={`${data?.unanswered_inquiry_count ?? 0}건`}
-            loading={summary.isLoading}
-          />
-          <MetricCard
-            label="미해결 결제 이상"
-            value={`${data?.open_payment_incident_count ?? 0}건`}
-            loading={summary.isLoading}
-          />
+        // 모바일은 성과 2칸 + 할 일 3칸 두 줄, lg는 한 줄 — 칸을 작게 유지한다
+        <Grid templateColumns={wide ? "2fr 3fr" : "1fr"} gap="x2">
+          <Grid columns={2} gap="x2">
+            <MetricCard
+              label="주문 금액"
+              value={formatMoney(data?.order_amount)}
+              loading={summary.isLoading}
+            />
+            <MetricCard
+              label="주문 수"
+              value={`${data?.order_count ?? 0}건`}
+              loading={summary.isLoading}
+            />
+          </Grid>
+          <Grid columns={3} gap="x2">
+            <MetricCard
+              label="미처리 클레임"
+              value={`${data?.open_claim_count ?? 0}건`}
+              loading={summary.isLoading}
+              todo={(data?.open_claim_count ?? 0) > 0}
+            />
+            <MetricCard
+              label="미답변 문의"
+              value={`${data?.unanswered_inquiry_count ?? 0}건`}
+              loading={summary.isLoading}
+              todo={(data?.unanswered_inquiry_count ?? 0) > 0}
+            />
+            <MetricCard
+              label="결제 이상"
+              value={`${data?.open_payment_incident_count ?? 0}건`}
+              loading={summary.isLoading}
+              todo={(data?.open_payment_incident_count ?? 0) > 0}
+            />
+          </Grid>
         </Grid>
       )}
 
@@ -507,6 +606,28 @@ export function DashboardPage() {
         조회 기간 {startDate} ~ {endDate} · 기준 시각{" "}
         {formatDateTime(data?.as_of)} · 날짜는 한국 시간(KST) 기준
       </Text>
+
+      <RecentCard
+        title="최근 주문"
+        href="/orders"
+        rows={recentOrders.data?.items.map(orderRow)}
+        total={recentOrders.data?.total}
+        query={recentOrders}
+      />
+      <RecentCard
+        title="최근 견적"
+        href="/quote-requests"
+        rows={recentQuotes.data?.items.map(quoteRow)}
+        total={recentQuotes.data?.total}
+        query={recentQuotes}
+      />
+      <RecentCard
+        title="최근 수기 주문"
+        href="/manual-orders"
+        rows={recentManualOrders.data?.items.map(manualOrderRow)}
+        total={recentManualOrders.data?.total}
+        query={recentManualOrders}
+      />
 
       {timeseries.isError ? (
         <ContentPlaceholder
@@ -577,77 +698,6 @@ export function DashboardPage() {
                 : "success"
           }
           onRetry={() => void topProducts.refetch()}
-        />
-      </AdminCard>
-
-      <AdminCard
-        title="최근 주문"
-        description="조회 기간과 무관한 최신 5건"
-        action={<Link to="/orders">전체 보기</Link>}
-      >
-        <AdminTable
-          label="최근 주문"
-          columns={orderColumns}
-          rows={recentOrders.data?.items}
-          getRowKey={(row) => row.id}
-          onRowClick={(row) => navigate(`/orders/${row.id}`)}
-          status={
-            recentOrders.isLoading
-              ? "loading"
-              : recentOrders.isError
-                ? "error"
-                : "success"
-          }
-          total={recentOrders.data?.total}
-          onRetry={() => void recentOrders.refetch()}
-        />
-      </AdminCard>
-
-      <AdminCard
-        title="최근 수기 주문"
-        description="조회 기간과 무관한 최신 5건"
-        action={<Link to="/manual-orders">전체 보기</Link>}
-      >
-        <AdminTable
-          label="최근 수기 주문"
-          columns={manualOrderColumns}
-          rows={recentManualOrders.data?.items}
-          getRowKey={(row) => row.id}
-          onRowClick={(row) =>
-            navigate(manualOrderPath(manualOrderKind(row), row.id))
-          }
-          status={
-            recentManualOrders.isLoading
-              ? "loading"
-              : recentManualOrders.isError
-                ? "error"
-                : "success"
-          }
-          total={recentManualOrders.data?.total}
-          onRetry={() => void recentManualOrders.refetch()}
-        />
-      </AdminCard>
-
-      <AdminCard
-        title="최근 견적"
-        description="조회 기간과 무관한 최신 5건"
-        action={<Link to="/quote-requests">전체 보기</Link>}
-      >
-        <AdminTable
-          label="최근 견적"
-          columns={quoteColumns}
-          rows={recentQuotes.data?.items}
-          getRowKey={(row) => row.id}
-          onRowClick={(row) => navigate(`/quote-requests/${row.id}`)}
-          status={
-            recentQuotes.isLoading
-              ? "loading"
-              : recentQuotes.isError
-                ? "error"
-                : "success"
-          }
-          total={recentQuotes.data?.total}
-          onRetry={() => void recentQuotes.refetch()}
         />
       </AdminCard>
     </VStack>

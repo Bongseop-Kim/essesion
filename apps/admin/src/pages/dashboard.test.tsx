@@ -226,8 +226,14 @@ describe("DashboardPage", () => {
     api.capabilities.mockResolvedValue(capabilities);
     renderPage();
 
-    expect(await screen.findByText("ORDER-001")).toBeTruthy();
-    expect(screen.getByText("QUOTE-001")).toBeTruthy();
+    // 번호 없이 날짜·고객·금액·상태 — 주문과 견적의 고객이 각 표에 한 번씩
+    expect(await screen.findAllByText("홍길동")).toHaveLength(2);
+    expect(screen.queryByText("ORDER-001")).toBeNull();
+    expect(screen.queryByText("QUOTE-001")).toBeNull();
+    // 조회 기준은 필터 버튼을 눌러야 나온다
+    expect(screen.queryByLabelText("시작일 (KST)")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "필터" }));
+    expect(screen.getByLabelText("시작일 (KST)")).toBeTruthy();
     expect(screen.getAllByText("₩50,000")).toHaveLength(2);
     // 수기 주문은 별도 표로 — 금액은 amount + shipping_fee
     expect(screen.getByText("김수기")).toBeTruthy();
@@ -285,6 +291,10 @@ describe("DashboardPage", () => {
       await screen.findByText("필수 연동을 사용할 수 없습니다"),
     ).toBeTruthy();
     expect(screen.getByText(/Toss 결제 관련 작업이 실패합니다/)).toBeTruthy();
+    // 상세는 버튼으로 여는 모달 안에
+    await userEvent.click(
+      screen.getByRole("button", { name: "외부 연동 상태" }),
+    );
     expect(screen.getByText(/로컬·대체 연동 모드/)).toBeTruthy();
     expect(screen.getByText(/Solapi 알림: dry-run/)).toBeTruthy();
   });
