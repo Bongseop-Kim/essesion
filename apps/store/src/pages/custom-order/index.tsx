@@ -71,6 +71,7 @@ import {
   REFERENCE_SLOTS,
   type ReferenceSlotFiles,
   ReferenceSlots,
+  referenceParts,
 } from "@/features/custom-order/ui/reference-slots";
 import { InquirySection } from "@/features/inquiry/ui/inquiry-section";
 import { ReviewListSection } from "@/features/reviews/ui/review-list-section";
@@ -282,8 +283,11 @@ function CustomOrderPageContent({
     return true;
   };
 
+  // 보이는 칸만 첨부로 친다 — 포인트를 켜거나 라벨을 풀어 숨은 칸의 파일은 올리지 않는다
+  // (state에는 남겨 되돌리면 복원된다).
+  const parts = referenceParts(options);
   const hasAttachments =
-    files.length > 0 || Object.values(slotFiles).some(Boolean);
+    files.length > 0 || parts.some((part) => slotFiles[part]);
 
   // 로그인으로 흐름이 끊기기 전에 현재 입력을 익명 키에 남긴다 — 로그인 뒤 어느 경로로
   // 돌아와도 /custom-order 진입 시 계정 키로 이관된다. 파일 선택이 차단된 경우
@@ -319,7 +323,7 @@ function CustomOrderPageContent({
 
   // 칸 사진은 부위(part)를 달고, 추가 이미지는 부위 없이 올린다.
   const referenceUploads = () => [
-    ...REFERENCE_SLOTS.flatMap(({ part }) => {
+    ...parts.flatMap((part) => {
       const file = slotFiles[part];
       return file ? [{ file, part }] : [];
     }),
@@ -998,10 +1002,15 @@ function CustomOrderPageContent({
           <OrderSection id="attachment" title="6. 추가 정보">
             <VStack gap="x4" alignItems="stretch">
               <Field
-                label="참고 이미지"
-                description="넥타이 부위별로 1장씩 올려 주세요. JPG, PNG, WebP · 파일당 10MB 이하"
+                label={options.pointEnabled ? "로고 이미지" : "참고 이미지"}
+                description={`${
+                  options.pointEnabled
+                    ? "자수·필름으로 넣을 로고를 올려 주세요."
+                    : "넥타이 부위별로 1장씩 올려 주세요."
+                } JPG, PNG, WebP · 파일당 10MB 이하`}
               >
                 <ReferenceSlots
+                  parts={parts}
                   files={slotFiles}
                   accept={CUSTOM_IMAGE_ACCEPT}
                   onPick={(part, file) => {
@@ -1021,7 +1030,11 @@ function CustomOrderPageContent({
               </Field>
               <AttachmentDisplayField
                 label="추가 이미지"
-                description="원하는 무늬·로고 등 더 보여 줄 사진이 있으면 올려 주세요."
+                description={
+                  options.pointEnabled
+                    ? "로고를 넣을 위치 등 더 보여 줄 사진이 있으면 올려 주세요."
+                    : "원하는 무늬·로고 등 더 보여 줄 사진이 있으면 올려 주세요."
+                }
                 items={attachmentItems}
                 previewable
                 max={MAX_IMAGES}

@@ -400,6 +400,10 @@ export function CustomOrderServiceGuide({ onStart }: { onStart: () => void }) {
           주문서 첫 단계 주문 방식에서 고르면, 정해진 원단으로 만들어 원단은
           따로 고르지 않아요.
         </Text>
+        <Text textStyle="body">
+          포인트 주문은 넥타이 사진을 올리지 않아요. 주문서 마지막 단계에서 넣을
+          로고 이미지만 올려 주세요.
+        </Text>
         <Text as="h4" textStyle="title3">
           완성 예시
         </Text>

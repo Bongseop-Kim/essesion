@@ -1202,7 +1202,7 @@ export type AdminOrderReferenceImageOut = {
     /**
      * Part
      */
-    part?: 'full' | 'blade' | 'knot' | 'tail' | null;
+    part?: 'full' | 'blade' | 'knot' | 'tail' | 'brand_label' | 'logo' | null;
     /**
      * Size Bytes
      */
@@ -1902,7 +1902,7 @@ export type AdminQuoteImageOut = {
     /**
      * Part
      */
-    part?: 'full' | 'blade' | 'knot' | 'tail' | null;
+    part?: 'full' | 'blade' | 'knot' | 'tail' | 'brand_label' | 'logo' | null;
     /**
      * Size Bytes
      */
@@ -4787,7 +4787,7 @@ export type OrderReferenceImageIn = {
     /**
      * Part
      */
-    part?: 'full' | 'blade' | 'knot' | 'tail' | null;
+    part?: 'full' | 'blade' | 'knot' | 'tail' | 'brand_label' | 'logo' | null;
     /**
      * Upload Id
      */
@@ -6055,7 +6055,7 @@ export type ReferenceImageIn = {
     /**
      * Part
      */
-    part?: 'full' | 'blade' | 'knot' | 'tail' | null;
+    part?: 'full' | 'blade' | 'knot' | 'tail' | 'brand_label' | 'logo' | null;
 };
 
 /**

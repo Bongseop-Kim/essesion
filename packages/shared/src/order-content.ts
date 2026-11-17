@@ -197,4 +197,6 @@ export const REFERENCE_PART_LABELS = {
   blade: "대검",
   knot: "매듭",
   tail: "소검",
+  brand_label: "브랜드 라벨",
+  logo: "로고",
 } as const;

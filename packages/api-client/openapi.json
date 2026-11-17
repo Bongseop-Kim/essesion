@@ -2239,7 +2239,9 @@
                   "full",
                   "blade",
                   "knot",
-                  "tail"
+                  "tail",
+                  "brand_label",
+                  "logo"
                 ],
                 "type": "string"
               },
@@ -3585,7 +3587,9 @@
                   "full",
                   "blade",
                   "knot",
-                  "tail"
+                  "tail",
+                  "brand_label",
+                  "logo"
                 ],
                 "type": "string"
               },
@@ -8971,7 +8975,9 @@
                   "full",
                   "blade",
                   "knot",
-                  "tail"
+                  "tail",
+                  "brand_label",
+                  "logo"
                 ],
                 "type": "string"
               },
@@ -11128,7 +11134,9 @@
                   "full",
                   "blade",
                   "knot",
-                  "tail"
+                  "tail",
+                  "brand_label",
+                  "logo"
                 ],
                 "type": "string"
               },

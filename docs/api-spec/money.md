@@ -52,7 +52,7 @@
 - fabric: `fabric_provided=true 또는 point 선택 → 0`; 아니면 `round(qty * FABRIC_{design_type}_{fabric_type} / 4) + SAMPLE_FABRIC_{design_type}_COST`. design/fabric_type null이면 오류.
 - total = sewing + fabric + point.
 
-주문 생성: quantity는 1~10,000. `base_unit = floor(total/qty)`, remainder는 item_data.pricing.unit_price_remainder에. 쿠폰은 §2와 동일(unit=base_unit). options 페이로드는 UTF-8 compact JSON 10KB, additional_notes는 500자 제한. reference_images는 최대 10개이며 `upload_id` 검증 후 images에 등록(entity_type='custom_order'). 각 이미지는 선택적으로 `part ∈ {full, blade, knot, tail}`(주문서의 넥타이 전체·대검·매듭·소검 칸)를 갖고 부위마다 1장만 허용한다(중복 422). 부위가 없는 이미지는 추가 이미지다. item_data.reference_images는 `[{image_id, part?}]`(추가 이미지는 part 생략). order_items: item_id=`custom-order-{order_id}`, item_type='custom', item_data=`{custom_order:true, quantity, options, reference_images, additional_notes, pricing:{sewing_cost,fabric_cost,point_cost,total_cost,unit_price_remainder}}`. status='대기중'.
+주문 생성: quantity는 1~10,000. `base_unit = floor(total/qty)`, remainder는 item_data.pricing.unit_price_remainder에. 쿠폰은 §2와 동일(unit=base_unit). options 페이로드는 UTF-8 compact JSON 10KB, additional_notes는 500자 제한. reference_images는 최대 10개이며 `upload_id` 검증 후 images에 등록(entity_type='custom_order'). 각 이미지는 선택적으로 `part ∈ {full, blade, knot, tail, brand_label, logo}`(주문서의 넥타이 전체·대검·매듭·소검 칸, 브랜드 라벨 도안 칸, 포인트 주문의 로고 칸)를 갖고 부위마다 1장만 허용한다(중복 422). 부위가 없는 이미지는 추가 이미지다. item_data.reference_images는 `[{image_id, part?}]`(추가 이미지는 part 생략). order_items: item_id=`custom-order-{order_id}`, item_type='custom', item_data=`{custom_order:true, quantity, options, reference_images, additional_notes, pricing:{sewing_cost,fabric_cost,point_cost,total_cost,unit_price_remainder}}`. status='대기중'.
 
 ## 4. 샘플 주문 (sample)
 

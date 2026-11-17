@@ -75,8 +75,10 @@ const orderDraftSchema = z
       z
         .object({
           upload_id: z.string().uuid(),
-          // 주문서 칸(전체·대검·매듭·소검) — 추가 이미지는 없다
-          part: z.enum(["full", "blade", "knot", "tail"]).optional(),
+          // 주문서 칸(넥타이 부위·브랜드 라벨·로고) — 추가 이미지는 없다
+          part: z
+            .enum(["full", "blade", "knot", "tail", "brand_label", "logo"])
+            .optional(),
         })
         .strict(),
     ),
