@@ -20,7 +20,7 @@ export type ReferenceSlotFiles = Partial<Record<ReferencePart, File>>;
 /**
  * 주문서 참고 이미지 칸 — 칸마다 1장. 빈 칸은 그 부위 넥타이 실루엣을 옅게 깔아 무엇을 올릴지
  * 보여 준다(디자인 도구 미리보기와 같은 마스크). 디자인 도구의 "바로 주문하기"가 넥타이 네 칸을
- * 채운다. 브랜드 라벨·로고 칸은 실루엣이 없고, 어떤 칸을 보일지는 주문서가 `parts`로 정한다.
+ * 채운다. 브랜드 라벨·로고 칸은 라벨·엠블럼 모양을 깔고, 어떤 칸을 보일지는 주문서가 `parts`로 정한다.
  */
 export const REFERENCE_SLOTS = [
   {
@@ -43,12 +43,20 @@ export const REFERENCE_SLOTS = [
     label: REFERENCE_PART_LABELS.tail,
     silhouette: "/images/tie-tail-mask.png",
   },
-  { part: "logo", label: REFERENCE_PART_LABELS.logo },
-  { part: "brand_label", label: REFERENCE_PART_LABELS.brand_label },
+  {
+    part: "logo",
+    label: REFERENCE_PART_LABELS.logo,
+    silhouette: "/images/slot-logo-mask.svg",
+  },
+  {
+    part: "brand_label",
+    label: REFERENCE_PART_LABELS.brand_label,
+    silhouette: "/images/slot-brand-label-mask.svg",
+  },
 ] as const satisfies readonly {
   part: ReferencePart;
   label: string;
-  silhouette?: string;
+  silhouette: string;
 }[];
 
 /** 주문서가 지금 받는 칸 — 포인트(자수·필름) 주문은 넥타이 대신 로고만, 브랜드 라벨을 고르면 도안 칸 추가. */
@@ -86,7 +94,7 @@ export function ReferenceSlots({
           <Slot
             key={slot.part}
             label={slot.label}
-            silhouette={"silhouette" in slot ? slot.silhouette : undefined}
+            silhouette={slot.silhouette}
             file={files[slot.part]}
             accept={accept}
             onPick={(file) => onPick(slot.part, file)}
@@ -107,7 +115,7 @@ function Slot({
   onRemove,
 }: {
   label: string;
-  silhouette: string | undefined;
+  silhouette: string;
   file: File | undefined;
   accept: string;
   onPick: (file: File) => void;

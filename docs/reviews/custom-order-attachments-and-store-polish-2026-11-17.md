@@ -17,7 +17,8 @@
   `REFERENCE_PART_LABELS`(shared)에 "브랜드 라벨"·"로고"를 더해 admin 주문·견적 상세가 그대로 표시한다.
 - **주문서 칸** `apps/store/src/features/custom-order/ui/reference-slots.tsx` — `referenceParts(options)`가 보여 줄
   칸을 정한다: 기본 전체·대검·매듭·소검, 포인트(자수·필름) 주문이면 넥타이 칸 대신 **로고 한 칸**, 브랜드 라벨을
-  체크하면 **브랜드 라벨 칸** 추가. 두 새 칸은 실루엣 없이 + 아이콘만 그린다(새 에셋 없음).
+  체크하면 **브랜드 라벨 칸** 추가. 두 새 칸은 라벨·엠블럼 모양 SVG 마스크
+  (`public/images/slot-brand-label-mask.svg`·`slot-logo-mask.svg`)를 플레이스홀더로 깐다.
 - **업로드** `apps/store/src/pages/custom-order/index.tsx` — 업로드 목록과 "첨부 있음" 판정이 보이는 칸만 센다.
   숨은 칸의 파일은 state에 남아 옵션을 되돌리면 복원되지만 올라가지는 않는다. 포인트 주문일 때 필드 라벨·설명
   문구를 로고 기준으로 바꿨다. 추가 이미지 칸은 남겼다(로고 위치 참고 사진용).

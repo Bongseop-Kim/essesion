@@ -29,6 +29,12 @@ vi.mock("@essesion/api-client/query", () => ({
     queryFn: api.getOrder,
   }),
   getAdminOrderQueryKey: (_options: unknown) => ["order"],
+  getAdminSettingsOptions: () => ({
+    queryKey: ["settings"],
+    queryFn: async () => [
+      { key: "default_courier_company", value: "롯데택배" },
+    ],
+  }),
   listAdminOrderReferenceImagesOptions: (options: unknown) => {
     api.getReferenceImagesOptions(options);
     return {

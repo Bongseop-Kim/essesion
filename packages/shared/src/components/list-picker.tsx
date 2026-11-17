@@ -6,6 +6,7 @@ import { CheckGlyph } from "./internal/glyphs";
 import { useControllableState } from "./internal/use-controllable-state";
 import { List, ListItem } from "./list";
 import { Modal } from "./modal";
+import { TextField } from "./text-field";
 
 export type ListPickerOption = {
   value: string;
@@ -27,6 +28,8 @@ export type ListPickerProps = {
   disabled?: boolean;
   /** 피커 제목 — 기본 label */
   title?: ReactNode;
+  /** 목록 위에 검색창을 둔다 — 문자열 label만 걸러진다. */
+  searchable?: boolean;
 };
 
 /* 목록에서 하나를 고르는 피커 — FieldButton + 반응형 Modal + List. */
@@ -41,6 +44,7 @@ export function ListPicker({
   placeholder = "선택",
   disabled,
   title,
+  searchable = false,
 }: ListPickerProps) {
   const [current, setCurrent] = useControllableState<string | undefined>({
     value,
@@ -50,6 +54,15 @@ export function ListPicker({
     },
   });
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const keyword = search.trim().toLowerCase();
+  const visible = keyword
+    ? options.filter(
+        (option) =>
+          typeof option.label !== "string" ||
+          option.label.toLowerCase().includes(keyword),
+      )
+    : options;
   const selected = options.find((option) => option.value === current);
   const pickerTitle = title ?? label;
 
@@ -68,14 +81,26 @@ export function ListPicker({
       />
       <Modal
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) setSearch("");
+        }}
         title={pickerTitle}
         aria-label={pickerTitle == null ? "선택" : undefined}
       >
         {/* 컨테이너 거터(x4)만큼 블리드 — ListItem 자체 px-x4와 상쇄되어
             옵션 텍스트가 시트/모달 제목과 같은 x에 정렬된다 */}
+        {searchable ? (
+          <TextField
+            type="search"
+            aria-label="검색"
+            placeholder="검색"
+            value={search}
+            onChange={(event) => setSearch(event.currentTarget.value)}
+          />
+        ) : null}
         <List className="-mx-x4">
-          {options.map((option) => (
+          {visible.map((option) => (
             <ListItem
               key={option.value}
               title={option.label}
@@ -84,6 +109,7 @@ export function ListPicker({
               onClick={() => {
                 setCurrent(option.value);
                 setOpen(false);
+                setSearch("");
               }}
               suffix={
                 option.value === current ? (
