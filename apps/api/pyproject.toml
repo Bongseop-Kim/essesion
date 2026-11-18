@@ -19,6 +19,7 @@ dependencies = [
     "httpx>=0.28",
     "google-cloud-storage>=2.18",
     "google-auth>=2",
+    "xlsxwriter>=3.2",
 ]
 
 [dependency-groups]

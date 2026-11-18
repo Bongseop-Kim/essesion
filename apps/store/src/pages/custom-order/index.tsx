@@ -67,6 +67,7 @@ import {
 } from "@/features/custom-order/model/options";
 import { useCustomQuote } from "@/features/custom-order/model/use-custom-quote";
 import { CustomOrderServiceGuide } from "@/features/custom-order/ui/custom-order-service-guide";
+import { EstimateEmailModal } from "@/features/custom-order/ui/estimate-email-modal";
 import {
   REFERENCE_SLOTS,
   type ReferenceSlotFiles,
@@ -153,6 +154,7 @@ function CustomOrderPageContent({
   const [address, setAddress] = useState<ShippingAddressOut | null>(null);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [quoteConfirmOpen, setQuoteConfirmOpen] = useState(false);
+  const [estimateEmailOpen, setEstimateEmailOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] =
     useState<CustomOrderValidationError | null>(null);
@@ -352,6 +354,16 @@ function CustomOrderPageContent({
       })),
     );
 
+  const requestEstimateEmail = () => {
+    if (!requireAuth({ path: "/custom-order" })) {
+      saveDraftBeforeLogin();
+      if (hasAttachments)
+        snackbar("로그인 후 참고 이미지를 다시 첨부해 주세요.");
+      return;
+    }
+    setEstimateEmailOpen(true);
+  };
+
   const submitOrderDraft = async () => {
     if (!amount || !calculation.isCurrent || submitting) return;
     setSubmitting(true);
@@ -512,6 +524,17 @@ function CustomOrderPageContent({
                 배송지와 연락처 확인 후 접수됩니다.
               </Text>
             ) : null}
+            {/* 금액만 계산됐으면 된다 — 연락처·배송지 검증은 주문·견적 요청용이다. */}
+            <Box
+              as={ActionButton}
+              type="button"
+              variant="neutralOutline"
+              width="full"
+              disabled={!priceReady}
+              onClick={requestEstimateEmail}
+            >
+              견적서 메일로 받기
+            </Box>
           </VStack>
         }
         detail={
@@ -1084,6 +1107,13 @@ function CustomOrderPageContent({
           selected={address}
           onOpenChange={setAddressModalOpen}
           onSelect={setAddress}
+        />
+        <EstimateEmailModal
+          open={estimateEmailOpen}
+          onOpenChange={setEstimateEmailOpen}
+          payload={quotePayload}
+          defaultEmail={user?.email ?? ""}
+          defaultCompanyName={contact.businessName}
         />
         <AlertDialog
           open={quoteConfirmOpen}

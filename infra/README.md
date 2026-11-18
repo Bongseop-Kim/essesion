@@ -65,6 +65,7 @@ printf '%s' '<값>' | gcloud secrets versions add '<시크릿ID>' --data-file=- 
 #   toss-secret-key  solapi-api-key  solapi-api-secret
 #   google-client-secret  kakao-client-secret  naver-client-secret
 #   sentry-dsn-api  sentry-dsn-worker
+#   icloud-smtp-password (help@essesion.com 발신용 iCloud 앱 암호 — SMTP_USERNAME은 tfvars의 api_extra_env)
 
 # apple-private-key만 .p8 파일을 통째로
 gcloud secrets versions add apple-private-key --data-file='<AuthKey.p8 경로>' --project=ysindustry

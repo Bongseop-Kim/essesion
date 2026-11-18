@@ -2872,6 +2872,30 @@ export type CustomAmountResponse = {
 };
 
 /**
+ * CustomEstimateEmailRequest
+ */
+export type CustomEstimateEmailRequest = {
+    /**
+     * Company Name
+     */
+    company_name?: string | null;
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Options
+     */
+    options: {
+        [key: string]: unknown;
+    };
+    /**
+     * Quantity
+     */
+    quantity: number;
+};
+
+/**
  * CustomOrderCreateRequest
  */
 export type CustomOrderCreateRequest = {
@@ -10825,6 +10849,31 @@ export type CalculateCustomOrderResponses = {
 };
 
 export type CalculateCustomOrderResponse = CalculateCustomOrderResponses[keyof CalculateCustomOrderResponses];
+
+export type SendCustomEstimateEmailData = {
+    body: CustomEstimateEmailRequest;
+    path?: never;
+    query?: never;
+    url: '/orders/custom/estimate-email';
+};
+
+export type SendCustomEstimateEmailErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SendCustomEstimateEmailError = SendCustomEstimateEmailErrors[keyof SendCustomEstimateEmailErrors];
+
+export type SendCustomEstimateEmailResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type SendCustomEstimateEmailResponse = SendCustomEstimateEmailResponses[keyof SendCustomEstimateEmailResponses];
 
 export type CreateSampleOrderData = {
     body: SampleOrderCreateRequest;

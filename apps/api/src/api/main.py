@@ -18,6 +18,7 @@ from api.domains.auth.oauth import build_oauth
 from api.domains.auth.rate_limit import AuthRateLimiter, RecentKeyCache
 from api.errors import SECURITY_RESPONSE_HEADERS, register_error_handlers
 from api.integrations.gcs import build_gcs_client
+from api.integrations.mailer import build_mailer
 from api.integrations.solapi import build_solapi_client
 from api.integrations.toss import build_toss_client
 from api.integrations.worker import WorkerClient
@@ -182,12 +183,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
         app.state.toss = build_toss_client(settings)
         app.state.solapi = build_solapi_client(settings)
+        app.state.mailer = build_mailer(settings)
         app.state.gcs = build_gcs_client(settings)
         app.state.worker = WorkerClient(settings)
         app.state.capabilities = {
             # gcs는 빠지면 build_gcs_client가 기동을 중단시키므로 capability로 노출하지 않는다.
             "toss": app.state.toss.capability_mode,
             "solapi": app.state.solapi.capability_mode,
+            "mailer": app.state.mailer.capability_mode,
             "worker": app.state.worker.capability_mode,
             "batch_auth": batch_auth_capability_mode(settings),
             "oauth_google": _capability(
@@ -254,6 +257,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         window_seconds=settings.toss_webhook_rate_limit_window_seconds,
         max_keys=settings.public_rate_limit_max_keys,
         detail="결제 웹훅 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+    )
+    app.state.estimate_mail_user_rate_limiter = AuthRateLimiter(
+        attempts=settings.estimate_mail_user_rate_limit_attempts,
+        window_seconds=settings.estimate_mail_user_rate_limit_window_seconds,
+        max_keys=settings.public_rate_limit_max_keys,
+        detail="견적서 메일 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+    )
+    app.state.estimate_mail_total_rate_limiter = AuthRateLimiter(
+        attempts=settings.estimate_mail_total_rate_limit_attempts,
+        window_seconds=settings.estimate_mail_total_rate_limit_window_seconds,
+        max_keys=1,
+        detail="오늘 견적서 메일 발송이 마감되었습니다. 내일 다시 시도해주세요.",
     )
     app.state.toss_invalid_payment_keys = RecentKeyCache(
         ttl_seconds=settings.toss_invalid_key_cache_ttl_seconds,

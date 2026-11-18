@@ -30,6 +30,7 @@ locals {
     TOSS_SECRET_KEY      = "toss-secret-key"
     SOLAPI_API_KEY       = "solapi-api-key"
     SOLAPI_API_SECRET    = "solapi-api-secret"
+    SMTP_PASSWORD        = "icloud-smtp-password"
     GOOGLE_CLIENT_SECRET = "google-client-secret"
     KAKAO_CLIENT_SECRET  = "kakao-client-secret"
     NAVER_CLIENT_SECRET  = "naver-client-secret"
