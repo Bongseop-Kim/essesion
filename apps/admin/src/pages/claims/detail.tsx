@@ -51,6 +51,7 @@ import {
 } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
+import { BackToListButton } from "../../shared/ui/back-to-list-button";
 import { DetailList } from "../../shared/ui/detail-list";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { formatStatus, StatusBadge } from "../../shared/ui/status-badge";
@@ -408,7 +409,7 @@ export function ClaimDetailPage() {
               `${shippingAddress.postal_code} ${shippingAddress.address} ${shippingAddress.address_detail ?? ""}`.trim(),
           },
           {
-            label: "수령인",
+            label: "받는 분",
             value: `${shippingAddress.recipient_name} · ${formatPhoneNumber(shippingAddress.recipient_phone)}`,
           },
           {
@@ -525,80 +526,59 @@ export function ClaimDetailPage() {
     setValidationError(undefined);
   };
 
-  const actionPanel = (
-    <AdminCard title="운영 액션">
-      <VStack gap="x4" alignItems="stretch">
-        <HStack gap="x2" wrap>
-          {(data.admin_actions ?? []).map((action) => (
-            <ActionButton
-              key={`${action.kind}-${action.target_status ?? ""}`}
-              variant={action.destructive ? "criticalSolid" : "neutralOutline"}
-              disabled={
-                !action.enabled || actionPending || selectedAction !== undefined
-              }
-              title={action.blocking_reason ?? undefined}
-              onClick={() => selectPrimaryAction(action)}
-            >
-              {action.label}
-            </ActionButton>
-          ))}
-        </HStack>
-        {(data.admin_actions ?? [])
-          .filter((action) => !action.enabled && action.blocking_reason)
-          .map((action) => (
-            <Text
-              key={action.label}
-              textStyle="caption"
-              color="fg.neutral-muted"
-            >
-              {action.label}: {action.blocking_reason}
-            </Text>
-          ))}
-        {selectedAction !== undefined && (
-          <VStack
-            as="form"
-            gap="x3"
-            alignItems="stretch"
-            onSubmit={submitAction}
-          >
-            <Text as="h3" textStyle="label">
-              {selectedAction.label}
-            </Text>
-            <TextAreaField
-              label={selectedAction.requires_memo ? "처리 사유 (필수)" : "메모"}
-              value={memo}
-              maxLength={500}
-              errorMessage={validationError}
-              onChange={(event) => setMemo(event.currentTarget.value)}
-            />
-            {statusMutation.isError && (
-              <Callout
-                role="alert"
-                tone="critical"
-                title="작업을 완료하지 못했습니다"
-                description={getErrorMessage(
-                  statusMutation.error,
-                  "현재 상태를 새로고침한 뒤 다시 시도해 주세요.",
-                )}
-              />
+  // 주문 상세와 같은 배치 — 액션 버튼은 헤더의 상태 배지 옆, 고른 액션의 입력 폼은 헤더 바로 아래.
+  const actionButtons = (data.admin_actions ?? []).map((action) => (
+    <ActionButton
+      key={`${action.kind}-${action.target_status ?? ""}`}
+      variant={action.destructive ? "criticalSolid" : "neutralOutline"}
+      disabled={
+        !action.enabled || actionPending || selectedAction !== undefined
+      }
+      title={action.blocking_reason ?? undefined}
+      onClick={() => selectPrimaryAction(action)}
+    >
+      {action.label}
+    </ActionButton>
+  ));
+  const blockedActions = (data.admin_actions ?? []).filter(
+    (action) => !action.enabled && action.blocking_reason,
+  );
+  const actionForm = selectedAction !== undefined && (
+    <AdminCard title={selectedAction.label}>
+      <VStack as="form" gap="x3" alignItems="stretch" onSubmit={submitAction}>
+        <TextAreaField
+          label={selectedAction.requires_memo ? "처리 사유 (필수)" : "메모"}
+          value={memo}
+          maxLength={500}
+          errorMessage={validationError}
+          onChange={(event) => setMemo(event.currentTarget.value)}
+        />
+        {statusMutation.isError && (
+          <Callout
+            role="alert"
+            tone="critical"
+            title="작업을 완료하지 못했습니다"
+            description={getErrorMessage(
+              statusMutation.error,
+              "현재 상태를 새로고침한 뒤 다시 시도해 주세요.",
             )}
-            <HStack gap="x2">
-              <ActionButton type="submit" loading={actionPending}>
-                {selectedAction.destructive
-                  ? `${selectedAction.label} 검토`
-                  : selectedAction.label}
-              </ActionButton>
-              <ActionButton
-                type="button"
-                variant="ghost"
-                disabled={actionPending}
-                onClick={cancelPrimaryAction}
-              >
-                취소
-              </ActionButton>
-            </HStack>
-          </VStack>
+          />
         )}
+        <HStack gap="x2">
+          <ActionButton type="submit" loading={actionPending}>
+            {selectedAction.destructive
+              ? `${selectedAction.label} 검토`
+              : selectedAction.label}
+          </ActionButton>
+          <ActionButton
+            type="button"
+            variant="ghost"
+            disabled={actionPending}
+            onClick={cancelPrimaryAction}
+          >
+            취소
+          </ActionButton>
+        </HStack>
       </VStack>
     </AdminCard>
   );
@@ -607,10 +587,28 @@ export function ClaimDetailPage() {
     <VStack gap="x6" alignItems="stretch">
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading title={`클레임 ${data.claim_number}`} />
-        <StatusBadge status={data.status} />
+        <HStack gap="x2" wrap>
+          <StatusBadge status={data.status} />
+          {actionButtons}
+          <BackToListButton to="/claims" />
+        </HStack>
       </HStack>
 
-      {actionPanel}
+      {blockedActions.length > 0 && (
+        <VStack gap="x1">
+          {blockedActions.map((action) => (
+            <Text
+              key={action.label}
+              textStyle="caption"
+              color="fg.neutral-muted"
+            >
+              {action.label}: {action.blocking_reason}
+            </Text>
+          ))}
+        </VStack>
+      )}
+
+      {actionForm}
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabList aria-label="클레임 상세 메뉴">

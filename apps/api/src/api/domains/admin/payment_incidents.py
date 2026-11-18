@@ -225,8 +225,30 @@ async def list_incidents(
             .offset(offset)
         )
     )
+    order_ids = {incident.order_id for incident in incidents if incident.order_id is not None}
+    claim_ids = {incident.claim_id for incident in incidents if incident.claim_id is not None}
+    order_numbers: dict[uuid.UUID | None, str] = {}
+    if order_ids:
+        rows = await session.execute(
+            select(Order.id, Order.order_number).where(Order.id.in_(order_ids))
+        )
+        order_numbers = {row.id: row.order_number for row in rows}
+    claim_numbers: dict[uuid.UUID | None, str] = {}
+    if claim_ids:
+        rows = await session.execute(
+            select(Claim.id, Claim.claim_number).where(Claim.id.in_(claim_ids))
+        )
+        claim_numbers = {row.id: row.claim_number for row in rows}
     return Page[PaymentIncidentSummaryOut](
-        items=[_summary(incident) for incident in incidents],
+        items=[
+            _summary(incident).model_copy(
+                update={
+                    "order_number": order_numbers.get(incident.order_id),
+                    "claim_number": claim_numbers.get(incident.claim_id),
+                }
+            )
+            for incident in incidents
+        ],
         total=total,
         limit=limit,
         offset=offset,
@@ -250,7 +272,7 @@ async def get_incident_detail(
             select(Claim.claim_number).where(Claim.id == incident.claim_id)
         )
     return PaymentIncidentDetailOut(
-        **_summary(incident).model_dump(),
+        **_summary(incident).model_dump(exclude={"order_number", "claim_number"}),
         details=_sanitize(incident.details),
         resolution_memo=incident.resolution_memo,
         order_number=order_number,

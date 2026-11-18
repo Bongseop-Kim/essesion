@@ -1,21 +1,7 @@
-/** 주문·수선 발송에서 선택할 수 있는 택배사 코드.
- *  코드는 백엔드 검증 규칙 `^[a-z0-9_-]{1,30}$`을 따른다. */
-export const COURIER_OPTIONS: readonly { value: string; label: string }[] = [
-  { value: "cj", label: "CJ대한통운" },
-  { value: "hanjin", label: "한진택배" },
-  { value: "lotte", label: "롯데택배" },
-  { value: "logen", label: "로젠택배" },
-  { value: "epost", label: "우체국택배" },
-  { value: "cupost", label: "CU 편의점택배" },
-  { value: "cvsnet", label: "GS Postbox" },
-  { value: "kyungdong", label: "경동택배" },
-  { value: "daesin", label: "대신택배" },
-  { value: "ilyang", label: "일양로지스" },
-  { value: "chunil", label: "천일택배" },
-  { value: "hapdong", label: "합동택배" },
-  { value: "slx", label: "SLX택배" },
-  { value: "etc", label: "기타" },
-];
+import { COURIER_OPTIONS, courierLabel } from "@essesion/shared";
+
+// 택배사 목록은 admin 송장 입력과 같이 쓰려고 shared로 옮겼다 — 여기서는 조회 URL만 소유한다.
+export { COURIER_OPTIONS, courierLabel };
 
 const TRACKING_URL_TEMPLATES: Partial<Record<string, string>> = {
   cj: "https://trace.cjlogistics.com/web/detail.jsp?slipno={trackingNumber}",
@@ -36,18 +22,16 @@ const TRACKING_URL_TEMPLATES: Partial<Record<string, string>> = {
     "https://home.ds3211.co.kr/freight/internalFreightSearch.ht?billno={trackingNumber}",
 };
 
-/** 미등록 코드는 운영자가 값을 확인할 수 있게 그대로 표시한다. */
-export function courierLabel(code: string | null | undefined): string {
-  if (!code) return "";
-  return COURIER_OPTIONS.find((option) => option.value === code)?.label ?? code;
-}
-
 export function courierTrackingUrl(
   code: string | null | undefined,
   trackingNumber: string | null | undefined,
 ): string | null {
   if (!code || !trackingNumber) return null;
-  const template = TRACKING_URL_TEMPLATES[code];
+  // admin 송장 입력은 택배사를 이름으로 저장한다(알림톡 #{택배사}) — 이름이면 코드로 되돌려 찾는다.
+  const template =
+    TRACKING_URL_TEMPLATES[
+      COURIER_OPTIONS.find((option) => option.label === code)?.value ?? code
+    ];
   return template
     ? template.replace("{trackingNumber}", encodeURIComponent(trackingNumber))
     : null;

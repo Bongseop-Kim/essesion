@@ -9,6 +9,7 @@ import {
   ActionButton,
   AlertDialog,
   Box,
+  HStack,
   ImageFrame,
   Switch,
   snackbar,
@@ -195,6 +196,9 @@ export function DesignExamplesPage() {
       ),
     },
   ];
+  // 두 줄 목록도 표와 같은 컨트롤을 쓴다 — 열 렌더러를 그대로 가져온다
+  const cell = (key: string, row: AdminDesignExampleOut) =>
+    columns.find((column) => column.key === key)?.render(row);
 
   return (
     <VStack gap="x6" alignItems="stretch">
@@ -277,6 +281,18 @@ export function DesignExamplesPage() {
             columns={columns}
             rows={filteredExamples}
             getRowKey={(row) => row.id}
+            compactRow={(row) => ({
+              leading: cell("preview", row),
+              title: row.name,
+              trailing: cell("published", row),
+              meta: row.caption ?? "설명 없음",
+              status: (
+                <HStack gap="x2" className="shrink-0">
+                  {cell("ordinal", row)}
+                  {cell("actions", row)}
+                </HStack>
+              ),
+            })}
             status={
               query.isLoading ? "loading" : query.isError ? "error" : "success"
             }

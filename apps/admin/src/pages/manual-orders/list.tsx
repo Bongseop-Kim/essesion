@@ -85,7 +85,7 @@ const columns: readonly AdminTableColumn<ManualOrderOut>[] = [
       <VStack gap="x0_5" alignItems="flex-end">
         <Text textStyle="bodySm">{formatMoney(order.amount)}</Text>
         <Text textStyle="caption" color="fg.neutral-muted">
-          택배비 {formatMoney(order.shipping_fee)}
+          배송비 {formatMoney(order.shipping_fee)}
         </Text>
       </VStack>
     ),
@@ -166,6 +166,12 @@ export function ManualOrdersPage() {
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
+        compactRow={(row) => ({
+          title: row.customer_name,
+          trailing: formatMoney(row.amount),
+          meta: `${MANUAL_ORDER_KIND_LABEL[manualOrderKind(row)]} · ${formatDate(row.order_date)}`,
+          status: <StatusChecks order={row} />,
+        })}
         onRowClick={(row) =>
           navigate(manualOrderPath(manualOrderKind(row), row.id))
         }

@@ -388,6 +388,12 @@ export function SeamlessLogsPage() {
         columns={columns}
         rows={listQuery.data?.items}
         getRowKey={(row) => row.id}
+        compactRow={(row) => ({
+          title: inputTypeLabel(row.input_type),
+          trailing: `경고 ${row.warning_count}건`,
+          meta: `${formatDateTime(row.created_at)}${row.error_summary ? ` · ${row.error_summary}` : ""}`,
+          status: <OperationalStatusBadge status={row.status} />,
+        })}
         onRowClick={(row) => navigate(`/seamless-logs/${row.id}`)}
         status={
           listQuery.isLoading || listQuery.isPlaceholderData

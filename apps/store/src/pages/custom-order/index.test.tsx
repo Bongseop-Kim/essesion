@@ -216,4 +216,30 @@ describe("CustomOrderPage", () => {
     await screen.findByRole("button", { name: "design.png 삭제" });
     queryClient.clear();
   });
+
+  it("자수·필름 주문은 넥타이 칸 대신 로고 칸만, 브랜드 라벨을 고르면 라벨 칸을 더한다", () => {
+    render(
+      <MemoryRouter initialEntries={["/custom-order"]}>
+        <QueryClientProvider client={new QueryClient()}>
+          <CustomOrderPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+    const slot = (label: string) =>
+      screen.queryByLabelText(`${label} 참고 이미지 추가`);
+
+    expect(slot("대검")).not.toBeNull();
+    expect(slot("소검")).not.toBeNull();
+    expect(slot("브랜드 라벨")).toBeNull();
+    expect(slot("로고")).toBeNull();
+
+    fireEvent.click(screen.getByLabelText("브랜드 라벨"));
+    expect(slot("브랜드 라벨")).not.toBeNull();
+
+    fireEvent.click(screen.getByLabelText("자수·필름"));
+    expect(slot("대검")).toBeNull();
+    expect(slot("소검")).toBeNull();
+    expect(slot("로고")).not.toBeNull();
+    expect(slot("브랜드 라벨")).not.toBeNull();
+  });
 });

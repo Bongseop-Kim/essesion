@@ -42,6 +42,7 @@ import {
 import type { ManualOrderKind } from "../../shared/lib/manual-order-kind";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
+import { EditModeShell } from "../../shared/ui/edit-mode-shell";
 import { NumberField } from "../../shared/ui/number-field";
 import {
   MANUAL_ORDER_IMAGE_ACCEPT,
@@ -673,7 +674,7 @@ export function ManualOrderForm({
                 onValueChange={(value) => update("discount", value)}
               />
               <NumberField
-                label="택배비"
+                label="배송비"
                 suffix="원"
                 groupThousands
                 value={draft.shippingFee}
@@ -684,7 +685,7 @@ export function ManualOrderForm({
             </Grid>
 
             <Text textStyle="bodySm" color="fg.neutral-muted">
-              원금 − 할인 + 택배비 = {formatMoney(orderAmount)}
+              원금 − 할인 + 배송비 = {formatMoney(orderAmount)}
             </Text>
 
             <VStack gap="x2" alignItems="stretch">
@@ -1220,21 +1221,26 @@ export function ManualOrderForm({
           </VStack>
         )}
 
-        <HStack gap="x2" wrap>
-          <ActionButton type="submit" loading={pending}>
-            {submitLabel}
-          </ActionButton>
-          <ActionButton
-            variant="ghost"
-            disabled={!dirty || pending}
-            onClick={() => {
-              setDraft(baseDraft);
-              setAttempted(false);
-            }}
-          >
-            입력 취소
-          </ActionButton>
-        </HStack>
+        <EditModeShell
+          status={dirty ? "저장하지 않은 변경이 있습니다" : "변경 없음"}
+          actions={
+            <>
+              <ActionButton
+                variant="ghost"
+                disabled={!dirty || pending}
+                onClick={() => {
+                  setDraft(baseDraft);
+                  setAttempted(false);
+                }}
+              >
+                입력 취소
+              </ActionButton>
+              <ActionButton type="submit" loading={pending}>
+                {submitLabel}
+              </ActionButton>
+            </>
+          }
+        />
       </VStack>
 
       <AlertDialog

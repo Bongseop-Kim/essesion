@@ -99,7 +99,8 @@ export function StickySectionNav({
         top={{ base: "x14", md: "x16" }}
         zIndex="z.sticky"
         bg="bg.layer-default"
-        className="border-b border-stroke-neutral-weak"
+        // lg 미만은 GuideSection처럼 LayoutContent 거터 밖 화면 끝까지 — 옆으로 아래 섹션이 비치지 않게
+        className="-mx-x4 border-b border-stroke-neutral-weak md:-mx-x6 lg:mx-0"
       >
         {sections.map((section) => {
           const active = activeId === section.id;

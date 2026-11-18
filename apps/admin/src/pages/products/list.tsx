@@ -237,6 +237,11 @@ export function ProductsPage() {
         columns={columns}
         rows={query.data?.items}
         getRowKey={(product) => String(product.id)}
+        compactRow={(product) => ({
+          title: product.name,
+          trailing: formatMoney(product.price),
+          meta: `${product.code ?? "상품 코드 없음"} · 재고 ${stockLabel(product)}`,
+        })}
         onRowClick={(product) => navigate(`/products/${product.id}`)}
         status={
           query.isLoading || query.isPlaceholderData

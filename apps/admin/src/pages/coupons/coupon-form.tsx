@@ -4,7 +4,6 @@ import {
   AlertDialog,
   Callout,
   Grid,
-  HStack,
   RadioGroup,
   RadioGroupItem,
   Switch,
@@ -25,6 +24,7 @@ import {
 import { getErrorMessage } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
+import { EditModeShell } from "../../shared/ui/edit-mode-shell";
 import { NumberField } from "../../shared/ui/number-field";
 
 export type CouponDraft = {
@@ -342,21 +342,26 @@ export function CouponDefinitionForm({
             </VStack>
           )}
 
-          <HStack gap="x2" wrap>
-            <ActionButton type="submit" loading={pending}>
-              {submitLabel}
-            </ActionButton>
-            <ActionButton
-              variant="ghost"
-              disabled={!dirty || pending}
-              onClick={() => {
-                setDraft(baseDraft);
-                setAttempted(false);
-              }}
-            >
-              수정 취소
-            </ActionButton>
-          </HStack>
+          <EditModeShell
+            status={dirty ? "저장하지 않은 변경이 있습니다" : "변경 없음"}
+            actions={
+              <>
+                <ActionButton
+                  variant="ghost"
+                  disabled={!dirty || pending}
+                  onClick={() => {
+                    setDraft(baseDraft);
+                    setAttempted(false);
+                  }}
+                >
+                  입력 취소
+                </ActionButton>
+                <ActionButton type="submit" loading={pending}>
+                  {submitLabel}
+                </ActionButton>
+              </>
+            }
+          />
         </VStack>
       </AdminCard>
 

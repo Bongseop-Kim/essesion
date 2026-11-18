@@ -5,7 +5,11 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
-import { formatDateTime, formatMoney } from "../../shared/lib/format";
+import {
+  formatDate,
+  formatDateTime,
+  formatMoney,
+} from "../../shared/lib/format";
 import { activeAdminPollingInterval } from "../../shared/lib/polling";
 import {
   useAdminListPageCorrection,
@@ -69,14 +73,18 @@ const columns: readonly AdminTableColumn<PaymentIncidentSummaryOut>[] = [
     render: (incident) => (
       <VStack gap="x0_5">
         {incident.order_id !== null ? (
-          <Link to={`/orders/${incident.order_id}`}>주문 보기</Link>
+          <Link to={`/orders/${incident.order_id}`}>
+            {incident.order_number ?? "주문 보기"}
+          </Link>
         ) : (
           <Text textStyle="caption" color="fg.neutral-muted">
             연결 주문 없음
           </Text>
         )}
         {incident.claim_id !== null && (
-          <Link to={`/claims/${incident.claim_id}`}>클레임 보기</Link>
+          <Link to={`/claims/${incident.claim_id}`}>
+            {incident.claim_number ?? "클레임 보기"}
+          </Link>
         )}
       </VStack>
     ),
@@ -163,6 +171,12 @@ export function IncidentsPage() {
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
+        compactRow={(row) => ({
+          title: incidentTypeLabel(row.incident_type),
+          trailing: formatMoney(row.observed_amount),
+          meta: `${row.order_number ?? "연결 주문 없음"} · ${formatDate(row.created_at)}`,
+          status: <StatusBadge status={row.status} />,
+        })}
         onRowClick={(row) => navigate(`/incidents/${row.id}`)}
         status={
           query.isLoading || query.isPlaceholderData

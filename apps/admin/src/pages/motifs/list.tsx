@@ -73,6 +73,7 @@ const columns: readonly AdminTableColumn<MotifSummaryOut>[] = [
   {
     key: "metadata",
     header: "메타데이터",
+    visibility: "medium",
     render: (motif) =>
       [motif.scope, motif.style]
         .filter((value) => value !== null)
@@ -81,6 +82,7 @@ const columns: readonly AdminTableColumn<MotifSummaryOut>[] = [
   {
     key: "source",
     header: "소스",
+    visibility: "medium",
     render: (motif) => motif.source,
   },
   {
@@ -142,6 +144,15 @@ export function MotifsPage() {
         rows={query.data?.items}
         getRowKey={(row) => row.id}
         onRowClick={(motif) => navigate(`/motifs/${motif.id}`)}
+        compactRow={(motif) => ({
+          leading: <MotifPreviewCell motif={motif} />,
+          title: motif.subject ?? motif.id,
+          trailing: motif.source,
+          meta:
+            [motif.scope, motif.style]
+              .filter((value) => value !== null)
+              .join(" · ") || motif.id,
+        })}
         status={
           query.isLoading || query.isPlaceholderData
             ? "loading"

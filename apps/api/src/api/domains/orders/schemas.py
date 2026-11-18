@@ -86,8 +86,9 @@ class CustomAmountResponse(BaseModel):
     total_cost: int
 
 
-# 참고 이미지 부위 — 주문서의 넥타이 전체·대검·매듭·소검 칸에 1장씩. 없으면(None) 추가 이미지.
-ReferencePart = Literal["full", "blade", "knot", "tail"]
+# 참고 이미지 부위 — 주문서의 넥타이 전체·대검·매듭·소검 칸, 브랜드 라벨 도안 칸, 포인트 주문의
+# 로고 칸에 1장씩. 없으면(None) 추가 이미지.
+ReferencePart = Literal["full", "blade", "knot", "tail", "brand_label", "logo"]
 
 
 def as_reference_part(value: object) -> ReferencePart | None:

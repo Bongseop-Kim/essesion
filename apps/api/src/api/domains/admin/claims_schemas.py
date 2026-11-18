@@ -159,6 +159,9 @@ class PaymentIncidentSummaryOut(BaseModel):
     resolved_at: datetime | None
     created_at: datetime
     updated_at: datetime
+    # 목록·상세가 "주문 보기" 대신 번호로 연결을 보여 준다. 클레임 상세에 딸린 요약에서는 비운다.
+    order_number: str | None = None
+    claim_number: str | None = None
 
 
 class IncidentAdminAction(BaseModel):
@@ -173,8 +176,6 @@ class IncidentAdminAction(BaseModel):
 class PaymentIncidentDetailOut(PaymentIncidentSummaryOut):
     details: dict[str, Any]
     resolution_memo: str | None
-    order_number: str | None
-    claim_number: str | None
     admin_actions: list[IncidentAdminAction] = Field(default_factory=list)
 
 

@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import {
+  formatDate,
   formatDateTime,
   formatMoney,
   formatOrderType,
@@ -94,6 +95,8 @@ const columns: readonly AdminTableColumn<AdminOrderSummaryOut>[] = [
   {
     key: "recipient",
     header: "받는 분",
+    // 모바일은 주문번호·주문자·금액·상태만 — 받는 분은 상세에서 본다
+    visibility: "medium",
     render: (order) =>
       order.recipient_name ? (
         <VStack gap="x0_5">
@@ -199,6 +202,12 @@ export function OrdersPage() {
         rows={query.data?.items}
         getRowKey={(row) => row.id}
         onRowClick={(row) => navigate(`/orders/${row.id}`)}
+        compactRow={(row) => ({
+          title: row.customer.name,
+          trailing: formatMoney(row.order_amount),
+          meta: `${row.order_number} · ${formatDate(row.created_at)}`,
+          status: <StatusBadge status={row.status} />,
+        })}
         status={
           query.isLoading || query.isPlaceholderData
             ? "loading"

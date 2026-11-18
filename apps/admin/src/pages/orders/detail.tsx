@@ -12,6 +12,7 @@ import {
   createAdminRepairReceiptPhotoReadUrlMutation,
   getAdminOrderOptions,
   getAdminOrderQueryKey,
+  getAdminSettingsOptions,
   listAdminOrderReferenceImagesOptions,
   listAdminRepairReceiptPhotosOptions,
   listAllOrdersQueryKey,
@@ -21,11 +22,14 @@ import {
   AlertDialog,
   Box,
   Callout,
+  COURIER_OPTIONS,
   ContentPlaceholder,
+  courierLabel,
   decodeOrderItemContent,
   decodeTieSpec,
   formatPhoneNumber,
   HStack,
+  ListPicker,
   REFERENCE_PART_LABELS,
   recommendedTieLengthCm,
   Skeleton,
@@ -57,6 +61,7 @@ import {
 } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
+import { BackToListButton } from "../../shared/ui/back-to-list-button";
 import { type DetailItem, DetailList } from "../../shared/ui/detail-list";
 import { OptionPair } from "../../shared/ui/option-pair";
 import { PrivateAssetPreview } from "../../shared/ui/private-asset-preview";
@@ -88,6 +93,23 @@ function orderTabFrom(
 }
 
 // API 라벨은 원문 상태명("발송중 상태로 진행")이라 입고·출고 방향이 안 보인다 — 화면 라벨로 다시 짓는다.
+/**
+ * 송장 입력 피커의 택배사 목록 — 값은 이름으로 저장한다(배송 알림톡 #{택배사}에 그대로 들어간다).
+ * 고객이 수선 발송에 남긴 코드(예: epost)는 같은 택배사 칸의 값으로 그대로 두고, 목록에 없는
+ * 과거 입력값은 맨 위에 남겨 열자마자 사라지지 않게 한다.
+ */
+function courierOptions(current: string) {
+  const options = COURIER_OPTIONS.filter(
+    (option) => option.value !== "etc",
+  ).map((option) => ({
+    value: option.value === current ? option.value : option.label,
+    label: option.label,
+  }));
+  return current && !options.some((option) => option.value === current)
+    ? [{ value: current, label: current }, ...options]
+    : options;
+}
+
 function withDisplayLabel(action: AdminAction): AdminAction {
   if (action.target_status == null) return action;
   const target = formatStatus(action.target_status);
@@ -414,6 +436,10 @@ export function OrderDetailPage() {
     }),
     enabled: orderId !== "" && hasOrderImages,
   });
+  const settingsQuery = useQuery(getAdminSettingsOptions());
+  const defaultCourier =
+    settingsQuery.data?.find((item) => item.key === "default_courier_company")
+      ?.value ?? "";
   const [selectedAction, setSelectedAction] = useState<AdminAction>();
   const [memo, setMemo] = useState("");
   const [courier, setCourier] = useState("");
@@ -516,6 +542,13 @@ export function OrderDetailPage() {
     });
   };
 
+  // 회사가 보내는 송장(수선은 company_*, 그 외는 일반 송장)이 비어 있으면 설정의 기본 택배사를 제안한다.
+  // 상태에 복사하지 않고 그릴 때 채운다 — 설정이 액션을 고른 뒤에 도착해도 반영된다.
+  const isRepair = data.order_type === "repair";
+  const courierValue = courier || (isRepair ? "" : defaultCourier);
+  const companyCourierValue =
+    companyCourier || (isRepair ? defaultCourier : "");
+
   const submitAction = (event: FormEvent) => {
     event.preventDefault();
     setValidationError(undefined);
@@ -523,9 +556,9 @@ export function OrderDetailPage() {
       trackingMutation.mutate({
         path: { order_id: data.id },
         body: {
-          courier_company: courier.trim() || null,
+          courier_company: courierValue.trim() || null,
           tracking_number: tracking.trim() || null,
-          company_courier_company: companyCourier.trim() || null,
+          company_courier_company: companyCourierValue.trim() || null,
           company_tracking_number: companyTracking.trim() || null,
         },
       });
@@ -566,120 +599,104 @@ export function OrderDetailPage() {
       image.order_item_id == null || !itemIds.has(image.order_item_id),
   );
   const adminActions = (data.admin_actions ?? []).map(withDisplayLabel);
-  const actionPanel = (
-    <AdminCard title="운영 액션">
-      <VStack gap="x4" alignItems="stretch">
-        <HStack gap="x2" wrap>
-          {adminActions.map((action) => (
-            <ActionButton
-              key={`${action.kind}-${action.target_status ?? ""}`}
-              variant={action.destructive ? "criticalSolid" : "neutralOutline"}
-              disabled={!action.enabled || actionPending || actionOpen}
-              title={action.blocking_reason ?? undefined}
-              onClick={() => selectAction(action)}
-            >
-              {action.label}
-            </ActionButton>
-          ))}
-        </HStack>
-        {adminActions
-          .filter((action) => !action.enabled && action.blocking_reason)
-          .map((action) => (
-            <Text
-              key={action.label}
-              textStyle="caption"
-              color="fg.neutral-muted"
-            >
-              {action.label}: {action.blocking_reason}
-            </Text>
-          ))}
-
-        {selectedAction !== undefined && (
-          <VStack
-            as="form"
-            gap="x3"
-            alignItems="stretch"
-            onSubmit={submitAction}
-          >
-            <Text as="h3" textStyle="label">
-              {selectedAction.label}
-            </Text>
-            <Callout
-              tone="informative"
-              title="현재 작업을 먼저 완료해 주세요"
-              description="저장하거나 취소하면 다른 탭으로 이동할 수 있습니다."
-            />
-            {selectedAction.kind === "update_tracking" ? (
-              <>
-                <TextField
-                  label="택배사"
-                  value={courier}
-                  onChange={(event) => setCourier(event.currentTarget.value)}
-                />
-                <TextField
-                  label="송장번호"
-                  value={tracking}
-                  onChange={(event) => setTracking(event.currentTarget.value)}
-                />
-                <TextField
-                  label="회사 발송 택배사"
-                  value={companyCourier}
-                  onChange={(event) =>
-                    setCompanyCourier(event.currentTarget.value)
-                  }
-                />
-                <TextField
-                  label="회사 발송 송장번호"
-                  value={companyTracking}
-                  onChange={(event) =>
-                    setCompanyTracking(event.currentTarget.value)
-                  }
-                />
-              </>
-            ) : (
-              <TextAreaField
-                label={
-                  selectedAction.requires_memo ? "변경 사유 (필수)" : "메모"
-                }
-                value={memo}
-                maxLength={500}
-                errorMessage={validationError}
-                onChange={(event) => setMemo(event.currentTarget.value)}
-              />
-            )}
-            {(statusMutation.isError || trackingMutation.isError) && (
-              <Callout
-                role="alert"
-                tone="critical"
-                title="작업을 완료하지 못했습니다"
-                description={getErrorMessage(
-                  statusMutation.error ?? trackingMutation.error,
-                  "현재 상태를 새로고침한 뒤 다시 시도해 주세요.",
-                )}
-              />
-            )}
-            <HStack gap="x2">
-              <ActionButton type="submit" loading={actionPending}>
-                {selectedAction.kind === "update_tracking"
-                  ? "송장 정보 저장"
-                  : selectedAction.destructive
-                    ? `${selectedAction.label} 검토`
-                    : `${selectedAction.label} 실행`}
-              </ActionButton>
-              <ActionButton
-                type="button"
-                variant="ghost"
-                disabled={actionPending}
-                onClick={cancelAction}
-              >
-                취소
-              </ActionButton>
-            </HStack>
-          </VStack>
-        )}
-      </VStack>
-    </AdminCard>
+  const actionButtons = adminActions.map((action) => (
+    <ActionButton
+      key={`${action.kind}-${action.target_status ?? ""}`}
+      variant={action.destructive ? "criticalSolid" : "neutralOutline"}
+      disabled={!action.enabled || actionPending || actionOpen}
+      title={action.blocking_reason ?? undefined}
+      onClick={() => selectAction(action)}
+    >
+      {action.label}
+    </ActionButton>
+  ));
+  const blockedActions = adminActions.filter(
+    (action) => !action.enabled && action.blocking_reason,
   );
+  // 액션을 고르면 그 입력 폼만 제목 아래에 펼친다 — 고르기 전에는 자리를 차지하지 않는다.
+  const actionForm =
+    selectedAction === undefined ? null : (
+      <AdminCard title={selectedAction.label}>
+        <VStack as="form" gap="x3" alignItems="stretch" onSubmit={submitAction}>
+          <Callout
+            tone="informative"
+            title="현재 작업을 먼저 완료해 주세요"
+            description="저장하거나 취소하면 다른 탭으로 이동할 수 있습니다."
+          />
+          {selectedAction.kind === "update_tracking" ? (
+            <>
+              {/* 수선은 고객이 보낸 입고 송장과 회사가 돌려보내는 발송 송장이 따로다 — 그 외 주문은 발송뿐 */}
+              <ListPicker
+                searchable
+                label={isRepair ? "입고 택배사" : "발송 택배사"}
+                options={courierOptions(courierValue)}
+                value={courierValue || undefined}
+                onValueChange={setCourier}
+              />
+              <TextField
+                label={isRepair ? "입고 송장번호" : "발송 송장번호"}
+                value={tracking}
+                onChange={(event) => setTracking(event.currentTarget.value)}
+              />
+              {isRepair ? (
+                <>
+                  <ListPicker
+                    searchable
+                    label="발송 택배사"
+                    options={courierOptions(companyCourierValue)}
+                    value={companyCourierValue || undefined}
+                    onValueChange={setCompanyCourier}
+                  />
+                  <TextField
+                    label="발송 송장번호"
+                    value={companyTracking}
+                    onChange={(event) =>
+                      setCompanyTracking(event.currentTarget.value)
+                    }
+                  />
+                </>
+              ) : null}
+            </>
+          ) : (
+            <TextAreaField
+              label={selectedAction.requires_memo ? "변경 사유 (필수)" : "메모"}
+              value={memo}
+              maxLength={500}
+              errorMessage={validationError}
+              onChange={(event) => setMemo(event.currentTarget.value)}
+            />
+          )}
+          {(statusMutation.isError || trackingMutation.isError) && (
+            <Callout
+              role="alert"
+              tone="critical"
+              title="작업을 완료하지 못했습니다"
+              description={getErrorMessage(
+                statusMutation.error ?? trackingMutation.error,
+                "현재 상태를 새로고침한 뒤 다시 시도해 주세요.",
+              )}
+            />
+          )}
+          <HStack gap="x2">
+            <ActionButton type="submit" loading={actionPending}>
+              {selectedAction.kind === "update_tracking"
+                ? "송장 정보 저장"
+                : selectedAction.destructive
+                  ? `${selectedAction.label} 검토`
+                  : `${selectedAction.label} 실행`}
+            </ActionButton>
+            <ActionButton
+              type="button"
+              variant="ghost"
+              disabled={actionPending}
+              onClick={cancelAction}
+            >
+              취소
+            </ActionButton>
+          </HStack>
+        </VStack>
+      </AdminCard>
+    );
 
   return (
     <VStack gap="x6" alignItems="stretch">
@@ -693,7 +710,10 @@ export function OrderDetailPage() {
           {data.claim_summary ? (
             <ClaimStatusBadge claim={data.claim_summary} />
           ) : null}
+          {actionButtons}
+          {/* 내보내기는 상시 작업이라 강조하지 않는다 — 화면에서 가장 센 버튼은 취소 같은 되돌릴 수 없는 액션뿐 */}
           <ActionButton
+            variant="neutralOutline"
             onClick={() => {
               const node = captureRef.current;
               if (node === null) return;
@@ -707,6 +727,7 @@ export function OrderDetailPage() {
           >
             작업지시서 이미지 저장
           </ActionButton>
+          <BackToListButton to="/orders" />
         </HStack>
       </HStack>
 
@@ -719,7 +740,21 @@ export function OrderDetailPage() {
         />
       )}
 
-      {actionPanel}
+      {blockedActions.length > 0 && (
+        <VStack gap="x1">
+          {blockedActions.map((action) => (
+            <Text
+              key={action.label}
+              textStyle="caption"
+              color="fg.neutral-muted"
+            >
+              {action.label}: {action.blocking_reason}
+            </Text>
+          ))}
+        </VStack>
+      )}
+
+      {actionForm}
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabList aria-label="주문 상세 메뉴">
@@ -745,13 +780,13 @@ export function OrderDetailPage() {
                 <AdminCard title="주문 정보">
                   <DetailList
                     items={[
-                      // 물건이 실제로 가는 곳은 배송지의 수취인이다 — 개요만 보고 발송한다.
+                      // 물건이 실제로 가는 곳은 배송지의 받는 분이다 — 개요만 보고 발송한다.
                       {
-                        label: "수취인",
+                        label: "받는 분",
                         value: data.shipping_address?.recipient_name ?? "-",
                       },
                       {
-                        label: "수취인 연락처",
+                        label: "받는 분 연락처",
                         value: data.shipping_address?.recipient_phone
                           ? formatPhoneNumber(
                               data.shipping_address.recipient_phone,
@@ -759,7 +794,7 @@ export function OrderDetailPage() {
                           : "-",
                       },
                       {
-                        label: "수취인 주소",
+                        label: "받는 분 주소",
                         value: data.shipping_address
                           ? `${data.shipping_address.postal_code} ${data.shipping_address.address} ${data.shipping_address.address_detail ?? ""}`.trim()
                           : "-",
@@ -772,7 +807,7 @@ export function OrderDetailPage() {
                         ),
                       },
                       {
-                        label: "회원",
+                        label: "주문자",
                         value: (
                           <Link to={`/customers/${data.customer.id}`}>
                             {data.customer.name}
@@ -931,24 +966,33 @@ export function OrderDetailPage() {
               <AdminCard title="배송 정보">
                 <DetailList
                   items={[
-                    // 수취인 이름·연락처·주소·배송 메모는 개요 카드에 있다 — 여기서 반복하지 않는다.
+                    // 받는 분 이름·연락처·주소·배송 메모는 개요 카드에 있다 — 여기서 반복하지 않는다.
                     {
-                      label: "고객 송장",
-                      value:
-                        [data.courier_company, data.tracking_number]
-                          .filter(Boolean)
-                          .join(" · ") || "-",
-                    },
-                    {
-                      label: "회사 송장",
+                      label: isRepair ? "입고 송장" : "발송 송장",
                       value:
                         [
-                          data.company_courier_company,
-                          data.company_tracking_number,
+                          courierLabel(data.courier_company),
+                          data.tracking_number,
                         ]
                           .filter(Boolean)
                           .join(" · ") || "-",
                     },
+                    ...(isRepair ||
+                    data.company_courier_company ||
+                    data.company_tracking_number
+                      ? [
+                          {
+                            label: isRepair ? "발송 송장" : "회사 송장",
+                            value:
+                              [
+                                courierLabel(data.company_courier_company),
+                                data.company_tracking_number,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ") || "-",
+                          },
+                        ]
+                      : []),
                   ]}
                 />
               </AdminCard>

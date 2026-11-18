@@ -197,4 +197,31 @@ export const REFERENCE_PART_LABELS = {
   blade: "대검",
   knot: "매듭",
   tail: "소검",
+  brand_label: "브랜드 라벨",
+  logo: "로고",
 } as const;
+
+/** 주문·수선 발송에서 선택할 수 있는 택배사 — store 수선 발송 접수와 admin 송장 입력이 같이 쓴다.
+ *  코드는 백엔드 검증 규칙 `^[a-z0-9_-]{1,30}$`을 따른다. */
+export const COURIER_OPTIONS: readonly { value: string; label: string }[] = [
+  { value: "cj", label: "CJ대한통운" },
+  { value: "hanjin", label: "한진택배" },
+  { value: "lotte", label: "롯데택배" },
+  { value: "logen", label: "로젠택배" },
+  { value: "epost", label: "우체국택배" },
+  { value: "cupost", label: "CU 편의점택배" },
+  { value: "cvsnet", label: "GS Postbox" },
+  { value: "kyungdong", label: "경동택배" },
+  { value: "daesin", label: "대신택배" },
+  { value: "ilyang", label: "일양로지스" },
+  { value: "chunil", label: "천일택배" },
+  { value: "hapdong", label: "합동택배" },
+  { value: "slx", label: "SLX택배" },
+  { value: "etc", label: "기타" },
+];
+
+/** 택배사 코드 → 이름. 미등록 코드·직접 적은 이름은 운영자가 확인할 수 있게 그대로 표시한다. */
+export function courierLabel(code: string | null | undefined): string {
+  if (!code) return "";
+  return COURIER_OPTIONS.find((option) => option.value === code)?.label ?? code;
+}

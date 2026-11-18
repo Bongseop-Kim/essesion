@@ -29,6 +29,7 @@ import {
 } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
+import { BackToListButton } from "../../shared/ui/back-to-list-button";
 import { DetailList } from "../../shared/ui/detail-list";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
@@ -160,6 +161,7 @@ export function InquiryDetailPage() {
         <HStack gap="x2">
           {data.is_secret ? <Badge>비밀글</Badge> : null}
           <StatusBadge status={data.status} />
+          <BackToListButton to="/inquiries" />
         </HStack>
       </HStack>
       <AdminCard title="문의 정보">

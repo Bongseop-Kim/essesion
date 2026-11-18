@@ -245,7 +245,7 @@ export function PricingPage() {
 
   const pricingTabs = (
     <Tabs value={tab} onValueChange={setTab}>
-      <TabList aria-label="가격 분류 선택" triggerLayout="fill">
+      <TabList aria-label="가격 분류 선택">
         {CATEGORY_TABS.map((category) => (
           <TabTrigger key={category.value} value={category.value}>
             {category.label}
@@ -291,6 +291,11 @@ export function PricingPage() {
                   rows={groups[category.value] ?? []}
                   getRowKey={(item) => item.key}
                   status="success"
+                  compactRow={(item) => ({
+                    title: pricingLabel(item.key),
+                    trailing: formatPricingAmount(item),
+                    meta: formatDateTime(item.updated_at),
+                  })}
                   emptyTitle="등록된 가격이 없습니다"
                 />
               )}

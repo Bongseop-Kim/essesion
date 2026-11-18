@@ -1,0 +1,6 @@
+# osv-scanner 예외 — 수정 버전이 없는 항목만, 만료일과 사유를 함께 적는다.
+
+[[IgnoredVulns]]
+id = "GHSA-fc5q-39xc-vjpf"
+ignoreUntil = 2027-01-18
+reason = "picomatch ReDoS — 수정 버전 미출시(4.0.7이 최신). vite·vitest·dependency-cruiser의 빌드 도구 의존성이라 신뢰하는 저장소 내부 glob만 처리하고 런타임 번들에 들어가지 않는다. 수정 버전이 나오면 pnpm overrides로 올리고 이 항목을 지운다."

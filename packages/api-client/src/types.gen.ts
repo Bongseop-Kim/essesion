@@ -1202,7 +1202,7 @@ export type AdminOrderReferenceImageOut = {
     /**
      * Part
      */
-    part?: 'full' | 'blade' | 'knot' | 'tail' | null;
+    part?: 'full' | 'blade' | 'knot' | 'tail' | 'brand_label' | 'logo' | null;
     /**
      * Size Bytes
      */
@@ -1902,7 +1902,7 @@ export type AdminQuoteImageOut = {
     /**
      * Part
      */
-    part?: 'full' | 'blade' | 'knot' | 'tail' | null;
+    part?: 'full' | 'blade' | 'knot' | 'tail' | 'brand_label' | 'logo' | null;
     /**
      * Size Bytes
      */
@@ -4787,7 +4787,7 @@ export type OrderReferenceImageIn = {
     /**
      * Part
      */
-    part?: 'full' | 'blade' | 'knot' | 'tail' | null;
+    part?: 'full' | 'blade' | 'knot' | 'tail' | 'brand_label' | 'logo' | null;
     /**
      * Upload Id
      */
@@ -5257,7 +5257,7 @@ export type PaymentIncidentDetailOut = {
     /**
      * Claim Number
      */
-    claim_number: string | null;
+    claim_number?: string | null;
     /**
      * Created At
      */
@@ -5295,7 +5295,7 @@ export type PaymentIncidentDetailOut = {
     /**
      * Order Number
      */
-    order_number: string | null;
+    order_number?: string | null;
     /**
      * Request Id
      */
@@ -5335,6 +5335,10 @@ export type PaymentIncidentSummaryOut = {
      */
     claim_id: string | null;
     /**
+     * Claim Number
+     */
+    claim_number?: string | null;
+    /**
      * Created At
      */
     created_at: string;
@@ -5362,6 +5366,10 @@ export type PaymentIncidentSummaryOut = {
      * Order Id
      */
     order_id: string | null;
+    /**
+     * Order Number
+     */
+    order_number?: string | null;
     /**
      * Request Id
      */
@@ -6055,7 +6063,7 @@ export type ReferenceImageIn = {
     /**
      * Part
      */
-    part?: 'full' | 'blade' | 'knot' | 'tail' | null;
+    part?: 'full' | 'blade' | 'knot' | 'tail' | 'brand_label' | 'logo' | null;
 };
 
 /**

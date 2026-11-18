@@ -37,6 +37,7 @@ import {
   manualOrderPath,
 } from "../../shared/lib/manual-order-kind";
 import { AdminCard } from "../../shared/ui/admin-card";
+import { BackToListButton } from "../../shared/ui/back-to-list-button";
 import { type DetailItem, DetailList } from "../../shared/ui/detail-list";
 import { OptionPair } from "../../shared/ui/option-pair";
 import { PrivateAssetPreview } from "../../shared/ui/private-asset-preview";
@@ -324,12 +325,6 @@ function ManualOrderDetail({ kind }: { kind: ManualOrderKind }) {
         />
         <HStack gap="x2" wrap>
           <ActionButton
-            variant="ghost"
-            onClick={() => navigate("/manual-orders")}
-          >
-            목록으로
-          </ActionButton>
-          <ActionButton
             variant="neutralWeak"
             loading={statusMutation.isPending}
             onClick={() =>
@@ -351,6 +346,7 @@ function ManualOrderDetail({ kind }: { kind: ManualOrderKind }) {
             수정
           </ActionButton>
           <ActionButton
+            variant="neutralOutline"
             onClick={() => {
               const node = captureRef.current;
               if (node === null) return;
@@ -364,6 +360,7 @@ function ManualOrderDetail({ kind }: { kind: ManualOrderKind }) {
           >
             작업지시서 이미지 저장
           </ActionButton>
+          <BackToListButton to="/manual-orders" />
         </HStack>
       </HStack>
 
@@ -395,7 +392,7 @@ function ManualOrderDetail({ kind }: { kind: ManualOrderKind }) {
                       : order.address,
                 },
                 {
-                  label: "원금 − 할인 + 택배비 = 주문 금액",
+                  label: "원금 − 할인 + 배송비 = 주문 금액",
                   value: formatAmountBreakdown(
                     order.amount,
                     order.discount,

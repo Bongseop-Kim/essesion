@@ -1,4 +1,4 @@
-import { Box, Grid, Text, VStack } from "@essesion/shared";
+import { Box, Grid, Text } from "@essesion/shared";
 import type { ReactNode } from "react";
 
 export type DetailItem = {
@@ -6,20 +6,30 @@ export type DetailItem = {
   value: ReactNode;
 };
 
+/**
+ * md 미만은 라벨·값을 한 줄에 나란히 둔다 — 한 칸씩 세로로 쌓으면 상세 화면이 휴대폰에서
+ * 몇 화면씩 길어진다. md 이상은 라벨 위·값 아래의 2열.
+ */
 export function DetailList({ items }: { items: readonly DetailItem[] }) {
   return (
-    <Grid as="dl" columns={{ base: 1, md: 2 }} gap="x4">
+    <Grid as="dl" columns={{ base: 1, md: 2 }} gap={{ base: "x2", md: "x4" }}>
       {items.map((item, index) => (
-        <VStack as="div" key={index} gap="x1" minWidth={0}>
-          <Text as="dt" textStyle="caption" color="fg.neutral-muted">
-            {item.label}
-          </Text>
-          <Box as="dd" className="m-0 break-words">
+        <Box
+          key={index}
+          minWidth={0}
+          className="flex gap-x3 md:flex-col md:gap-x1"
+        >
+          <Box as="dt" width={{ base: 96, md: "auto" }} flexShrink={0}>
+            <Text as="span" textStyle="caption" color="fg.neutral-muted">
+              {item.label}
+            </Text>
+          </Box>
+          <Box as="dd" minWidth={0} className="m-0 break-words">
             <Text as="span" textStyle="bodySm">
               {item.value}
             </Text>
           </Box>
-        </VStack>
+        </Box>
       ))}
     </Grid>
   );

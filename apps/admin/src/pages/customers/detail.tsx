@@ -30,6 +30,7 @@ import {
   formatOrderType,
 } from "../../shared/lib/format";
 import { AdminCard } from "../../shared/ui/admin-card";
+import { BackToListButton } from "../../shared/ui/back-to-list-button";
 import { DetailList } from "../../shared/ui/detail-list";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
@@ -229,13 +230,18 @@ export function CustomerDetailPage() {
     <VStack gap="x6" alignItems="stretch">
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading title={customer.name} />
-        <ActionButton
-          variant="ghost"
-          loading={detail.isFetching || orders.isFetching || coupons.isFetching}
-          onClick={refreshAll}
-        >
-          새로고침
-        </ActionButton>
+        <HStack gap="x2" wrap>
+          <BackToListButton to="/customers" />
+          <ActionButton
+            variant="ghost"
+            loading={
+              detail.isFetching || orders.isFetching || coupons.isFetching
+            }
+            onClick={refreshAll}
+          >
+            새로고침
+          </ActionButton>
+        </HStack>
       </HStack>
 
       <Tabs value={tab} onValueChange={setTab}>
@@ -275,12 +281,13 @@ export function CustomerDetailPage() {
                     value: formatDateTime(customer.updated_at),
                   },
                   {
-                    label: "알림 수신",
-                    value: booleanLabel(customer.notification_enabled),
-                  },
-                  {
-                    label: "알림 동의",
-                    value: booleanLabel(customer.notification_consent),
+                    // 동의(consent)와 수신 설정(enabled)이 둘 다 켜져야 알림톡이 나간다 — 한 줄로 합친다.
+                    label: "주문 알림",
+                    value: !customer.notification_consent
+                      ? "미동의"
+                      : customer.notification_enabled
+                        ? "받음"
+                        : "동의했지만 꺼 둠",
                   },
                   {
                     label: "카카오·SMS 마케팅",
@@ -298,9 +305,16 @@ export function CustomerDetailPage() {
               <VStack gap="x4" alignItems="stretch">
                 <AdminTable
                   label="고객 주문 이력"
+                  compactEmpty
                   columns={orderColumns}
                   rows={orders.data?.items}
                   getRowKey={(row) => row.id}
+                  compactRow={(row) => ({
+                    title: row.order_number,
+                    trailing: formatMoney(row.total_price),
+                    meta: `${formatOrderType(row.order_type)} · ${formatDate(row.created_at)}`,
+                    status: <StatusBadge status={row.status} />,
+                  })}
                   onRowClick={(row) => navigate(`/orders/${row.id}`)}
                   status={
                     orders.isLoading
@@ -331,9 +345,15 @@ export function CustomerDetailPage() {
               <VStack gap="x4" alignItems="stretch">
                 <AdminTable
                   label="고객 쿠폰 이력"
+                  compactEmpty
                   columns={couponColumns}
                   rows={coupons.data?.items}
                   getRowKey={(row) => row.id}
+                  compactRow={(row) => ({
+                    title: row.coupon_display_name ?? row.coupon_name,
+                    meta: `발급 ${formatDate(row.issued_at)} · 만료 ${formatDate(row.expires_at)}`,
+                    status: <StatusBadge status={row.status} />,
+                  })}
                   onRowClick={(row) => navigate(`/coupons/${row.coupon_id}`)}
                   status={
                     coupons.isLoading
