@@ -9,6 +9,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -241,5 +242,46 @@ describe("CustomOrderPage", () => {
     expect(slot("소검")).toBeNull();
     expect(slot("로고")).not.toBeNull();
     expect(slot("브랜드 라벨")).not.toBeNull();
+  });
+
+  it("자수·필름 주문은 타이 종류와 라벨만 고르게 하고 단계 번호를 이어 매긴다", () => {
+    // 앞 테스트의 화면이 문서에 남아 있어 이 렌더 안에서만 찾는다
+    const { container } = render(
+      <MemoryRouter initialEntries={["/custom-order"]}>
+        <QueryClientProvider client={new QueryClient()}>
+          <CustomOrderPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+    const view = within(container);
+    expect(view.queryByLabelText(/넥타이 폭/)).not.toBeNull();
+    expect(view.getByRole("heading", { name: "6. 추가 정보" })).toBeTruthy();
+
+    fireEvent.click(view.getByLabelText("자수·필름"));
+
+    for (const hidden of [
+      /넥타이 폭/,
+      "성인용",
+      "울 심지",
+      "삼각 봉제",
+      "옆선 봉제",
+      "바택 처리",
+      "딤플",
+      "돌려묶기",
+      "스포데라토",
+      "7폴드",
+    ]) {
+      expect(view.queryByLabelText(hidden)).toBeNull();
+    }
+    expect(view.queryByLabelText("자동 타이")).not.toBeNull();
+    expect(view.queryByLabelText("브랜드 라벨")).not.toBeNull();
+    expect(view.queryByLabelText("케어 라벨")).not.toBeNull();
+    // 포인트 주문은 원단 직접 제공과 함께 고를 수 없다
+    expect(
+      (view.getByLabelText("원단 직접 제공") as HTMLInputElement).disabled,
+    ).toBe(true);
+    // 사양 단계가 빠져도 번호가 건너뛰지 않는다
+    expect(view.getByRole("heading", { name: "4. 마감" })).toBeTruthy();
+    expect(view.getByRole("heading", { name: "5. 추가 정보" })).toBeTruthy();
   });
 });

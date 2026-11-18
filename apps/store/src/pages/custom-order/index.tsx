@@ -429,6 +429,23 @@ function CustomOrderPageContent({
   };
 
   const summary = customOrderSummary(options);
+  // 포인트 주문은 정해진 넥타이에 자수·필름만 올린다 — 타이 방식·라벨만 고르고 나머지 칸은 숨긴다.
+  const point = options.pointEnabled;
+  // 숨는 단계가 있어도 번호가 건너뛰지 않게 보이는 순서대로 매긴다.
+  const steps: CustomOrderSectionId[] = [
+    "quantity",
+    ...(point
+      ? (["point"] as const)
+      : options.fabricProvided
+        ? []
+        : (["fabric"] as const)),
+    "sewing",
+    ...(point ? [] : (["spec"] as const)),
+    "finishing",
+    "attachment",
+  ];
+  const stepTitle = (id: CustomOrderSectionId, title: string) =>
+    `${steps.indexOf(id) + 1}. ${title}`;
   const totalCost = amount?.total_cost ?? 0;
   // 입력이 유효한데 금액을 계산 중일 때만 막는다 — 수량 미달 등은 눌러야 검증 문구가 보인다.
   const priceReady = !!amount && calculation.isCurrent;
@@ -570,14 +587,18 @@ function CustomOrderPageContent({
             </Text>
           </VStack>
 
-          <OrderSection id="quantity" title="1. 주문 조건">
+          <OrderSection
+            id="quantity"
+            title={stepTitle("quantity", "주문 조건")}
+          >
             <VStack gap="x4" alignItems="stretch">
               <VStack gap="x2" alignItems="stretch">
                 <Text textStyle="labelSm">주문 방식</Text>
                 <HStack gap="x4" wrap role="group" aria-label="주문 방식">
                   <Checkbox
                     label="원단 직접 제공"
-                    checked={options.fabricProvided}
+                    checked={options.fabricProvided && !point}
+                    disabled={point}
                     onChange={(event) => {
                       const checked = event.currentTarget.checked;
                       setValidationError(null);
@@ -592,15 +613,16 @@ function CustomOrderPageContent({
                   <Checkbox
                     label="재주문"
                     checked={options.reorder}
-                    disabled={options.fabricProvided}
+                    disabled={options.fabricProvided && !point}
                     onChange={(event) =>
                       update("reorder", event.currentTarget.checked)
                     }
                   />
-                  {/* 원단 직접 제공·재주문과 함께 고를 수 있다 — 정해진 원단으로 만들어 원단 단계 대신 포인트 방식 단계가 나온다 */}
+                  {/* 재주문과는 함께 고를 수 있고 원단 직접 제공과는 못 고른다 — 정해진 넥타이에 올려 원단 단계 대신 포인트 방식 단계가 나온다 */}
                   <Checkbox
                     label="자수·필름"
-                    checked={options.pointEnabled}
+                    checked={point}
+                    disabled={options.fabricProvided && !point}
                     onChange={(event) =>
                       update("pointEnabled", event.currentTarget.checked)
                     }
@@ -739,7 +761,7 @@ function CustomOrderPageContent({
           </OrderSection>
 
           {options.pointEnabled ? (
-            <OrderSection id="point" title="2. 포인트 방식">
+            <OrderSection id="point" title={stepTitle("point", "포인트 방식")}>
               <SelectBox
                 name="custom-order-point"
                 value={options.pointType}
@@ -764,7 +786,7 @@ function CustomOrderPageContent({
           ) : null}
 
           {!options.fabricProvided && !options.pointEnabled ? (
-            <OrderSection id="fabric" title="2. 원단">
+            <OrderSection id="fabric" title={stepTitle("fabric", "원단")}>
               <VStack gap="x3" alignItems="stretch">
                 {options.reorder ? (
                   <Text textStyle="caption" color="fg.neutral-muted">
@@ -800,7 +822,7 @@ function CustomOrderPageContent({
             </OrderSection>
           ) : null}
 
-          <OrderSection id="sewing" title="3. 봉제">
+          <OrderSection id="sewing" title={stepTitle("sewing", "봉제")}>
             <VStack gap="x4" alignItems="stretch">
               <VStack gap="x2" alignItems="stretch">
                 <Text textStyle="labelSm">타이 종류</Text>
@@ -812,6 +834,7 @@ function CustomOrderPageContent({
                   onValueChange={(nextValue) => {
                     const value = String(nextValue);
                     if (
+                      !point &&
                       value !== "AUTO" &&
                       (options.dimple || options.turnKnot)
                     ) {
@@ -836,173 +859,190 @@ function CustomOrderPageContent({
                   <SelectBoxItem
                     value="AUTO"
                     label="자동 타이"
-                    description="딤플과 돌려묶기를 선택할 수 있는 봉제 방식"
+                    description={
+                      point
+                        ? undefined
+                        : "딤플과 돌려묶기를 선택할 수 있는 봉제 방식"
+                    }
                   />
                 </SelectBox>
               </VStack>
-              <VStack gap="x2" alignItems="stretch">
-                <Text textStyle="labelSm">봉제 옵션</Text>
-                <HStack gap="x4" wrap role="group" aria-label="봉제 옵션">
-                  <Checkbox
-                    ref={dimpleRef}
-                    label="딤플"
-                    checked={options.dimple}
-                    aria-invalid={
-                      validationError?.field === "dimple" || undefined
-                    }
-                    disabled={options.tieType !== "AUTO"}
-                    onChange={(event) => {
-                      // 딤플은 돌려묶기 필수 — 켜면 같이 켠다(돌려묶기는 잠긴다)
-                      const dimple = event.currentTarget.checked;
-                      setValidationError(null);
-                      setOptions((current) => ({
-                        ...current,
-                        dimple,
-                        turnKnot: dimple || current.turnKnot,
-                      }));
-                    }}
-                  />
-                  <Checkbox
-                    ref={turnKnotRef}
-                    label="돌려묶기"
-                    checked={options.turnKnot}
-                    aria-invalid={
-                      validationError?.field === "turnKnot" || undefined
-                    }
-                    disabled={options.tieType !== "AUTO" || options.dimple}
-                    onChange={(event) =>
-                      update("turnKnot", event.currentTarget.checked)
-                    }
-                  />
-                  <Checkbox
-                    label="스포데라토"
-                    checked={options.spoderato}
-                    onChange={(event) =>
-                      update("spoderato", event.currentTarget.checked)
-                    }
-                  />
-                  <Checkbox
-                    label="7폴드"
-                    checked={options.fold7}
-                    onChange={(event) =>
-                      update("fold7", event.currentTarget.checked)
-                    }
-                  />
-                </HStack>
-              </VStack>
+              {point ? null : (
+                <VStack gap="x2" alignItems="stretch">
+                  <Text textStyle="labelSm">봉제 옵션</Text>
+                  <HStack gap="x4" wrap role="group" aria-label="봉제 옵션">
+                    <Checkbox
+                      ref={dimpleRef}
+                      label="딤플"
+                      checked={options.dimple}
+                      aria-invalid={
+                        validationError?.field === "dimple" || undefined
+                      }
+                      disabled={options.tieType !== "AUTO"}
+                      onChange={(event) => {
+                        // 딤플은 돌려묶기 필수 — 켜면 같이 켠다(돌려묶기는 잠긴다)
+                        const dimple = event.currentTarget.checked;
+                        setValidationError(null);
+                        setOptions((current) => ({
+                          ...current,
+                          dimple,
+                          turnKnot: dimple || current.turnKnot,
+                        }));
+                      }}
+                    />
+                    <Checkbox
+                      ref={turnKnotRef}
+                      label="돌려묶기"
+                      checked={options.turnKnot}
+                      aria-invalid={
+                        validationError?.field === "turnKnot" || undefined
+                      }
+                      disabled={options.tieType !== "AUTO" || options.dimple}
+                      onChange={(event) =>
+                        update("turnKnot", event.currentTarget.checked)
+                      }
+                    />
+                    <Checkbox
+                      label="스포데라토"
+                      checked={options.spoderato}
+                      onChange={(event) =>
+                        update("spoderato", event.currentTarget.checked)
+                      }
+                    />
+                    <Checkbox
+                      label="7폴드"
+                      checked={options.fold7}
+                      onChange={(event) =>
+                        update("fold7", event.currentTarget.checked)
+                      }
+                    />
+                  </HStack>
+                </VStack>
+              )}
             </VStack>
           </OrderSection>
 
-          <OrderSection id="spec" title="4. 사양">
-            <Grid columns={{ base: 1, md: 2 }} gap="x4">
-              <VStack gap="x2" alignItems="stretch">
-                <Text textStyle="labelSm">사이즈</Text>
-                <RadioGroup
-                  name="custom-order-size"
-                  value={options.sizeType}
-                  orientation="horizontal"
-                  aria-label="사이즈"
-                  onValueChange={(value) =>
-                    update("sizeType", value as CustomOrderOptions["sizeType"])
+          {point ? null : (
+            <OrderSection id="spec" title={stepTitle("spec", "사양")}>
+              <Grid columns={{ base: 1, md: 2 }} gap="x4">
+                <VStack gap="x2" alignItems="stretch">
+                  <Text textStyle="labelSm">사이즈</Text>
+                  <RadioGroup
+                    name="custom-order-size"
+                    value={options.sizeType}
+                    orientation="horizontal"
+                    aria-label="사이즈"
+                    onValueChange={(value) =>
+                      update(
+                        "sizeType",
+                        value as CustomOrderOptions["sizeType"],
+                      )
+                    }
+                  >
+                    <RadioGroupItem value="ADULT" label="성인용" size="large" />
+                    <RadioGroupItem value="CHILD" label="아동용" size="large" />
+                  </RadioGroup>
+                </VStack>
+                <TextField
+                  ref={tieWidthRef}
+                  label="넥타이 폭 (cm)"
+                  required
+                  type="number"
+                  min={6}
+                  max={12}
+                  step={0.5}
+                  value={options.tieWidth}
+                  placeholder="6~12cm, 0.5cm 단위"
+                  errorMessage={
+                    validationError?.field === "tieWidth"
+                      ? validationError.message
+                      : undefined
                   }
-                >
-                  <RadioGroupItem value="ADULT" label="성인용" size="large" />
-                  <RadioGroupItem value="CHILD" label="아동용" size="large" />
-                </RadioGroup>
-              </VStack>
-              <TextField
-                ref={tieWidthRef}
-                label="넥타이 폭 (cm)"
-                required
-                type="number"
-                min={6}
-                max={12}
-                step={0.5}
-                value={options.tieWidth}
-                placeholder="6~12cm, 0.5cm 단위"
-                errorMessage={
-                  validationError?.field === "tieWidth"
-                    ? validationError.message
-                    : undefined
-                }
-                onChange={(event) =>
-                  update(
-                    "tieWidth",
-                    event.currentTarget.value === ""
-                      ? ""
-                      : Number(event.currentTarget.value),
-                  )
-                }
-                onBlur={() => {
-                  // 필수값 — 제출 클릭까지 기다리지 않고 blur 시점에 인라인으로 알린다
-                  if (options.tieWidth === "") {
-                    setValidationError(TIE_WIDTH_ERROR);
-                    return;
-                  }
-                  update(
-                    "tieWidth",
-                    Math.min(
-                      12,
-                      Math.max(6, Math.round(options.tieWidth * 2) / 2),
-                    ),
-                  );
-                }}
-              />
-            </Grid>
-          </OrderSection>
-
-          <OrderSection id="finishing" title="5. 마감">
-            <VStack gap="x4" alignItems="stretch">
-              <VStack gap="x2" alignItems="stretch">
-                <Text textStyle="labelSm">심지</Text>
-                <SelectBox
-                  name="custom-order-interlining"
-                  value={options.interlining}
-                  columns={{ base: 1, sm: 2 }}
-                  aria-label="심지"
-                  onValueChange={(value) =>
+                  onChange={(event) =>
                     update(
-                      "interlining",
-                      String(value) as CustomOrderOptions["interlining"],
+                      "tieWidth",
+                      event.currentTarget.value === ""
+                        ? ""
+                        : Number(event.currentTarget.value),
                     )
                   }
-                >
-                  <SelectBoxItem
-                    value="WOOL"
-                    label="울 심지"
-                    description="추가 비용이 반영되는 울 소재 심지"
-                  />
-                  <SelectBoxItem
-                    value="POLY"
-                    label="폴리 심지"
-                    description="기본 폴리 소재 심지"
-                  />
-                </SelectBox>
-              </VStack>
+                  onBlur={() => {
+                    // 필수값 — 제출 클릭까지 기다리지 않고 blur 시점에 인라인으로 알린다
+                    if (options.tieWidth === "") {
+                      setValidationError(TIE_WIDTH_ERROR);
+                      return;
+                    }
+                    update(
+                      "tieWidth",
+                      Math.min(
+                        12,
+                        Math.max(6, Math.round(options.tieWidth * 2) / 2),
+                      ),
+                    );
+                  }}
+                />
+              </Grid>
+            </OrderSection>
+          )}
+
+          <OrderSection id="finishing" title={stepTitle("finishing", "마감")}>
+            <VStack gap="x4" alignItems="stretch">
+              {point ? null : (
+                <VStack gap="x2" alignItems="stretch">
+                  <Text textStyle="labelSm">심지</Text>
+                  <SelectBox
+                    name="custom-order-interlining"
+                    value={options.interlining}
+                    columns={{ base: 1, sm: 2 }}
+                    aria-label="심지"
+                    onValueChange={(value) =>
+                      update(
+                        "interlining",
+                        String(value) as CustomOrderOptions["interlining"],
+                      )
+                    }
+                  >
+                    <SelectBoxItem
+                      value="WOOL"
+                      label="울 심지"
+                      description="추가 비용이 반영되는 울 소재 심지"
+                    />
+                    <SelectBoxItem
+                      value="POLY"
+                      label="폴리 심지"
+                      description="기본 폴리 소재 심지"
+                    />
+                  </SelectBox>
+                </VStack>
+              )}
               <VStack gap="x2" alignItems="stretch">
                 <Text textStyle="labelSm">마감 옵션</Text>
                 <HStack gap="x4" wrap role="group" aria-label="마감 옵션">
-                  <Checkbox
-                    label="삼각 봉제"
-                    checked={options.triangleStitch}
-                    onChange={(event) =>
-                      update("triangleStitch", event.currentTarget.checked)
-                    }
-                  />
-                  <Checkbox
-                    label="옆선 봉제"
-                    checked={options.sideStitch}
-                    onChange={(event) =>
-                      update("sideStitch", event.currentTarget.checked)
-                    }
-                  />
-                  <Checkbox
-                    label="바택 처리"
-                    checked={options.barTack}
-                    onChange={(event) =>
-                      update("barTack", event.currentTarget.checked)
-                    }
-                  />
+                  {point ? null : (
+                    <>
+                      <Checkbox
+                        label="삼각 봉제"
+                        checked={options.triangleStitch}
+                        onChange={(event) =>
+                          update("triangleStitch", event.currentTarget.checked)
+                        }
+                      />
+                      <Checkbox
+                        label="옆선 봉제"
+                        checked={options.sideStitch}
+                        onChange={(event) =>
+                          update("sideStitch", event.currentTarget.checked)
+                        }
+                      />
+                      <Checkbox
+                        label="바택 처리"
+                        checked={options.barTack}
+                        onChange={(event) =>
+                          update("barTack", event.currentTarget.checked)
+                        }
+                      />
+                    </>
+                  )}
                   <Checkbox
                     label="브랜드 라벨"
                     checked={options.brandLabel}
@@ -1022,7 +1062,10 @@ function CustomOrderPageContent({
             </VStack>
           </OrderSection>
 
-          <OrderSection id="attachment" title="6. 추가 정보">
+          <OrderSection
+            id="attachment"
+            title={stepTitle("attachment", "추가 정보")}
+          >
             <VStack gap="x4" alignItems="stretch">
               <Field
                 label={options.pointEnabled ? "로고 이미지" : "참고 이미지"}

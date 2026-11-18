@@ -75,32 +75,40 @@ export const DEFAULT_QUOTE_CONTACT: QuoteContact = {
 };
 
 // 딤플은 자동 타이에서만·돌려묶기와 함께만 — 예전 임시 저장(draft) 조합도 맞춰 정규화.
-// 과금 요청(customOrderApiOptions)과 요약(customOrderSummary)이 공유한다.
+// 포인트 주문은 둘 다 고를 수 없다. 과금 요청(customOrderApiOptions)과 요약(customOrderSummary)이 공유한다.
 function normalizedTieOptions(options: CustomOrderOptions) {
+  if (options.pointEnabled) return { dimple: false, turnKnot: false };
   const dimple = options.tieType === "AUTO" && options.dimple;
   return { dimple, turnKnot: options.turnKnot || dimple };
 }
 
+/**
+ * 서버로 보내는 사양. 포인트 주문은 정해진 넥타이 위에 자수·필름만 올리므로 타이 방식·라벨·재주문만
+ * 고른 값 그대로 보내고 나머지(심지·규격·봉제 옵션·원단 제공)는 "선택 안 함"으로 고정한다 — 서버도
+ * 포인트 주문의 이 옵션을 거절한다(docs/api-spec/money.md §3). 화면 state는 건드리지 않아 포인트를
+ * 끄면 골라 둔 값이 돌아온다.
+ */
 export function customOrderApiOptions(options: CustomOrderOptions) {
-  const noFabricCharge = options.fabricProvided || options.pointEnabled;
+  const point = options.pointEnabled;
+  const noFabricCharge = options.fabricProvided || point;
   const tie = normalizedTieOptions(options);
   return {
-    fabric_provided: noFabricCharge,
+    fabric_provided: !point && options.fabricProvided,
     reorder: options.reorder,
-    point: options.pointEnabled ? options.pointType : null,
+    point: point ? options.pointType : null,
     fabric_type: noFabricCharge ? null : options.fabricType,
     design_type: noFabricCharge ? null : options.designType,
     tie_type: options.tieType === "AUTO" ? "AUTO" : "",
-    interlining: options.interlining === "WOOL" ? "WOOL" : "",
-    size_type: options.sizeType,
-    tie_width: options.tieWidth === "" ? null : options.tieWidth,
-    triangle_stitch: options.triangleStitch,
-    side_stitch: options.sideStitch,
-    bar_tack: options.barTack,
-    fold7: options.fold7,
+    interlining: !point && options.interlining === "WOOL" ? "WOOL" : "",
+    size_type: point ? null : options.sizeType,
+    tie_width: point || options.tieWidth === "" ? null : options.tieWidth,
+    triangle_stitch: !point && options.triangleStitch,
+    side_stitch: !point && options.sideStitch,
+    bar_tack: !point && options.barTack,
+    fold7: !point && options.fold7,
     dimple: tie.dimple,
     turn_knot: tie.turnKnot,
-    spoderato: options.spoderato,
+    spoderato: !point && options.spoderato,
     brand_label: options.brandLabel,
     care_label: options.careLabel,
   } satisfies CustomAmountRequest["options"];
@@ -147,27 +155,30 @@ export function invalidCustomOrderSection(
       message: `수량은 4~${MAX_CUSTOM_ORDER_QUANTITY.toLocaleString("ko-KR")}개로 입력해 주세요.`,
     };
   }
-  if (options.tieType !== "AUTO" && options.dimple) {
-    return {
-      section: "sewing",
-      field: "dimple",
-      message: "딤플은 자동 타이에서만 선택할 수 있습니다.",
-    };
-  }
-  if (options.tieType !== "AUTO" && options.turnKnot) {
-    return {
-      section: "sewing",
-      field: "turnKnot",
-      message: "돌려묶기는 자동 타이에서만 선택할 수 있습니다.",
-    };
-  }
-  if (
-    options.tieWidth === "" ||
-    options.tieWidth < 6 ||
-    options.tieWidth > 12 ||
-    !Number.isInteger(options.tieWidth * 2)
-  ) {
-    return TIE_WIDTH_ERROR;
+  // 포인트 주문은 딤플·돌려묶기·넥타이 폭 칸이 숨는다 — 숨은 칸으로 제출을 막지 않는다.
+  if (!options.pointEnabled) {
+    if (options.tieType !== "AUTO" && options.dimple) {
+      return {
+        section: "sewing",
+        field: "dimple",
+        message: "딤플은 자동 타이에서만 선택할 수 있습니다.",
+      };
+    }
+    if (options.tieType !== "AUTO" && options.turnKnot) {
+      return {
+        section: "sewing",
+        field: "turnKnot",
+        message: "돌려묶기는 자동 타이에서만 선택할 수 있습니다.",
+      };
+    }
+    if (
+      options.tieWidth === "" ||
+      options.tieWidth < 6 ||
+      options.tieWidth > 12 ||
+      !Number.isInteger(options.tieWidth * 2)
+    ) {
+      return TIE_WIDTH_ERROR;
+    }
   }
   if (isQuoteMode && !contact?.contactName.trim()) {
     return {
@@ -213,12 +224,13 @@ export function customOrderSummary(options: CustomOrderOptions) {
   const ownFabric = `${options.fabricType === "SILK" ? "실크" : "폴리"} · ${
     options.designType === "YARN_DYED" ? "선염" : "날염"
   }`;
-  const fabric = options.fabricProvided
-    ? "원단 직접 제공"
-    : options.pointEnabled
-      ? options.reorder
-        ? "재주문 · 정해진 원단"
-        : "정해진 원단"
+  // 포인트가 먼저다 — 포인트 주문은 원단 직접 제공과 함께 고를 수 없다.
+  const fabric = options.pointEnabled
+    ? options.reorder
+      ? "재주문 · 정해진 원단"
+      : "정해진 원단"
+    : options.fabricProvided
+      ? "원단 직접 제공"
       : options.reorder
         ? `재주문 · ${ownFabric}`
         : ownFabric;
@@ -234,11 +246,16 @@ export function customOrderSummary(options: CustomOrderOptions) {
         normalizedTieOptions(options).turnKnot ? " · 돌려묶기" : ""
       }`,
     },
-    {
-      label: "규격",
-      value: `${options.sizeType === "ADULT" ? "성인용" : "아동용"} · ${
-        options.tieWidth === "" ? "폭 미입력" : `${options.tieWidth}cm`
-      }`,
-    },
+    // 포인트 주문은 규격을 고르지 않는다.
+    ...(options.pointEnabled
+      ? []
+      : [
+          {
+            label: "규격",
+            value: `${options.sizeType === "ADULT" ? "성인용" : "아동용"} · ${
+              options.tieWidth === "" ? "폭 미입력" : `${options.tieWidth}cm`
+            }`,
+          },
+        ]),
   ];
 }

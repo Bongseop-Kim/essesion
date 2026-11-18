@@ -44,6 +44,15 @@ describe("custom order draft", () => {
         totalCost: 120_000,
       }),
     ).toBeNull();
+    // 포인트 주문은 폭 칸이 숨어 빈 값으로 넘어온다 — 결제 페이지가 초안을 버리면 안 된다
+    expect(
+      parseCustomOrderDraft({
+        ...formDraft,
+        options: { ...formDraft.options, pointEnabled: true },
+        imageRefs: [],
+        totalCost: 120_000,
+      }),
+    ).not.toBeNull();
   });
 
   it("결제 draft의 완료된 업로드 ID와 금액을 검증한다", () => {

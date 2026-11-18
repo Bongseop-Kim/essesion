@@ -50,9 +50,10 @@ const contactSchema = z
   })
   .strict();
 
-const orderOptionsSchema = optionsSchema.extend({
-  tieWidth: z.number().finite(),
-});
+// 결제 초안은 넥타이 폭이 채워져 있어야 한다 — 포인트 주문만 폭 칸이 숨어 빈 값으로 넘어온다.
+const orderOptionsSchema = optionsSchema.refine(
+  (options) => options.pointEnabled || options.tieWidth !== "",
+);
 
 const formDraftSchema = z
   .object({ options: optionsSchema, contact: contactSchema })
