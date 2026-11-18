@@ -93,6 +93,10 @@ export type AdminCapabilitiesOut = {
      */
     edge_proxy: string;
     /**
+     * Mailer
+     */
+    mailer: string;
+    /**
      * Oauth Apple
      */
     oauth_apple: string;

@@ -3,6 +3,7 @@ import { sendCustomEstimateEmailMutation } from "@essesion/api-client/query";
 import {
   ActionButton,
   Box,
+  Callout,
   Modal,
   snackbar,
   TextField,
@@ -33,6 +34,7 @@ export function EstimateEmailModal({
   const [email, setEmail] = useState(defaultEmail);
   const [companyName, setCompanyName] = useState(defaultCompanyName);
   const [submitted, setSubmitted] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const send = useMutation(sendCustomEstimateEmailMutation());
 
   // 열 때마다 계정·주문서의 최신 값으로 채운다.
@@ -41,6 +43,7 @@ export function EstimateEmailModal({
     setEmail(defaultEmail);
     setCompanyName(defaultCompanyName);
     setSubmitted(false);
+    setSendError(null);
   }, [open]);
 
   const trimmedEmail = email.trim();
@@ -56,6 +59,7 @@ export function EstimateEmailModal({
   const submit = async () => {
     setSubmitted(true);
     if (emailError || companyNameError || send.isPending) return;
+    setSendError(null);
     try {
       await send.mutateAsync({
         body: {
@@ -67,7 +71,8 @@ export function EstimateEmailModal({
       snackbar("견적서를 메일로 보냈습니다.");
       onOpenChange(false);
     } catch (error) {
-      snackbar(
+      // 창이 열린 채 다시 시도해야 하므로 사라지는 스낵바가 아니라 창 안에 남긴다.
+      setSendError(
         error instanceof Error
           ? error.message
           : "견적서 메일을 보내지 못했습니다.",
@@ -78,7 +83,10 @@ export function EstimateEmailModal({
   return (
     <Modal
       open={open}
-      onOpenChange={onOpenChange}
+      // 보내는 중에는 닫지 않는다 — 닫고 다시 연 창을 앞선 요청의 완료가 닫아 버리지 않게.
+      onOpenChange={(next) => {
+        if (!send.isPending) onOpenChange(next);
+      }}
       title="견적서 메일로 받기"
       description="지금 고른 사양의 예상 견적서를 엑셀 파일로 보내 드립니다."
       showCloseButton
@@ -102,6 +110,7 @@ export function EstimateEmailModal({
         }}
       >
         <VStack gap="x4" alignItems="stretch">
+          {sendError ? <Callout tone="critical" title={sendError} /> : null}
           <TextField
             label="받을 메일 주소"
             type="email"

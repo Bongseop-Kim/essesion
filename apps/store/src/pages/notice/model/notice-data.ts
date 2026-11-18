@@ -30,11 +30,12 @@ const NOTICE_DATA = [
   {
     id: "privacy-contact-email",
     category: "서비스",
-    title: "개인정보 보호책임자 연락처 변경 안내",
-    content: `개인정보처리방침의 개인정보 보호책임자 이메일이 변경되었습니다.
+    title: "개인정보처리방침 변경 안내",
+    content: `개인정보처리방침이 변경되었습니다.
 
 ■ 변경 내용 (시행일 2026년 11월 18일)
-- 이메일: help@essesion.com
+- 개인정보 보호책임자 이메일: help@essesion.com
+- 처리업무 위탁·국외 처리: Apple(iCloud 메일) 추가 — 고객 문의 메일 수신과 견적서 메일 발송
 
 개인정보 처리와 관련한 문의는 위 주소로 보내 주세요.`,
     pinned: false,

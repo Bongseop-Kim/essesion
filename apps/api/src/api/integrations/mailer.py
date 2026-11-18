@@ -7,6 +7,7 @@ DryRun(보낸 메시지를 sent 리스트에 쌓는다), 그 밖의 환경에서
 import asyncio
 import logging
 import smtplib
+import ssl
 from email.message import EmailMessage
 from typing import Protocol
 
@@ -56,7 +57,9 @@ class RealMailer:
 
     def _send_sync(self, message: EmailMessage) -> None:
         with smtplib.SMTP(self._host, self._port, timeout=SMTP_TIMEOUT_SECONDS) as smtp:
-            smtp.starttls()
+            # context를 주지 않으면 smtplib은 인증서·호스트명을 검증하지 않는다.
+            # 앱 암호를 보내기 전에 서버가 진짜인지 확인한다.
+            smtp.starttls(context=ssl.create_default_context())
             smtp.login(self._username, self._password)
             smtp.send_message(message)
 

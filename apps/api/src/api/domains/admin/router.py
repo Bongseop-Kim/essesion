@@ -34,6 +34,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 class AdminCapabilitiesOut(BaseModel):
     toss: str
     solapi: str
+    mailer: str
     worker: str
     batch_auth: str
     oauth_google: str

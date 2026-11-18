@@ -74,7 +74,7 @@ describe("EstimateEmailModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "보내기" }));
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
-    expect(api.send.mock.calls[0][0]).toEqual({
+    expect(api.send.mock.calls[0]?.[0]).toEqual({
       body: {
         ...PAYLOAD,
         email: "buyer@example.com",
@@ -95,5 +95,20 @@ describe("EstimateEmailModal", () => {
 
     expect(await screen.findByText("메일 주소를 확인해 주세요.")).toBeTruthy();
     expect(api.send).not.toHaveBeenCalled();
+  });
+
+  it("발송에 실패하면 창을 닫지 않고 사유를 창 안에 남긴다", async () => {
+    api.send.mockRejectedValue(
+      new Error("견적서 메일 요청이 너무 많습니다. 잠시 후 다시 시도해주세요."),
+    );
+    const onOpenChange = renderModal();
+    fireEvent.click(screen.getByRole("button", { name: "보내기" }));
+
+    expect(
+      await screen.findByText(
+        "견적서 메일 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+      ),
+    ).toBeTruthy();
+    expect(onOpenChange).not.toHaveBeenCalled();
   });
 });

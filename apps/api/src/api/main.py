@@ -258,6 +258,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         max_keys=settings.public_rate_limit_max_keys,
         detail="결제 웹훅 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
     )
+    # ponytail: 카운터가 인스턴스 로컬이다(rate_limit.py 주석). api는 최대 3개까지 늘어나므로 최악의
+    # 경우 사용자당 시간당 15통·전체 하루 600통이고, 그래도 iCloud 하루 1,000통 한도 아래다. 상한에
+    # 닿는 일이 생기면 Postgres upsert 카운터로 올린다.
     app.state.estimate_mail_user_rate_limiter = AuthRateLimiter(
         attempts=settings.estimate_mail_user_rate_limit_attempts,
         window_seconds=settings.estimate_mail_user_rate_limit_window_seconds,

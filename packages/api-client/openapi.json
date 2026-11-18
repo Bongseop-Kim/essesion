@@ -133,6 +133,10 @@
             "title": "Edge Proxy",
             "type": "string"
           },
+          "mailer": {
+            "title": "Mailer",
+            "type": "string"
+          },
           "oauth_apple": {
             "title": "Oauth Apple",
             "type": "string"
@@ -165,6 +169,7 @@
         "required": [
           "toss",
           "solapi",
+          "mailer",
           "worker",
           "batch_auth",
           "oauth_google",
