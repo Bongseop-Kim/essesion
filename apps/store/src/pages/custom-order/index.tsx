@@ -1059,7 +1059,10 @@ function readDesignFiles(state: unknown): File[] {
 }
 
 function productionPeriod(options: CustomOrderOptions) {
-  if (options.fabricProvided) return "영업일 기준 7~14일";
-  if (options.reorder) return "영업일 기준 21~28일";
-  return "영업일 기준 28~42일";
+  // 주 단위로 넉넉하게 적는다 — 영업일 일수는 달력 날짜로 잘못 읽혀 "늦었다"는 항의가 된다.
+  // 포인트가 먼저다(포인트 + 재주문도 포인트 기간).
+  if (options.pointEnabled) return "약 3~5주";
+  if (options.fabricProvided) return "약 2~3주";
+  if (options.reorder) return "약 4~6주";
+  return "약 6~8주";
 }
