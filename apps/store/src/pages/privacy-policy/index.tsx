@@ -79,6 +79,7 @@ export function PrivacyPolicyContent() {
             "Cloudflare: 웹 서비스 제공, 보안 프록시와 접속 기록 처리",
             "토스페이먼츠: 결제 승인·취소 및 결제 관련 고객 지원",
             "Solapi: 휴대폰 인증과 서비스 알림 메시지 발송",
+            "Apple(iCloud 메일): 고객 문의 메일 수신과 견적서 메일 발송",
             "Google·Kakao: 소셜 로그인 인증",
             "Google Analytics: 서비스 이용 통계 분석 (제6조 참조)",
           ]}
@@ -93,6 +94,7 @@ export function PrivacyPolicyContent() {
         <PolicyList
           items={[
             "Cloudflare, Inc.(미국): 웹 콘텐츠 전송과 보안 프록시 운영을 위해 접속 기록(IP 주소, 브라우저·기기 정보)을 전 세계 엣지 서버에서 처리하며, 처리 목적 달성 또는 위탁 계약 종료 시 파기합니다. 연락처: privacyquestions@cloudflare.com",
+            "Apple Distribution International Limited(아일랜드): 고객 문의 메일 수신과 견적서 메일 발송을 위해 메일 주소와 메일 내용(견적서의 업체명·제작 사양·금액 포함)을 iCloud 메일 서버에서 처리하며, 문의 처리 또는 발송 목적 달성 후 파기합니다. 연락처: apple.com/legal/privacy",
             "Google LLC(미국): 소셜 로그인 인증과 Google Analytics를 통한 서비스 이용 통계 분석을 위해 계정 식별 정보, 쿠키 기반 식별자와 서비스 이용 기록을 처리합니다. 소셜 로그인 계정 식별 정보는 위 제3조의 계정 보유기간 동안 인증에 이용되고, Google Analytics 수집 정보는 수집일로부터 최대 14개월 보관 후 파기됩니다. 연락처: policies.google.com/privacy",
           ]}
         />
@@ -141,7 +143,7 @@ export function PrivacyPolicyContent() {
         <PolicyInfoBox>
           <Text textStyle="labelSm">개인정보 보호책임자</Text>
           <Text {...bodyProps}>이름·직책: 김영선 (대표)</Text>
-          <Text {...bodyProps}>이메일: biblecookie@naver.com</Text>
+          <Text {...bodyProps}>이메일: help@essesion.com</Text>
           <Text {...bodyProps}>전화번호: 0507-1381-7422</Text>
         </PolicyInfoBox>
       </PolicySection>
@@ -152,7 +154,7 @@ export function PrivacyPolicyContent() {
           안내합니다.
         </Text>
         <PolicyInfoBox>
-          <Text textStyle="labelSm">시행일: 2026년 10월 19일</Text>
+          <Text textStyle="labelSm">시행일: 2026년 11월 18일</Text>
         </PolicyInfoBox>
       </PolicySection>
     </PolicyDocument>

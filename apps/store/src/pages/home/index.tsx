@@ -20,7 +20,7 @@ const HOME_JSON_LD = {
       name: "영선산업",
       alternateName: ["ESSE SION", "essesion"],
       url: "https://essesion.shop",
-      logo: "https://essesion.shop/logo/logo.png",
+      logo: "https://essesion.shop/logo/logo-light.png",
       telephone: "0507-1381-7422",
       address: { "@type": "PostalAddress", addressCountry: "KR" },
     },

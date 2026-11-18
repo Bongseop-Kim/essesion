@@ -172,6 +172,7 @@ def test_local_missing_provider_and_storage_settings_uses_local_defaults():
     assert ready.json()["capabilities"] == {
         "toss": "dry_run",
         "solapi": "dry_run",
+        "mailer": "dry_run",
         "worker": "local",
         "batch_auth": "shared_secret",
         "oauth_google": "optional",

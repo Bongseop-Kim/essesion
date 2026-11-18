@@ -34,7 +34,7 @@ export function AdminHeader() {
     <Header
       brandLabel="ESSE SION 관리자"
       brandHref="/"
-      brandLogoSrc="/logo/logo.png"
+      brandLogoSrc="/logo/logo-light.png"
       navItems={[...ADMIN_NAVIGATION]}
       mobileNavGroups={ADMIN_NAVIGATION_GROUPS}
       activePathname={location.pathname}

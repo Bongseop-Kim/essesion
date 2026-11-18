@@ -133,6 +133,10 @@
             "title": "Edge Proxy",
             "type": "string"
           },
+          "mailer": {
+            "title": "Mailer",
+            "type": "string"
+          },
           "oauth_apple": {
             "title": "Oauth Apple",
             "type": "string"
@@ -165,6 +169,7 @@
         "required": [
           "toss",
           "solapi",
+          "mailer",
           "worker",
           "batch_auth",
           "oauth_google",
@@ -5450,6 +5455,45 @@
           "total_cost"
         ],
         "title": "CustomAmountResponse",
+        "type": "object"
+      },
+      "CustomEstimateEmailRequest": {
+        "properties": {
+          "company_name": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9A-Za-z가-힣㈜(][0-9A-Za-z가-힣㈜ ()&.,·\\-]{0,39}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Name"
+          },
+          "email": {
+            "maxLength": 320,
+            "pattern": "^[A-Za-z0-9._%+\\-]+@[A-Za-z0-9\\-]+(\\.[A-Za-z0-9\\-]+)+$",
+            "title": "Email",
+            "type": "string"
+          },
+          "options": {
+            "additionalProperties": true,
+            "title": "Options",
+            "type": "object"
+          },
+          "quantity": {
+            "maximum": 10000.0,
+            "title": "Quantity",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "options",
+          "quantity",
+          "email"
+        ],
+        "title": "CustomEstimateEmailRequest",
         "type": "object"
       },
       "CustomOrderCreateRequest": {
@@ -20316,6 +20360,46 @@
           }
         },
         "summary": "Calculate Custom Order",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/orders/custom/estimate-email": {
+      "post": {
+        "description": "예상 견적서를 엑셀로 만들어 메일로 보낸다 — 금액은 서버가 다시 계산한다(domains.md §7).",
+        "operationId": "send_custom_estimate_email",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomEstimateEmailRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Send Custom Estimate Email",
         "tags": [
           "orders"
         ]

@@ -1,8 +1,8 @@
-# essesion.shop → essesion.com 이전 + iCloud+ 커스텀 도메인 메일
+# essesion.shop → essesion.com 이전
 
-정본 도메인을 `essesion.shop`에서 `essesion.com`으로 옮기고, 사업용 메일 주소(`<주소>@essesion.com`)를
-이미 구독 중인 iCloud+ 커스텀 이메일 도메인으로 만든다. 도메인·DNS·SSL은 지금처럼 Cloudflare(Free)에 둔다.
-2026-11-11 조사, 2026-11-12 운영자 결정 기준으로 작성했다.
+정본 도메인을 `essesion.shop`에서 `essesion.com`으로 옮긴다. 도메인·DNS·SSL은 지금처럼 Cloudflare(Free)에 둔다.
+2026-11-11 조사, 2026-11-12 운영자 결정 기준으로 작성했다. `@essesion.com` 메일(iCloud+)과 사이트 연락처는
+`docs/plans/logo-variants-help-email-estimate-mail.md`로 옮겼다(2026-11-18).
 
 방식은 **동시 운영 후 전환**이다. `.com`을 먼저 띄워 `.shop`과 함께 운영하고(서버를 더 띄우는 것이 아니라
 같은 스토어·api에 주소를 하나 더 붙인다), `.com`에서 로그인 등을 확인한 뒤 토스에 주소 변경을 신청하고,
@@ -28,13 +28,8 @@
 
 ## 왜 필요한가
 
-- 사업용 연락처가 개인 네이버 메일이다(`apps/store/src/app/layout/app-layout.tsx:241`,
-  `apps/store/src/pages/privacy-policy/index.tsx:144`). 1인 운영이라 월 과금 메일(Google Workspace·네이버웍스)은
-  쓰지 않기로 했고, iCloud+는 이미 구독 중이라 추가 비용이 없다.
-- Gmail의 타사 주소 "다른 주소에서 보내기"는 2027년 1월에 제거된다
-  ([Google 공지](https://support.google.com/mail/answer/17101213?hl=en)). 전달 + Gmail 발신 방식은 쓸 수 없다.
 - `.com`으로 옮기는 데 기술적 이유는 없다. 가장 일반적인 주소로 가려는 운영자 선호다(2026-11-12 운영자
-  확인). 메일 주소를 새로 만드는 시점이라 도메인도 함께 정리한다.
+  확인). 사업용 메일 주소를 새로 만드는 시점이라 도메인도 함께 정리한다.
 - 유지 비용 차이가 크다. `.shop` 1년 연장은 카페24 기준 약 7만 원이고, `.com`은 Cloudflare에서 연 1만 원
   안팎이다(2026-11-12 운영자 확인). `.shop`을 연장하지 않고 만료 전에 이전을 끝내려는 이유다.
 - 동시 운영을 택한 이유: 토스·네이버가 주소 변경을 처리하려면 새 주소에 사이트가 떠 있어야 하고, 등록
@@ -43,10 +38,7 @@
 
 ## 범위 밖
 
-- api에 메일 발송 기능을 넣는 일. 지금 api는 메일을 보내지 않는다(알림톡·LMS만). 자동 발송이 필요해지면
-  iCloud SMTP를 쓴다 — 예상 발송량이 월 5건 안팎이라 하루 1,000통 한도
-  ([Apple 102198](https://support.apple.com/en-us/102198))는 문제가 아니다(2026-11-11 운영자 확인).
-  전제는 발신 테스트 통과다(A·B 리뷰 문서의 "남은 확인").
+- 메일(iCloud+ 커스텀 도메인)·사이트 연락처·메일 발송 기능 — `docs/plans/logo-variants-help-email-estimate-mail.md`.
 - admin의 동시 운영. 사용자가 운영자 한 명이라 D단계에서 한 번에 옮긴다.
 - `app.essesion.com`은 만들지 않는다. `app.`은 예전 컷오버 이전 주소였을 뿐이다(`apps/store/wrangler.jsonc:13`).
 - URL 구조·디자인 변경. 도메인 이전과 겹치면 검색 이전 신호가 흐려진다.
@@ -71,8 +63,7 @@
   incident 변화 없고 알림톡도 1회(`apps/api/tests/test_payments.py`의
   `test_webhook_confirm_sends_payment_done_alimtalk`, `test_webhook_cancel_restores_reserved_coupon`).
   중복 CANCELED는 `action: canceled, orders: 0`으로 ack한다.
-- `essesion.com`은 2026-11-12에 Cloudflare Registrar에서 구매했다. `essesion.shop`에는 MX가 없다(2026-11-11
-  확인 — 구 도메인으로 받는 메일 없음).
+- `essesion.com`은 2026-11-12에 Cloudflare Registrar에서 구매했다.
 - `essesion.shop` 만료일은 **2026-12-12**다(카페24, 2026-11-12 확인). 연장하지 않고 그 전에 이전을 끝낸다.
 
 아직 확인할 것(순서를 바꾸지는 않는다):
@@ -99,7 +90,7 @@
 - 토스 등록 주소, 네이버 서비스 URL, 검색 정본, 알림톡 링크는 아직 전부 `.shop`이다.
 - 전환용 변경은 PR #112(초안)로 준비돼 있고, 구 존에는 Single Redirect 4개가 **비활성 상태로** 만들어져 있다.
 - 남은 준비 항목: 알림톡 새 템플릿 8종 검수 요청(`docs/reviews/alimtalk-com-migration-2026-11-12.md`),
-  메일 DKIM 정렬 확인과 발신 테스트(리뷰 문서의 "남은 확인"), Search Console·서치어드바이저·PostHog 등록.
+  Search Console·서치어드바이저·PostHog 등록.
 
 ### C. 변경 신청 — 토스
 
@@ -225,8 +216,7 @@ git grep -n 'essesion\.shop' -- ':!docs/reviews' ':!docs/plans'   # 비어 있�
 ## 되돌리는 법 / 상향 신호
 
 - **A·B(완료)**: `.com` 동시 운영이 `.shop` 영업에 문제를 일으키면 #110을 revert하고 `ALT_SITE_ORIGINS`를
-  비워 apply한다 — 기존 고정 주소 동작으로 돌아간다. iCloud Mail이 장애로 수신을 멈추면 DNS가 Cloudflare에
-  있으므로 MX를 다른 사업자로 바꾼다(TTL 3600).
+  비워 apply한다 — 기존 고정 주소 동작으로 돌아간다.
 - **C**: 승인 전에 `.shop`에서 결제가 막히면 토스에 원인을 확인한다. 승인 후
   `.com` 실결제(C-3)가 실패하면 D를 실행하지 말고 토스에 문의하되, 그동안 `.shop` 결제도 막혀 있으면 등록
   주소를 `.shop`으로 되돌려 달라고 요청한다 — 두 주소 모두 결제가 안 되는 상태를 오래 두지 않는다.
@@ -253,10 +243,6 @@ git grep -n 'essesion\.shop' -- ':!docs/reviews' ':!docs/plans'   # 비어 있�
 - **`.shop` 1년 연장 후 여유 있게 이전** — 리다이렉트를 1년 유지해 옛 링크와 검색 순위를 지킬 수 있지만,
   연장비가 약 7만 원으로 `.com` 1년(약 1만 원)의 7배라 내지 않고 한 달 안에 끝내기로 했다(2026-11-12
   운영자 결정). D가 2026-11-27까지 끝나지 않으면 재론이 아니라 바로 연장한다(되돌리는 법의 일정 상향 신호).
-- **Cloudflare Email Routing + Gmail 발신** — Gmail "다른 주소에서 보내기"가 2027-01에 제거된다. 재론 조건 없음.
-- **Zoho Mail 무료·Purelymail(연 $10)** — iCloud+를 이미 내고 있어 추가 가입·비용이 불필요. iCloud 메뉴가
-  한국 계정에 없거나 인증이 끝내 실패하면 재론한다.
-- **Google Workspace·네이버웍스** — 월 과금. 직원이 생겨 공용 사서함·관리 콘솔이 필요해지면 재론한다.
 - **로그인 상태를 새 도메인으로 넘겨주기** — 구 도메인이 1분짜리 암호화 토큰을 만들어 새 도메인에 넘기고
   새 도메인이 쿠키를 다시 심는 방식([Inflection 사례](https://www.youssefm.com/posts/transferring-cookies)).
   인증 경로에 임시 코드가 하나 더 생기는데, 방문자가 적고 소셜 로그인이라 다시 로그인하는 부담이 버튼 한

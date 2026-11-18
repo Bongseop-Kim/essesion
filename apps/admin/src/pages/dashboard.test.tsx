@@ -63,6 +63,7 @@ const summary: DashboardSummaryOut = {
 const capabilities: AdminCapabilitiesOut = {
   toss: "real",
   solapi: "real",
+  mailer: "real",
   worker: "real",
   batch_auth: "oidc",
   oauth_google: "ready",

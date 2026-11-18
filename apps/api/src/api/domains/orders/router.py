@@ -1,4 +1,6 @@
+import logging
 import uuid
+from datetime import datetime
 from typing import Literal
 
 from db.models.commerce import (
@@ -13,7 +15,7 @@ from fastapi import APIRouter, BackgroundTasks, Request
 from sqlalchemy import select
 
 from api.db import SessionDep
-from api.deps import AdminUser, CurrentUser, ensure_owner
+from api.deps import AdminUser, CurrentUser, SettingsDep, ensure_owner
 from api.domains.images.service import (
     ORDER_REFERENCE_IMAGE_TYPES,
     get_linked_order_image,
@@ -22,6 +24,11 @@ from api.domains.images.service import (
     list_repair_receipt_photos,
 )
 from api.domains.orders import service
+from api.domains.orders.estimate import (
+    build_estimate_xlsx,
+    estimate_filename,
+    estimate_mail_text,
+)
 from api.domains.orders.schemas import (
     AdminStatusUpdateRequest,
     AdminStatusUpdateResponse,
@@ -29,6 +36,7 @@ from api.domains.orders.schemas import (
     ClaimBadgeOut,
     CustomAmountRequest,
     CustomAmountResponse,
+    CustomEstimateEmailRequest,
     CustomOrderCreateRequest,
     OrderCreateRequest,
     OrderCreateResponse,
@@ -48,6 +56,8 @@ from api.domains.orders.schemas import (
 from api.domains.orders.status_machine import customer_actions
 from api.errors import NotFoundError
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(tags=["orders"])
 
 
@@ -66,6 +76,41 @@ async def calculate_custom_order(
     return CustomAmountResponse(
         **await service.calculate_custom_amounts(session, body.options, body.quantity)
     )
+
+
+@router.post("/orders/custom/estimate-email", status_code=204)
+async def send_custom_estimate_email(
+    body: CustomEstimateEmailRequest,
+    request: Request,
+    session: SessionDep,
+    settings: SettingsDep,
+    user: CurrentUser,
+) -> None:
+    """예상 견적서를 엑셀로 만들어 메일로 보낸다 — 금액은 서버가 다시 계산한다(domains.md §7)."""
+    amounts = await service.calculate_custom_amounts(session, body.options, body.quantity)
+    request.app.state.estimate_mail_user_rate_limiter.check(str(user.id))
+    request.app.state.estimate_mail_total_rate_limiter.check("all")
+
+    issued = datetime.now(service.KST).date()
+    total = amounts["total_cost"]
+    frontend_origin = settings.site_pair(request.headers.get("x-essesion-forwarded-host"))[1]
+    await request.app.state.mailer.send(
+        to=body.email,
+        subject="[ESSE SION] 주문 제작 예상 견적서",
+        text=estimate_mail_text(total=total, order_url=f"{frontend_origin}/custom-order"),
+        attachment=(
+            estimate_filename(issued),
+            build_estimate_xlsx(
+                issued=issued,
+                company_name=body.company_name,
+                options=body.options,
+                quantity=body.quantity,
+                total=total,
+            ),
+        ),
+    )
+    # 받는 주소는 PII라 남기지 않는다.
+    logger.info("estimate mail sent user=%s quantity=%s total=%s", user.id, body.quantity, total)
 
 
 @router.post("/orders/custom", response_model=SingleOrderCreateResponse, status_code=201)

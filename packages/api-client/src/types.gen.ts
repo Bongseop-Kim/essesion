@@ -93,6 +93,10 @@ export type AdminCapabilitiesOut = {
      */
     edge_proxy: string;
     /**
+     * Mailer
+     */
+    mailer: string;
+    /**
      * Oauth Apple
      */
     oauth_apple: string;
@@ -2869,6 +2873,30 @@ export type CustomAmountResponse = {
      * Total Cost
      */
     total_cost: number;
+};
+
+/**
+ * CustomEstimateEmailRequest
+ */
+export type CustomEstimateEmailRequest = {
+    /**
+     * Company Name
+     */
+    company_name?: string | null;
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Options
+     */
+    options: {
+        [key: string]: unknown;
+    };
+    /**
+     * Quantity
+     */
+    quantity: number;
 };
 
 /**
@@ -10825,6 +10853,31 @@ export type CalculateCustomOrderResponses = {
 };
 
 export type CalculateCustomOrderResponse = CalculateCustomOrderResponses[keyof CalculateCustomOrderResponses];
+
+export type SendCustomEstimateEmailData = {
+    body: CustomEstimateEmailRequest;
+    path?: never;
+    query?: never;
+    url: '/orders/custom/estimate-email';
+};
+
+export type SendCustomEstimateEmailErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SendCustomEstimateEmailError = SendCustomEstimateEmailErrors[keyof SendCustomEstimateEmailErrors];
+
+export type SendCustomEstimateEmailResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type SendCustomEstimateEmailResponse = SendCustomEstimateEmailResponses[keyof SendCustomEstimateEmailResponses];
 
 export type CreateSampleOrderData = {
     body: SampleOrderCreateRequest;

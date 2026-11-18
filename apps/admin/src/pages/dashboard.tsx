@@ -61,6 +61,7 @@ type OrderType = (typeof ORDER_TYPES)[number]["value"];
 const CAPABILITY_LABELS = {
   toss: "Toss 결제",
   solapi: "Solapi 알림",
+  mailer: "메일 발송",
   worker: "이미지 생성 서버",
   batch_auth: "배치 작업 인증",
   oauth_google: "Google OAuth",
