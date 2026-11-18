@@ -601,7 +601,12 @@ describe("OrderDetailPage", () => {
       await screen.findByRole("heading", { name: /원단 \+ 봉제 샘플$/ }),
     ).toBeTruthy();
     expect(screen.getByText("원단")).toBeTruthy();
-    expect(screen.getByText("폴리")).toBeTruthy();
+    // 고른 것과 안 고른 것을 함께 그린다 — 원단은 폴리, 심지는 울
+    expect(screen.getByText("폴리 선택됨")).toBeTruthy();
+    expect(screen.getByText("실크 선택 안 됨")).toBeTruthy();
+    expect(screen.getByText("울 선택됨")).toBeTruthy();
+    // 샘플 주문에는 봉제 옵션이 없다 — 안 고름으로 그리지 않는다
+    expect(screen.queryByText("봉제·마감")).toBeNull();
     // 사진이 없으면 빈 섹션도 그리지 않는다.
     expect(screen.queryByText(/사진|참고 이미지/)).toBeNull();
   });

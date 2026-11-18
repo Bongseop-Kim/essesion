@@ -146,6 +146,14 @@ export const storeRouteObjects = [
             }),
           },
           {
+            // 주문서의 "견적하기"가 사양을 state로 들고 온다 — 연락처·배송지를 받아 접수한다
+            path: "custom-order/quote",
+            lazy: async () => ({
+              Component: (await import("@/pages/custom-order/quote"))
+                .CustomQuotePage,
+            }),
+          },
+          {
             path: "order/sample-payment",
             lazy: async () => ({
               Component: (await import("@/pages/order/sample-payment"))

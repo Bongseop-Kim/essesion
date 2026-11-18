@@ -623,6 +623,17 @@ def _reference_image_refs(
 # ---- 맞춤 주문 (custom) ----
 
 
+POINT_FORBIDDEN_OPTIONS = (
+    "triangle_stitch",
+    "side_stitch",
+    "bar_tack",
+    "fold7",
+    "spoderato",
+    "dimple",
+    "turn_knot",
+)
+
+
 async def calculate_custom_amounts(
     session: AsyncSession, options: dict, quantity: int
 ) -> dict[str, int]:
@@ -646,6 +657,15 @@ async def calculate_custom_amounts(
         )
     if options.get("dimple") and not options.get("turn_knot"):
         raise DomainError("딤플은 돌려묶기와 함께만 선택 가능합니다", code="invalid_options")
+    # 포인트 주문은 정해진 넥타이 위에 자수·필름만 올린다 — 타이 방식·라벨만 고를 수 있다.
+    # fabric_provided는 가격에 영향이 없고 예전 스토어가 포인트 주문에 true로 보내 와서
+    # 막지 않는다.
+    if point and (
+        interlining == "WOOL" or any(options.get(flag) for flag in POINT_FORBIDDEN_OPTIONS)
+    ):
+        raise DomainError(
+            "포인트 주문에서는 심지·봉제 옵션을 선택할 수 없습니다", code="invalid_options"
+        )
 
     fabric_key = None
     design_type = None

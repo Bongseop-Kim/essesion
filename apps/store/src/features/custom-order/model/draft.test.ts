@@ -6,16 +6,16 @@ import {
   clearCustomOrderDraftAttachments,
   parseCustomOrderDraft,
   parseCustomOrderFormDraft,
+  parseCustomQuoteDraft,
   readCustomOrderFormDraft,
   restoreCustomOrderFormDraft,
   saveCustomOrderFormDraft,
 } from "./draft";
-import { DEFAULT_CUSTOM_ORDER_OPTIONS, DEFAULT_QUOTE_CONTACT } from "./options";
+import { DEFAULT_CUSTOM_ORDER_OPTIONS } from "./options";
 
 describe("custom order draft", () => {
   const formDraft = {
     options: DEFAULT_CUSTOM_ORDER_OPTIONS,
-    contact: DEFAULT_QUOTE_CONTACT,
   };
   /** 실제로 입력이 있는 초안 — 기본값 초안은 저장되지 않는다 */
   const editedDraft = {
@@ -44,6 +44,15 @@ describe("custom order draft", () => {
         totalCost: 120_000,
       }),
     ).toBeNull();
+    // 포인트 주문은 폭 칸이 숨어 빈 값으로 넘어온다 — 결제 페이지가 초안을 버리면 안 된다
+    expect(
+      parseCustomOrderDraft({
+        ...formDraft,
+        options: { ...formDraft.options, pointEnabled: true },
+        imageRefs: [],
+        totalCost: 120_000,
+      }),
+    ).not.toBeNull();
   });
 
   it("결제 draft의 완료된 업로드 ID와 금액을 검증한다", () => {
@@ -77,14 +86,38 @@ describe("custom order draft", () => {
     ).toBeNull();
   });
 
+  it("견적 초안은 스테이징 키(object_key) 이미지만 받는다", () => {
+    const quoteDraft = {
+      ownerUserId: "user-a",
+      options: { ...formDraft.options, tieWidth: 8 },
+      imageRefs: [
+        { object_key: "uploads/quote_request/a.png", part: "blade" },
+        { object_key: "uploads/quote_request/b.png" },
+      ],
+      totalCost: 120_000,
+    };
+    expect(parseCustomQuoteDraft(quoteDraft)).toEqual(quoteDraft);
+    // 결제 초안(upload_id)을 견적 페이지로 넘기면 버린다 — 반대도 마찬가지
+    expect(
+      parseCustomQuoteDraft({
+        ...quoteDraft,
+        imageRefs: [{ upload_id: "89dc3b35-9ca2-4b18-a0e0-02a099d76a23" }],
+      }),
+    ).toBeNull();
+    expect(parseCustomOrderDraft(quoteDraft)).toBeNull();
+    // 만든 계정이 없는 초안은 받지 않는다
+    const { ownerUserId: _owner, ...ownerless } = quoteDraft;
+    expect(parseCustomQuoteDraft(ownerless)).toBeNull();
+  });
+
   it("A의 폼 draft를 B나 익명 방문자에게 노출하지 않는다", () => {
     const anonymousDraft = {
       ...formDraft,
-      contact: { ...formDraft.contact, contactName: "anonymous" },
+      options: { ...formDraft.options, additionalNotes: "anonymous" },
     };
     const accountDraft = {
       ...formDraft,
-      contact: { ...formDraft.contact, contactName: "account-a" },
+      options: { ...formDraft.options, additionalNotes: "account-a" },
     };
     saveCustomOrderFormDraft(null, anonymousDraft);
     saveCustomOrderFormDraft("user-a", accountDraft);
@@ -107,7 +140,7 @@ describe("custom order draft", () => {
     saveCustomOrderFormDraft(null, editedDraft);
     saveCustomOrderFormDraft("user-a", {
       ...formDraft,
-      contact: { ...formDraft.contact, contactName: "before-login" },
+      options: { ...formDraft.options, additionalNotes: "before-login" },
     });
 
     expect(restoreCustomOrderFormDraft("user-a")).toEqual({

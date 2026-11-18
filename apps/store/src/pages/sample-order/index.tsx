@@ -134,7 +134,7 @@ export function SampleOrderPage() {
               value={sampleTypeLabel(options.sampleType)}
             />
             <SummaryCard.Row label="구성" value={sampleFabricLabel(options)} />
-            <SummaryCard.Row label="예상 제작 기간" value="28~42일" />
+            <SummaryCard.Row label="예상 제작 기간" value="약 6~8주" />
             <SummaryCard.Total
               label="결제 예상 금액"
               value={totalCost ? `${krw.format(totalCost)}원` : "계산 중"}

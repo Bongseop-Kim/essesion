@@ -77,7 +77,7 @@ def test_specs_cover_every_store_option():
         "울",
         "삼각 봉제",
         "옆선 봉제",
-        "바텍",
+        "바택",
         "7폴드",
         "스포데라토",
         "브랜드 라벨",

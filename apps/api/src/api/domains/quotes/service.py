@@ -103,8 +103,9 @@ async def create_quote(
     body: QuoteCreateRequest,
     gcs: GcsClient,
 ) -> QuoteRequest:
-    if body.quantity < 100:
-        raise DomainError("Quantity must be 100 or more", code="invalid_quantity")
+    # 주문 제작의 최소 수량과 같다 — 견적은 수량과 무관하게 받는다.
+    if body.quantity < 4:
+        raise DomainError("Quantity must be 4 or more", code="invalid_quantity")
     if not body.contact_name.strip():
         raise DomainError("Contact name is required", code="invalid_contact")
     if not body.contact_value.strip():

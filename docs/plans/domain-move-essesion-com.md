@@ -2,7 +2,7 @@
 
 정본 도메인을 `essesion.shop`에서 `essesion.com`으로 옮긴다. 도메인·DNS·SSL은 지금처럼 Cloudflare(Free)에 둔다.
 2026-11-11 조사, 2026-11-12 운영자 결정 기준으로 작성했다. `@essesion.com` 메일(iCloud+)과 사이트 연락처는
-`docs/plans/logo-variants-help-email-estimate-mail.md`로 옮겼다(2026-11-18).
+따로 실행했다(`docs/reviews/logo-light-help-email-estimate-mail-2026-11-18.md`).
 
 방식은 **동시 운영 후 전환**이다. `.com`을 먼저 띄워 `.shop`과 함께 운영하고(서버를 더 띄우는 것이 아니라
 같은 스토어·api에 주소를 하나 더 붙인다), `.com`에서 로그인 등을 확인한 뒤 토스에 주소 변경을 신청하고,
@@ -38,7 +38,7 @@
 
 ## 범위 밖
 
-- 메일(iCloud+ 커스텀 도메인)·사이트 연락처·메일 발송 기능 — `docs/plans/logo-variants-help-email-estimate-mail.md`.
+- 메일(iCloud+ 커스텀 도메인)·사이트 연락처·메일 발송 기능 — 실행 완료(`docs/reviews/logo-light-help-email-estimate-mail-2026-11-18.md`).
 - admin의 동시 운영. 사용자가 운영자 한 명이라 D단계에서 한 번에 옮긴다.
 - `app.essesion.com`은 만들지 않는다. `app.`은 예전 컷오버 이전 주소였을 뿐이다(`apps/store/wrangler.jsonc:13`).
 - URL 구조·디자인 변경. 도메인 이전과 겹치면 검색 이전 신호가 흐려진다.
@@ -119,7 +119,9 @@
 1. **머지 전**: GitHub Actions 변수 `VITE_API_BASE_URL`을 `https://api.essesion.com`으로 바꾼다(빌드 시점
    값). 토스 개발자센터 > 웹훅에 `https://api.essesion.com/payments/webhook`을 추가 등록한다(수정 기능이
    없다 — [웹훅 문서](https://docs.tosspayments.com/guides/v2/webhook)). 중복 수신은 안전하다(실행 조건의
-   확인 완료 항목). #112를 main 최신에 맞추고 초안을 해제한다.
+   확인 완료 항목). #112를 main 최신에 맞추고 초안을 해제한다. main에 맞출 때
+   `apps/store/src/pages/home/index.tsx`의 구조화 데이터 `logo` 줄이 충돌한다(#116이 파일명을 `logo-light.png`로, #112가 주소를
+   `.com`으로 고쳤다) — `https://essesion.com/logo/logo-light.png`로 합친다.
 2. **#112 머지 → CI → 배포.** 배포에서 DB 마이그레이션(backend job)이 Cloudflare 배포(frontend job)보다
    먼저 실행된다(`.github/workflows/deploy.yml:73-90`). 마이그레이션
    (`db/migrations/versions/20261112_8c2f5a1d7e93_assets_host_essesion_com.py`)이 `products.image`·

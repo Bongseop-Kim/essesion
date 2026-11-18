@@ -41,6 +41,7 @@ import {
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { BackToListButton } from "../../shared/ui/back-to-list-button";
+import { customOptionItems } from "../../shared/ui/custom-option-items";
 import { DetailList } from "../../shared/ui/detail-list";
 import { NumberField } from "../../shared/ui/number-field";
 import { PrivateAssetPreview } from "../../shared/ui/private-asset-preview";
@@ -69,45 +70,6 @@ function quoteStageLabel(status: string) {
   return QUOTE_STAGES.find((stage) => stage.value === status)?.label ?? status;
 }
 
-const OPTION_LABELS: Record<string, string> = {
-  fabric: "원단",
-  width: "규격",
-  fabric_provided: "원단 제공",
-  reorder: "재주문",
-  fabric_type: "원단",
-  design_type: "디자인 방식",
-  tie_type: "타이 형태",
-  interlining: "심지",
-  size_type: "규격",
-  tie_width: "타이 폭",
-  triangle_stitch: "삼각 봉제",
-  side_stitch: "옆선 봉제",
-  bar_tack: "바택",
-  fold7: "7폴드",
-  dimple: "딤플",
-  turn_knot: "돌려묶기",
-  spoderato: "스포데라토",
-  brand_label: "브랜드 라벨",
-  care_label: "케어 라벨",
-  point: "포인트",
-};
-
-const OPTION_VALUES: Record<string, string> = {
-  silk: "실크",
-  standard: "기본",
-  SILK: "실크",
-  POLY: "폴리",
-  YARN_DYED: "선염",
-  PRINTING: "날염",
-  AUTO: "자동 타이",
-  MANUAL: "수동 타이",
-  WOOL: "울",
-  ADULT: "성인용",
-  CHILD: "아동용",
-  EMBROIDERY: "자수",
-  HEAT_TRANSFER: "열전사 필름",
-};
-
 const QUOTE_ACTION_LABELS: Partial<
   Record<AdminQuoteAction["target_status"], string>
 > = {
@@ -115,19 +77,6 @@ const QUOTE_ACTION_LABELS: Partial<
   확정: "견적 확정",
   종료: "견적 종료",
 };
-
-function formatQuoteOption(key: string, value: unknown) {
-  if (typeof value === "boolean") return value ? "포함" : "미포함";
-  if (key === "tie_width" && typeof value === "number") return `${value}cm`;
-  if (key === "tie_type" && (value === "" || value === "MANUAL")) {
-    return "수동 타이";
-  }
-  if (key === "interlining" && value === "") return "폴리";
-  if (value === null || value === "") return "해당 없음";
-  if (typeof value === "string") return OPTION_VALUES[value] ?? value;
-  if (typeof value === "number") return value.toLocaleString("ko-KR");
-  return "기술 정보에서 확인";
-}
 
 function quoteActionLabel(
   action: AdminQuoteAction,
@@ -297,10 +246,7 @@ export function QuoteDetailPage() {
   const primaryAction = (data.admin_actions ?? []).find(
     (action) => action.enabled,
   );
-  const optionItems = Object.entries(data.options).map(([key, value]) => ({
-    label: OPTION_LABELS[key] ?? "추가 사양",
-    value: formatQuoteOption(key, value),
-  }));
+  const optionItems = customOptionItems(data.options);
 
   return (
     <VStack gap="x6" alignItems="stretch">
