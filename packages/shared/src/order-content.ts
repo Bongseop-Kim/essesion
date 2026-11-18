@@ -17,7 +17,7 @@ const OPTION_LABELS: Record<string, string> = {
   tie_width: "타이 폭",
   triangle_stitch: "삼각 봉제",
   side_stitch: "옆선 봉제",
-  bar_tack: "바텍",
+  bar_tack: "바택",
   fold7: "7폴드",
   dimple: "딤플",
   turn_knot: "돌려묶기",

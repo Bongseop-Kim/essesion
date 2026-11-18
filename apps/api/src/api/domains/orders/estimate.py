@@ -19,7 +19,7 @@ SIZE_LABELS = {"ADULT": "성인용", "CHILD": "아동용"}
 FINISHING_LABELS = {
     "triangle_stitch": "삼각 봉제",
     "side_stitch": "옆선 봉제",
-    "bar_tack": "바텍",
+    "bar_tack": "바택",
     "fold7": "7폴드",
     "spoderato": "스포데라토",
     "brand_label": "브랜드 라벨",

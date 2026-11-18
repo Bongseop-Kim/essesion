@@ -62,6 +62,7 @@ import {
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { BackToListButton } from "../../shared/ui/back-to-list-button";
+import { customOptionItems } from "../../shared/ui/custom-option-items";
 import { type DetailItem, DetailList } from "../../shared/ui/detail-list";
 import { OptionPair } from "../../shared/ui/option-pair";
 import { PrivateAssetPreview } from "../../shared/ui/private-asset-preview";
@@ -233,11 +234,23 @@ function AdminOrderContent({
           memo: undefined,
         }
       : decodeOrderItemContent(orderType, item.item_data, item.quantity);
+  // 맞춤·샘플의 제작 사양은 고른 값만 나열하지 않고 선택지를 모두 그린다(customOptionItems).
+  // 디코더의 사양 행·꼬리표 대신 쓰고, 수량·샘플 유형 행만 그대로 둔다.
+  const customSpec =
+    content != null && (orderType === "custom" || orderType === "sample")
+      ? [
+          ...content.rows.filter(
+            (row) => row.label === "제작 수량" || row.label === "샘플 유형",
+          ),
+          ...customOptionItems(record(item.item_data)?.options),
+        ]
+      : null;
   // 품목 표를 없앴으니 이 카드가 수량·금액·클레임의 유일한 노출 경로다.
   const rows: DetailItem[] = [
-    ...(content?.rows ?? [
-      { label: "수량", value: `${item.quantity.toLocaleString("ko-KR")}개` },
-    ]),
+    ...(customSpec ??
+      content?.rows ?? [
+        { label: "수량", value: `${item.quantity.toLocaleString("ko-KR")}개` },
+      ]),
     { label: "단가", value: formatMoney(item.unit_price) },
     ...(item.line_discount_amount > 0
       ? [
@@ -264,7 +277,7 @@ function AdminOrderContent({
           {content ? ` · ${content.typeLabel}` : ""}
         </Text>
         <DetailList items={rows} />
-        {content != null && content.tags.length > 0 ? (
+        {content != null && customSpec === null && content.tags.length > 0 ? (
           <TagGroup>
             {content.tags.map((tag) => (
               <Tag key={tag}>{tag}</Tag>
