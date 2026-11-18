@@ -179,7 +179,8 @@ export function SnackbarHost(): ReactNode {
       // 위치·리셋만 — display 클래스 금지(UA의 [popover] display:none을 덮어써 항상 열림).
       className="fixed inset-x-0 top-auto m-0 mx-auto w-fit border-0 bg-transparent p-0"
       style={{
-        bottom: `calc(${avoidBottom}px + var(--spacing-x4) + env(safe-area-inset-bottom, 0px))`,
+        // avoidBottom(하단 바 실측 높이)은 이미 safe area를 포함한다 — 더하지 않고 큰 쪽만 쓴다.
+        bottom: `calc(max(${avoidBottom}px, env(safe-area-inset-bottom, 0px)) + var(--spacing-x4))`,
       }}
     >
       {current && (
