@@ -27,7 +27,11 @@ export function courierTrackingUrl(
   trackingNumber: string | null | undefined,
 ): string | null {
   if (!code || !trackingNumber) return null;
-  const template = TRACKING_URL_TEMPLATES[code];
+  // admin 송장 입력은 택배사를 이름으로 저장한다(알림톡 #{택배사}) — 이름이면 코드로 되돌려 찾는다.
+  const template =
+    TRACKING_URL_TEMPLATES[
+      COURIER_OPTIONS.find((option) => option.label === code)?.value ?? code
+    ];
   return template
     ? template.replace("{trackingNumber}", encodeURIComponent(trackingNumber))
     : null;

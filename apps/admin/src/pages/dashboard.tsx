@@ -295,6 +295,7 @@ function RecentCard({
         rows={rows}
         getRowKey={(row) => row.id}
         onRowClick={(row) => navigate(row.href)}
+        compactEmpty
         compactRow={(row) => ({
           title: row.customer,
           trailing: row.amount,
@@ -358,6 +359,12 @@ export function DashboardPage() {
   );
   const capabilities = useQuery(getAdminCapabilitiesOptions());
 
+  // 필터가 모달 뒤에 있어도 기본값에서 벗어난 조건 수는 버튼에 남긴다
+  const activeFilterCount =
+    Number(searchParams.has("from")) +
+    Number(searchParams.has("to")) +
+    Number(orderType !== "all");
+
   const updateFilter = (key: "from" | "to" | "type", value: string) => {
     const next = new URLSearchParams(searchParams);
     if (value === "" || (key === "type" && value === "all")) next.delete(key);
@@ -401,10 +408,11 @@ export function DashboardPage() {
         <HStack gap="x2">
           <ActionButton
             variant="neutralOutline"
+            aria-haspopup="dialog"
             aria-expanded={filterOpen}
-            onClick={() => setFilterOpen((open) => !open)}
+            onClick={() => setFilterOpen(true)}
           >
-            필터
+            필터{activeFilterCount > 0 ? ` ${activeFilterCount}` : ""}
           </ActionButton>
           <ActionButton
             variant="neutralOutline"
@@ -431,36 +439,32 @@ export function DashboardPage() {
         </HStack>
       </HStack>
 
-      {filterOpen && (
-        <AdminCard title="조회 기준">
-          <HStack gap="x3" align="flex-end" wrap>
-            <TextField
-              type="date"
-              label="시작일 (KST)"
-              value={startDate}
-              max={endDate}
-              onChange={(event) =>
-                updateFilter("from", event.currentTarget.value)
-              }
-            />
-            <TextField
-              type="date"
-              label="종료일 (KST)"
-              value={endDate}
-              min={startDate}
-              onChange={(event) =>
-                updateFilter("to", event.currentTarget.value)
-              }
-            />
-            <FilterSelect
-              label="주문 유형"
-              value={orderType}
-              options={ORDER_TYPES}
-              onValueChange={(value) => updateFilter("type", value)}
-            />
-          </HStack>
-        </AdminCard>
-      )}
+      <Modal open={filterOpen} onOpenChange={setFilterOpen} title="조회 기준">
+        <HStack gap="x3" align="flex-end" wrap>
+          <TextField
+            type="date"
+            label="시작일 (KST)"
+            value={startDate}
+            max={endDate}
+            onChange={(event) =>
+              updateFilter("from", event.currentTarget.value)
+            }
+          />
+          <TextField
+            type="date"
+            label="종료일 (KST)"
+            value={endDate}
+            min={startDate}
+            onChange={(event) => updateFilter("to", event.currentTarget.value)}
+          />
+          <FilterSelect
+            label="주문 유형"
+            value={orderType}
+            options={ORDER_TYPES}
+            onValueChange={(value) => updateFilter("type", value)}
+          />
+        </HStack>
+      </Modal>
 
       {/* 연동 상태 상세는 모달로 숨기되, 작업이 실패하는 상태는 항상 화면에 남긴다 */}
       {capabilities.isError && (
@@ -648,6 +652,7 @@ export function DashboardPage() {
           rows={rankedProducts}
           getRowKey={(row) => String(row.product_id)}
           onRowClick={(row) => navigate(`/products/${row.product_id}`)}
+          compactEmpty
           status={
             topProducts.isLoading
               ? "loading"

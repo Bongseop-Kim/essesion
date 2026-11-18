@@ -171,6 +171,7 @@ export function ReviewsPage() {
           type="button"
           variant="ghost"
           size="small"
+          aria-label={`${review.author_name} 후기 삭제 (${formatDateTime(review.created_at)})`}
           onClick={() => setDeleteTarget(review)}
         >
           삭제
@@ -199,6 +200,7 @@ export function ReviewsPage() {
               type="button"
               variant="ghost"
               size="small"
+              aria-label={`${row.author_name} 후기 삭제 (${formatDateTime(row.created_at)})`}
               onClick={() => setDeleteTarget(row)}
             >
               삭제
@@ -326,7 +328,37 @@ export function ReviewsPage() {
           if (!open && !deleteReview.isPending) setDeleteTarget(null);
         }}
         title="후기를 삭제할까요?"
-        description="삭제한 후기는 복구할 수 없습니다."
+        // 모바일 두 줄 목록은 내용을 한 줄로 자르고 사진을 숨긴다 — 지우기 전에 전체를 여기서 확인한다.
+        description={
+          <VStack gap="x3" alignItems="stretch">
+            <Text textStyle="bodySm">삭제한 후기는 복구할 수 없습니다.</Text>
+            {deleteTarget !== null && (
+              <>
+                <Text textStyle="caption">
+                  {deleteTarget.author_name} · {deleteTarget.rating}점 ·{" "}
+                  {formatDateTime(deleteTarget.created_at)}
+                </Text>
+                <Text textStyle="bodySm" color="fg.neutral">
+                  {deleteTarget.content}
+                </Text>
+                {deleteTarget.photos.length > 0 && (
+                  <HStack gap="x1" wrap>
+                    {deleteTarget.photos.map((photo, index) => (
+                      <Box key={photo.upload_id} width={72}>
+                        <ImageFrame
+                          ratio={1}
+                          stroke
+                          src={photo.url}
+                          alt={`후기 사진 ${index + 1}`}
+                        />
+                      </Box>
+                    ))}
+                  </HStack>
+                )}
+              </>
+            )}
+          </VStack>
+        }
         primaryActionProps={{
           children: "삭제",
           variant: "criticalSolid",

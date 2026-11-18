@@ -305,6 +305,7 @@ export function CustomerDetailPage() {
               <VStack gap="x4" alignItems="stretch">
                 <AdminTable
                   label="고객 주문 이력"
+                  compactEmpty
                   columns={orderColumns}
                   rows={orders.data?.items}
                   getRowKey={(row) => row.id}
@@ -344,6 +345,7 @@ export function CustomerDetailPage() {
               <VStack gap="x4" alignItems="stretch">
                 <AdminTable
                   label="고객 쿠폰 이력"
+                  compactEmpty
                   columns={couponColumns}
                   rows={coupons.data?.items}
                   getRowKey={(row) => row.id}

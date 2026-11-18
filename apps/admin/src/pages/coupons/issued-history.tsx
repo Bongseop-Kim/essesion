@@ -234,6 +234,12 @@ export function CouponIssuedHistory({
             columns={columns}
             rows={query.data?.items}
             getRowKey={(issuance) => issuance.id}
+            compactRow={(issuance) => ({
+              leading: canManage ? selectionColumn.render(issuance) : undefined,
+              title: issuance.user_name,
+              meta: `${issuance.user_email ?? "이메일 없음"} · ${formatDateTime(issuance.issued_at)}`,
+              status: <StatusBadge status={issuance.status} />,
+            })}
             status={
               query.isLoading || query.isPlaceholderData
                 ? "loading"

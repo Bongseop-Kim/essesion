@@ -231,9 +231,12 @@ describe("DashboardPage", () => {
     expect(screen.queryByText("ORDER-001")).toBeNull();
     expect(screen.queryByText("QUOTE-001")).toBeNull();
     // 조회 기준은 필터 버튼을 눌러야 나온다
-    expect(screen.queryByLabelText("시작일 (KST)")).toBeNull();
+    const filterDialog = screen
+      .getByLabelText("시작일 (KST)")
+      .closest("dialog");
+    expect(filterDialog?.open).toBe(false);
     await user.click(screen.getByRole("button", { name: "필터" }));
-    expect(screen.getByLabelText("시작일 (KST)")).toBeTruthy();
+    expect(filterDialog?.open).toBe(true);
     expect(screen.getAllByText("₩50,000")).toHaveLength(2);
     // 수기 주문은 별도 표로 — 금액은 amount + shipping_fee
     expect(screen.getByText("김수기")).toBeTruthy();

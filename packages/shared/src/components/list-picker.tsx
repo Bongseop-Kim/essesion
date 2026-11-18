@@ -97,6 +97,10 @@ export function ListPicker({
             placeholder="검색"
             value={search}
             onChange={(event) => setSearch(event.currentTarget.value)}
+            // dialog는 포털 없이 제자리에 그려진다 — 폼 안에서 Enter가 바깥 폼을 제출하지 않게 막는다
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.preventDefault();
+            }}
           />
         ) : null}
         <List className="-mx-x4">

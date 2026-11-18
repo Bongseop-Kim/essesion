@@ -144,6 +144,15 @@ export function MotifsPage() {
         rows={query.data?.items}
         getRowKey={(row) => row.id}
         onRowClick={(motif) => navigate(`/motifs/${motif.id}`)}
+        compactRow={(motif) => ({
+          leading: <MotifPreviewCell motif={motif} />,
+          title: motif.subject ?? motif.id,
+          trailing: motif.source,
+          meta:
+            [motif.scope, motif.style]
+              .filter((value) => value !== null)
+              .join(" · ") || motif.id,
+        })}
         status={
           query.isLoading || query.isPlaceholderData
             ? "loading"

@@ -150,6 +150,9 @@ export function PopupsPage() {
       ),
     },
   ];
+  // 두 줄 목록도 표와 같은 컨트롤을 쓴다 — 열 렌더러를 그대로 가져온다
+  const cell = (key: string, row: AdminPopupNoticeOut) =>
+    columns.find((column) => column.key === key)?.render(row);
 
   return (
     <VStack gap="x6" alignItems="stretch">
@@ -182,6 +185,17 @@ export function PopupsPage() {
           columns={columns}
           rows={query.data}
           getRowKey={(row) => row.id}
+          compactRow={(row) => ({
+            title: cell("title", row),
+            trailing: cell("status", row),
+            meta: `${formatDate(row.starts_on)} ~ ${formatDate(row.ends_on)}`,
+            status: (
+              <HStack gap="x2" className="shrink-0">
+                {cell("enabled", row)}
+                {cell("actions", row)}
+              </HStack>
+            ),
+          })}
           status={
             query.isLoading ? "loading" : query.isError ? "error" : "success"
           }

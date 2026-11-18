@@ -257,6 +257,16 @@ export function CouponOperations({
                 columns={columns}
                 rows={preview?.items}
                 getRowKey={(customer) => customer.id}
+                compactRow={(customer) => ({
+                  leading: columns[0]?.render(customer),
+                  title: customer.name,
+                  meta: [
+                    customer.email ?? "이메일 없음",
+                    customer.phone && formatPhoneNumber(customer.phone),
+                  ]
+                    .filter(Boolean)
+                    .join(" · "),
+                })}
                 status={previewMutation.isPending ? "loading" : "success"}
                 total={preview?.total}
                 emptyTitle="조건에 맞는 고객이 없습니다"

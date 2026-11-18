@@ -212,6 +212,15 @@ export function ProductDetailPage() {
           rows={options}
           getRowKey={(option) => option.id}
           status="success"
+          compactEmpty
+          compactRow={(option) => ({
+            title: option.name,
+            trailing: formatMoney(option.additional_price),
+            meta:
+              option.stock === null
+                ? "재고 무제한"
+                : `재고 ${option.stock.toLocaleString("ko-KR")}개`,
+          })}
           emptyTitle="등록된 옵션이 없습니다"
         />
       </AdminCard>

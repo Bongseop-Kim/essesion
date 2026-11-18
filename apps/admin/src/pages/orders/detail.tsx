@@ -542,6 +542,13 @@ export function OrderDetailPage() {
     });
   };
 
+  // 회사가 보내는 송장(수선은 company_*, 그 외는 일반 송장)이 비어 있으면 설정의 기본 택배사를 제안한다.
+  // 상태에 복사하지 않고 그릴 때 채운다 — 설정이 액션을 고른 뒤에 도착해도 반영된다.
+  const isRepair = data.order_type === "repair";
+  const courierValue = courier || (isRepair ? "" : defaultCourier);
+  const companyCourierValue =
+    companyCourier || (isRepair ? defaultCourier : "");
+
   const submitAction = (event: FormEvent) => {
     event.preventDefault();
     setValidationError(undefined);
@@ -549,9 +556,9 @@ export function OrderDetailPage() {
       trackingMutation.mutate({
         path: { order_id: data.id },
         body: {
-          courier_company: courier.trim() || null,
+          courier_company: courierValue.trim() || null,
           tracking_number: tracking.trim() || null,
-          company_courier_company: companyCourier.trim() || null,
+          company_courier_company: companyCourierValue.trim() || null,
           company_tracking_number: companyTracking.trim() || null,
         },
       });
@@ -570,13 +577,9 @@ export function OrderDetailPage() {
     setValidationError(undefined);
     setMemo("");
     if (action.kind === "update_tracking") {
-      // 회사가 보내는 송장(수선은 company_*, 그 외는 일반 송장)이 비어 있으면 설정의 기본 택배사를 제안한다
-      const repair = data.order_type === "repair";
-      setCourier(data.courier_company ?? (repair ? "" : defaultCourier));
+      setCourier(data.courier_company ?? "");
       setTracking(data.tracking_number ?? "");
-      setCompanyCourier(
-        data.company_courier_company ?? (repair ? defaultCourier : ""),
-      );
+      setCompanyCourier(data.company_courier_company ?? "");
       setCompanyTracking(data.company_tracking_number ?? "");
     }
   };
@@ -596,7 +599,6 @@ export function OrderDetailPage() {
       image.order_item_id == null || !itemIds.has(image.order_item_id),
   );
   const adminActions = (data.admin_actions ?? []).map(withDisplayLabel);
-  const isRepair = data.order_type === "repair";
   const actionButtons = adminActions.map((action) => (
     <ActionButton
       key={`${action.kind}-${action.target_status ?? ""}`}
@@ -627,8 +629,8 @@ export function OrderDetailPage() {
               <ListPicker
                 searchable
                 label={isRepair ? "입고 택배사" : "발송 택배사"}
-                options={courierOptions(courier)}
-                value={courier || undefined}
+                options={courierOptions(courierValue)}
+                value={courierValue || undefined}
                 onValueChange={setCourier}
               />
               <TextField
@@ -641,8 +643,8 @@ export function OrderDetailPage() {
                   <ListPicker
                     searchable
                     label="발송 택배사"
-                    options={courierOptions(companyCourier)}
-                    value={companyCourier || undefined}
+                    options={courierOptions(companyCourierValue)}
+                    value={companyCourierValue || undefined}
                     onValueChange={setCompanyCourier}
                   />
                   <TextField
