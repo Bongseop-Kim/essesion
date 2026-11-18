@@ -5,6 +5,7 @@ import {
   customOrderSummary,
   DEFAULT_CUSTOM_ORDER_OPTIONS,
   invalidCustomOrderSection,
+  invalidQuoteContact,
 } from "./options";
 
 describe("custom order options", () => {
@@ -174,17 +175,18 @@ describe("custom order options", () => {
         quantity: 10_001,
       })?.field,
     ).toBe("quantity");
+    const contact = {
+      contactName: "홍길동",
+      businessName: "",
+      contactMethod: "email" as const,
+      contactValue: "not-an-email",
+    };
+    expect(invalidQuoteContact(contact)?.field).toBe("contactValue");
+    expect(invalidQuoteContact({ ...contact, contactName: " " })?.field).toBe(
+      "contactName",
+    );
     expect(
-      invalidCustomOrderSection(
-        { ...DEFAULT_CUSTOM_ORDER_OPTIONS, quantity: 100, tieWidth: 8 },
-        {
-          contactName: "홍길동",
-          businessName: "",
-          contactMethod: "email",
-          contactValue: "not-an-email",
-        },
-        true,
-      )?.field,
-    ).toBe("contactValue");
+      invalidQuoteContact({ ...contact, contactValue: "buyer@example.com" }),
+    ).toBeNull();
   });
 });

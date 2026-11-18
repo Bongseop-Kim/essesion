@@ -16,6 +16,7 @@ import {
   DEFAULT_CUSTOM_ORDER_OPTIONS,
 } from "@/features/custom-order/model/options";
 import { useCustomQuote } from "@/features/custom-order/model/use-custom-quote";
+import { EstimateMailButton } from "@/features/custom-order/ui/estimate-mail-button";
 import { krw } from "@/shared/lib/format";
 import {
   Eyebrow,
@@ -141,7 +142,7 @@ const NOTICES = [
 const FAQS = [
   [
     "최소 몇 개부터 되나요?",
-    "4개부터 주문할 수 있어요. 4~99개는 주문서에서 바로 결제하고, 100개 이상은 견적으로 진행해요.",
+    "4개부터 주문할 수 있어요. 주문서에서 바로 결제하거나 견적을 요청할 수 있어요.",
   ],
   [
     "샘플을 먼저 볼 수 있나요?",
@@ -194,7 +195,7 @@ export function CustomOrderServiceGuide({ onStart }: { onStart: () => void }) {
           alt="같은 넥타이를 맨 단체 착용 모습"
         />
         <HStack gap="x2" wrap>
-          {["4개부터 주문", "영업일 28~42일", "100개 이상 견적"].map(
+          {["4개부터 주문", "영업일 28~42일", "엑셀 견적서 메일"].map(
             (label) => (
               <Pill key={label}>{label}</Pill>
             ),
@@ -256,7 +257,7 @@ export function CustomOrderServiceGuide({ onStart }: { onStart: () => void }) {
         <Grid columns={{ base: 1, sm: 3 }} gap="x3">
           {[
             ["제작 기간", "영업일 기준 28~42일"],
-            ["100개 이상", "견적으로 진행"],
+            ["견적", "수량 관계없이 요청"],
             ["진행 상황", "알림톡으로 안내"],
           ].map(([label, value]) => (
             <VStack
@@ -278,6 +279,36 @@ export function CustomOrderServiceGuide({ onStart }: { onStart: () => void }) {
           {PRICE_EXAMPLE_QUANTITY}개 총{" "}
           {example.data ? won(example.data.total_cost) : "—"}
         </Text>
+      </GuideSection>
+
+      {/* 견적서 메일 — 가격을 본 손님에게 결재용 문서로 잇는다 */}
+      <GuideSection>
+        <Eyebrow>견적서</Eyebrow>
+        <Grid columns={{ base: 1, md: 2 }} gap="x6" alignItems="center">
+          <VStack gap="x6" alignItems="stretch">
+            <SectionTitle>
+              {"결재용 견적서,\n엑셀로 바로 받아보세요"}
+            </SectionTitle>
+            <Lead>
+              {
+                "주문서에서 사양을 고르고 견적서 버튼을 누르면\n메일로 엑셀 견적서를 보내 드려요."
+              }
+            </Lead>
+            {/* 캡처 대신 주문서의 버튼을 그대로 그린다 — 누르면 주문서로 올라간다 */}
+            <HStack gap="x3">
+              <EstimateMailButton onClick={onStart} />
+              <Text textStyle="bodySm" color="fg.neutral-muted">
+                주문서 아래의 이 버튼이에요. 로그인이 필요해요.
+              </Text>
+            </HStack>
+          </VStack>
+          <ImageFrame
+            ratio={973 / 936}
+            borderRadius="r4"
+            src={`${IMG}/estimate-sample-2026-11-18.webp`}
+            alt="맞춤 넥타이 견적서 엑셀 예시"
+          />
+        </Grid>
       </GuideSection>
 
       {/* 06 원단 */}

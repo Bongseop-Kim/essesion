@@ -1,6 +1,7 @@
 import type {
   CustomAmountRequest,
   OrderReferenceImageIn,
+  ReferenceImageIn,
 } from "@essesion/api-client";
 
 export type CustomOrderOptions = {
@@ -36,10 +37,17 @@ export type QuoteContact = {
   contactValue: string;
 };
 
+/** 주문서 → 결제 페이지로 넘기는 초안. 참고 이미지는 완료된 업로드(upload_id)다. */
 export type CustomOrderDraft = {
   options: CustomOrderOptions;
-  contact: QuoteContact;
   imageRefs: OrderReferenceImageIn[];
+  totalCost: number;
+};
+
+/** 주문서 → 견적 요청 페이지로 넘기는 초안. 견적의 참고 이미지는 스테이징 키(object_key)다. */
+export type CustomQuoteDraft = {
+  options: CustomOrderOptions;
+  imageRefs: ReferenceImageIn[];
   totalCost: number;
 };
 
@@ -127,9 +135,7 @@ export type CustomOrderFieldId =
   | "quantity"
   | "tieWidth"
   | "dimple"
-  | "turnKnot"
-  | "contactName"
-  | "contactValue";
+  | "turnKnot";
 
 export type CustomOrderValidationError = {
   section: CustomOrderSectionId;
@@ -141,8 +147,6 @@ export const MAX_CUSTOM_ORDER_QUANTITY = 10_000;
 
 export function invalidCustomOrderSection(
   options: CustomOrderOptions,
-  contact?: QuoteContact,
-  isQuoteMode = false,
 ): CustomOrderValidationError | null {
   if (
     !Number.isInteger(options.quantity) ||
@@ -180,19 +184,26 @@ export function invalidCustomOrderSection(
       return TIE_WIDTH_ERROR;
     }
   }
-  if (isQuoteMode && !contact?.contactName.trim()) {
-    return {
-      section: "quantity",
-      field: "contactName",
-      message: "담당자 성함을 입력해 주세요.",
-    };
+  return null;
+}
+
+export type QuoteContactError = {
+  field: "contactName" | "contactValue";
+  message: string;
+};
+
+/** 견적 요청 페이지의 연락처 검증 — 주문서는 연락처를 다루지 않는다. */
+export function invalidQuoteContact(
+  contact: QuoteContact,
+): QuoteContactError | null {
+  if (!contact.contactName.trim()) {
+    return { field: "contactName", message: "담당자 성함을 입력해 주세요." };
   }
-  if (isQuoteMode && !validContact(contact)) {
+  if (!validContact(contact)) {
     return {
-      section: "quantity",
       field: "contactValue",
       message:
-        contact?.contactMethod === "email"
+        contact.contactMethod === "email"
           ? "올바른 이메일 주소를 입력해 주세요."
           : "올바른 연락처를 입력해 주세요.",
     };
@@ -207,9 +218,9 @@ export const TIE_WIDTH_ERROR: CustomOrderValidationError = {
   message: "넥타이 폭은 6~12cm 사이에서 0.5cm 단위로 입력해 주세요.",
 };
 
-function validContact(contact: QuoteContact | undefined) {
-  const value = contact?.contactValue.trim() ?? "";
-  if (contact?.contactMethod === "email") {
+function validContact(contact: QuoteContact) {
+  const value = contact.contactValue.trim();
+  if (contact.contactMethod === "email") {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   }
   return /^[0-9+()\-\s]{8,20}$/.test(value);

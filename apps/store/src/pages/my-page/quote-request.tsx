@@ -91,7 +91,7 @@ export function QuoteRequestPage() {
               }
               description={
                 filter === "all"
-                  ? "주문 제작에서 100개 이상 수량의 견적을 요청할 수 있습니다."
+                  ? "주문 제작에서 견적을 요청할 수 있습니다."
                   : "다른 상태를 선택해 보세요."
               }
               action={

@@ -42,10 +42,7 @@ import {
   readCustomOrderFormDraft,
   saveCustomOrderFormDraft,
 } from "@/features/custom-order/model/draft";
-import {
-  DEFAULT_CUSTOM_ORDER_OPTIONS,
-  DEFAULT_QUOTE_CONTACT,
-} from "@/features/custom-order/model/options";
+import { DEFAULT_CUSTOM_ORDER_OPTIONS } from "@/features/custom-order/model/options";
 import { useSession } from "@/shared/store/session";
 
 import { PaymentSuccessPage } from "./payment-success";
@@ -134,13 +131,17 @@ describe("payment success pending boundary", () => {
     savePending("user-a", "group-a", "cart-a");
     savePending("user-b", "group-b", "cart-b");
     saveCustomOrderFormDraft("user-a", {
-      options: DEFAULT_CUSTOM_ORDER_OPTIONS,
       // 기본값 그대로인 초안은 저장되지 않으므로 실제 입력이 있는 초안으로 둔다
-      contact: { ...DEFAULT_QUOTE_CONTACT, contactName: "account-a" },
+      options: {
+        ...DEFAULT_CUSTOM_ORDER_OPTIONS,
+        additionalNotes: "account-a",
+      },
     });
     saveCustomOrderFormDraft("user-b", {
-      options: DEFAULT_CUSTOM_ORDER_OPTIONS,
-      contact: { ...DEFAULT_QUOTE_CONTACT, contactName: "account-b" },
+      options: {
+        ...DEFAULT_CUSTOM_ORDER_OPTIONS,
+        additionalNotes: "account-b",
+      },
     });
     renderPage();
 
@@ -160,7 +161,7 @@ describe("payment success pending boundary", () => {
       readPendingCheckout(CHECKOUT_PENDING_KEY, "user-b")?.paymentGroupId,
     ).toBe("group-b");
     expect(readCustomOrderFormDraft("user-a")).toBeNull();
-    expect(readCustomOrderFormDraft("user-b")?.contact.contactName).toBe(
+    expect(readCustomOrderFormDraft("user-b")?.options.additionalNotes).toBe(
       "account-b",
     );
     expect(cartHarness.removeItems).not.toHaveBeenCalled();
@@ -170,13 +171,17 @@ describe("payment success pending boundary", () => {
     savePending("user-a", "group-a", "product:1:base");
     savePending("user-b", "group-b", "product:1:base");
     saveCustomOrderFormDraft("user-a", {
-      options: DEFAULT_CUSTOM_ORDER_OPTIONS,
       // 기본값 그대로인 초안은 저장되지 않으므로 실제 입력이 있는 초안으로 둔다
-      contact: { ...DEFAULT_QUOTE_CONTACT, contactName: "account-a" },
+      options: {
+        ...DEFAULT_CUSTOM_ORDER_OPTIONS,
+        additionalNotes: "account-a",
+      },
     });
     saveCustomOrderFormDraft("user-b", {
-      options: DEFAULT_CUSTOM_ORDER_OPTIONS,
-      contact: { ...DEFAULT_QUOTE_CONTACT, contactName: "account-b" },
+      options: {
+        ...DEFAULT_CUSTOM_ORDER_OPTIONS,
+        additionalNotes: "account-b",
+      },
     });
     const page = renderPage();
 
@@ -194,7 +199,7 @@ describe("payment success pending boundary", () => {
     expect(
       readPendingCheckout(CHECKOUT_PENDING_KEY, "user-b")?.paymentGroupId,
     ).toBe("group-b");
-    expect(readCustomOrderFormDraft("user-b")?.contact.contactName).toBe(
+    expect(readCustomOrderFormDraft("user-b")?.options.additionalNotes).toBe(
       "account-b",
     );
   });
@@ -202,9 +207,11 @@ describe("payment success pending boundary", () => {
   it("동일 계정 토큰 교체가 끝나면 A 후처리를 이어간다", async () => {
     savePending("user-a", "group-a", "cart-a");
     saveCustomOrderFormDraft("user-a", {
-      options: DEFAULT_CUSTOM_ORDER_OPTIONS,
       // 기본값 그대로인 초안은 저장되지 않으므로 실제 입력이 있는 초안으로 둔다
-      contact: { ...DEFAULT_QUOTE_CONTACT, contactName: "account-a" },
+      options: {
+        ...DEFAULT_CUSTOM_ORDER_OPTIONS,
+        additionalNotes: "account-a",
+      },
     });
     renderPage();
 
@@ -247,13 +254,17 @@ describe("payment success pending boundary", () => {
     savePending("user-a", "group-a", "product:1:base");
     savePending("user-b", "group-b", "product:1:base");
     saveCustomOrderFormDraft("user-a", {
-      options: DEFAULT_CUSTOM_ORDER_OPTIONS,
       // 기본값 그대로인 초안은 저장되지 않으므로 실제 입력이 있는 초안으로 둔다
-      contact: { ...DEFAULT_QUOTE_CONTACT, contactName: "account-a" },
+      options: {
+        ...DEFAULT_CUSTOM_ORDER_OPTIONS,
+        additionalNotes: "account-a",
+      },
     });
     saveCustomOrderFormDraft("user-b", {
-      options: DEFAULT_CUSTOM_ORDER_OPTIONS,
-      contact: { ...DEFAULT_QUOTE_CONTACT, contactName: "account-b" },
+      options: {
+        ...DEFAULT_CUSTOM_ORDER_OPTIONS,
+        additionalNotes: "account-b",
+      },
     });
     const page = renderPage();
 
@@ -277,7 +288,7 @@ describe("payment success pending boundary", () => {
       readPendingCheckout(CHECKOUT_PENDING_KEY, "user-b")?.paymentGroupId,
     ).toBe("group-b");
     expect(readCustomOrderFormDraft("user-a")).not.toBeNull();
-    expect(readCustomOrderFormDraft("user-b")?.contact.contactName).toBe(
+    expect(readCustomOrderFormDraft("user-b")?.options.additionalNotes).toBe(
       "account-b",
     );
     expect(cartHarness.removeItems).not.toHaveBeenCalled();
@@ -296,7 +307,7 @@ describe("payment success pending boundary", () => {
     expect(
       readPendingCheckout(CHECKOUT_PENDING_KEY, "user-b")?.paymentGroupId,
     ).toBe("group-b");
-    expect(readCustomOrderFormDraft("user-b")?.contact.contactName).toBe(
+    expect(readCustomOrderFormDraft("user-b")?.options.additionalNotes).toBe(
       "account-b",
     );
     expect(cartHarness.removeItems).not.toHaveBeenCalled();

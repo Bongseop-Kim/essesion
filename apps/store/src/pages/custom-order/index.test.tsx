@@ -35,10 +35,7 @@ import {
   readCustomOrderFormDraft,
   saveCustomOrderFormDraft,
 } from "@/features/custom-order/model/draft";
-import {
-  DEFAULT_CUSTOM_ORDER_OPTIONS,
-  DEFAULT_QUOTE_CONTACT,
-} from "@/features/custom-order/model/options";
+import { DEFAULT_CUSTOM_ORDER_OPTIONS } from "@/features/custom-order/model/options";
 import { useSession } from "@/shared/store/session";
 
 import { CustomOrderPage } from "./index";
@@ -90,8 +87,10 @@ describe("CustomOrderPage", () => {
 
   it("stale A 사용자가 남은 loading 중에는 A draft를 렌더하거나 저장하지 않는다", async () => {
     saveCustomOrderFormDraft("user-a", {
-      options: { ...DEFAULT_CUSTOM_ORDER_OPTIONS, quantity: 100 },
-      contact: { ...DEFAULT_QUOTE_CONTACT, contactName: "account-a-secret" },
+      options: {
+        ...DEFAULT_CUSTOM_ORDER_OPTIONS,
+        additionalNotes: "account-a-secret",
+      },
     });
     useSession.setState({
       status: "loading",
@@ -114,21 +113,15 @@ describe("CustomOrderPage", () => {
     );
 
     expect(screen.queryByDisplayValue("account-a-secret")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "100개" }));
-    expect(
-      (screen.getByLabelText("수량 직접 입력") as HTMLInputElement).value,
-    ).toBe("100");
-    const contactName = await screen.findByLabelText(/담당자 성함/);
-    expect((contactName as HTMLInputElement).value).toBe("");
-    fireEvent.change(contactName, {
-      target: { value: "edited-during-loading" },
-    });
+    const notes = screen.getByLabelText("추가 요청사항");
+    expect((notes as HTMLTextAreaElement).value).toBe("");
+    fireEvent.change(notes, { target: { value: "edited-during-loading" } });
 
     await act(async () => {
       await new Promise((resolve) => window.setTimeout(resolve, 450));
     });
 
-    expect(readCustomOrderFormDraft("user-a")?.contact.contactName).toBe(
+    expect(readCustomOrderFormDraft("user-a")?.options.additionalNotes).toBe(
       "account-a-secret",
     );
     expect(readCustomOrderFormDraft(null)).toBeNull();
@@ -242,6 +235,49 @@ describe("CustomOrderPage", () => {
     expect(slot("소검")).toBeNull();
     expect(slot("로고")).not.toBeNull();
     expect(slot("브랜드 라벨")).not.toBeNull();
+  });
+
+  it("구매·견적·견적서 버튼을 한 줄에 두고 100개부터는 구매 전에 견적을 권한다", async () => {
+    auth.requireAuth.mockReturnValue(true);
+    // jsdom에는 dialog의 showModal이 없다 — 확인 창이 열렸는지는 open 속성으로 본다.
+    Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
+      configurable: true,
+      value(this: HTMLDialogElement) {
+        this.setAttribute("open", "");
+      },
+    });
+    Object.defineProperty(HTMLDialogElement.prototype, "close", {
+      configurable: true,
+      value(this: HTMLDialogElement) {
+        this.removeAttribute("open");
+      },
+    });
+    saveCustomOrderFormDraft(null, {
+      options: { ...DEFAULT_CUSTOM_ORDER_OPTIONS, tieWidth: 8, quantity: 99 },
+    });
+    render(
+      <MemoryRouter initialEntries={["/custom-order"]}>
+        <QueryClientProvider client={new QueryClient()}>
+          <CustomOrderPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+    const bulkDialog = () =>
+      screen.getByText("견적으로 요청하시겠어요?").closest("dialog");
+
+    expect(screen.getByRole("button", { name: "견적하기" })).toBeTruthy();
+    // 액션 바의 버튼 하나 + 정보 탭 견적서 섹션이 같은 버튼을 한 번 더 그린다
+    expect(
+      screen.getAllByRole("button", { name: "견적서 메일로 받기" }),
+    ).toHaveLength(2);
+    // 수량과 무관하게 주문서에는 견적 연락처 칸이 없다
+    fireEvent.click(screen.getByRole("button", { name: "100개" }));
+    expect(screen.queryByLabelText(/담당자 성함/)).toBeNull();
+    expect(bulkDialog()?.hasAttribute("open")).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "구매하기" }));
+
+    await waitFor(() => expect(bulkDialog()?.hasAttribute("open")).toBe(true));
   });
 
   it("자수·필름 주문은 타이 종류와 라벨만 고르게 하고 단계 번호를 이어 매긴다", () => {
