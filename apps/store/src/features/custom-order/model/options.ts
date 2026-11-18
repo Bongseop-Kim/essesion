@@ -46,6 +46,8 @@ export type CustomOrderDraft = {
 
 /** 주문서 → 견적 요청 페이지로 넘기는 초안. 견적의 참고 이미지는 스테이징 키(object_key)다. */
 export type CustomQuoteDraft = {
+  /** 초안을 만든 계정 — 로그인이 끊겨 다른 계정으로 돌아오면 견적 요청 페이지가 버린다. */
+  ownerUserId: string;
   options: CustomOrderOptions;
   imageRefs: ReferenceImageIn[];
   totalCost: number;

@@ -257,7 +257,7 @@ export function CustomOrderServiceGuide({ onStart }: { onStart: () => void }) {
         <Grid columns={{ base: 1, sm: 3 }} gap="x3">
           {[
             ["제작 기간", "약 6~8주"],
-            ["견적", "수량 관계없이 요청"],
+            ["견적", "4개부터 요청 가능"],
             ["진행 상황", "알림톡으로 안내"],
           ].map(([label, value]) => (
             <VStack
@@ -296,7 +296,10 @@ export function CustomOrderServiceGuide({ onStart }: { onStart: () => void }) {
             </Lead>
             {/* 캡처 대신 주문서의 버튼을 그대로 그린다 — 누르면 주문서로 올라간다 */}
             <HStack gap="x3">
-              <EstimateMailButton onClick={onStart} />
+              <EstimateMailButton
+                aria-label="주문서로 이동해 견적서 받기"
+                onClick={onStart}
+              />
               <Text textStyle="bodySm" color="fg.neutral-muted">
                 주문서 아래의 이 버튼이에요. 로그인이 필요해요.
               </Text>

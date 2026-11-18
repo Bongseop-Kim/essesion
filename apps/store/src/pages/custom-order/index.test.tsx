@@ -266,10 +266,9 @@ describe("CustomOrderPage", () => {
       screen.getByText("견적으로 요청하시겠어요?").closest("dialog");
 
     expect(screen.getByRole("button", { name: "견적하기" })).toBeTruthy();
-    // 액션 바의 버튼 하나 + 정보 탭 견적서 섹션이 같은 버튼을 한 번 더 그린다
     expect(
-      screen.getAllByRole("button", { name: "견적서 메일로 받기" }),
-    ).toHaveLength(2);
+      screen.getByRole("button", { name: "견적서 메일로 받기" }),
+    ).toBeTruthy();
     // 수량과 무관하게 주문서에는 견적 연락처 칸이 없다
     fireEvent.click(screen.getByRole("button", { name: "100개" }));
     expect(screen.queryByLabelText(/담당자 성함/)).toBeNull();

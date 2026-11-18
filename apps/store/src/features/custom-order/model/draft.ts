@@ -80,6 +80,7 @@ const orderDraftSchema = z
 // 견적의 참고 이미지는 업로드 완료 id가 아니라 스테이징 키다(POST /quotes 계약).
 const quoteDraftSchema = z
   .object({
+    ownerUserId: z.string().min(1),
     options: orderOptionsSchema,
     imageRefs: z.array(
       z

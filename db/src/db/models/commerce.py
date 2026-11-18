@@ -462,7 +462,8 @@ class QuoteRequest(TimestampMixin, Base):
     reference_images: Mapped[list[Any]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
 
     __table_args__ = (
-        CheckConstraint("quantity >= 100", name="quantity"),
+        # 주문 제작 최소 수량과 같다 — api 검증(quotes/service.py)과 함께 고친다.
+        CheckConstraint("quantity >= 4", name="quantity"),
         CheckConstraint("contact_method IN ('email', 'phone')", name="contact_method"),
         CheckConstraint("status IN ('요청', '견적발송', '협의중', '확정', '종료')", name="status"),
         CheckConstraint("quoted_amount IS NULL OR quoted_amount >= 0", name="quoted_amount"),

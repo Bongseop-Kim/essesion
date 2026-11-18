@@ -110,6 +110,17 @@ describe("customOptionItems", () => {
     expect(state("삼각 봉제")).toBe("삼각 봉제 선택됨");
     expect(state("바택")).toBeUndefined();
     expect(labels()).not.toContain("원단 제공");
+    cleanup();
+
+    // 포인트 주문의 딤플·돌려묶기는 선택지가 아니다 — 예전에 고른 것만 보인다
+    renderItems({
+      ...CUSTOM,
+      point: "EMBROIDERY",
+      tie_type: "AUTO",
+      dimple: true,
+    });
+    expect(state("딤플")).toBe("딤플 선택됨");
+    expect(state("돌려묶기")).toBeUndefined();
   });
 
   it("모르는 키·값은 글자로 남기고 기술 키는 숨긴다", () => {
@@ -121,6 +132,18 @@ describe("customOptionItems", () => {
     });
 
     expect(screen.getByText("LINEN")).toBeTruthy();
+    // 문자열이 아닌 값도 화면을 깨지 않고 글자로 나온다
+    cleanup();
+    renderItems({ tie_type: { toString: "x" }, reorder: "maybe" });
+    expect(screen.getByText('{"toString":"x"}')).toBeTruthy();
+    expect(screen.getByText("maybe")).toBeTruthy();
+    cleanup();
+    renderItems({
+      fabric_type: "LINEN",
+      lining_color: "navy",
+      fabric: "silk",
+      object_key: "uploads/custom_order/private.png",
+    });
     expect(screen.getByText("lining color")).toBeTruthy();
     expect(screen.getByText("navy")).toBeTruthy();
     expect(screen.getByText("실크")).toBeTruthy();

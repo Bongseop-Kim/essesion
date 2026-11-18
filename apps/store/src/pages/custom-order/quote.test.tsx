@@ -57,6 +57,7 @@ function user(overrides: Partial<MeResponse>): MeResponse {
 }
 
 const DRAFT = {
+  ownerUserId: "user-a",
   options: {
     ...DEFAULT_CUSTOM_ORDER_OPTIONS,
     quantity: 40,
@@ -178,5 +179,16 @@ describe("CustomQuotePage", () => {
     });
     renderPage(null);
     expect(screen.getByText("주문서")).toBeTruthy();
+  });
+
+  it("다른 계정이 만든 초안은 보여 주지 않고 주문서로 돌려보낸다", () => {
+    useSession.setState({
+      status: "authenticated",
+      accessToken: "access",
+      user: user({ id: "user-b" }),
+    });
+    renderPage();
+    expect(screen.getByText("주문서")).toBeTruthy();
+    expect(screen.queryByText("견적 요청하기")).toBeNull();
   });
 });

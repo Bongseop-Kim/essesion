@@ -88,6 +88,7 @@ describe("custom order draft", () => {
 
   it("견적 초안은 스테이징 키(object_key) 이미지만 받는다", () => {
     const quoteDraft = {
+      ownerUserId: "user-a",
       options: { ...formDraft.options, tieWidth: 8 },
       imageRefs: [
         { object_key: "uploads/quote_request/a.png", part: "blade" },
@@ -104,6 +105,9 @@ describe("custom order draft", () => {
       }),
     ).toBeNull();
     expect(parseCustomOrderDraft(quoteDraft)).toBeNull();
+    // 만든 계정이 없는 초안은 받지 않는다
+    const { ownerUserId: _owner, ...ownerless } = quoteDraft;
+    expect(parseCustomQuoteDraft(ownerless)).toBeNull();
   });
 
   it("A의 폼 draft를 B나 익명 방문자에게 노출하지 않는다", () => {

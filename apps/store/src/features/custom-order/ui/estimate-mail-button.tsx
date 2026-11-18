@@ -5,9 +5,12 @@ import { EnvelopeIcon } from "@heroicons/react/24/outline";
 export function EstimateMailButton({
   disabled,
   onClick,
+  "aria-label": ariaLabel = "견적서 메일로 받기",
 }: {
   disabled?: boolean;
   onClick: () => void;
+  /** 정보 탭처럼 메일 창을 열지 않는 자리에서는 실제 동작으로 바꿔 준다. */
+  "aria-label"?: string;
 }) {
   return (
     <Box
@@ -16,7 +19,7 @@ export function EstimateMailButton({
       variant="neutralWeak"
       size="large"
       iconOnly
-      aria-label="견적서 메일로 받기"
+      aria-label={ariaLabel}
       disabled={disabled}
       onClick={onClick}
     >

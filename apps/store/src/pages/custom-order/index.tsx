@@ -321,11 +321,12 @@ function CustomOrderPageContent({
 
   // 견적은 연락처·배송지를 견적 요청 페이지에서 받는다 — 결제 흐름과 같이 이미지를 먼저 올리고 넘긴다.
   const submitQuoteDraft = async () => {
-    if (!amount || !calculation.isCurrent || submitting) return;
+    if (!amount || !calculation.isCurrent || submitting || !user) return;
     setSubmitting("quote");
     try {
       const imageRefs = await uploadQuoteImages();
       const draft: CustomQuoteDraft = {
+        ownerUserId: user.id,
         options,
         imageRefs,
         totalCost: amount.total_cost,

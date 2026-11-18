@@ -58,9 +58,13 @@ export function CustomQuotePage() {
     state.status === "authenticated" ? state.user : null,
   );
 
-  if (!draft) return <Navigate to="/custom-order" replace />;
   // ProtectedRoute 아래라 user는 항상 있다 — 타입만 좁힌다.
   if (!user) return null;
+  // 로그인이 끊겼다가 다른 계정으로 돌아오면 route state가 그대로 복원된다 — 남의 사양·요청사항을
+  // 보여 주지 않는다.
+  if (!draft || draft.ownerUserId !== user.id) {
+    return <Navigate to="/custom-order" replace />;
+  }
   return <CustomQuoteForm draft={draft} user={user} />;
 }
 
@@ -89,6 +93,8 @@ function CustomQuoteForm({
   );
   const [address, setAddress] = useState<ShippingAddressOut | null>(null);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
+  // 접수 응답 뒤 목록 갱신·이동까지 잠근다 — mutation의 isPending은 응답에서 풀려 그사이 두 번 눌린다.
+  const [submitting, setSubmitting] = useState(false);
   const contactNameRef = useRef<HTMLInputElement>(null);
   const contactValueRef = useRef<HTMLInputElement>(null);
   const addressRef = useRef<HTMLDivElement>(null);
@@ -109,7 +115,7 @@ function CustomQuoteForm({
   };
 
   const submit = async () => {
-    if (createQuote.isPending) return;
+    if (submitting) return;
     const invalid = invalidQuoteContact(contact);
     if (invalid) {
       // 문구는 해당 칸에 붙고 포커스도 옮긴다 — 사라지는 알림으로 중복하지 않는다.
@@ -128,6 +134,7 @@ function CustomQuoteForm({
       });
       return;
     }
+    setSubmitting(true);
     try {
       await createQuote.mutateAsync({
         body: {
@@ -151,8 +158,10 @@ function CustomQuoteForm({
       });
       snackbar("견적 요청이 접수되었습니다.");
       clearCustomOrderFormDraft(user.id);
-      navigate("/my-page/quote-request");
+      // 뒤로 가기로 접수한 초안이 다시 열려 한 번 더 접수되지 않게 기록을 바꿔 넣는다.
+      navigate("/my-page/quote-request", { replace: true });
     } catch (error) {
+      setSubmitting(false);
       snackbar(
         error instanceof Error
           ? error.message
@@ -208,7 +217,7 @@ function CustomQuoteForm({
             type="button"
             size="large"
             width="full"
-            loading={createQuote.isPending}
+            loading={submitting}
             onClick={() => void submit()}
           >
             견적 요청하기
@@ -234,6 +243,7 @@ function CustomQuoteForm({
                 ref={contactNameRef}
                 label="담당자 성함"
                 required
+                maxLength={100}
                 value={contact.contactName}
                 errorMessage={
                   contactError?.field === "contactName"
@@ -246,6 +256,7 @@ function CustomQuoteForm({
               />
               <TextField
                 label="상호명"
+                maxLength={200}
                 value={contact.businessName}
                 onChange={(event) =>
                   updateContact("businessName", event.currentTarget.value)
@@ -277,6 +288,7 @@ function CustomQuoteForm({
                   contact.contactMethod === "email" ? "이메일 주소" : "연락처"
                 }
                 required
+                maxLength={320}
                 value={contact.contactValue}
                 errorMessage={
                   contactError?.field === "contactValue"
@@ -296,6 +308,15 @@ function CustomQuoteForm({
             <ContentPlaceholder
               title="배송지를 불러오지 못했습니다"
               description="잠시 후 다시 시도해 주세요."
+              action={
+                <ActionButton
+                  type="button"
+                  variant="neutralOutline"
+                  onClick={() => void addressesQuery.refetch()}
+                >
+                  다시 시도
+                </ActionButton>
+              }
             />
           ) : (
             <Box ref={addressRef}>

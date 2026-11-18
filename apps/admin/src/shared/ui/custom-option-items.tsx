@@ -104,8 +104,11 @@ const flag = (value: unknown) =>
 function choice(choices: Choices, value: unknown, emptyText?: string) {
   const empty = value === null || value === undefined || value === "";
   if (empty && emptyText !== undefined) return emptyText;
-  const key = empty ? "" : String(value);
-  const match = choices.find(([candidate]) => candidate === key);
+  // options는 임의 JSON이다 — 문자열이 아닌 값은 선택지와 맞춰 보지 않고 글자로 보여 준다.
+  const match =
+    empty || typeof value === "string"
+      ? choices.find(([candidate]) => candidate === (empty ? "" : value))
+      : undefined;
   if (!match) return plainText(value) ?? "미지정";
   return (
     <OptionPair
@@ -204,6 +207,7 @@ export function customOptionItems(options: unknown): DetailItem[] {
   }
 
   // 수동 타이에는 없는 옵션이라 평소엔 숨긴다. 고른 값이 있으면(예전 데이터) 숨기지 않는다.
+  // 포인트 주문은 둘 다 고를 수 없는 옵션이라, 예전에 고른 것만 보여 주고 선택지로 그리지 않는다.
   const autoOnly = AUTO_ONLY.filter(([key]) => has(key));
   const autoChosen = autoOnly.filter(([key]) => selected(key));
   if (autoOnly.length > 0 && ((autoTie && !point) || autoChosen.length > 0)) {
@@ -211,7 +215,7 @@ export function customOptionItems(options: unknown): DetailItem[] {
       label: "[자동] 옵션",
       value: (
         <OptionPair
-          options={autoOnly.map(([, label]) => label)}
+          options={(point ? autoChosen : autoOnly).map(([, label]) => label)}
           selected={autoChosen.map(([, label]) => label)}
         />
       ),
