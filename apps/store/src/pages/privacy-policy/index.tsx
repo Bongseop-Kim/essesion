@@ -141,7 +141,7 @@ export function PrivacyPolicyContent() {
         <PolicyInfoBox>
           <Text textStyle="labelSm">개인정보 보호책임자</Text>
           <Text {...bodyProps}>이름·직책: 김영선 (대표)</Text>
-          <Text {...bodyProps}>이메일: biblecookie@naver.com</Text>
+          <Text {...bodyProps}>이메일: help@essesion.com</Text>
           <Text {...bodyProps}>전화번호: 0507-1381-7422</Text>
         </PolicyInfoBox>
       </PolicySection>
@@ -152,7 +152,7 @@ export function PrivacyPolicyContent() {
           안내합니다.
         </Text>
         <PolicyInfoBox>
-          <Text textStyle="labelSm">시행일: 2026년 10월 19일</Text>
+          <Text textStyle="labelSm">시행일: 2026년 11월 18일</Text>
         </PolicyInfoBox>
       </PolicySection>
     </PolicyDocument>

@@ -2,7 +2,9 @@
 
 admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/foundation/`(색인은 맨 아래) 참조. 값의 유일한 사전은 `docs/foundation/design-token-reference.md`(= `src/theme.css`).
 
-사업자 표기: 회사명 `영선산업` · 상호명 `ESSE SION` · 이메일 `biblecookie@naver.com`.
+사업자 표기: 회사명 `영선산업` · 상호명 `ESSE SION` · 이메일 `help@essesion.com`.
+
+로고는 놓이는 배경과 같은 바탕색을 쓴다: 밝은 배경 `/logo/logo-light.png`(흰 바탕·검정 글자), 어두운 배경 `/logo/logo.png`(검정 바탕·흰 글자).
 
 ## 규칙 (위반 금지)
 

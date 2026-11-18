@@ -107,7 +107,7 @@ function StoreHeader() {
     <Header
       brandLabel="ESSE SION"
       brandHref="/"
-      brandLogoSrc="/logo/logo.png"
+      brandLogoSrc="/logo/logo-light.png"
       navItems={STORE_NAV_ITEMS.filter((item) => item.href !== "/")}
       activePathname={location.pathname}
       renderLink={renderLink}
@@ -239,7 +239,7 @@ function StoreFooter() {
                 통신판매업 번호: 2017-대전동구-0353 | 전화번호: 0507-1381-7422
               </Text>
               <Text as="p" textStyle="caption" color="fg.neutral-muted">
-                이메일: biblecookie@naver.com
+                이메일: help@essesion.com
               </Text>
               <Text as="p" textStyle="caption" color="fg.neutral-muted">
                 호스팅사업자: 영선산업 | 사업자등록번호: 305-26-32033
