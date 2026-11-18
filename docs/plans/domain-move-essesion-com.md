@@ -192,7 +192,7 @@
    - 만료된 도메인은 일정 기간 뒤 누구나 다시 등록할 수 있다. 옛 링크가 남의 사이트로 연결될 수 있다.
    구 존의 HSTS(max-age 30일)는 D 직후에 끈다 — 만료 뒤 남이 등록한 사이트에 영향을 주지 않게 정리한다.
 6. 결과를 `docs/reviews/domain-move-essesion-com-<날짜>.md`에 기록하고 이 플랜을 지운다.
-   `docs/plans/cloud-security-hardening.md` §1의 검증 명령 도메인도 그때 고친다.
+   `docs/plans/cloud-security-hardening.md` §1(`.com` 존 HSTS 상향)은 D가 끝나고 7일 뒤가 실행 조건이다.
 
 ## 검증
 
