@@ -30,6 +30,8 @@ it("md 미만 두 줄 목록에도 정렬 버튼과 결과 알림 영역을 남�
   expect(screen.queryByRole("table")).toBeNull();
   expect(screen.getByRole("list", { name: "주문 목록" })).toBeTruthy();
   expect(screen.getByText("총 1건")).toBeTruthy();
-  await userEvent.click(screen.getByRole("button", { name: "주문 번호 정렬" }));
+  await userEvent.click(
+    screen.getByRole("button", { name: "주문 번호 정렬, 현재 오름차순" }),
+  );
   expect(onSort).toHaveBeenCalledWith({ key: "id", direction: "desc" });
 });

@@ -440,7 +440,7 @@ export function DashboardPage() {
       </HStack>
 
       <Modal open={filterOpen} onOpenChange={setFilterOpen} title="조회 기준">
-        <HStack gap="x3" align="flex-end" wrap>
+        <VStack gap="x4" alignItems="stretch">
           <TextField
             type="date"
             label="시작일 (KST)"
@@ -457,13 +457,15 @@ export function DashboardPage() {
             min={startDate}
             onChange={(event) => updateFilter("to", event.currentTarget.value)}
           />
+          {/* 모달 안이라 피커(모달)를 또 열지 않는다 — 라디오 목록으로 바로 고른다 */}
           <FilterSelect
             label="주문 유형"
+            presentation="inline"
             value={orderType}
             options={ORDER_TYPES}
             onValueChange={(value) => updateFilter("type", value)}
           />
-        </HStack>
+        </VStack>
       </Modal>
 
       {/* 연동 상태 상세는 모달로 숨기되, 작업이 실패하는 상태는 항상 화면에 남긴다 */}

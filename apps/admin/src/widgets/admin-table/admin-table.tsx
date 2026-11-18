@@ -165,7 +165,12 @@ export function AdminTable<Row>({
         key={column.key}
         variant="ghost"
         size="xsmall"
-        aria-label={`${column.header} 정렬`}
+        // 표 머리글은 th[aria-sort]가 방향을 알린다 — 머리글이 없는 두 줄 목록은 이름에 넣는다
+        aria-label={
+          active && className === undefined
+            ? `${column.header} 정렬, 현재 ${sort.direction === "asc" ? "오름차순" : "내림차순"}`
+            : `${column.header} 정렬`
+        }
         className={className}
         onClick={() => onSort?.(nextSort(sort, column.key))}
       >
