@@ -15,7 +15,10 @@ import {
   Text,
   VStack,
 } from "@essesion/shared";
-import { InformationCircleIcon } from "@heroicons/react/24/outline";
+import {
+  InformationCircleIcon,
+  ShoppingBagIcon,
+} from "@heroicons/react/24/outline";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -387,6 +390,7 @@ export function ReformPage() {
               loading={submitting}
               onClick={() => void submit(false)}
             >
+              <Icon svg={<ShoppingBagIcon />} size={18} />
               장바구니 담기
             </Box>
             <Box
