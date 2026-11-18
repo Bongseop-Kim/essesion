@@ -48,7 +48,7 @@
 - **주문제작은 샘플비를 포함한 가격이다** — 봉제 없는 주문제작은 없으므로 봉제 샘플비가 항상 1회 들어가고, 원단을 우리가 만들면(fabric_provided=false) 원단 샘플비도 1회 들어간다. 별도의 시작비·세팅비 상수는 없다(§4의 샘플 주문과 같은 상수를 공유하며, 샘플을 먼저 산 고객에게는 §4의 후속 할인쿠폰으로 되돌려준다).
 - 옵션: `tie_type ∈ {'', 'AUTO'}`, `interlining ∈ {'', 'WOOL'}`, bool 9종(triangle_stitch, side_stitch, bar_tack, dimple, turn_knot, spoderato, fold7, brand_label, care_label). **dimple·turn_knot은 tie_type='AUTO'에서만** 선택 가능하고 **dimple은 turn_knot과 함께만** 선택 가능하며, turn_knot은 자동 타이 비용에 포함되어 별도 과금하지 않는다.
 - `sewing = (SEWING_PER_COST + 선택 옵션 상수 합) * qty + SAMPLE_SEWING_COST`
-- 포인트: `point ∈ {'', 'EMBROIDERY', 'HEAT_TRANSFER'}`(null=''). 자수·열전사 필름을 고르면 정해진 원단으로만 만들어 **원단 선택이 없고 원단비(원단 샘플비 포함)도 0**이다. 원단 직접 제공·재주문과 함께 고를 수 있다. `point_cost = {EMBROIDERY|HEAT_TRANSFER}_COST * qty`(포인트 없으면 0).
+- 포인트: `point ∈ {'', 'EMBROIDERY', 'HEAT_TRANSFER'}`(null=''). 자수·열전사 필름을 고르면 정해진 넥타이 위에 올려 **원단 선택이 없고 원단비(원단 샘플비 포함)도 0**이다. **포인트 주문은 타이 방식(`tie_type`)·라벨(`brand_label`, `care_label`)·재주문만 함께 고를 수 있다** — `interlining='WOOL'`이거나 bool 7종(`triangle_stitch, side_stitch, bar_tack, fold7, spoderato, dimple, turn_knot`) 중 하나라도 참이면 `invalid_options`. 원단 직접 제공은 스토어가 함께 고르지 못하게 막고(스토어는 포인트 주문에 `fabric_provided=false`를 보낸다), 서버는 포인트 주문의 `fabric_provided` 값을 가격에 쓰지 않고 거절하지도 않는다(예전 페이로드 호환). `size_type`·`tie_width`는 스토어가 `null`로 보낸다. `point_cost = {EMBROIDERY|HEAT_TRANSFER}_COST * qty`(포인트 없으면 0).
 - fabric: `fabric_provided=true 또는 point 선택 → 0`; 아니면 `round(qty * FABRIC_{design_type}_{fabric_type} / 4) + SAMPLE_FABRIC_{design_type}_COST`. design/fabric_type null이면 오류.
 - total = sewing + fabric + point.
 
