@@ -50,6 +50,25 @@ jobs:
         run: |
           docker build -t "$IMAGE_BASE/api:$DEPLOY_SHA" --build-arg APP=api .
           docker build -t "$IMAGE_BASE/worker:$DEPLOY_SHA" --build-arg APP=worker .
+      # CI의 osv-scan은 lockfile만 본다 — OS 패키지(베이스 이미지·librsvg2-bin)는 여기서만 보인다.
+      # 결과를 보이기만 하고 배포는 막지 않는다(Debian에는 수정 버전이 없는 CVE가 늘 있다).
+      # 버전을 올릴 때는 ci.yml의 osv-scan과 함께 고친다.
+      - name: osv-scanner (api·worker 이미지)
+        continue-on-error: true
+        env:
+          OSV_SCANNER_VERSION: v2.3.8
+          OSV_SCANNER_SHA256: bc98e15319ed0d515e3f9235287ba53cdc5535d576d24fd573978ecfe9ab92dc
+        run: |
+          cd "$RUNNER_TEMP"
+          curl --fail --show-error --silent --location -o osv-scanner \
+            "https://github.com/google/osv-scanner/releases/download/${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64"
+          echo "${OSV_SCANNER_SHA256}  osv-scanner" | sha256sum --check --strict
+          chmod +x osv-scanner
+          status=0
+          for app in api worker; do
+            ./osv-scanner scan image "$IMAGE_BASE/$app:$DEPLOY_SHA" || status=$?
+          done
+          exit "$status"
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}

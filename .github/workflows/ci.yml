@@ -157,6 +157,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      # 버전을 올릴 때는 deploy.yml의 이미지 스캔과 함께 고친다.
       - name: osv-scanner (pnpm-lock + uv.lock)
         env:
           OSV_SCANNER_VERSION: v2.3.8
