@@ -169,7 +169,7 @@ async def confirm_payment(
         return _done_response(orders)
     if any(o.paid_at is not None for o in orders):
         raise ConflictError(
-            "주문 그룹의 결제 상태 대사가 필요합니다",
+            "주문 그룹의 결제 상태 확인이 필요합니다",
             code="payment_reconciliation_required",
         )
 
@@ -181,7 +181,7 @@ async def confirm_payment(
     representative_order_id = order_ids[0]
     if await _has_open_confirm_incident(session, order_ids):
         raise ConflictError(
-            "결제 결과 대사가 필요한 주문입니다",
+            "결제 결과 확인이 필요한 주문입니다",
             code="payment_reconciliation_required",
         )
 
@@ -192,7 +192,7 @@ async def confirm_payment(
     locked_order_ids = [order.id for order in orders]
     if await _has_open_confirm_incident(session, locked_order_ids):
         raise ConflictError(
-            "결제 결과 대사가 필요한 주문입니다",
+            "결제 결과 확인이 필요한 주문입니다",
             code="payment_reconciliation_required",
         )
     if all(order.paid_at is not None for order in orders):
@@ -204,7 +204,7 @@ async def confirm_payment(
         return _done_response(orders)
     if any(order.paid_at is not None for order in orders):
         raise ConflictError(
-            "주문 그룹의 결제 상태 대사가 필요합니다",
+            "주문 그룹의 결제 상태 확인이 필요합니다",
             code="payment_reconciliation_required",
         )
     # 확정 시 기록할 결제후 상태 — lock으로 상태가 고정된 뒤 계산한다.
@@ -249,7 +249,7 @@ async def confirm_payment(
             error_type=type(exc).__name__,
         )
         raise UpstreamError(
-            "결제 승인 결과를 확인할 수 없어 관리자 대사가 필요합니다",
+            "결제 승인 결과를 확인할 수 없어 관리자 확인이 필요합니다",
             code="payment_outcome_unknown",
         ) from exc
     if not result.ok:
@@ -278,7 +278,7 @@ async def confirm_payment(
                     provider_http_status=result.status,
                 )
                 raise UpstreamError(
-                    "승인된 결제의 조회 결과를 확인할 수 없어 관리자 대사가 필요합니다",
+                    "승인된 결제의 조회 결과를 확인할 수 없어 관리자 확인이 필요합니다",
                     code="payment_reconciliation_required",
                 ) from exc
             if recovered is not None:
@@ -291,7 +291,7 @@ async def confirm_payment(
                 provider_http_status=result.status,
             )
             raise ConflictError(
-                "승인된 결제의 상태 대사가 필요합니다",
+                "승인된 결제의 상태 확인이 필요합니다",
                 code="payment_reconciliation_required",
             )
         if result.status >= 500:
@@ -303,7 +303,7 @@ async def confirm_payment(
                 provider_http_status=result.status,
             )
             raise UpstreamError(
-                "결제 승인 결과를 확인할 수 없어 관리자 대사가 필요합니다",
+                "결제 승인 결과를 확인할 수 없어 관리자 확인이 필요합니다",
                 code="payment_outcome_unknown",
             )
         await set_payment_operation_outcome(
@@ -354,7 +354,7 @@ async def confirm_payment(
             provider_status=provider_status if isinstance(provider_status, str) else None,
         )
         raise UpstreamError(
-            "결제는 승인됐지만 주문 반영에 실패해 관리자 대사가 필요합니다",
+            "결제는 승인됐지만 주문 반영에 실패해 관리자 확인이 필요합니다",
             code="payment_reconciliation_required",
         ) from exc
 

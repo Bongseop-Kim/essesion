@@ -630,7 +630,8 @@ class ManualOrder(TimestampMixin, Base):
     shipping_fee: Mapped[int] = mapped_column(server_default=text("0"))
     is_received: Mapped[bool] = mapped_column(server_default=text("false"))  # 접수
     is_paid: Mapped[bool] = mapped_column(server_default=text("false"))  # 결제
-    is_confirmed: Mapped[bool] = mapped_column(server_default=text("false"))  # 확인
+    # 화면 라벨 "발송 완료" — 제작·수선 후 택배 발송까지 끝났다는 뜻
+    is_confirmed: Mapped[bool] = mapped_column(server_default=text("false"))
     items: Mapped[list[Any]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
 
     __table_args__ = (
