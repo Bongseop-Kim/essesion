@@ -31,6 +31,33 @@ export function CheckoutShell({
 }) {
   const [widgetReady, setWidgetReady] = useState(false);
   const widgetRef = useRef<PaymentWidgetHandle | null>(null);
+  const widgetAreaRef = useRef<HTMLDivElement>(null);
+  const actionBarRef = useRef<HTMLDivElement>(null);
+  // 결제 수단으로 한 번 데려갔으면 다시 끄지 않는다 — 위젯이 화면보다 크면 좌표 조건이 끝내 참이 안 된다
+  const paymentSeen = useRef(false);
+
+  const handlePay = () => {
+    const area = widgetAreaRef.current;
+    const bar = actionBarRef.current;
+    // 데스크톱은 버튼이 위젯 바로 아래라 항상 참
+    const methodsVisible =
+      !area ||
+      !bar ||
+      area.getBoundingClientRect().bottom <= bar.getBoundingClientRect().top;
+    if (paymentSeen.current || methodsVisible) {
+      onPay(widgetRef.current);
+      return;
+    }
+    paymentSeen.current = true;
+    area.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+      block: "start",
+    });
+    // preventScroll이 없으면 focus가 즉시 점프해 smooth 스크롤이 끊긴다
+    area.focus({ preventScroll: true });
+  };
 
   return (
     <ContentLayout
@@ -39,17 +66,24 @@ export function CheckoutShell({
         <VStack gap="x6" alignItems="stretch">
           {summary}
           {customerKey ? (
-            <PaymentWidget
-              ref={widgetRef}
-              amount={amount}
-              customerKey={customerKey}
-              onReadyChange={setWidgetReady}
-            />
+            <Box
+              ref={widgetAreaRef}
+              tabIndex={-1}
+              className="outline-none"
+              style={{ scrollMarginTop: "var(--spacing-x16)" }}
+            >
+              <PaymentWidget
+                ref={widgetRef}
+                amount={amount}
+                customerKey={customerKey}
+                onReadyChange={setWidgetReady}
+              />
+            </Box>
           ) : null}
         </VStack>
       }
       actionBar={
-        <VStack gap="x2" alignItems="stretch">
+        <VStack ref={actionBarRef} gap="x2" alignItems="stretch">
           {blockedMessage ? (
             <Callout tone="critical" description={blockedMessage} />
           ) : null}
@@ -65,7 +99,7 @@ export function CheckoutShell({
             width="full"
             disabled={payDisabled || !widgetReady}
             loading={payLoading}
-            onClick={() => onPay(widgetRef.current)}
+            onClick={handlePay}
           >
             {krw.format(amount)}원 결제하기
           </Box>

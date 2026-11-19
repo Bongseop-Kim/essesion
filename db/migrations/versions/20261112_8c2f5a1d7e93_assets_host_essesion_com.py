@@ -1,7 +1,7 @@
 """저장된 이미지·링크 주소를 essesion.shop에서 essesion.com으로 바꾼다
 
 Revision ID: 8c2f5a1d7e93
-Revises: 6b1e4d2a9c75
+Revises: 9a4c7e1d5b20
 Create Date: 2026-11-12 00:00:00.000000
 
 상품 이미지는 저장 시점에 절대 URL로 컬럼에 들어간다(admin/products.py의 public_asset_url).
@@ -15,7 +15,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "8c2f5a1d7e93"
-down_revision: str | None = "6b1e4d2a9c75"
+down_revision: str | None = "9a4c7e1d5b20"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

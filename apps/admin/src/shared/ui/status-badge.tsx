@@ -3,6 +3,7 @@ import { Badge, claimBadge } from "@essesion/shared";
 
 const positive = new Set([
   "완료",
+  "답변완료",
   "배송완료",
   "sent",
   "resolved",
@@ -79,6 +80,9 @@ const statusLabels: Readonly<Record<string, string>> = {
   수선중: "수선 중",
   처리중: "처리 중",
   협의중: "협의 중",
+  답변대기: "답변 대기",
+  답변완료: "답변 완료",
+  거부: "거절",
   // 수선품은 고객→우리(입고), 완성품은 우리→고객(출고) — "발송/배송"만으로는 방향이 안 보인다.
   발송대기: "입고 대기",
   발송중: "입고 중",

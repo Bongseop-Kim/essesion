@@ -5,7 +5,11 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
-import { formatDateTime, formatMoney } from "../../shared/lib/format";
+import {
+  formatDate,
+  formatDateTime,
+  formatMoney,
+} from "../../shared/lib/format";
 import {
   useAdminListPageCorrection,
   useAdminListUrlState,
@@ -132,16 +136,18 @@ export function QuotesPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <RouteHeading
-        title="견적 관리"
-        description="견적 요청에 금액과 조건을 제안하고 상태를 관리합니다."
-      />
+      <RouteHeading title="견적 관리" />
       <PaginatedAdminTableCard
-        title="견적 목록"
         label="견적 목록"
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
+        compactRow={(row) => ({
+          title: `${row.customer.name} · ${row.business_name}`,
+          trailing: formatMoney(row.quoted_amount, "미책정"),
+          meta: `${row.quote_number} · ${formatDate(row.created_at)}`,
+          status: <StatusBadge status={row.status} />,
+        })}
         onRowClick={(row) => navigate(`/quote-requests/${row.id}`)}
         status={
           query.isLoading || query.isPlaceholderData
@@ -156,8 +162,7 @@ export function QuotesPage() {
         onSort={({ key, direction }) =>
           replaceQuery({ sort: key, direction, page: 1 })
         }
-        refreshing={query.isFetching}
-        onRefresh={() => void query.refetch()}
+        onRetry={() => void query.refetch()}
         emptyTitle="조건에 맞는 견적이 없습니다"
         page={Math.min(parsed.page, totalPages)}
         totalPages={totalPages}
@@ -169,7 +174,6 @@ export function QuotesPage() {
               primaryControls={
                 <SubmittedMemorySearch
                   label="견적번호 검색"
-                  placeholder="2자 이상 입력"
                   maxLength={64}
                   resetKey={searchResetKey}
                   onSubmit={(value) => {
@@ -209,7 +213,6 @@ export function QuotesPage() {
                 Number(parsed.to !== undefined)
               }
               secondaryTitle="견적 필터"
-              secondaryDescription="상태와 조회 기간을 한 번에 적용합니다."
               onResetSecondaryFilters={() => {
                 setDraftStatus(status);
                 setDraftFrom(parsed.from);

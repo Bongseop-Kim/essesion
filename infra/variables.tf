@@ -87,6 +87,7 @@ variable "app_secret_ids" {
     "edge-proxy-secret",
     "sentry-dsn-api",
     "sentry-dsn-worker",
+    "icloud-smtp-password", # help@essesion.com 발신용 iCloud 앱 암호 (api 견적서 메일)
   ]
 }
 

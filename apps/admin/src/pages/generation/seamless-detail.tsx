@@ -9,7 +9,6 @@ import {
   Box,
   Callout,
   ContentPlaceholder,
-  HStack,
   Skeleton,
   Text,
   VStack,
@@ -81,17 +80,14 @@ function warningPresentation(warning: SeamlessWarningOut) {
   }
   return {
     title: `분류되지 않은 생성 경고 ${count}건`,
-    description: "기술 정보의 요청 ID로 워커 로그를 확인해 주세요.",
+    description: "기술 정보의 요청 ID로 서버 로그를 확인해 주세요.",
   };
 }
 
 function SeamlessDetailLoading() {
   return (
     <VStack gap="x6" alignItems="stretch" aria-busy="true">
-      <RouteHeading
-        title="디자인 렌더 로그 상세"
-        description="생성 결과·성능·진단 정보입니다."
-      />
+      <RouteHeading title="디자인 생성 로그 상세" />
       <AdminCard title="로그 정보">
         <VStack gap="x3" alignItems="stretch">
           <Skeleton width="60%" height={24} />
@@ -118,13 +114,10 @@ export function SeamlessLogDetailPage() {
   if (query.isError || query.data === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading
-          title="디자인 렌더 로그 상세"
-          description="생성 결과·성능·진단 정보입니다."
-        />
+        <RouteHeading title="디자인 생성 로그 상세" />
         <ContentPlaceholder
-          title="디자인 렌더 로그를 불러오지 못했습니다"
-          description="로그 ID를 확인하거나 다시 시도해 주세요."
+          title="디자인 생성 로그를 불러오지 못했습니다"
+          description="링크를 확인하거나 다시 시도해 주세요."
           action={
             <ActionButton onClick={() => void query.refetch()}>
               다시 시도
@@ -139,23 +132,11 @@ export function SeamlessLogDetailPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title="디자인 렌더 로그 상세"
-          description="생성 결과·성능·진단 정보입니다."
-        />
-        <HStack gap="x2" wrap>
-          <StatusBadge status={log.status} />
-          <ActionButton
-            variant="neutralOutline"
-            size="small"
-            loading={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            새로고침
-          </ActionButton>
-        </HStack>
-      </HStack>
+      <RouteHeading
+        backTo={{ to: "/seamless-logs", label: "디자인 생성 로그" }}
+        title="디자인 생성 로그 상세"
+        badges={<StatusBadge status={log.status} />}
+      />
 
       {log.error_summary !== null && (
         <Callout
@@ -187,7 +168,7 @@ export function SeamlessLogDetailPage() {
               <SafeSvgPreview
                 svg={log.design.svg}
                 status={log.design.svg_status}
-                alt="디자인 안전 미리보기"
+                alt="디자인 미리보기"
               />
             </AdminCard>
           </Box>
@@ -215,10 +196,7 @@ export function SeamlessLogDetailPage() {
       </AdminCard>
 
       {log.intent !== null && (
-        <AdminCard
-          title="디자인 의도"
-          description="검증·제약 적용까지 끝난 엔진 입력입니다."
-        >
+        <AdminCard title="디자인 의도">
           <TechnicalDetails title="Intent JSON" json={log.intent} />
         </AdminCard>
       )}
@@ -233,10 +211,7 @@ export function SeamlessLogDetailPage() {
         />
       </AdminCard>
 
-      <AdminCard
-        title="생성 진단"
-        description="검증·합성 결과를 단계별로 표시합니다."
-      >
+      <AdminCard title="생성 진단">
         <DetailList
           items={[
             {
@@ -285,10 +260,6 @@ export function SeamlessLogDetailPage() {
           </VStack>
         </AdminCard>
       )}
-
-      <Text textStyle="bodySm">
-        <Link to="/seamless-logs">디자인 렌더 로그 목록으로 돌아가기</Link>
-      </Text>
 
       <TechnicalDetails
         json={{

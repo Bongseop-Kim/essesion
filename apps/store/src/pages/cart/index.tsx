@@ -21,7 +21,6 @@ import {
   Grid,
   HStack,
   Icon,
-  ImageFrame,
   Modal,
   SelectBox,
   SelectBoxItem,
@@ -34,6 +33,7 @@ import { ShoppingBagIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
+import { OrderItemSummary } from "@/entities/order-item/ui/order-item-summary";
 import { useAuthGuard } from "@/features/auth/ui/auth-guard-provider";
 import {
   cartItemBlockingReason,
@@ -54,6 +54,7 @@ import {
   type ReformSettingsValues,
 } from "@/features/reform/ui/bulk-apply-modal";
 import { krw, optionDescription, optionLabel } from "@/pages/shop/constants";
+import { resizedImage } from "@/shared/lib/image-url";
 import { signedReadUrlQueryOptions } from "@/shared/lib/signed-read-url";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
@@ -335,7 +336,7 @@ export function CartPage() {
         >
           <Icon svg={<ShoppingBagIcon />} size={18} />
           {selectedIds.length > 0
-            ? `₩${krw.format(totals.total)} 주문하기`
+            ? `${krw.format(totals.total)}원 주문하기`
             : "주문하기"}
         </Box>
       }
@@ -607,7 +608,6 @@ function CartItemCard({
     : (item.reformCost ?? 0);
   const linePrice = unitPrice * item.input.quantity;
   const discount = couponDiscount(item.appliedCoupon?.coupon, linePrice);
-  const discountedPrice = Math.max(0, linePrice - discount);
   const appliedCouponName = item.appliedCoupon
     ? couponLabel(item.appliedCoupon.coupon)
     : null;
@@ -630,79 +630,62 @@ function CartItemCard({
           />
         </Box>
         <VStack gap="x4" alignItems="stretch">
-          <Grid templateColumns="6rem minmax(0, 1fr)" gap="x4">
-            {product || item.imageUrl ? (
-              <ImageFrame
-                ratio={1}
-                src={product?.image ?? item.imageUrl ?? undefined}
-                alt={product?.name ?? "수선 넥타이"}
-                borderRadius="r2"
-                fit="cover"
-                stroke
-              />
-            ) : (
-              <AspectRatio ratio={1} className="rounded-r2">
-                <Skeleton
-                  width="100%"
-                  height="100%"
-                  radius={0}
-                  className="absolute inset-0"
-                />
-              </AspectRatio>
-            )}
-
-            <VStack gap="x2" alignItems="stretch">
-              <HStack justify="space-between" gap="x3" align="flex-start">
-                <VStack gap="x1" minWidth={0}>
-                  <HStack gap="x2" wrap>
-                    <Badge variant="outline">
-                      {item.input.item_type === "reform" ? "수선" : "상품"}
-                    </Badge>
-                    {item.unavailable ? (
-                      <Badge variant="solid" tone="critical">
-                        확인 필요
-                      </Badge>
-                    ) : null}
-                  </HStack>
-                  <Text textStyle="label" maxLines={2}>
-                    {product?.name ?? reformTitle(item)}
-                  </Text>
-                  <Text textStyle="caption" color="fg.neutral-muted">
-                    {item.input.item_type === "reform"
-                      ? item.input.reform_data
-                        ? reformServiceLabel(item.input.reform_data)
-                        : "수선 옵션 확인 필요"
-                      : `${
-                          item.input.selected_option_id && !option
-                            ? "사용할 수 없는 옵션"
-                            : (option?.name ??
-                              (hasOptions ? "옵션 확인 필요" : "FREE"))
-                        } / ${item.input.quantity}개`}
-                  </Text>
-                  {item.blockingReason ? (
-                    <Text textStyle="captionSm" color="fg.critical">
-                      {item.blockingReason}
-                    </Text>
-                  ) : null}
-                  <ItemPriceDisplay
-                    basePrice={linePrice}
-                    discountedPrice={discountedPrice}
-                    couponName={appliedCouponName}
-                  />
-                </VStack>
-                <ActionButton
-                  type="button"
-                  variant="ghost"
-                  size="small"
-                  iconOnly
-                  aria-label="삭제"
-                  onClick={onRemove}
-                >
-                  <Icon svg={<TrashIcon />} size={18} />
-                </ActionButton>
-              </HStack>
-            </VStack>
-          </Grid>
+          <OrderItemSummary
+            image={
+              product
+                ? resizedImage(product.image, 600)
+                : item.imageUrl
+                  ? { src: item.imageUrl }
+                  : null
+            }
+            alt={product?.name ?? "수선 넥타이"}
+            badges={
+              <>
+                <Badge variant="outline">
+                  {item.input.item_type === "reform" ? "수선" : "상품"}
+                </Badge>
+                {item.unavailable ? (
+                  <Badge variant="solid" tone="critical">
+                    확인 필요
+                  </Badge>
+                ) : null}
+              </>
+            }
+            title={product?.name ?? reformTitle(item)}
+            meta={
+              item.input.item_type === "reform"
+                ? item.input.reform_data
+                  ? reformServiceLabel(item.input.reform_data)
+                  : "수선 옵션 확인 필요"
+                : `${
+                    item.input.selected_option_id && !option
+                      ? "사용할 수 없는 옵션"
+                      : (option?.name ??
+                        (hasOptions ? "옵션 확인 필요" : "FREE"))
+                  } / ${item.input.quantity}개`
+            }
+            linePrice={linePrice}
+            discount={discount}
+            couponName={appliedCouponName}
+            trailing={
+              <ActionButton
+                type="button"
+                variant="ghost"
+                size="small"
+                iconOnly
+                aria-label="삭제"
+                onClick={onRemove}
+              >
+                <Icon svg={<TrashIcon />} size={18} />
+              </ActionButton>
+            }
+          >
+            {item.blockingReason ? (
+              <Text textStyle="captionSm" color="fg.critical">
+                {item.blockingReason}
+              </Text>
+            ) : null}
+          </OrderItemSummary>
           <HStack gap="x2" wrap="nowrap">
             <Box
               as={ActionButton}
@@ -734,40 +717,6 @@ function CartItemCard({
         </VStack>
       </Grid>
     </Box>
-  );
-}
-
-function ItemPriceDisplay({
-  basePrice,
-  discountedPrice,
-  couponName,
-}: {
-  basePrice: number;
-  discountedPrice: number;
-  couponName: string | null;
-}) {
-  if (!couponName) {
-    return <Text textStyle="label">₩{krw.format(basePrice)}</Text>;
-  }
-
-  return (
-    <VStack gap="x0_5" alignItems="flex-start">
-      <HStack gap="x2" wrap>
-        <Text
-          textStyle="caption"
-          color="fg.neutral-muted"
-          style={{ textDecoration: "line-through" }}
-        >
-          ₩{krw.format(basePrice)}
-        </Text>
-        <Text textStyle="label" color="fg.critical">
-          ₩{krw.format(discountedPrice)}
-        </Text>
-      </HStack>
-      <Text textStyle="captionSm" color="fg.neutral-muted">
-        {couponName} 적용
-      </Text>
-    </VStack>
   );
 }
 
@@ -887,17 +836,20 @@ function CartSummary({
       </VStack>
       <Divider />
       <SummaryRow label="선택 항목" value={`${selectedCount}개`} />
-      <SummaryRow label="상품 금액" value={`₩${krw.format(totals.subtotal)}`} />
+      <SummaryRow
+        label="상품 금액"
+        value={`${krw.format(totals.subtotal)}원`}
+      />
       <SummaryRow
         label="쿠폰 할인"
-        value={`-₩${krw.format(totals.discount)}`}
+        value={`-${krw.format(totals.discount)}원`}
         tone={totals.discount > 0 ? "informative" : "neutral"}
       />
-      <SummaryRow label="배송비" value={`₩${krw.format(totals.shipping)}`} />
+      <SummaryRow label="배송비" value={`${krw.format(totals.shipping)}원`} />
       <Divider />
       <SummaryRow
         label="결제 예정 금액"
-        value={`₩${krw.format(totals.total)}`}
+        value={`${krw.format(totals.total)}원`}
         strong
       />
     </VStack>

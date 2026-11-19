@@ -6,7 +6,7 @@ import { AdminSidebar } from "./admin-sidebar";
 
 export function AdminShell() {
   return (
-    <Layout bg="bg.layer-basement">
+    <Layout bg={{ base: "bg.layer-default", md: "bg.layer-basement" }}>
       <Box
         as="a"
         href="#main-content"
@@ -19,7 +19,14 @@ export function AdminShell() {
       <AdminHeader />
       <Flex align="stretch" flexGrow minWidth={0}>
         <AdminSidebar />
-        <Box as="main" id="main-content" flexGrow minWidth={0}>
+        <Box
+          as="main"
+          id="main-content"
+          flexGrow
+          minWidth={0}
+          // 마지막 콘텐츠가 홈 인디케이터에 닿지 않게 — inset이 없는 기기에선 0
+          style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+        >
           <LayoutContent density="high" py={{ base: "x6", md: "x8" }}>
             <Outlet />
             {/* 쿼리(탭·필터·페이지)만 바뀌면 스크롤을 유지하고 경로가 바뀔 때만 맨 위로 */}

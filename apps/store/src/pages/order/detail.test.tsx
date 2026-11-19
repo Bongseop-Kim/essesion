@@ -188,7 +188,6 @@ describe("OrderDetailPage", () => {
     expect(screen.getByText("navy")).toBeTruthy();
     expect(screen.getByText("삼각 봉제")).toBeTruthy();
     expect(screen.getByText("광택을 낮춰 주세요.")).toBeTruthy();
-    fireEvent.click(await screen.findByRole("button", { name: "이미지 보기" }));
     expect(
       (
         await screen.findByRole("img", { name: "주문 참고 이미지 1" })
@@ -246,22 +245,16 @@ describe("OrderDetailPage", () => {
     });
     renderPage();
 
-    expect(await screen.findByText("자동 타이 방식")).toBeTruthy();
-    expect(screen.getByText("175cm")).toBeTruthy();
+    expect(
+      await screen.findByText("자동 지퍼 · 키 175cm · 딤플 · 폭 7.5cm · 복원"),
+    ).toBeTruthy();
+    expect(screen.queryByText("자동 타이 방식")).toBeNull();
     expect(screen.getByText("원형을 유지해 주세요.")).toBeTruthy();
     expect(screen.getByText("송장 분실")).toBeTruthy();
     expect(screen.getByText("송장을 분실했습니다.")).toBeTruthy();
 
-    await waitFor(() =>
-      expect(
-        screen.getAllByRole("button", { name: "이미지 보기" }),
-      ).toHaveLength(2),
-    );
-    const imageButtons = screen.getAllByRole("button", { name: "이미지 보기" });
-    fireEvent.click(imageButtons[0] as HTMLElement);
-    fireEvent.click(imageButtons[1] as HTMLElement);
     expect(
-      (await screen.findByRole("img", { name: "수선 접수 사진" })).getAttribute(
+      (await screen.findByRole("img", { name: "넥타이 수선" })).getAttribute(
         "src",
       ),
     ).toBe("https://storage.test/tie.png");
@@ -307,7 +300,7 @@ describe("OrderDetailPage", () => {
 
     await waitFor(() => expect(api.receiptPhotos).toHaveBeenCalledTimes(2));
     expect(
-      await screen.findByRole("button", { name: "이미지 보기" }),
+      await screen.findByRole("img", { name: "수선 발송 사진 1" }),
     ).toBeTruthy();
   });
 });

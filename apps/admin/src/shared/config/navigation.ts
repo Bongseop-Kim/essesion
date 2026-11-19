@@ -54,7 +54,7 @@ export const ADMIN_NAVIGATION_GROUPS: readonly AdminNavigationGroup[] = [
     items: [
       {
         key: "seamless-logs",
-        label: "디자인 렌더 로그",
+        label: "디자인 생성 로그",
         href: "/seamless-logs",
       },
       { key: "motifs", label: "무늬·로고", href: "/motifs" },

@@ -71,9 +71,11 @@ describe("product form model", () => {
     );
 
     expect(errors.options.one).toMatchObject({
-      name: "이미 있는 옵션 이름입니다.",
+      name: "이미 있는 옵션 이름입니다. 다른 이름을 입력해 주세요.",
       stock: "재고는 0 이상의 정수로 입력해 주세요.",
     });
-    expect(errors.options.two?.name).toBe("이미 있는 옵션 이름입니다.");
+    expect(errors.options.two?.name).toBe(
+      "이미 있는 옵션 이름입니다. 다른 이름을 입력해 주세요.",
+    );
   });
 });

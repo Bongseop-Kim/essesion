@@ -73,10 +73,7 @@ const optionColumns: readonly AdminTableColumn<OptionRow>[] = [
 function ProductDetailLoading() {
   return (
     <VStack gap="x6" alignItems="stretch" aria-busy="true">
-      <RouteHeading
-        title="상품 상세"
-        description="상품과 옵션 정보를 불러오고 있습니다."
-      />
+      <RouteHeading title="상품 상세" />
       <AdminCard title="상품 정보">
         <VStack gap="x3" alignItems="stretch">
           <Skeleton width="60%" height={24} />
@@ -110,7 +107,7 @@ export function ProductDetailPage() {
         <RouteHeading title="상품 상세" />
         <ContentPlaceholder
           title="상품을 찾을 수 없습니다"
-          description="삭제됐거나 주소가 잘못된 상품입니다. 목록에서 다시 선택해 주세요."
+          description="삭제됐거나 링크가 잘못된 상품입니다. 목록에서 다시 선택해 주세요."
           action={
             <ActionButton onClick={() => navigate("/products")}>
               목록으로
@@ -142,23 +139,19 @@ export function ProductDetailPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title={product.name}
-          description={`${product.code ?? "상품 코드 없음"} · 마지막 수정 ${formatDateTime(product.updated_at)}`}
-        />
-        <HStack gap="x2" wrap>
-          <ActionButton variant="ghost" onClick={() => navigate("/products")}>
-            목록으로
-          </ActionButton>
+      <RouteHeading
+        backTo={{ to: "/products", label: "상품 관리" }}
+        title={product.name}
+        description={`${product.code ?? "상품 코드 없음"} · 마지막 수정 ${formatDateTime(product.updated_at)}`}
+        actions={
           <ActionButton
             variant="neutralWeak"
             onClick={() => navigate(`/products/${product.id}/edit`)}
           >
             수정
           </ActionButton>
-        </HStack>
-      </HStack>
+        }
+      />
 
       <AdminCard title="상품 정보">
         <HStack gap="x5" align="flex-start" wrap>
@@ -212,14 +205,23 @@ export function ProductDetailPage() {
           rows={options}
           getRowKey={(option) => option.id}
           status="success"
+          compactEmpty
+          compactRow={(option) => ({
+            title: option.name,
+            trailing: formatMoney(option.additional_price),
+            meta:
+              option.stock === null
+                ? "재고 무제한"
+                : `재고 ${option.stock.toLocaleString("ko-KR")}개`,
+          })}
           emptyTitle="등록된 옵션이 없습니다"
         />
       </AdminCard>
 
-      <AdminCard title="상품 정보 문구">
+      <AdminCard title="상품 설명">
         {product.info.trim() === "" ? (
           <Text textStyle="bodySm" color="fg.neutral-muted">
-            등록된 상품 정보 문구가 없습니다.
+            등록된 상품 설명이 없습니다.
           </Text>
         ) : (
           <Text textStyle="bodySm" className="whitespace-pre-wrap">

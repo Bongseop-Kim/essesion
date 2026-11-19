@@ -88,7 +88,7 @@ function IncidentDetailLoading() {
           <Skeleton width="80%" height={20} />
         </VStack>
       </AdminCard>
-      <AdminCard title="대사 근거">
+      <AdminCard title="처리 이력">
         <Skeleton width="100%" height={120} />
       </AdminCard>
     </VStack>
@@ -127,7 +127,7 @@ export function IncidentDetailPage() {
   const reconcileMutation = useMutation({
     ...adminReconcilePaymentIncidentMutation(),
     onSuccess: async () => {
-      snackbar("결제 상태를 대사했습니다.");
+      snackbar("토스 결제 상태를 반영했습니다.");
       setSelectedAction(undefined);
       await refresh();
     },
@@ -163,7 +163,7 @@ export function IncidentDetailPage() {
         <RouteHeading title="결제 이상 상세" />
         <ContentPlaceholder
           title="결제 이상을 불러오지 못했습니다"
-          description="주소를 확인하거나 다시 시도해 주세요."
+          description="링크를 확인하거나 다시 시도해 주세요."
           action={
             <ActionButton onClick={() => void query.refetch()}>
               다시 시도
@@ -218,12 +218,104 @@ export function IncidentDetailPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title={`결제 이상 ${incidentTypeLabel(data.incident_type)}`}
-        />
-        <StatusBadge status={data.status} />
-      </HStack>
+      <RouteHeading
+        backTo={{ to: "/incidents", label: "결제 이상" }}
+        title={`결제 이상 ${incidentTypeLabel(data.incident_type)}`}
+        badges={<StatusBadge status={data.status} />}
+        actions={
+          <>
+            {/* 주문 상세와 같은 배치 — 액션은 헤더, 고른 액션의 입력 폼은 헤더 바로 아래 */}
+            {isAdmin &&
+              (data.admin_actions ?? []).map((action) => (
+                <ActionButton
+                  key={action.kind}
+                  variant={
+                    action.destructive ? "criticalSolid" : "neutralOutline"
+                  }
+                  disabled={
+                    !action.enabled ||
+                    actionPending ||
+                    selectedAction !== undefined
+                  }
+                  title={action.blocking_reason ?? undefined}
+                  onClick={() => selectAction(action)}
+                >
+                  {action.label}
+                </ActionButton>
+              ))}
+          </>
+        }
+      />
+
+      {!isAdmin ? (
+        <Text textStyle="caption" color="fg.neutral-muted">
+          관리자만 처리할 수 있습니다.
+        </Text>
+      ) : (
+        (data.admin_actions ?? [])
+          .filter((action) => !action.enabled && action.blocking_reason)
+          .map((action) => (
+            <Text
+              key={action.kind}
+              textStyle="caption"
+              color="fg.neutral-muted"
+            >
+              {action.label}: {action.blocking_reason}
+            </Text>
+          ))
+      )}
+
+      {isAdmin && selectedAction !== undefined && (
+        <AdminCard title={selectedAction.label}>
+          <VStack
+            as="form"
+            gap="x3"
+            alignItems="stretch"
+            onSubmit={submitAction}
+          >
+            {selectedAction.kind === "resolve" && (
+              <TextAreaField
+                label="해결 근거 (필수)"
+                description="외부 결제 조회 결과와 내부 반영 판단을 남겨 주세요."
+                value={memo}
+                maxLength={1000}
+                errorMessage={validationError}
+                onChange={(event) => {
+                  resetFailedResolveOperation();
+                  setMemo(event.currentTarget.value);
+                }}
+              />
+            )}
+            {(reconcileMutation.isError || resolveMutation.isError) && (
+              <Callout
+                role="alert"
+                tone="critical"
+                title="관리자 작업을 완료하지 못했습니다"
+                description={getErrorMessage(
+                  reconcileMutation.error ?? resolveMutation.error,
+                  "권한과 현재 상태를 확인한 뒤 다시 시도해 주세요.",
+                )}
+              />
+            )}
+            <HStack gap="x2">
+              <ActionButton type="submit" loading={actionPending}>
+                {selectedAction.label} 검토
+              </ActionButton>
+              <ActionButton
+                type="button"
+                variant="ghost"
+                disabled={actionPending}
+                onClick={() => {
+                  setSelectedAction(undefined);
+                  setMemo("");
+                }}
+              >
+                취소
+              </ActionButton>
+            </HStack>
+          </VStack>
+        </AdminCard>
+      )}
 
       <Callout
         tone={amountSummary.difference === 0 ? "positive" : "warning"}
@@ -268,107 +360,13 @@ export function IncidentDetailPage() {
         </AdminCard>
       )}
 
-      <AdminCard title="처리 기록">
+      <AdminCard title="처리 이력">
         <DetailList
           items={[
             { label: "해결 시각", value: formatDateTime(data.resolved_at) },
             { label: "해결 메모", value: data.resolution_memo ?? "-" },
           ]}
         />
-      </AdminCard>
-
-      <AdminCard title="운영 액션">
-        {!isAdmin ? (
-          <Text textStyle="bodySm" color="fg.neutral-muted">
-            대사·해결은 관리자만 할 수 있습니다. 매니저는 조회만 가능합니다.
-          </Text>
-        ) : (
-          <VStack gap="x4" alignItems="stretch">
-            <HStack gap="x2" wrap>
-              {(data.admin_actions ?? []).map((action) => (
-                <ActionButton
-                  key={action.kind}
-                  variant={
-                    action.destructive ? "criticalSolid" : "neutralOutline"
-                  }
-                  disabled={
-                    !action.enabled ||
-                    actionPending ||
-                    selectedAction !== undefined
-                  }
-                  title={action.blocking_reason ?? undefined}
-                  onClick={() => selectAction(action)}
-                >
-                  {action.label}
-                </ActionButton>
-              ))}
-            </HStack>
-            {(data.admin_actions ?? [])
-              .filter((action) => !action.enabled && action.blocking_reason)
-              .map((action) => (
-                <Text
-                  key={action.kind}
-                  textStyle="caption"
-                  color="fg.neutral-muted"
-                >
-                  {action.label}: {action.blocking_reason}
-                </Text>
-              ))}
-
-            {selectedAction !== undefined && (
-              <VStack
-                as="form"
-                gap="x3"
-                alignItems="stretch"
-                onSubmit={submitAction}
-              >
-                <Text as="h3" textStyle="label">
-                  {selectedAction.label}
-                </Text>
-                {selectedAction.kind === "resolve" && (
-                  <TextAreaField
-                    label="해결 근거 (필수)"
-                    description="외부 결제 조회 결과와 내부 반영 판단을 남겨 주세요."
-                    value={memo}
-                    maxLength={1000}
-                    errorMessage={validationError}
-                    onChange={(event) => {
-                      resetFailedResolveOperation();
-                      setMemo(event.currentTarget.value);
-                    }}
-                  />
-                )}
-                {(reconcileMutation.isError || resolveMutation.isError) && (
-                  <Callout
-                    role="alert"
-                    tone="critical"
-                    title="관리자 작업을 완료하지 못했습니다"
-                    description={getErrorMessage(
-                      reconcileMutation.error ?? resolveMutation.error,
-                      "권한과 현재 상태를 확인한 뒤 다시 시도해 주세요.",
-                    )}
-                  />
-                )}
-                <HStack gap="x2">
-                  <ActionButton type="submit" loading={actionPending}>
-                    {selectedAction.label} 검토
-                  </ActionButton>
-                  <ActionButton
-                    type="button"
-                    variant="ghost"
-                    disabled={actionPending}
-                    onClick={() => {
-                      setSelectedAction(undefined);
-                      setMemo("");
-                    }}
-                  >
-                    취소
-                  </ActionButton>
-                </HStack>
-              </VStack>
-            )}
-          </VStack>
-        )}
       </AdminCard>
 
       <TechnicalDetails

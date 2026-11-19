@@ -9,6 +9,7 @@ import {
   ActionButton,
   AlertDialog,
   Box,
+  HStack,
   ImageFrame,
   Switch,
   snackbar,
@@ -99,7 +100,12 @@ export function DesignExamplesPage() {
     ...updateAdminDesignExampleMutation(),
     onSuccess: refresh,
     onError: (error) =>
-      snackbar(getErrorMessage(error, "순서·게시 상태를 저장하지 못했습니다.")),
+      snackbar(
+        getErrorMessage(
+          error,
+          "순서·게시 상태를 저장하지 못했습니다. 다시 시도해 주세요.",
+        ),
+      ),
   });
   const remove = useMutation({
     ...deleteAdminDesignExampleMutation(),
@@ -109,7 +115,12 @@ export function DesignExamplesPage() {
       await refresh();
     },
     onError: (error) =>
-      snackbar(getErrorMessage(error, "템플릿을 삭제하지 못했습니다.")),
+      snackbar(
+        getErrorMessage(
+          error,
+          "템플릿을 삭제하지 못했습니다. 다시 시도해 주세요.",
+        ),
+      ),
   });
 
   const columns: readonly AdminTableColumn<AdminDesignExampleOut>[] = [
@@ -195,34 +206,23 @@ export function DesignExamplesPage() {
       ),
     },
   ];
+  // 두 줄 목록도 표와 같은 컨트롤을 쓴다 — 열 렌더러를 그대로 가져온다
+  const cell = (key: string, row: AdminDesignExampleOut) =>
+    columns.find((column) => column.key === key)?.render(row);
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <RouteHeading
-        title="템플릿"
-        description="스토어 템플릿 목록에 보일 템플릿을 고릅니다. 템플릿은 시드 코드(seed_design_examples.py)로 만듭니다."
-      />
+      <RouteHeading title="템플릿" />
 
       <AdminCard
         title="등록된 템플릿"
         description="게시 스위치를 켠 템플릿만 스토어 템플릿 목록에 순서대로 노출됩니다."
-        action={
-          <ActionButton
-            variant="neutralWeak"
-            size="small"
-            loading={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            새로고침
-          </ActionButton>
-        }
       >
         <VStack gap="x4" alignItems="stretch">
           <CompactFilterToolbar
             primaryControls={
               <SubmittedMemorySearch
                 label="이름·설명·생성 실행 ID 검색"
-                placeholder="2자 이상 입력"
                 maxLength={100}
                 resetKey={searchResetKey}
                 onSubmit={setSearch}
@@ -243,7 +243,6 @@ export function DesignExamplesPage() {
             }
             secondaryFilterCount={Number(published !== "all")}
             secondaryTitle="템플릿 필터"
-            secondaryDescription="게시 상태를 골라 적용합니다."
             onResetSecondaryFilters={() => setDraftPublished(published)}
             onApplySecondaryFilters={() => {
               setPublished(draftPublished);
@@ -277,12 +276,23 @@ export function DesignExamplesPage() {
             columns={columns}
             rows={filteredExamples}
             getRowKey={(row) => row.id}
+            compactRow={(row) => ({
+              leading: cell("preview", row),
+              title: row.name,
+              trailing: cell("published", row),
+              meta: row.caption ?? "설명 없음",
+              status: (
+                <HStack gap="x2" className="shrink-0">
+                  {cell("ordinal", row)}
+                  {cell("actions", row)}
+                </HStack>
+              ),
+            })}
             status={
               query.isLoading ? "loading" : query.isError ? "error" : "success"
             }
             onRetry={() => void query.refetch()}
             emptyTitle="조건에 맞는 템플릿이 없습니다"
-            emptyDescription="검색어나 게시 상태를 바꿔 다시 확인해 주세요."
           />
         </VStack>
       </AdminCard>
@@ -293,9 +303,9 @@ export function DesignExamplesPage() {
           if (!open && !remove.isPending) setDeleteTarget(null);
         }}
         title="템플릿을 삭제할까요?"
-        description="스토어 템플릿 목록에서 즉시 사라집니다. 시드를 다시 실행하면 돌아옵니다."
+        description="스토어 템플릿 목록에서 바로 사라집니다."
         primaryActionProps={{
-          children: "삭제",
+          children: "템플릿 삭제",
           variant: "criticalSolid",
           loading: remove.isPending,
           onClick: (event) => {

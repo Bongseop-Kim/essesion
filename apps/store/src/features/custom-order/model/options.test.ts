@@ -5,6 +5,7 @@ import {
   customOrderSummary,
   DEFAULT_CUSTOM_ORDER_OPTIONS,
   invalidCustomOrderSection,
+  invalidQuoteContact,
 } from "./options";
 
 describe("custom order options", () => {
@@ -40,6 +41,8 @@ describe("custom order options", () => {
       pointType: "HEAT_TRANSFER" as const,
     };
     expect(customOrderApiOptions(options)).toMatchObject({
+      // 원단비 0은 point만으로 계산된다 — "고객 제공"으로 읽히지 않게 false로 보낸다
+      fabric_provided: false,
       reorder: true,
       point: "HEAT_TRANSFER",
       fabric_type: null,
@@ -51,6 +54,61 @@ describe("custom order options", () => {
         { label: "포인트", value: "열전사 필름" },
       ]),
     );
+  });
+
+  it("포인트 주문은 타이 방식·라벨만 보내고 숨은 칸으로 제출을 막지 않는다", () => {
+    // 포인트를 켜기 전에 골라 둔 값 — state에는 남지만 서버로는 나가지 않는다
+    const options = {
+      ...DEFAULT_CUSTOM_ORDER_OPTIONS,
+      fabricProvided: true,
+      pointEnabled: true,
+      tieType: "AUTO" as const,
+      interlining: "WOOL" as const,
+      sizeType: "CHILD" as const,
+      tieWidth: 8,
+      triangleStitch: true,
+      sideStitch: true,
+      barTack: true,
+      fold7: true,
+      dimple: true,
+      turnKnot: true,
+      spoderato: true,
+      brandLabel: true,
+      careLabel: true,
+    };
+    expect(customOrderApiOptions(options)).toEqual({
+      fabric_provided: false,
+      reorder: false,
+      point: "EMBROIDERY",
+      fabric_type: null,
+      design_type: null,
+      tie_type: "AUTO",
+      interlining: "",
+      size_type: null,
+      tie_width: null,
+      triangle_stitch: false,
+      side_stitch: false,
+      bar_tack: false,
+      fold7: false,
+      dimple: false,
+      turn_knot: false,
+      spoderato: false,
+      brand_label: true,
+      care_label: true,
+    });
+    const summary = customOrderSummary(options);
+    expect(summary).toContainEqual({ label: "원단", value: "정해진 원단" });
+    expect(summary).toContainEqual({ label: "타이", value: "자동 타이" });
+    expect(summary.some((row) => row.label === "규격")).toBe(false);
+    // 폭이 비어 있고 수동 타이에 딤플이 남아 있어도 막지 않는다
+    expect(
+      invalidCustomOrderSection({
+        ...DEFAULT_CUSTOM_ORDER_OPTIONS,
+        pointEnabled: true,
+        dimple: true,
+        turnKnot: true,
+      }),
+    ).toBeNull();
   });
 
   it("수동 타이의 딤플과 범위 밖 규격을 막는다", () => {
@@ -117,17 +175,18 @@ describe("custom order options", () => {
         quantity: 10_001,
       })?.field,
     ).toBe("quantity");
+    const contact = {
+      contactName: "홍길동",
+      businessName: "",
+      contactMethod: "email" as const,
+      contactValue: "not-an-email",
+    };
+    expect(invalidQuoteContact(contact)?.field).toBe("contactValue");
+    expect(invalidQuoteContact({ ...contact, contactName: " " })?.field).toBe(
+      "contactName",
+    );
     expect(
-      invalidCustomOrderSection(
-        { ...DEFAULT_CUSTOM_ORDER_OPTIONS, quantity: 100, tieWidth: 8 },
-        {
-          contactName: "홍길동",
-          businessName: "",
-          contactMethod: "email",
-          contactValue: "not-an-email",
-        },
-        true,
-      )?.field,
-    ).toBe("contactValue");
+      invalidQuoteContact({ ...contact, contactValue: "buyer@example.com" }),
+    ).toBeNull();
   });
 });

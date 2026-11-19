@@ -1,7 +1,5 @@
 import {
-  createMyOrderReferenceImageReadUrl,
   createMyRepairReceiptPhotoReadUrl,
-  createReadUrl,
   type OrderItemOut,
   type OrderReferenceImageOut,
   type RepairShippingReceiptOut,
@@ -38,7 +36,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
-import { type ClaimType, claimItemTitle } from "@/features/claims/model/config";
+import type { ClaimType } from "@/features/claims/model/config";
 import { ClaimFormModal } from "@/features/claims/ui/claim-form-modal";
 import { ClaimItemActions } from "@/features/claims/ui/claim-item-actions";
 import {
@@ -46,7 +44,10 @@ import {
   orderStatusTone,
   orderTypeLabel,
 } from "@/features/orders/model/display";
-import { reformServiceLabel } from "@/features/reform/model/reform";
+import {
+  OrderedItemSummary,
+  referenceImageUrlQueryOptions,
+} from "@/features/orders/ui/ordered-item-summary";
 import {
   courierLabel,
   courierTrackingUrl,
@@ -326,28 +327,18 @@ export function OrderDetailPage() {
                     p="x4"
                   >
                     <VStack gap="x3" alignItems="stretch">
-                      <HStack
-                        justify="space-between"
-                        gap="x4"
-                        align="flex-start"
-                      >
-                        <VStack gap="x1">
-                          <HStack gap="x2" wrap>
-                            <Text textStyle="body">{orderItemTitle(item)}</Text>
-                            {itemClaim ? (
-                              <Badge tone={itemClaim.tone}>
-                                {itemClaim.label}
-                              </Badge>
-                            ) : null}
-                          </HStack>
-                          <Text textStyle="caption" color="fg.neutral-muted">
-                            {item.quantity}개 · {krw.format(item.unit_price)}원
-                          </Text>
-                        </VStack>
-                        <Text textStyle="labelSm">
-                          {krw.format(item.unit_price * item.quantity)}원
-                        </Text>
-                      </HStack>
+                      <OrderedItemSummary
+                        orderId={order.id}
+                        item={item}
+                        claimBadge={
+                          itemClaim ? (
+                            <Badge tone={itemClaim.tone}>
+                              {itemClaim.label}
+                            </Badge>
+                          ) : null
+                        }
+                        referenceImageId={referenceImagesQuery.data?.[0]?.id}
+                      />
                       <OrderContent orderType={order.order_type} item={item} />
                       <ClaimItemActions
                         item={item}
@@ -441,24 +432,30 @@ function OrderContent({
     item.item_data,
     item.quantity,
   );
-  const imageKey = repairImageKey(item.item_data);
-  if (!content && !imageKey) return null;
+  if (!content) return null;
+  // 수선은 값을 상품 요약 줄에 모두 담았다 — 여기서는 복원 메모만 남긴다.
+  const repair = orderType === "repair";
+  if (repair && !content.memo) return null;
   return (
     <VStack gap="x3" alignItems="stretch">
-      <Text as="h3" textStyle="labelSm">
-        주문 내용
-      </Text>
-      {content?.rows.map((row) => (
-        <InfoRow key={row.label} label={row.label} value={row.value} />
-      ))}
-      {content && content.tags.length > 0 ? (
-        <TagGroup>
-          {content.tags.map((tag) => (
-            <Tag key={tag}>{tag}</Tag>
+      {repair ? null : (
+        <>
+          <Text as="h3" textStyle="labelSm">
+            주문 내용
+          </Text>
+          {content.rows.map((row) => (
+            <InfoRow key={row.label} label={row.label} value={row.value} />
           ))}
-        </TagGroup>
-      ) : null}
-      {content?.memo ? (
+          {content.tags.length > 0 ? (
+            <TagGroup>
+              {content.tags.map((tag) => (
+                <Tag key={tag}>{tag}</Tag>
+              ))}
+            </TagGroup>
+          ) : null}
+        </>
+      )}
+      {content.memo ? (
         <VStack gap="x1">
           <Text textStyle="labelSm" color="fg.neutral-muted">
             요청사항
@@ -466,33 +463,8 @@ function OrderContent({
           <Text textStyle="bodySm">{content.memo}</Text>
         </VStack>
       ) : null}
-      {imageKey ? (
-        <Grid columns={{ base: 2, md: 3 }} gap="x3">
-          <SignedOrderImage
-            alt="수선 접수 사진"
-            load={async () => {
-              const response = await createReadUrl({
-                body: { object_key: imageKey },
-                throwOnError: true,
-              });
-              return response.data.read_url;
-            }}
-          />
-        </Grid>
-      ) : null}
     </VStack>
   );
-}
-
-function repairImageKey(itemData: unknown): string | null {
-  if (!itemData || typeof itemData !== "object" || !("tie" in itemData))
-    return null;
-  const tie = itemData.tie;
-  if (!tie || typeof tie !== "object" || !("image" in tie)) return null;
-  const image = tie.image;
-  if (!image || typeof image !== "object" || !("object_key" in image))
-    return null;
-  return typeof image.object_key === "string" ? image.object_key : null;
 }
 
 function OrderReferenceImages({
@@ -537,13 +509,7 @@ function OrderReferenceImages({
           <SignedOrderImage
             key={image.id}
             alt={`주문 참고 이미지 ${index + 1}`}
-            load={async () => {
-              const response = await createMyOrderReferenceImageReadUrl({
-                path: { order_id: orderId, image_id: image.id },
-                throwOnError: true,
-              });
-              return response.data.read_url;
-            }}
+            options={referenceImageUrlQueryOptions(orderId, image.id)}
           />
         ))}
       </Grid>
@@ -629,16 +595,19 @@ function RepairReceiptPhotos({
         <SignedOrderImage
           key={image.id}
           alt={`수선 발송 사진 ${index + 1}`}
-          load={async () => {
-            const response = await createMyRepairReceiptPhotoReadUrl({
-              path: {
-                order_id: orderId,
-                receipt_id: receipt.id,
-                image_id: image.id,
-              },
-              throwOnError: true,
-            });
-            return response.data.read_url;
+          options={{
+            queryKey: ["repair-receipt-photo-url", receipt.id, image.id],
+            queryFn: async () => {
+              const response = await createMyRepairReceiptPhotoReadUrl({
+                path: {
+                  order_id: orderId,
+                  receipt_id: receipt.id,
+                  image_id: image.id,
+                },
+                throwOnError: true,
+              });
+              return response.data.read_url;
+            },
           }}
         />
       ))}
@@ -648,30 +617,38 @@ function RepairReceiptPhotos({
 
 function SignedOrderImage({
   alt,
-  load,
+  options,
 }: {
   alt: string;
-  load: () => Promise<string>;
+  options: { queryKey: readonly unknown[]; queryFn: () => Promise<string> };
 }) {
-  const [readUrl, setReadUrl] = useState<string>();
-  const mutation = useMutation({ mutationFn: load, onSuccess: setReadUrl });
+  // 서버 URL TTL(15분)보다 짧게 둬 만료된 URL을 쓰지 않는다.
+  const query = useQuery({ staleTime: 10 * 60 * 1000, ...options });
+  const readUrl = query.data;
   return (
     <VStack gap="x2" alignItems="stretch">
       <ImageFrame src={readUrl} alt={alt} ratio={1} fit="contain" stroke />
-      <ActionButton
-        type="button"
-        size="small"
-        variant="neutralOutline"
-        loading={mutation.isPending}
-        onClick={() =>
-          readUrl
-            ? window.open(readUrl, "_blank", "noopener,noreferrer")
-            : mutation.mutate()
-        }
-      >
-        {readUrl ? "원본 보기" : "이미지 보기"}
-      </ActionButton>
-      {mutation.isError ? (
+      {query.isError ? (
+        <ActionButton
+          type="button"
+          size="small"
+          variant="neutralOutline"
+          loading={query.isFetching}
+          onClick={() => void query.refetch()}
+        >
+          다시 불러오기
+        </ActionButton>
+      ) : readUrl ? (
+        <ActionButton
+          type="button"
+          size="small"
+          variant="neutralOutline"
+          onClick={() => window.open(readUrl, "_blank", "noopener,noreferrer")}
+        >
+          원본 보기
+        </ActionButton>
+      ) : null}
+      {query.isError ? (
         <Text role="alert" textStyle="caption" color="fg.critical">
           이미지를 불러오지 못했습니다.
         </Text>
@@ -724,24 +701,4 @@ function ShipmentInfo({
       </HStack>
     </VStack>
   );
-}
-
-function orderItemTitle(item: OrderItemOut): string {
-  const data = item.item_data;
-  if (
-    item.item_type === "reform" &&
-    data &&
-    typeof data === "object" &&
-    "tie" in data
-  ) {
-    try {
-      const label = reformServiceLabel(
-        data as unknown as Parameters<typeof reformServiceLabel>[0],
-      );
-      if (label) return `넥타이 수선 — ${label}`;
-    } catch {
-      // 형태가 다른 이관 데이터는 기본 라벨로 표시한다.
-    }
-  }
-  return claimItemTitle(item);
 }

@@ -5,7 +5,6 @@ import {
   Callout,
   Checkbox,
   Grid,
-  HStack,
   Text,
   TextAreaField,
   TextField,
@@ -24,6 +23,7 @@ import {
 import { getErrorMessage } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
+import { EditModeShell } from "../../shared/ui/edit-mode-shell";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { NumberField } from "../../shared/ui/number-field";
 import {
@@ -200,7 +200,10 @@ export function ProductForm({
     } catch (caught) {
       if (mounted.current) {
         setUploadError(
-          getErrorMessage(caught, "상품 이미지를 업로드하지 못했습니다."),
+          getErrorMessage(
+            caught,
+            "상품 이미지를 업로드하지 못했습니다. 다시 시도해 주세요.",
+          ),
         );
       }
       return undefined;
@@ -314,7 +317,7 @@ export function ProductForm({
               />
               <TextField
                 label="상품 코드"
-                placeholder="비워 두면 자동 생성"
+                description="비워 두면 자동 생성"
                 maxLength={100}
                 value={draft.code}
                 disabled={mode === "edit" || pending}
@@ -379,7 +382,6 @@ export function ProductForm({
           <VStack gap="x5" alignItems="stretch">
             <AttachmentDisplayField
               label="대표 이미지"
-              description="상품 목록과 상세의 대표 이미지입니다."
               errorMessage={attempted ? errors.primaryImage : undefined}
               items={
                 draft.primaryImage === null
@@ -405,7 +407,7 @@ export function ProductForm({
             />
             <AttachmentDisplayField
               label="상세 이미지"
-              description="최대 20장까지 순서대로 표시됩니다."
+              description="최대 20장"
               items={draft.detailImages.map((image, index) => ({
                 id: image.clientId,
                 src: image.src,
@@ -459,7 +461,7 @@ export function ProductForm({
                   onValueChange={(value) => update("stock", value)}
                 />
                 <Checkbox
-                  label="재고 수량 제한 없음"
+                  label="재고 무제한"
                   checked={draft.unlimitedStock}
                   disabled={pending}
                   onChange={(event) =>
@@ -468,10 +470,11 @@ export function ProductForm({
                 />
               </VStack>
             ) : (
+              // 저장하면 상품 단위 재고가 null로 덮어써진다 — 데이터가 사라지므로 남기는 경고
               <Callout
                 tone="neutral"
                 title="재고는 옵션별로 관리됩니다"
-                description="옵션이 하나 이상이면 상품 단위 재고는 저장하지 않습니다."
+                description="저장하면 상품 단위 재고는 비워집니다."
               />
             )}
           </Grid>
@@ -502,9 +505,7 @@ export function ProductForm({
         >
           <VStack gap="x4" alignItems="stretch">
             {draft.options.length === 0 ? (
-              <Text color="fg.neutral-muted">
-                옵션이 없습니다. 상품 단위 재고를 사용합니다.
-              </Text>
+              <Text color="fg.neutral-muted">옵션 없음</Text>
             ) : (
               <>
                 <TextField
@@ -593,7 +594,7 @@ export function ProductForm({
                             }
                           />
                           <Checkbox
-                            label="재고 수량 제한 없음"
+                            label="재고 무제한"
                             checked={option.unlimitedStock}
                             disabled={pending}
                             onChange={(event) =>
@@ -627,24 +628,29 @@ export function ProductForm({
           </VStack>
         )}
 
-        <HStack gap="x2" wrap>
-          <ActionButton type="submit" loading={pending || uploading > 0}>
-            {mode === "create" ? "상품 등록" : "저장"}
-          </ActionButton>
-          <ActionButton
-            variant="ghost"
-            disabled={!dirty || pending || uploading > 0}
-            onClick={() => {
-              discardStaged();
-              draftRef.current = baseDraft;
-              setDraft(baseDraft);
-              setAttempted(false);
-              setUploadError(undefined);
-            }}
-          >
-            {mode === "create" ? "입력 취소" : "수정 취소"}
-          </ActionButton>
-        </HStack>
+        <EditModeShell
+          status={dirty ? "저장하지 않은 변경이 있습니다" : "변경 없음"}
+          actions={
+            <>
+              <ActionButton
+                variant="ghost"
+                disabled={!dirty || pending || uploading > 0}
+                onClick={() => {
+                  discardStaged();
+                  draftRef.current = baseDraft;
+                  setDraft(baseDraft);
+                  setAttempted(false);
+                  setUploadError(undefined);
+                }}
+              >
+                수정 취소
+              </ActionButton>
+              <ActionButton type="submit" loading={pending || uploading > 0}>
+                {mode === "create" ? "상품 등록" : "저장"}
+              </ActionButton>
+            </>
+          }
+        />
       </VStack>
 
       <AlertDialog

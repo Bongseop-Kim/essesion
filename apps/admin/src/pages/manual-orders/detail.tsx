@@ -30,6 +30,7 @@ import {
   formatDate,
   formatDateTime,
   formatFileSize,
+  formatFileType,
 } from "../../shared/lib/format";
 import {
   type ManualOrderKind,
@@ -49,7 +50,7 @@ function itemCategoryLabel(item: ManualOrderItemOut) {
     item.automatic != null && "자동수선",
     item.width != null && "폭수선",
     item.restoration != null && "복원수선",
-    item.custom != null && "주문제작",
+    item.custom != null && "주문 제작",
   ].filter((value): value is string => typeof value === "string");
   return categories.length === 0 ? "-" : categories.join(" · ");
 }
@@ -103,7 +104,7 @@ function itemDetailItems(item: ManualOrderItemOut): DetailItem[] {
   }
   if (item.width != null) {
     items.push({
-      label: "[폭] 폭",
+      label: "[폭] 목표 폭",
       value: `${item.width.target_width_cm}cm`,
     });
   }
@@ -162,7 +163,7 @@ function itemDetailItems(item: ManualOrderItemOut): DetailItem[] {
     }
     if (item.custom.tie_width_cm != null) {
       items.push({
-        label: "[제작] 타이 폭",
+        label: "[제작] 넥타이 폭",
         value: `${item.custom.tie_width_cm}cm`,
       });
     }
@@ -195,8 +196,8 @@ function ManualOrderImage({
       alt={alt}
       metadata={
         <>
-          {image.content_type ?? "이미지"} ·{" "}
-          {formatFileSize(image.size_bytes, "크기 미상")} ·{" "}
+          {formatFileType(image.content_type, "이미지")} ·{" "}
+          {formatFileSize(image.size_bytes, "크기 정보 없음")} ·{" "}
           {formatDateTime(image.created_at)}
         </>
       }
@@ -219,10 +220,7 @@ const NOUN: Record<ManualOrderKind, string> = {
 function ManualOrderDetailLoading({ noun }: { noun: string }) {
   return (
     <VStack gap="x6" alignItems="stretch" aria-busy="true">
-      <RouteHeading
-        title={`${noun} 상세`}
-        description="작업지시서 내용을 불러오고 있습니다."
-      />
+      <RouteHeading title={`${noun} 상세`} />
       <AdminCard title="주문 정보">
         <VStack gap="x3" alignItems="stretch">
           <Skeleton width="60%" height={24} />
@@ -255,13 +253,13 @@ function ManualOrderDetail({ kind }: { kind: ManualOrderKind }) {
       navigate("/manual-orders", { replace: true });
     },
     onError: () => {
-      snackbar(`${noun}을 삭제하지 못했습니다.`);
+      snackbar(`${noun}을 삭제하지 못했습니다. 다시 시도해 주세요.`);
     },
   });
   const statusMutation = useMutation({
     ...patchManualOrderStatusMutation(),
     onSuccess: async (data) => {
-      snackbar(`확인 상태를 변경했습니다.`);
+      snackbar("발송 완료 상태를 바꿨습니다.");
       queryClient.setQueryData(
         getManualOrderQueryKey({ path: { manual_order_id: data.id } }),
         data,
@@ -280,7 +278,7 @@ function ManualOrderDetail({ kind }: { kind: ManualOrderKind }) {
         void query.refetch();
         return;
       }
-      snackbar("확인 상태를 변경하지 못했습니다.");
+      snackbar("발송 완료 상태를 바꾸지 못했습니다. 다시 시도해 주세요.");
     },
   });
   const order = query.data;
@@ -312,60 +310,58 @@ function ManualOrderDetail({ kind }: { kind: ManualOrderKind }) {
   const statusFlags = [
     ["접수", order.is_received],
     ["결제", order.is_paid],
-    ["확인", order.is_confirmed],
+    ["발송 완료", order.is_confirmed],
   ] as const;
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title={`${order.customer_name} 님의 ${noun}`}
-          description={`마지막 수정 ${formatDateTime(order.updated_at)}`}
-        />
-        <HStack gap="x2" wrap>
-          <ActionButton
-            variant="ghost"
-            onClick={() => navigate("/manual-orders")}
-          >
-            목록으로
-          </ActionButton>
-          <ActionButton
-            variant="neutralWeak"
-            loading={statusMutation.isPending}
-            onClick={() =>
-              statusMutation.mutate({
-                path: { manual_order_id: order.id },
-                body: {
-                  is_confirmed: !order.is_confirmed,
-                  expected_updated_at: order.updated_at,
-                },
-              })
-            }
-          >
-            {order.is_confirmed ? "확인 취소" : "확인 처리"}
-          </ActionButton>
-          <ActionButton
-            variant="neutralWeak"
-            onClick={() => navigate(manualOrderPath(kind, order.id, "edit"))}
-          >
-            수정
-          </ActionButton>
-          <ActionButton
-            onClick={() => {
-              const node = captureRef.current;
-              if (node === null) return;
-              void downloadWorksheetPng(
-                node,
-                `${noun.replace(" ", "")}_${order.customer_name}_${order.order_date}.png`,
-              ).catch(() =>
-                snackbar("작업지시서 이미지를 저장하지 못했습니다."),
-              );
-            }}
-          >
-            작업지시서 이미지 저장
-          </ActionButton>
-        </HStack>
-      </HStack>
+      <RouteHeading
+        backTo={{ to: "/manual-orders", label: "수기 주문" }}
+        title={`${order.customer_name} 님의 ${noun}`}
+        description={`마지막 수정 ${formatDateTime(order.updated_at)}`}
+        actions={
+          <>
+            <ActionButton
+              variant="neutralWeak"
+              loading={statusMutation.isPending}
+              onClick={() =>
+                statusMutation.mutate({
+                  path: { manual_order_id: order.id },
+                  body: {
+                    is_confirmed: !order.is_confirmed,
+                    expected_updated_at: order.updated_at,
+                  },
+                })
+              }
+            >
+              {order.is_confirmed ? "발송 완료 해제" : "발송 완료로 표시"}
+            </ActionButton>
+            <ActionButton
+              variant="neutralWeak"
+              onClick={() => navigate(manualOrderPath(kind, order.id, "edit"))}
+            >
+              수정
+            </ActionButton>
+            <ActionButton
+              variant="neutralOutline"
+              onClick={() => {
+                const node = captureRef.current;
+                if (node === null) return;
+                void downloadWorksheetPng(
+                  node,
+                  `${noun.replace(" ", "")}_${order.customer_name}_${order.order_date}.png`,
+                ).catch(() =>
+                  snackbar(
+                    "작업지시서 이미지를 저장하지 못했습니다. 다시 시도해 주세요.",
+                  ),
+                );
+              }}
+            >
+              작업지시서 이미지 저장
+            </ActionButton>
+          </>
+        }
+      />
 
       {/* 캡처 대상. 버튼은 래퍼 밖에 두어 PNG에 찍히지 않게 한다. */}
       <Box ref={captureRef} data-capture>
@@ -395,7 +391,7 @@ function ManualOrderDetail({ kind }: { kind: ManualOrderKind }) {
                       : order.address,
                 },
                 {
-                  label: "원금 − 할인 + 택배비 = 주문 금액",
+                  label: "원금 − 할인 + 배송비 = 주문 금액",
                   value: formatAmountBreakdown(
                     order.amount,
                     order.discount,
@@ -466,7 +462,7 @@ function ManualOrderDetail({ kind }: { kind: ManualOrderKind }) {
         open={deleteConfirmOpen}
         onOpenChange={setDeleteConfirmOpen}
         title={`이 ${noun}을 삭제할까요?`}
-        description="삭제한 작업지시서는 복구할 수 없습니다."
+        description={`삭제한 ${noun}은 복구할 수 없습니다.`}
         primaryActionProps={{
           children: "삭제",
           variant: "criticalSolid",

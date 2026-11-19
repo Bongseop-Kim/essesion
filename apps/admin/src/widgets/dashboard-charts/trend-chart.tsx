@@ -126,7 +126,7 @@ export function TrendChart<T extends TrendPoint>({
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             data={data as T[]}
-            margin={{ top: 4, right: 4, bottom: 0, left: 4 }}
+            margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
           >
             <CartesianGrid
               vertical={false}
@@ -142,7 +142,8 @@ export function TrendChart<T extends TrendPoint>({
               interval="preserveStartEnd"
             />
             <YAxis
-              width={44}
+              // 눈금 글자 폭만큼만 차지한다 — 고정 폭이면 값이 작을 때 왼쪽이 빈다
+              width="auto"
               allowDecimals={false}
               tickFormatter={(value: number) => compactNumber.format(value)}
               tick={tick}

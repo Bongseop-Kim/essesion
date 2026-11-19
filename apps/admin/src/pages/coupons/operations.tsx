@@ -257,6 +257,16 @@ export function CouponOperations({
                 columns={columns}
                 rows={preview?.items}
                 getRowKey={(customer) => customer.id}
+                compactRow={(customer) => ({
+                  leading: columns[0]?.render(customer),
+                  title: customer.name,
+                  meta: [
+                    customer.email ?? "이메일 없음",
+                    customer.phone && formatPhoneNumber(customer.phone),
+                  ]
+                    .filter(Boolean)
+                    .join(" · "),
+                })}
                 status={previewMutation.isPending ? "loading" : "success"}
                 total={preview?.total}
                 emptyTitle="조건에 맞는 고객이 없습니다"
@@ -277,25 +287,19 @@ export function CouponOperations({
       </AdminCard>
 
       {!canManage ? (
-        <AdminCard
-          title="쿠폰 일괄 발급"
-          description="대상과 발급 조건을 확인한 뒤 한 번에 발급합니다."
-        >
+        <AdminCard title="쿠폰 일괄 발급">
           <Text textStyle="bodySm" color="fg.neutral-muted">
-            조회 전용 권한입니다. 고객군 일괄 발급은 관리자만 할 수 있습니다.
+            관리자만 발급할 수 있습니다.
           </Text>
         </AdminCard>
       ) : (
-        <AdminCard
-          title="쿠폰 일괄 발급"
-          description="대상과 발급 조건을 확인한 뒤 한 번에 발급합니다."
-        >
+        <AdminCard title="쿠폰 일괄 발급">
           <VStack gap="x4" alignItems="stretch">
             {!couponActive && (
               <Callout
                 tone="warning"
                 title="비활성 쿠폰은 발급할 수 없습니다"
-                description="쿠폰 정의를 활성 상태로 저장한 뒤 다시 시도해 주세요."
+                description="쿠폰을 활성 상태로 저장한 뒤 다시 시도해 주세요."
               />
             )}
             <Text textStyle="bodySm">

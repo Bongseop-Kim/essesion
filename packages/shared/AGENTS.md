@@ -2,7 +2,9 @@
 
 admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/foundation/`(색인은 맨 아래) 참조. 값의 유일한 사전은 `docs/foundation/design-token-reference.md`(= `src/theme.css`).
 
-사업자 표기: 회사명 `영선산업` · 상호명 `ESSE SION` · 이메일 `biblecookie@naver.com`.
+사업자 표기: 회사명 `영선산업` · 상호명 `ESSE SION` · 이메일 `help@essesion.com`.
+
+로고는 놓이는 배경과 같은 바탕색을 쓴다: 밝은 배경 `/logo/logo-light.png`(흰 바탕·검정 글자), 어두운 배경 `/logo/logo.png`(검정 바탕·흰 글자).
 
 ## 규칙 (위반 금지)
 
@@ -78,7 +80,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | SegmentedControl / SegmentedControlItem | 현재 화면의 콘텐츠를 즉시 필터/전환(2–4개 세그먼트) | 페이지 이동(→Tabs), 5개+ (→Radio/Select) |
 | SelectBox / SelectBoxItem | 설명·비교가 필요한 테두리 카드형 옵션(제출로 확정, `multiple`·`columns`) | 가벼운 키워드 필터(→Chip), 클릭 즉시 액션 |
 | FieldButton | 입력창처럼 보이는 트리거 — 피커/선택 다이얼로그를 연다(값+셰브론 표시) | 직접 텍스트 입력(→TextField) |
-| ListPicker | 오버레이 목록에서 **단일 선택**(FieldButton+Modal+List 조합) | 옵션 2–3개면 SelectBox/RadioGroup 먼저 |
+| ListPicker | 오버레이 목록에서 **단일 선택**(FieldButton+Modal+List 조합). 옵션이 많으면 `searchable`로 목록 위 검색창 | 옵션 2–3개면 SelectBox/RadioGroup 먼저 |
 | AttachmentDisplayField | 이미지 첨부 필드 — 썸네일 표시·제거, `onAddFiles` 지정 시 남은 슬롯에 파일 선택 타일 노출. `max=1`은 선택 후 추가 타일·카운터 숨김 | raw file TextField와 별도 썸네일 UI 조합 |
 
 ### 내비게이션

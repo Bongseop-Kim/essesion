@@ -462,7 +462,8 @@ class QuoteRequest(TimestampMixin, Base):
     reference_images: Mapped[list[Any]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
 
     __table_args__ = (
-        CheckConstraint("quantity >= 100", name="quantity"),
+        # 주문 제작 최소 수량과 같다 — api 검증(quotes/service.py)과 함께 고친다.
+        CheckConstraint("quantity >= 4", name="quantity"),
         CheckConstraint("contact_method IN ('email', 'phone')", name="contact_method"),
         CheckConstraint("status IN ('요청', '견적발송', '협의중', '확정', '종료')", name="status"),
         CheckConstraint("quoted_amount IS NULL OR quoted_amount >= 0", name="quoted_amount"),
@@ -629,7 +630,8 @@ class ManualOrder(TimestampMixin, Base):
     shipping_fee: Mapped[int] = mapped_column(server_default=text("0"))
     is_received: Mapped[bool] = mapped_column(server_default=text("false"))  # 접수
     is_paid: Mapped[bool] = mapped_column(server_default=text("false"))  # 결제
-    is_confirmed: Mapped[bool] = mapped_column(server_default=text("false"))  # 확인
+    # 화면 라벨 "발송 완료" — 제작·수선 후 택배 발송까지 끝났다는 뜻
+    is_confirmed: Mapped[bool] = mapped_column(server_default=text("false"))
     items: Mapped[list[Any]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
 
     __table_args__ = (

@@ -5,7 +5,7 @@ import { deliveryRequestLabel } from "./delivery-request";
 describe("deliveryRequestLabel", () => {
   it("저장 코드를 사용자 문구로 바꾼다", () => {
     expect(deliveryRequestLabel("DELIVERY_REQUEST_1")).toBe(
-      "문 앞에 놔주세요.",
+      "문 앞에 놔 주세요.",
     );
   });
 

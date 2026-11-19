@@ -127,7 +127,7 @@ const claim: AdminClaimDetailOut = {
   admin_actions: [
     {
       kind: "reject",
-      label: "거부 처리",
+      label: "거절 처리",
       target_status: "거부",
       enabled: true,
       destructive: true,
@@ -207,12 +207,12 @@ describe("ClaimDetailPage", () => {
     expect(
       await screen.findByText("등록된 배송 정보가 없습니다."),
     ).toBeTruthy();
-    expect(screen.getByRole("button", { name: "거부 처리" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "거절 처리" })).toBeTruthy();
 
     await user.click(screen.getByRole("tab", { name: "개요" }));
 
     expect(
-      await screen.findByRole("button", { name: "거부 처리" }),
+      await screen.findByRole("button", { name: "거절 처리" }),
     ).toBeTruthy();
     expect(screen.getByText("상품 불량")).toBeTruthy();
     expect(screen.queryByText("defect")).toBeNull();
@@ -232,7 +232,7 @@ describe("ClaimDetailPage", () => {
     ).toBeTruthy();
     expect(screen.queryByRole("tab", { name: "배송·첨부" })).toBeNull();
     expect(screen.queryByText("배송 주소")).toBeNull();
-    expect(screen.getByRole("button", { name: "거부 처리" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "거절 처리" })).toBeTruthy();
   });
 
   it("위험 상태 변경을 확인하고 실패해도 입력한 사유를 보존한다", async () => {
@@ -252,7 +252,7 @@ describe("ClaimDetailPage", () => {
     });
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "거부 처리" }));
+    await user.click(await screen.findByRole("button", { name: "거절 처리" }));
     const memo = screen.getByLabelText("처리 사유 (필수)");
     await user.type(memo, "검수 결과 불량");
     expect(
@@ -260,11 +260,11 @@ describe("ClaimDetailPage", () => {
         .disabled,
     ).toBe(true);
     expect((memo as HTMLTextAreaElement).value).toBe("검수 결과 불량");
-    await user.click(screen.getByRole("button", { name: "거부 처리 검토" }));
+    await user.click(screen.getByRole("button", { name: "거절 처리 검토" }));
 
     const dialog = await screen.findByRole("alertdialog");
-    expect(within(dialog).getByText(/상태 접수 → 거부/)).toBeTruthy();
-    await user.click(within(dialog).getByRole("button", { name: "거부 처리" }));
+    expect(within(dialog).getByText(/상태 접수 → 거절/)).toBeTruthy();
+    await user.click(within(dialog).getByRole("button", { name: "거절 처리" }));
 
     await waitFor(() =>
       expect(api.updateStatus).toHaveBeenCalledWith(
@@ -350,7 +350,7 @@ describe("ClaimDetailPage", () => {
     });
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "거부 처리" }));
+    await user.click(await screen.findByRole("button", { name: "거절 처리" }));
     await user.type(screen.getByLabelText("처리 사유 (필수)"), "검수 불량");
     await user.click(screen.getByRole("tab", { name: "배송·첨부" }));
     await user.click(
@@ -471,13 +471,12 @@ describe("ClaimDetailPage", () => {
     ).toBeTruthy();
   });
 
-  it("접수·사진 ID 관계로 목록과 만료 URL을 발급하고 재발급한다", async () => {
-    const user = userEvent.setup();
+  it("접수·사진 ID 관계로 목록과 만료 URL을 바로 발급한다", async () => {
     api.getClaim.mockResolvedValueOnce(repairClaim);
     api.listPhotos.mockResolvedValueOnce([repairPhoto]);
-    api.createPhotoReadUrl
-      .mockResolvedValueOnce({ read_url: "https://storage.example/signed-1" })
-      .mockResolvedValueOnce({ read_url: "https://storage.example/signed-2" });
+    api.createPhotoReadUrl.mockResolvedValueOnce({
+      read_url: "https://storage.example/signed-1",
+    });
     const { container } = renderPage("/claims/claim-1?tab=shipping");
 
     expect(await screen.findByText("송장 분실 · 사진 1장")).toBeTruthy();
@@ -485,14 +484,6 @@ describe("ClaimDetailPage", () => {
     expect(api.photoListOptions).toHaveBeenCalledWith({
       path: { receipt_id: "receipt-1" },
     });
-    expect(
-      screen.queryByRole("img", { name: "수선 발송 접수 사진 1" }),
-    ).toBeNull();
-
-    await user.click(
-      await screen.findByRole("button", { name: "이미지 보기" }),
-    );
-
     const image = await screen.findByRole("img", {
       name: "수선 발송 접수 사진 1",
     });
@@ -507,12 +498,6 @@ describe("ClaimDetailPage", () => {
     expect(container.textContent).not.toContain(
       "uploads/repair_shipping_upload",
     );
-
-    await user.click(screen.getByRole("button", { name: "다시 불러오기" }));
-    await waitFor(() =>
-      expect(api.createPhotoReadUrl).toHaveBeenCalledTimes(2),
-    );
-    expect(image.getAttribute("src")).toBe("https://storage.example/signed-2");
   });
 
   it("관계형 사진 목록이 비어 있으면 명시적인 빈 상태를 표시한다", async () => {

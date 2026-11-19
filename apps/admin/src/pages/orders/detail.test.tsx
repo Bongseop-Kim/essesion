@@ -29,6 +29,12 @@ vi.mock("@essesion/api-client/query", () => ({
     queryFn: api.getOrder,
   }),
   getAdminOrderQueryKey: (_options: unknown) => ["order"],
+  getAdminSettingsOptions: () => ({
+    queryKey: ["settings"],
+    queryFn: async () => [
+      { key: "default_courier_company", value: "롯데택배" },
+    ],
+  }),
   listAdminOrderReferenceImagesOptions: (options: unknown) => {
     api.getReferenceImagesOptions(options);
     return {
@@ -595,7 +601,12 @@ describe("OrderDetailPage", () => {
       await screen.findByRole("heading", { name: /원단 \+ 봉제 샘플$/ }),
     ).toBeTruthy();
     expect(screen.getByText("원단")).toBeTruthy();
-    expect(screen.getByText("폴리")).toBeTruthy();
+    // 고른 것과 안 고른 것을 함께 그린다 — 원단은 폴리, 심지는 울
+    expect(screen.getByText("폴리 선택됨")).toBeTruthy();
+    expect(screen.getByText("실크 선택 안 됨")).toBeTruthy();
+    expect(screen.getByText("울 선택됨")).toBeTruthy();
+    // 샘플 주문에는 봉제 옵션이 없다 — 안 고름으로 그리지 않는다
+    expect(screen.queryByText("봉제·마감")).toBeNull();
     // 사진이 없으면 빈 섹션도 그리지 않는다.
     expect(screen.queryByText(/사진|참고 이미지/)).toBeNull();
   });
@@ -674,10 +685,11 @@ describe("OrderDetailPage", () => {
     renderPage();
 
     // 개요 한 화면 = 작업지시서. 품목·수취인·수선 발송 사진이 모두 여기 모인다.
+    // 로딩 Skeleton에도 같은 섹션 제목이 있으므로 실제 내용으로 기다린다
     expect(
-      await screen.findByRole("heading", { name: "주문 품목" }),
+      await screen.findByText("자동수선 · 폭수선 · 복원수선"),
     ).toBeTruthy();
-    expect(screen.getByText("자동수선 · 폭수선 · 복원수선")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "주문 품목" })).toBeTruthy();
     // 타입·마감·딤플은 두 선택지를 모두 그리고 선택된 쪽만 표시한다 —
     // 선택값만 나열하면 관리자가 나머지 선택지를 알 수 없다.
     expect(screen.getByText("지퍼 선택됨")).toBeTruthy();

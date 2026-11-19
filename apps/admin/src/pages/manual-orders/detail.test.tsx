@@ -81,7 +81,7 @@ describe("ManualRepairDetailPage", () => {
     api.getOrder.mockResolvedValue(order);
   });
 
-  it("확인 처리 클릭 시 상태 patch mutation을 호출하고 자동수선 키·넥타이 길이를 표시한다", async () => {
+  it("발송 완료로 표시 클릭 시 상태 patch mutation을 호출하고 자동수선 키·넥타이 길이를 표시한다", async () => {
     const user = userEvent.setup();
     api.patchStatus.mockResolvedValue({ ...order, is_confirmed: true });
     renderPage();
@@ -94,7 +94,7 @@ describe("ManualRepairDetailPage", () => {
     expect(screen.getByText("[자동] 넥타이 길이")).toBeTruthy();
     expect(screen.getByText("51cm")).toBeTruthy();
 
-    await user.click(screen.getByRole("button", { name: "확인 처리" }));
+    await user.click(screen.getByRole("button", { name: "발송 완료로 표시" }));
 
     await waitFor(() =>
       expect(api.patchStatus).toHaveBeenCalledWith(

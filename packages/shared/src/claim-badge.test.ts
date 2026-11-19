@@ -13,9 +13,9 @@ describe("claimBadge", () => {
   });
 
   it.each([
-    ["cancel", "취소 거부"],
-    ["return", "반품 거부"],
-    ["exchange", "교환 거부"],
+    ["cancel", "취소 거절"],
+    ["return", "반품 거절"],
+    ["exchange", "교환 거절"],
   ])("%s 거부를 중립 상태로 표시한다", (type, label) => {
     expect(claimBadge({ type, status: "거부" })).toEqual({
       label,

@@ -2,7 +2,7 @@ import {
   adminCreateProductMutation,
   adminListProductsQueryKey,
 } from "@essesion/api-client/query";
-import { ActionButton, HStack, snackbar, VStack } from "@essesion/shared";
+import { snackbar, VStack } from "@essesion/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 import { useNavigate } from "react-router";
@@ -56,15 +56,10 @@ export function ProductNewPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title="상품 등록"
-          description="이미지를 모두 업로드한 뒤 저장해 주세요."
-        />
-        <ActionButton variant="ghost" onClick={() => navigate("/products")}>
-          목록으로
-        </ActionButton>
-      </HStack>
+      <RouteHeading
+        backTo={{ to: "/products", label: "상품 관리" }}
+        title="상품 등록"
+      />
       <ProductForm
         initial={emptyProductDraft}
         resetSignal={0}

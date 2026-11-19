@@ -67,9 +67,15 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 
 ## 7. 견적 (quotes)
 
-- 생성: 100 ≤ quantity ≤ 10,000, options는 object(UTF-8 compact JSON 10KB 제한), contact_method ∈ {email, phone}, contact_name(최대 100자)/value(최대 320자) 필수, business_name 최대 200자, additional_notes 최대 500자, 배송지 본인 소유. reference_images는 최대 10개이며 object_key는 최대 1,024자, 선택적 `part ∈ {full, blade, knot, tail}`는 부위마다 1장(중복 422, money.md §3과 같은 규칙), `kind=quote_request` 서명 URL 발급 시 생성한 본인 소유 스테이징 행만 허용한다. 발급 단계에서 선언 크기와 10MiB PUT 상한을 서명하고, 생성 시 GCS metadata(존재·MIME·실제 크기)를 선언값과 대조한 뒤 중복 INSERT 없이 `quote_request`로 재연결한다. `QUO-` 채번. status='요청'. 접수 알림톡(수신 조건 4종): `[ESSE SION] 견적 요청이 접수되었습니다.\n담당자가 순차적으로 연락드리겠습니다.`
+- 생성: 4 ≤ quantity ≤ 10,000(주문 제작 최소 수량과 같다 — 스토어는 수량과 무관하게 견적하기를 둔다), options는 object(UTF-8 compact JSON 10KB 제한), contact_method ∈ {email, phone}, contact_name(최대 100자)/value(최대 320자) 필수, business_name 최대 200자, additional_notes 최대 500자, 배송지 본인 소유. reference_images는 최대 10개이며 object_key는 최대 1,024자, 선택적 `part ∈ {full, blade, knot, tail, brand_label, logo}`는 부위마다 1장(중복 422, money.md §3과 같은 규칙), `kind=quote_request` 서명 URL 발급 시 생성한 본인 소유 스테이징 행만 허용한다. 발급 단계에서 선언 크기와 10MiB PUT 상한을 서명하고, 생성 시 GCS metadata(존재·MIME·실제 크기)를 선언값과 대조한 뒤 중복 INSERT 없이 `quote_request`로 재연결한다. `QUO-` 채번. status='요청'. 접수 알림톡(수신 조건 4종): `[ESSE SION] 견적 요청이 접수되었습니다.\n담당자가 순차적으로 연락드리겠습니다.`
 - admin 전이: 요청→{견적발송,종료}, 견적발송→{협의중,종료}, 협의중→{확정,종료}. quoted_amount ≥ 0. quoted_amount/quote_conditions/admin_memo는 부분 갱신(coalesce). 로그 기록.
 - **확정·종료 진입 시** 해당 견적 이미지 `expires_at = now()+90일`(기존 NULL만) — 구 트리거를 api 로직으로.
+- **예상 견적서 메일** `POST /orders/custom/estimate-email` (2026-11-18): 주문 제작 화면의 사양으로 견적서 엑셀(.xlsx)을 만들어 `help@essesion.com` 명의로 보낸다. 위의 견적 요청(`QUO-`)과 별개이며 DB에 남기지 않는다.
+  - 로그인 필수. 요청은 `{options, quantity, email, company_name?}` — 금액은 받지 않고 money.md §3 계산을 서버에서 다시 실행한다(옵션 검증 오류도 그대로 400).
+  - `email`은 ASCII 단일 주소 꼴만(쉼표·공백·꺾쇠·개행 불가, 최대 320자). `company_name`은 견적서의 "○○ 귀하"에 실리는 유일한 고객 입력이라 한글·영문·숫자와 `( ) & . , · -` 공백만 최대 40자, 첫 글자는 글자·숫자·`(`·`㈜`. 위반은 422.
+  - 한도: 사용자당 시간당 5통, 전체 하루 200통(iCloud 하루 1,000통 한도 전에 멈춘다). 초과 429.
+  - 견적서 내용: 합계는 부가세 포함으로 보고 공급가액 = round(합계/1.1), 세액 = 합계 − 공급가액, 단가 = round(공급가액/수량). 수식 없이 값으로 넣는다. `options`는 자유 dict이므로 api가 아는 키·값만 라벨로 바꿔 싣고 나머지는 버린다(`apps/api/src/api/domains/orders/estimate.py`). 메일 본문은 고정 문구 + 합계.
+  - 응답 204. SMTP 실패 502(`upstream_error`), 배포 환경에서 SMTP 미설정 503(`service_unavailable`). local/test는 DryRun. 받는 주소는 로그에 남기지 않는다.
 
 ## 8. 이미지 (GCS — ImageKit 대체)
 
@@ -77,7 +83,7 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 - 등록 종류: reform_upload / repair_shipping_upload(entity_id=file key, 부분 unique upsert — 소유자만 갱신), 범용 등록(entity_type별 소유권 검증: product=admin, quote_request/custom_order/reform=해당 엔티티 소유자). 팝업 배너는 `popup_upload → popup`(admin 전용, 공개 assets 버킷 — §10 팝업 공지).
 - 재연결: 주문 생성 시 reform_upload→reform(entity_id=order_id), 수선 발송 제출 시 repair_shipping_upload→repair_shipping.
 - 수기 주문 첨부(admin 전용): `manual_order_upload`(`uploads/manual_order_upload/`, TTL 24h, JPG/PNG/WebP·10MiB, 발급자=admin 본인) → 저장 시 `manual_order`(entity_id=수기주문 id, expires_at=NULL). 주문 단위 목록(`image_upload_ids`)과 품목별 목록(`items[].image_upload_ids`)을 합쳐 최대 5장씩 받고, 한 이미지는 한 곳에만 붙는다(중복 422). 등록·수정 요청은 **남길 이미지 전체 목록**이며 빠진 이미지는 `expires_at = now()`로 만료된다(삭제도 동일). 링크 시점에 GCS metadata를 재검증하고, 읽기는 소속 검증 뒤 서명 읽기 URL만 발급한다(다른 주문 이미지는 404).
-- 수기 주문 확인 상태(admin 전용): `PATCH /admin/manual-orders/{id}/status`는 `is_confirmed`만 갱신한다(본문·이미지 목록 재전송 없음). 낙관적 잠금은 PUT과 동일 — `expected_updated_at`이 다르면 409 `stale_resource`. 자동수선 품목의 `wearer_height_cm`(키)은 선택·참고용이고 작업 기준값은 `total_length_cm`(넥타이 길이, 필수)이다.
+- 수기 주문 확인 상태(admin 전용): `is_confirmed`는 화면 라벨 "발송 완료" — 제작·수선 후 택배 발송까지 끝났다는 뜻이다. `PATCH /admin/manual-orders/{id}/status`는 `is_confirmed`만 갱신한다(본문·이미지 목록 재전송 없음). 낙관적 잠금은 PUT과 동일 — `expected_updated_at`이 다르면 409 `stale_resource`. 자동수선 품목의 `wearer_height_cm`(키)은 선택·참고용이고 작업 기준값은 `total_length_cm`(넥타이 길이, 필수)이다.
 - 만료: 미귀속 수선 업로드와 장바구니에서 제거·교체된 수선 업로드는 +24시간, 견적 확정·종료는 +90일(§7). 주문에 연결되거나 로그인 장바구니에서 사용 중인 수선 이미지는 NULL. 정리 배치: `deleted_at IS NULL AND (expires_at < now() OR deletion_claimed_at IS NOT NULL)` 배치 100건 — ①claim(deletion_claimed_at=now) ②GCS 삭제 ③성공분 deleted_at=now (2단계 멱등 삭제).
 
 ## 9. 수선 발송 제출 (고객)

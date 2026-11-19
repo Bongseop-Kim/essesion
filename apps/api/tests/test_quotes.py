@@ -47,9 +47,14 @@ async def test_create_quote_and_validation(app, client, db_session, settings):
     address = await make_address(db_session, user)
     headers = auth_headers(user, settings)
 
-    too_few = await client.post("/quotes", json=_quote_body(address, quantity=99), headers=headers)
+    too_few = await client.post("/quotes", json=_quote_body(address, quantity=3), headers=headers)
     assert too_few.status_code == 400
-    assert too_few.json()["detail"] == "Quantity must be 100 or more"
+    assert too_few.json()["code"] == "invalid_quantity"
+    assert too_few.json()["detail"] == "Quantity must be 4 or more"
+
+    # 100개 미만도 견적을 받는다 — 하한은 주문 제작 최소 수량(4개)과 같다.
+    minimum = await client.post("/quotes", json=_quote_body(address, quantity=4), headers=headers)
+    assert minimum.status_code == 201, minimum.text
 
     too_many_images = await client.post(
         "/quotes",

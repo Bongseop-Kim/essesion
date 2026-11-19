@@ -80,6 +80,11 @@ export function claimReasonLabel(reason: string): string {
   return REASON_LABELS[reason] ?? reason;
 }
 
+/** DB 값 "거부"를 화면에서는 "거절"로 보인다. */
+export function claimStatusLabel(status: string): string {
+  return status === "거부" ? "거절" : status;
+}
+
 export function claimStatusTone(
   status: string,
 ): "neutral" | "positive" | "critical" | "warning" | "informative" {

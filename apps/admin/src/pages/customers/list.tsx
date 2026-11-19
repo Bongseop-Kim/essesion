@@ -59,7 +59,7 @@ const columns: readonly AdminTableColumn<AdminCustomerSummaryOut>[] = [
     key: "status",
     header: "상태",
     render: (customer) => (
-      <StatusBadge status={customer.is_active ? "활성" : "비활성"} />
+      <StatusBadge status={customer.is_active ? "active" : "inactive"} />
     ),
   },
   {
@@ -170,11 +170,18 @@ export function CustomersPage() {
       <RouteHeading title="고객 관리" />
 
       <PaginatedAdminTableCard
-        title="고객 목록"
         label="고객 목록"
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
+        compactRow={(row) => ({
+          title: row.name,
+          trailing: `주문 ${row.order_count.toLocaleString("ko-KR")}건`,
+          meta: row.email ?? (row.phone ? formatPhoneNumber(row.phone) : "-"),
+          status: (
+            <StatusBadge status={row.is_active ? "active" : "inactive"} />
+          ),
+        })}
         onRowClick={(row) => navigate(`/customers/${row.id}`)}
         status={
           query.isLoading || query.isPlaceholderData
@@ -189,8 +196,7 @@ export function CustomersPage() {
         onSort={({ key, direction }) =>
           replaceQuery({ sort: key, direction, page: 1 })
         }
-        refreshing={query.isFetching}
-        onRefresh={() => void query.refetch()}
+        onRetry={() => void query.refetch()}
         emptyTitle="조건에 맞는 고객이 없습니다"
         page={Math.min(parsed.page, totalPages)}
         totalPages={totalPages}
@@ -202,7 +208,6 @@ export function CustomersPage() {
               primaryControls={
                 <SubmittedMemorySearch
                   label="이름·이메일·전화번호 검색"
-                  placeholder="2자 이상 입력"
                   maxLength={100}
                   resetKey={searchResetKey}
                   onSubmit={(value) => {

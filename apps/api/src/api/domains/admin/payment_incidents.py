@@ -116,14 +116,14 @@ def _summary(incident: PaymentIncident) -> PaymentIncidentSummaryOut:
 def _reconciliation_blocker(incident: PaymentIncident) -> str | None:
     evidence = incident.details.get("reconciliation")
     if not isinstance(evidence, dict):
-        return "먼저 Toss 상태를 대사해야 합니다"
+        return "먼저 토스 결제 상태를 반영해야 합니다"
     checked_at_raw = evidence.get("checked_at")
     try:
         checked_at = datetime.fromisoformat(str(checked_at_raw))
     except ValueError:
-        return "대사 결과 시각이 올바르지 않습니다"
+        return "토스 결제 상태 반영 시각이 올바르지 않습니다"
     if checked_at.tzinfo is None or datetime.now(UTC) - checked_at > RECONCILIATION_TTL:
-        return "최근 15분 이내의 대사 결과가 필요합니다"
+        return "최근 15분 이내에 토스 결제 상태를 반영해야 합니다"
     if not evidence.get("provider_ok"):
         return "Toss 결제 조회가 성공하지 않았습니다"
     if evidence.get("provider_payment_key_matches") is False:
@@ -141,15 +141,13 @@ def _reconciliation_blocker(incident: PaymentIncident) -> str | None:
         details.get("reason") == "payment_key_mismatch"
         and details.get("stored_payment_keys_match_lookup") is False
     ):
-        return "현재 주문 결제 키와 사고 결제 키가 달라 추가 대사가 필요합니다"
+        return "현재 주문 결제 키와 사고 결제 키가 달라 추가 확인이 필요합니다"
     if incident.incident_type in MANUAL_RESOLUTION_TYPES:
         if not evidence.get("manual_resolution_allowed"):
-            return "Toss 대사 결과를 확인한 뒤 수동 해결해야 합니다"
+            return "토스 결제 상태 반영 결과를 확인한 뒤 수동 해결해야 합니다"
         return None
     if not evidence.get("domain_consistent"):
-        return str(
-            evidence.get("unsupported_reason") or "도메인 상태 자동 대사가 지원되지 않습니다"
-        )
+        return str(evidence.get("unsupported_reason") or "주문 상태 자동 반영이 지원되지 않습니다")
     return None
 
 
@@ -160,7 +158,7 @@ def _actions(incident: PaymentIncident, *, actor_role: str) -> list[IncidentAdmi
         return [
             IncidentAdminAction(
                 kind="reconcile",
-                label="Toss 상태 대사",
+                label="토스 결제 상태 반영",
                 enabled=False,
                 blocking_reason=resolved_reason,
             ),
@@ -177,7 +175,7 @@ def _actions(incident: PaymentIncident, *, actor_role: str) -> list[IncidentAdmi
     return [
         IncidentAdminAction(
             kind="reconcile",
-            label="Toss 상태 대사",
+            label="토스 결제 상태 반영",
             enabled=is_admin,
             blocking_reason=role_reason,
         ),
@@ -225,8 +223,30 @@ async def list_incidents(
             .offset(offset)
         )
     )
+    order_ids = {incident.order_id for incident in incidents if incident.order_id is not None}
+    claim_ids = {incident.claim_id for incident in incidents if incident.claim_id is not None}
+    order_numbers: dict[uuid.UUID | None, str] = {}
+    if order_ids:
+        rows = await session.execute(
+            select(Order.id, Order.order_number).where(Order.id.in_(order_ids))
+        )
+        order_numbers = {row.id: row.order_number for row in rows}
+    claim_numbers: dict[uuid.UUID | None, str] = {}
+    if claim_ids:
+        rows = await session.execute(
+            select(Claim.id, Claim.claim_number).where(Claim.id.in_(claim_ids))
+        )
+        claim_numbers = {row.id: row.claim_number for row in rows}
     return Page[PaymentIncidentSummaryOut](
-        items=[_summary(incident) for incident in incidents],
+        items=[
+            _summary(incident).model_copy(
+                update={
+                    "order_number": order_numbers.get(incident.order_id),
+                    "claim_number": claim_numbers.get(incident.claim_id),
+                }
+            )
+            for incident in incidents
+        ],
         total=total,
         limit=limit,
         offset=offset,
@@ -250,7 +270,7 @@ async def get_incident_detail(
             select(Claim.claim_number).where(Claim.id == incident.claim_id)
         )
     return PaymentIncidentDetailOut(
-        **_summary(incident).model_dump(),
+        **_summary(incident).model_dump(exclude={"order_number", "claim_number"}),
         details=_sanitize(incident.details),
         resolution_memo=incident.resolution_memo,
         order_number=order_number,
@@ -663,7 +683,7 @@ async def resolve_incident(
         and not await _current_domain_consistent(session, incident)
     ):
         raise ConflictError(
-            "대사 이후 내부 상태가 변경되어 다시 대사해야 합니다",
+            "반영 이후 주문 상태가 바뀌어 토스 결제 상태를 다시 반영해야 합니다",
             code="reconciliation_required",
         )
 

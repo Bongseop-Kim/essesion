@@ -97,7 +97,9 @@ describe("DesignExamplesPage", () => {
     expect(api.remove).not.toHaveBeenCalled();
 
     // 행 버튼과 다이얼로그 확인 버튼이 같은 이름이라 마지막(다이얼로그)을 누른다.
-    const confirms = await screen.findAllByRole("button", { name: "삭제" });
+    const confirms = await screen.findAllByRole("button", {
+      name: "템플릿 삭제",
+    });
     await user.click(confirms[confirms.length - 1]!);
     await waitFor(() =>
       expect(api.remove.mock.calls[0]?.[0]).toEqual({

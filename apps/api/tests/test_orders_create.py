@@ -379,8 +379,8 @@ async def test_custom_calculate_rules(client, db_session):
         "total_cost": 62000,
     }
 
-    # 포인트(자수·열전사)는 정해진 원단으로 만들어 원단 선택·원단비가 없고, 개당 포인트비가 붙는다.
-    # 원단 직접 제공·재주문과도 함께 고를 수 있다.
+    # 포인트(자수·열전사)는 정해진 넥타이에 올려 원단 선택·원단비가 없고, 개당 포인트비가 붙는다.
+    # 재주문과 함께 고를 수 있다. fabric_provided는 가격에 쓰지 않는다(예전 스토어 페이로드 호환).
     for options, expected_point in (
         ({"point": "EMBROIDERY"}, 5000 * 4),
         ({"point": "HEAT_TRANSFER", "fabric_provided": True}, 3000 * 4),
@@ -402,6 +402,37 @@ async def test_custom_calculate_rules(client, db_session):
     )
     assert res.status_code == 400
     assert res.json()["code"] == "invalid_options"
+
+    # 포인트 주문은 타이 방식·라벨만 함께 고를 수 있다 — 자동 타이·라벨 값은 봉제비에 더해진다.
+    res = await client.post(
+        "/orders/custom/calculate",
+        json={
+            "options": {"point": "EMBROIDERY", "tie_type": "AUTO", "brand_label": True},
+            "quantity": 4,
+        },
+    )
+    assert res.status_code == 200
+    plain = 62000  # 위 포인트 단독 케이스의 봉제비
+    assert res.json()["sewing_cost"] > plain
+    assert res.json()["point_cost"] == 5000 * 4
+
+    # 심지·봉제 옵션은 포인트 주문에서 거절한다.
+    for forbidden in (
+        {"interlining": "WOOL"},
+        {"triangle_stitch": True},
+        {"side_stitch": True},
+        {"bar_tack": True},
+        {"fold7": True},
+        {"spoderato": True},
+        {"tie_type": "AUTO", "turn_knot": True},
+        {"tie_type": "AUTO", "turn_knot": True, "dimple": True},
+    ):
+        res = await client.post(
+            "/orders/custom/calculate",
+            json={"options": {"point": "EMBROIDERY", **forbidden}, "quantity": 4},
+        )
+        assert res.status_code == 400, forbidden
+        assert res.json()["code"] == "invalid_options"
 
 
 async def test_custom_order_creates_with_remainder(app, client, db_session, settings):

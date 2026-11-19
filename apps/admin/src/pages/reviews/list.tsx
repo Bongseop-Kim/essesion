@@ -24,7 +24,7 @@ import {
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 
-import { formatDateTime } from "../../shared/lib/format";
+import { formatDate, formatDateTime } from "../../shared/lib/format";
 import {
   parseAdminListQuery,
   serializeAdminListQuery,
@@ -45,7 +45,7 @@ type RatingFilter = (typeof RATINGS)[number];
 
 const ORDER_TYPE_LABELS: Record<OrderType, string> = {
   all: "전체",
-  sale: "상품",
+  sale: "일반 주문",
   repair: "수선",
   custom: "주문 제작",
   sample: "샘플 제작",
@@ -88,7 +88,7 @@ export function ReviewsPage() {
         queryKey: listAdminReviewsQueryKey(),
       });
     },
-    onError: () => snackbar("후기를 삭제하지 못했습니다."),
+    onError: () => snackbar("후기를 삭제하지 못했습니다. 다시 시도해 주세요."),
   });
 
   const replaceQuery = (changes: Partial<typeof parsed>) => {
@@ -171,6 +171,7 @@ export function ReviewsPage() {
           type="button"
           variant="ghost"
           size="small"
+          aria-label={`${review.author_name} 후기 삭제 (${formatDateTime(review.created_at)})`}
           onClick={() => setDeleteTarget(review)}
         >
           삭제
@@ -181,15 +182,27 @@ export function ReviewsPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <RouteHeading
-        title="후기 관리"
-        description="구매 후기를 유형과 별점으로 확인하고 삭제합니다."
-      />
+      <RouteHeading title="후기 관리" />
       <PaginatedAdminTableCard
-        title="후기 목록"
         label="후기 목록"
         columns={columns}
         rows={query.data?.items}
+        compactRow={(row) => ({
+          title: row.content,
+          trailing: `${row.rating}점`,
+          meta: `${row.author_name} · ${ORDER_TYPE_LABELS[row.order_type]} · ${formatDate(row.created_at)}`,
+          status: (
+            <ActionButton
+              type="button"
+              variant="ghost"
+              size="small"
+              aria-label={`${row.author_name} 후기 삭제 (${formatDateTime(row.created_at)})`}
+              onClick={() => setDeleteTarget(row)}
+            >
+              삭제
+            </ActionButton>
+          ),
+        })}
         getRowKey={(row) => row.id}
         status={
           query.isLoading || query.isPlaceholderData
@@ -200,8 +213,6 @@ export function ReviewsPage() {
         }
         total={query.data?.total}
         limit={parsed.limit}
-        refreshing={query.isFetching}
-        onRefresh={() => void query.refetch()}
         onRetry={() => void query.refetch()}
         emptyTitle="조건에 맞는 후기가 없습니다"
         page={Math.min(parsed.page, totalPages)}
@@ -214,7 +225,6 @@ export function ReviewsPage() {
               primaryControls={
                 <SubmittedMemorySearch
                   label="후기 내용 검색"
-                  placeholder="2자 이상 입력"
                   maxLength={100}
                   resetKey={searchResetKey}
                   onSubmit={(value) => {
@@ -311,9 +321,39 @@ export function ReviewsPage() {
           if (!open && !deleteReview.isPending) setDeleteTarget(null);
         }}
         title="후기를 삭제할까요?"
-        description="삭제한 후기는 복구할 수 없습니다."
+        // 모바일 두 줄 목록은 내용을 한 줄로 자르고 사진을 숨긴다 — 지우기 전에 전체를 여기서 확인한다.
+        description={
+          <VStack gap="x3" alignItems="stretch">
+            <Text textStyle="bodySm">삭제한 후기는 복구할 수 없습니다.</Text>
+            {deleteTarget !== null && (
+              <>
+                <Text textStyle="caption">
+                  {deleteTarget.author_name} · {deleteTarget.rating}점 ·{" "}
+                  {formatDateTime(deleteTarget.created_at)}
+                </Text>
+                <Text textStyle="bodySm" color="fg.neutral">
+                  {deleteTarget.content}
+                </Text>
+                {deleteTarget.photos.length > 0 && (
+                  <HStack gap="x1" wrap>
+                    {deleteTarget.photos.map((photo, index) => (
+                      <Box key={photo.upload_id} width={72}>
+                        <ImageFrame
+                          ratio={1}
+                          stroke
+                          src={photo.url}
+                          alt={`후기 사진 ${index + 1}`}
+                        />
+                      </Box>
+                    ))}
+                  </HStack>
+                )}
+              </>
+            )}
+          </VStack>
+        }
         primaryActionProps={{
-          children: "삭제",
+          children: "후기 삭제",
           variant: "criticalSolid",
           loading: deleteReview.isPending,
           onClick: (event) => {

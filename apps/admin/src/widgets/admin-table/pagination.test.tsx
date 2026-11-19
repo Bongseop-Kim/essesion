@@ -42,7 +42,7 @@ describe("Pagination", () => {
 
     const summary = screen.getByRole("status");
     expect(summary.textContent).toContain("341–347 / 총 347건");
-    expect(screen.getByText("페이지당 20개")).toBeTruthy();
+    expect(screen.getByText("페이지당 20건")).toBeTruthy();
   });
 
   it("옵션을 주었을 때만 페이지 크기 선택을 노출한다", async () => {
@@ -64,7 +64,7 @@ describe("Pagination", () => {
     const dialog = await screen.findByRole("dialog", {
       name: "페이지당 표시",
     });
-    await user.click(within(dialog).getByRole("button", { name: "50개" }));
+    await user.click(within(dialog).getByRole("button", { name: "50건" }));
 
     expect(onPageSizeChange).toHaveBeenCalledWith(50);
   });
@@ -104,6 +104,6 @@ describe("Pagination", () => {
     );
 
     expect(screen.getByText("0–0 / 총 0건")).toBeTruthy();
-    expect(screen.getByText("페이지당 20개")).toBeTruthy();
+    expect(screen.getByText("페이지당 20건")).toBeTruthy();
   });
 });

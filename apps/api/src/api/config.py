@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     phone_verify_rate_limit_window_seconds: int = 60
     toss_webhook_rate_limit_attempts: int = 300
     toss_webhook_rate_limit_window_seconds: int = 60
+    # 견적서 메일 — 사용자별 한도와, iCloud 하루 1,000통 한도 전에 먼저 멈추는 전체 한도.
+    estimate_mail_user_rate_limit_attempts: int = 5
+    estimate_mail_user_rate_limit_window_seconds: int = 3600
+    estimate_mail_total_rate_limit_attempts: int = 200
+    estimate_mail_total_rate_limit_window_seconds: int = 86_400
     public_rate_limit_max_keys: int = 10_000
     toss_invalid_key_cache_ttl_seconds: int = 60
     # Cloudflare api-proxy가 덮어쓰는 전역 origin 검증용 공유값.
@@ -79,6 +84,13 @@ class Settings(BaseSettings):
     solapi_template_quote_sent: str = ""  # 비면 견적 도착 알림을 건너뛴다
     solapi_template_claim_pickup: str = ""  # 비면 수거 안내 알림을 건너뛴다(outbox skipped)
     solapi_template_repair_received: str = ""  # 비면 수선 상품 도착 알림을 건너뛴다
+    # 메일(iCloud+ 커스텀 도메인 SMTP) — 아이디는 계정의 @icloud.com 주소, 암호는 앱 암호.
+    # 아이디·암호가 비면 local/test는 DryRun, 그 밖의 환경은 unavailable.
+    smtp_host: str = "smtp.mail.me.com"
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    mail_from: str = "help@essesion.com"
     gcs_upload_bucket: str = ""  # 비공개 업로드 버킷 (공개 생성물 assets와 분리 — ARCHITECTURE §5)
     gcs_assets_bucket: str = ""  # 공개 상품·생성물 버킷
     # 공개 자산 서빙 origin — 설정하면 storage.googleapis.com 직통 대신 이 origin으로

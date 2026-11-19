@@ -4,7 +4,6 @@ import {
   AlertDialog,
   Callout,
   Grid,
-  HStack,
   RadioGroup,
   RadioGroupItem,
   Switch,
@@ -25,6 +24,7 @@ import {
 import { getErrorMessage } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
+import { EditModeShell } from "../../shared/ui/edit-mode-shell";
 import { NumberField } from "../../shared/ui/number-field";
 
 export type CouponDraft = {
@@ -179,7 +179,7 @@ export function CouponDefinitionForm({
   return (
     <>
       <AdminCard
-        title="쿠폰 정의"
+        title="쿠폰 정보"
         description="저장된 조건은 이후 발급 건부터 적용됩니다."
       >
         <VStack
@@ -258,7 +258,7 @@ export function CouponDefinitionForm({
             {draft.discountType === "percentage" ? (
               <NumberField
                 label="최대 할인액"
-                placeholder="비워 두면 제한 없음"
+                description="비워 두면 제한 없음"
                 suffix="원"
                 groupThousands
                 value={draft.maxDiscountAmount}
@@ -342,21 +342,26 @@ export function CouponDefinitionForm({
             </VStack>
           )}
 
-          <HStack gap="x2" wrap>
-            <ActionButton type="submit" loading={pending}>
-              {submitLabel}
-            </ActionButton>
-            <ActionButton
-              variant="ghost"
-              disabled={!dirty || pending}
-              onClick={() => {
-                setDraft(baseDraft);
-                setAttempted(false);
-              }}
-            >
-              수정 취소
-            </ActionButton>
-          </HStack>
+          <EditModeShell
+            status={dirty ? "저장하지 않은 변경이 있습니다" : "변경 없음"}
+            actions={
+              <>
+                <ActionButton
+                  variant="ghost"
+                  disabled={!dirty || pending}
+                  onClick={() => {
+                    setDraft(baseDraft);
+                    setAttempted(false);
+                  }}
+                >
+                  수정 취소
+                </ActionButton>
+                <ActionButton type="submit" loading={pending}>
+                  {submitLabel}
+                </ActionButton>
+              </>
+            }
+          />
         </VStack>
       </AdminCard>
 

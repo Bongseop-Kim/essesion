@@ -53,7 +53,7 @@ const columns: readonly AdminTableColumn<AdminCouponOut>[] = [
   },
   {
     key: "maximum",
-    header: "최대 할인",
+    header: "최대 할인액",
     visibility: "medium",
     render: (coupon) => formatMoney(coupon.max_discount_amount),
   },
@@ -132,11 +132,18 @@ export function CouponsPage() {
       </HStack>
 
       <PaginatedAdminTableCard
-        title="쿠폰 목록"
         label="쿠폰 목록"
         columns={columns}
         rows={query.data?.items}
         getRowKey={(coupon) => coupon.id}
+        compactRow={(coupon) => ({
+          title: coupon.name,
+          trailing: discountLabel(coupon),
+          meta: `만료 ${formatDate(coupon.expiry_date)}`,
+          status: (
+            <StatusBadge status={coupon.is_active ? "active" : "inactive"} />
+          ),
+        })}
         onRowClick={(coupon) => navigate(`/coupons/${coupon.id}`)}
         status={
           query.isLoading || query.isPlaceholderData
@@ -151,10 +158,8 @@ export function CouponsPage() {
         onSort={({ key, direction }) =>
           replaceQuery({ sort: key, direction, page: 1 })
         }
-        refreshing={query.isFetching}
-        onRefresh={() => void query.refetch()}
+        onRetry={() => void query.refetch()}
         emptyTitle="조건에 맞는 쿠폰이 없습니다"
-        emptyDescription="필터를 바꾸거나 새 쿠폰을 등록해 주세요."
         page={Math.min(parsed.page, totalPages)}
         totalPages={totalPages}
         onPageChange={(page) => replaceQuery({ page })}
@@ -164,8 +169,7 @@ export function CouponsPage() {
             <CompactFilterToolbar
               primaryControls={
                 <SubmittedMemorySearch
-                  label="쿠폰 이름·표시 이름·ID 검색"
-                  placeholder="2자 이상 입력"
+                  label="쿠폰 이름·고객 표시 이름·ID 검색"
                   maxLength={100}
                   resetKey={searchResetKey}
                   onSubmit={(value) => {
@@ -203,7 +207,6 @@ export function CouponsPage() {
                 Number(parsed.to !== undefined)
               }
               secondaryTitle="쿠폰 필터"
-              secondaryDescription="활성 상태와 등록일을 한 번에 적용합니다."
               onResetSecondaryFilters={() => {
                 setDraftStatus(status);
                 setDraftFrom(parsed.from);

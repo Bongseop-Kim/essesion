@@ -9,7 +9,7 @@ import type {
   DashboardTopProductsOut,
   ManualOrderOut,
 } from "@essesion/api-client";
-import { screen, waitFor } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -63,6 +63,7 @@ const summary: DashboardSummaryOut = {
 const capabilities: AdminCapabilitiesOut = {
   toss: "real",
   solapi: "real",
+  mailer: "real",
   worker: "real",
   batch_auth: "oidc",
   oauth_google: "ready",
@@ -213,7 +214,7 @@ describe("DashboardPage", () => {
     expect(screen.getByText("최근 주문 불러오는 중")).toBeTruthy();
   });
 
-  it("지표와 최근 항목을 표시하고 한 번의 새로고침으로 모든 쿼리를 다시 요청한다", async () => {
+  it("지표와 최근 항목을 표시한다", async () => {
     const user = userEvent.setup();
     api.overview.mockResolvedValue({
       summary,
@@ -226,22 +227,21 @@ describe("DashboardPage", () => {
     api.capabilities.mockResolvedValue(capabilities);
     renderPage();
 
-    expect(await screen.findByText("ORDER-001")).toBeTruthy();
-    expect(screen.getByText("QUOTE-001")).toBeTruthy();
+    // 번호 없이 날짜·고객·금액·상태 — 주문과 견적의 고객이 각 표에 한 번씩
+    expect(await screen.findAllByText("홍길동")).toHaveLength(2);
+    expect(screen.queryByText("ORDER-001")).toBeNull();
+    expect(screen.queryByText("QUOTE-001")).toBeNull();
+    // 조회 기준은 필터 버튼을 눌러야 나온다
+    const filterDialog = screen
+      .getByLabelText("시작일 (KST)")
+      .closest("dialog");
+    expect(filterDialog?.open).toBe(false);
+    await user.click(screen.getByRole("button", { name: "필터" }));
+    expect(filterDialog?.open).toBe(true);
     expect(screen.getAllByText("₩50,000")).toHaveLength(2);
     // 수기 주문은 별도 표로 — 금액은 amount + shipping_fee
     expect(screen.getByText("김수기")).toBeTruthy();
     expect(screen.getByText("₩23,000")).toBeTruthy();
-
-    await user.click(screen.getByRole("button", { name: "새로고침" }));
-
-    await waitFor(() => {
-      expect(api.overview).toHaveBeenCalledTimes(2);
-      expect(api.orders).toHaveBeenCalledTimes(2);
-      expect(api.manualOrders).toHaveBeenCalledTimes(2);
-      expect(api.quotes).toHaveBeenCalledTimes(2);
-      expect(api.capabilities).toHaveBeenCalledTimes(2);
-    });
   });
 
   it("일별 추이 차트 카드와 인기 상품 테이블을 렌더링한다", async () => {
@@ -277,7 +277,7 @@ describe("DashboardPage", () => {
     api.capabilities.mockResolvedValue({
       ...capabilities,
       toss: "unavailable",
-      solapi: "dry-run",
+      solapi: "dry_run",
     });
     renderPage();
 
@@ -285,7 +285,13 @@ describe("DashboardPage", () => {
       await screen.findByText("필수 연동을 사용할 수 없습니다"),
     ).toBeTruthy();
     expect(screen.getByText(/Toss 결제 관련 작업이 실패합니다/)).toBeTruthy();
-    expect(screen.getByText(/로컬·대체 연동 모드/)).toBeTruthy();
-    expect(screen.getByText(/Solapi 알림: dry-run/)).toBeTruthy();
+    // 상세는 버튼으로 여는 모달 안에
+    await userEvent.click(
+      screen.getByRole("button", { name: "외부 연동 상태" }),
+    );
+    expect(screen.getByText(/테스트 연동/)).toBeTruthy();
+    expect(
+      screen.getByText(/Solapi 알림: 테스트\(실제 발송 없음\)/),
+    ).toBeTruthy();
   });
 });

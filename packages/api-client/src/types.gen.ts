@@ -93,6 +93,10 @@ export type AdminCapabilitiesOut = {
      */
     edge_proxy: string;
     /**
+     * Mailer
+     */
+    mailer: string;
+    /**
      * Oauth Apple
      */
     oauth_apple: string;
@@ -1202,7 +1206,7 @@ export type AdminOrderReferenceImageOut = {
     /**
      * Part
      */
-    part?: 'full' | 'blade' | 'knot' | 'tail' | null;
+    part?: 'full' | 'blade' | 'knot' | 'tail' | 'brand_label' | 'logo' | null;
     /**
      * Size Bytes
      */
@@ -1902,7 +1906,7 @@ export type AdminQuoteImageOut = {
     /**
      * Part
      */
-    part?: 'full' | 'blade' | 'knot' | 'tail' | null;
+    part?: 'full' | 'blade' | 'knot' | 'tail' | 'brand_label' | 'logo' | null;
     /**
      * Size Bytes
      */
@@ -2869,6 +2873,30 @@ export type CustomAmountResponse = {
      * Total Cost
      */
     total_cost: number;
+};
+
+/**
+ * CustomEstimateEmailRequest
+ */
+export type CustomEstimateEmailRequest = {
+    /**
+     * Company Name
+     */
+    company_name?: string | null;
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Options
+     */
+    options: {
+        [key: string]: unknown;
+    };
+    /**
+     * Quantity
+     */
+    quantity: number;
 };
 
 /**
@@ -4787,7 +4815,7 @@ export type OrderReferenceImageIn = {
     /**
      * Part
      */
-    part?: 'full' | 'blade' | 'knot' | 'tail' | null;
+    part?: 'full' | 'blade' | 'knot' | 'tail' | 'brand_label' | 'logo' | null;
     /**
      * Upload Id
      */
@@ -5257,7 +5285,7 @@ export type PaymentIncidentDetailOut = {
     /**
      * Claim Number
      */
-    claim_number: string | null;
+    claim_number?: string | null;
     /**
      * Created At
      */
@@ -5295,7 +5323,7 @@ export type PaymentIncidentDetailOut = {
     /**
      * Order Number
      */
-    order_number: string | null;
+    order_number?: string | null;
     /**
      * Request Id
      */
@@ -5335,6 +5363,10 @@ export type PaymentIncidentSummaryOut = {
      */
     claim_id: string | null;
     /**
+     * Claim Number
+     */
+    claim_number?: string | null;
+    /**
      * Created At
      */
     created_at: string;
@@ -5362,6 +5394,10 @@ export type PaymentIncidentSummaryOut = {
      * Order Id
      */
     order_id: string | null;
+    /**
+     * Order Number
+     */
+    order_number?: string | null;
     /**
      * Request Id
      */
@@ -6055,7 +6091,7 @@ export type ReferenceImageIn = {
     /**
      * Part
      */
-    part?: 'full' | 'blade' | 'knot' | 'tail' | null;
+    part?: 'full' | 'blade' | 'knot' | 'tail' | 'brand_label' | 'logo' | null;
 };
 
 /**
@@ -10817,6 +10853,31 @@ export type CalculateCustomOrderResponses = {
 };
 
 export type CalculateCustomOrderResponse = CalculateCustomOrderResponses[keyof CalculateCustomOrderResponses];
+
+export type SendCustomEstimateEmailData = {
+    body: CustomEstimateEmailRequest;
+    path?: never;
+    query?: never;
+    url: '/orders/custom/estimate-email';
+};
+
+export type SendCustomEstimateEmailErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SendCustomEstimateEmailError = SendCustomEstimateEmailErrors[keyof SendCustomEstimateEmailErrors];
+
+export type SendCustomEstimateEmailResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type SendCustomEstimateEmailResponse = SendCustomEstimateEmailResponses[keyof SendCustomEstimateEmailResponses];
 
 export type CreateSampleOrderData = {
     body: SampleOrderCreateRequest;

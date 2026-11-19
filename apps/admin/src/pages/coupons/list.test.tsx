@@ -92,7 +92,7 @@ describe("CouponsPage", () => {
     await screen.findByText("여름 할인");
 
     await user.type(
-      screen.getByLabelText("쿠폰 이름·표시 이름·ID 검색"),
+      screen.getByLabelText("쿠폰 이름·고객 표시 이름·ID 검색"),
       "여름 할인",
     );
     await user.click(screen.getByRole("button", { name: "검색" }));
@@ -146,8 +146,11 @@ describe("CouponsPage", () => {
       }),
     );
     expect(
-      (screen.getByLabelText("쿠폰 이름·표시 이름·ID 검색") as HTMLInputElement)
-        .value,
+      (
+        screen.getByLabelText(
+          "쿠폰 이름·고객 표시 이름·ID 검색",
+        ) as HTMLInputElement
+      ).value,
     ).toBe("");
   });
 

@@ -25,6 +25,7 @@ import { Link, useParams } from "react-router";
 import {
   formatDateTime,
   formatIdentifier,
+  formatInquiryCategory,
   getErrorMessage,
 } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
@@ -93,10 +94,7 @@ export function InquiryDetailPage() {
   if (query.isLoading) {
     return (
       <VStack gap="x6" alignItems="stretch" aria-busy="true">
-        <RouteHeading
-          title="문의 상세"
-          description="문의를 불러오고 있습니다."
-        />
+        <RouteHeading title="문의 상세" />
         <AdminCard title="문의 내용">
           <Skeleton width="100%" height={160} />
         </AdminCard>
@@ -152,16 +150,17 @@ export function InquiryDetailPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title={data.title}
-          description={`${data.category} 문의`}
-        />
-        <HStack gap="x2">
-          {data.is_secret ? <Badge>비밀글</Badge> : null}
-          <StatusBadge status={data.status} />
-        </HStack>
-      </HStack>
+      <RouteHeading
+        backTo={{ to: "/inquiries", label: "문의 관리" }}
+        title={data.title}
+        description={`${formatInquiryCategory(data.category)} 문의`}
+        badges={
+          <>
+            {data.is_secret ? <Badge>비밀글</Badge> : null}
+            <StatusBadge status={data.status} />
+          </>
+        }
+      />
       <AdminCard title="문의 정보">
         <DetailList
           items={[
@@ -221,7 +220,7 @@ export function InquiryDetailPage() {
                 {data.answer}
               </Text>
               <Text textStyle="caption" color="fg.neutral-muted">
-                {data.answer_actor?.name ?? "담당자 미상"} ·{" "}
+                {data.answer_actor?.name ?? "담당자 확인 불가"} ·{" "}
                 {formatDateTime(data.answer_date)}
               </Text>
             </VStack>
@@ -276,10 +275,7 @@ export function InquiryDetailPage() {
       )}
 
       {answerMode === "review" && (
-        <AdminCard
-          title="답변 미리보기"
-          description="고객에게 표시될 답변을 마지막으로 확인해 주세요."
-        >
+        <AdminCard title="답변 미리보기">
           <VStack gap="x4" alignItems="stretch">
             {baseAnswer !== "" && (
               <VStack gap="x1">

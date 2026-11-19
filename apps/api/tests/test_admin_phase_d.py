@@ -477,6 +477,7 @@ async def test_payment_incident_permissions_reconcile_resolve_and_idempotence(
     listed = await client.get("/admin/payment-incidents", headers=manager_headers)
     assert listed.status_code == 200
     assert listed.json()["total"] == 1
+    assert listed.json()["items"][0]["order_number"] == order.order_number
 
     yesterday = (datetime.now(KST).date() - timedelta(days=1)).isoformat()
     by_text_and_open_date = await client.get(

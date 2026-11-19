@@ -32,10 +32,7 @@ import {
 function ProductEditLoading() {
   return (
     <VStack gap="x6" alignItems="stretch" aria-busy="true">
-      <RouteHeading
-        title="상품 수정"
-        description="상품과 옵션 정보를 불러오고 있습니다."
-      />
+      <RouteHeading title="상품 수정" />
       <AdminCard title="상품 정보">
         <VStack gap="x3" alignItems="stretch">
           <Skeleton width="60%" height={24} />
@@ -82,7 +79,7 @@ function ServerComparison({ product }: { product: AdminProductDetailOut }) {
   return (
     <AdminCard
       title="저장된 최신 내용"
-      description={`마지막 저장 ${formatDateTime(product.updated_at)}`}
+      description={`마지막 수정 ${formatDateTime(product.updated_at)}`}
     >
       <HStack gap="x5" align="flex-start" wrap>
         <VStack width={160}>
@@ -133,7 +130,7 @@ function ProductEditPageContent({ productId }: { productId: string }) {
   const productIdNumber = Number(productId);
   const validProductId =
     Number.isSafeInteger(productIdNumber) && productIdNumber > 0;
-  const navigate = useNavigate();
+  const _navigate = useNavigate();
   const queryClient = useQueryClient();
   const [resetSignal, setResetSignal] = useState(0);
   const [comparison, setComparison] = useState<AdminProductDetailOut>();
@@ -200,18 +197,11 @@ function ProductEditPageContent({ productId }: { productId: string }) {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title={product.name}
-          description={`${product.code ?? "상품 코드 없음"} · 마지막 수정 ${formatDateTime(product.updated_at)}`}
-        />
-        <ActionButton
-          variant="ghost"
-          onClick={() => navigate(`/products/${product.id}`)}
-        >
-          상세로
-        </ActionButton>
-      </HStack>
+      <RouteHeading
+        backTo={{ to: `/products/${product.id}`, label: "상품 상세" }}
+        title={product.name}
+        description={`${product.code ?? "상품 코드 없음"} · 마지막 수정 ${formatDateTime(product.updated_at)}`}
+      />
 
       <ProductForm
         initial={initial}

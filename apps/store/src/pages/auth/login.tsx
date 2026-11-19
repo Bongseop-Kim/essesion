@@ -37,7 +37,8 @@ import { useSession } from "@/shared/store/session";
 
 // 이스터에그: 제목을 5번 누르면 id/pw(테스트·운영 점검용) 로그인이 나타난다.
 // 고객은 소셜 로그인만 쓰고 공개 회원가입도 없으므로 평소엔 숨겨둔다.
-const STAFF_REVEAL_CLICKS = 5;
+// 토스 재심사 기간 한정으로 0(항상 노출) — 심사 통과 후 5로 되돌린다.
+const STAFF_REVEAL_CLICKS = 0;
 const loginSchema = z.object({
   email: z.string().min(1).max(320),
   password: z.string().min(1).max(1024),

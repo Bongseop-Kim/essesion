@@ -29,6 +29,7 @@ import { ChangeReviewDialog } from "../shared/ui/change-review-dialog";
 import { DetailList } from "../shared/ui/detail-list";
 import { EditModeShell } from "../shared/ui/edit-mode-shell";
 import { NumberField } from "../shared/ui/number-field";
+import { PageSkeleton } from "../shared/ui/page-skeleton";
 import { RouteHeading } from "../shared/ui/route-heading";
 
 function settingsDraft(items: readonly AdminSettingOut[]) {
@@ -37,7 +38,6 @@ function settingsDraft(items: readonly AdminSettingOut[]) {
 
 type SettingPresentation = {
   title: string;
-  description: string;
   scope: string;
   defaultValue: string;
   inputLabel: string;
@@ -56,7 +56,6 @@ type SettingPresentation = {
 const SETTING_PRESENTATION: Record<string, SettingPresentation> = {
   default_courier_company: {
     title: "기본 택배사",
-    description: "운영자가 송장을 등록할 때 기본으로 제안하는 택배사입니다.",
     scope: "새 배송·수거 송장 입력",
     defaultValue: "롯데택배",
     inputLabel: "택배사명",
@@ -70,10 +69,9 @@ function settingPresentation(item: AdminSettingOut): SettingPresentation {
   return (
     SETTING_PRESENTATION[item.key] ?? {
       title: "관리자 설정",
-      description: "운영 설정입니다.",
       scope: "새 작업",
       defaultValue: "-",
-      inputLabel: item.value_type === "courier" ? "설정 값" : "설정 수량",
+      inputLabel: "설정 값",
       impact: "저장 후 새 작업부터 적용됩니다.",
     }
   );
@@ -147,12 +145,7 @@ export function SettingsPage() {
   };
 
   if (query.isLoading) {
-    return (
-      <VStack gap="x6" alignItems="stretch">
-        <RouteHeading title="설정" />
-        <ContentPlaceholder title="설정을 불러오고 있습니다" />
-      </VStack>
-    );
+    return <PageSkeleton title="설정" sections={[null, null]} />;
   }
   if (query.isError || query.data === undefined) {
     return (
@@ -225,7 +218,7 @@ export function SettingsPage() {
           <AdminCard
             key={item.key}
             title={presentation.title}
-            description={`${presentation.description} · 최근 변경 ${formatDateTime(item.updated_at)}`}
+            description={`마지막 변경 ${formatDateTime(item.updated_at)}`}
             action={
               canEdit && editingKey === null ? (
                 <ActionButton
@@ -323,10 +316,7 @@ export function SettingsPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <RouteHeading
-        title="설정"
-        description="설정은 한 번에 하나씩 수정할 수 있습니다."
-      />
+      <RouteHeading title="설정" />
       {!canEdit && (
         <Text textStyle="bodySm" color="fg.neutral-muted">
           조회 권한만 있습니다. 설정 수정은 관리자 권한이 필요합니다.

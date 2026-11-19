@@ -104,7 +104,7 @@ def _action(kind: Literal["advance", "reject", "rollback"], target: str) -> Admi
         return AdminClaimAction(
             kind=kind,
             target_status=target,
-            label="클레임 거부",
+            label="클레임 거절",
             enabled=True,
             requires_memo=True,
             destructive=True,
@@ -144,7 +144,7 @@ def tracking_actions(claim: Claim) -> list[AdminClaimTrackingAction]:
                 kind="return",
                 label="반송 송장 수정",
                 enabled=enabled,
-                blocking_reason=None if enabled else "거부된 클레임은 수정할 수 없습니다",
+                blocking_reason=None if enabled else "거절된 클레임은 수정할 수 없습니다",
             )
         )
     if claim.type == "exchange":
@@ -192,7 +192,7 @@ async def update_claim_tracking(
             )
         if claim.status == "거부":
             raise DomainError(
-                "거부된 클레임은 송장을 수정할 수 없습니다",
+                "거절된 클레임은 송장을 수정할 수 없습니다",
                 code="invalid_tracking_status",
             )
         courier_field = "return_courier_company"

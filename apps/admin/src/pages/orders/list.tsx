@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import {
+  formatDate,
   formatDateTime,
   formatMoney,
   formatOrderType,
@@ -94,6 +95,8 @@ const columns: readonly AdminTableColumn<AdminOrderSummaryOut>[] = [
   {
     key: "recipient",
     header: "받는 분",
+    // 모바일은 주문번호·주문자·금액·상태만 — 받는 분은 상세에서 본다
+    visibility: "medium",
     render: (order) =>
       order.recipient_name ? (
         <VStack gap="x0_5">
@@ -193,12 +196,17 @@ export function OrdersPage() {
     <VStack gap="x6" alignItems="stretch">
       <RouteHeading title="주문 관리" />
       <PaginatedAdminTableCard
-        title="주문 목록"
         label="주문 목록"
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
         onRowClick={(row) => navigate(`/orders/${row.id}`)}
+        compactRow={(row) => ({
+          title: row.customer.name,
+          trailing: formatMoney(row.order_amount),
+          meta: `${row.order_number} · ${formatDate(row.created_at)}`,
+          status: <StatusBadge status={row.status} />,
+        })}
         status={
           query.isLoading || query.isPlaceholderData
             ? "loading"
@@ -212,8 +220,7 @@ export function OrdersPage() {
         onSort={({ key, direction }) =>
           replaceQuery({ sort: key, direction, page: 1 })
         }
-        refreshing={query.isFetching}
-        onRefresh={() => void query.refetch()}
+        onRetry={() => void query.refetch()}
         emptyTitle="조건에 맞는 주문이 없습니다"
         page={Math.min(parsed.page, totalPages)}
         totalPages={totalPages}
@@ -225,7 +232,6 @@ export function OrdersPage() {
               primaryControls={
                 <SubmittedMemorySearch
                   label="주문번호 검색"
-                  placeholder="2자 이상 입력"
                   maxLength={64}
                   resetKey={searchResetKey}
                   onSubmit={(value) => {

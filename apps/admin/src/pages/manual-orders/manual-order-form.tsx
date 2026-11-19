@@ -36,12 +36,14 @@ import {
 import {
   formatDateTime,
   formatFileSize,
+  formatFileType,
   formatMoney,
   getErrorMessage,
 } from "../../shared/lib/format";
 import type { ManualOrderKind } from "../../shared/lib/manual-order-kind";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
+import { EditModeShell } from "../../shared/ui/edit-mode-shell";
 import { NumberField } from "../../shared/ui/number-field";
 import {
   MANUAL_ORDER_IMAGE_ACCEPT,
@@ -161,7 +163,7 @@ function imageDraftsFrom(
     .filter((image) => ids.includes(image.id))
     .map((image) => ({
       id: image.id,
-      label: `${image.content_type ?? "이미지"} · ${formatFileSize(image.size_bytes, "크기 미상")} · ${formatDateTime(image.created_at)}`,
+      label: `${formatFileType(image.content_type, "이미지")} · ${formatFileSize(image.size_bytes, "크기 정보 없음")} · ${formatDateTime(image.created_at)}`,
     }));
 }
 
@@ -298,7 +300,7 @@ function validateItem(item: ItemDraft, kind: ManualOrderKind): ItemErrors {
     item.tieWidthCm.trim() !== "" &&
     positiveNumber(item.tieWidthCm) === undefined
   ) {
-    errors.tieWidthCm = "0보다 큰 타이 폭(cm)을 입력해 주세요.";
+    errors.tieWidthCm = "0보다 큰 넥타이 폭(cm)을 입력해 주세요.";
   }
   return errors;
 }
@@ -317,7 +319,7 @@ function validateDraft(
     errors.customerName = "이름을 입력해 주세요.";
   }
   if (!/^01\d{8,9}$/.test(canonicalizePhoneNumber(draft.phone))) {
-    errors.phone = "올바른 휴대폰 번호를 입력해 주세요.";
+    errors.phone = "휴대폰 번호 10~11자리를 입력해 주세요.";
   }
   if (nonNegativeInteger(draft.amount) === undefined) {
     errors.amount = "0 이상의 정수를 입력해 주세요.";
@@ -462,12 +464,17 @@ function ImageAttachments({
       for (const file of files) {
         added.push({
           id: await uploadManualOrderImage(file),
-          label: `${file.type} · ${formatFileSize(file.size, "크기 미상")}`,
+          label: `${formatFileType(file.type, "이미지")} · ${formatFileSize(file.size, "크기 정보 없음")}`,
           previewUrl: URL.createObjectURL(file),
         });
       }
     } catch (uploadError) {
-      setError(getErrorMessage(uploadError, "이미지를 업로드하지 못했습니다."));
+      setError(
+        getErrorMessage(
+          uploadError,
+          "이미지를 업로드하지 못했습니다. 다시 시도해 주세요.",
+        ),
+      );
     } finally {
       setUploading(false);
       if (added.length > 0) onChange([...latestImages.current, ...added]);
@@ -608,10 +615,7 @@ export function ManualOrderForm({
           />
         )}
 
-        <AdminCard
-          title="주문 정보"
-          description="작업지시서의 고객·금액 정보를 입력합니다."
-        >
+        <AdminCard title="주문 정보">
           <VStack gap="x5" alignItems="stretch">
             <Grid columns={{ base: 1, md: 2 }} gap="x4">
               <TextField
@@ -673,7 +677,7 @@ export function ManualOrderForm({
                 onValueChange={(value) => update("discount", value)}
               />
               <NumberField
-                label="택배비"
+                label="배송비"
                 suffix="원"
                 groupThousands
                 value={draft.shippingFee}
@@ -684,7 +688,7 @@ export function ManualOrderForm({
             </Grid>
 
             <Text textStyle="bodySm" color="fg.neutral-muted">
-              원금 − 할인 + 택배비 = {formatMoney(orderAmount)}
+              원금 − 할인 + 배송비 = {formatMoney(orderAmount)}
             </Text>
 
             <VStack gap="x2" alignItems="stretch">
@@ -709,7 +713,7 @@ export function ManualOrderForm({
                   }
                 />
                 <Checkbox
-                  label="확인"
+                  label="발송 완료"
                   checked={draft.isConfirmed}
                   disabled={pending}
                   onChange={(event) =>
@@ -947,7 +951,7 @@ export function ManualOrderForm({
                         <TextField
                           type="number"
                           min={1}
-                          label="[폭] 폭"
+                          label="[폭] 목표 폭"
                           suffix="cm"
                           required
                           value={item.targetWidthCm}
@@ -988,7 +992,7 @@ export function ManualOrderForm({
                               [제작] 원단 준비
                             </Text>
                             <SegmentedControl
-                              aria-label="주문제작 원단 준비"
+                              aria-label="주문 제작 원단 준비"
                               value={item.fabricProvided ? "provided" : "own"}
                               onValueChange={(value) =>
                                 updateItem(index, {
@@ -1010,7 +1014,7 @@ export function ManualOrderForm({
                                 [제작] 원단
                               </Text>
                               <SegmentedControl
-                                aria-label="주문제작 원단"
+                                aria-label="주문 제작 원단"
                                 value={item.fabricType}
                                 onValueChange={(value) =>
                                   updateItem(index, {
@@ -1033,7 +1037,7 @@ export function ManualOrderForm({
                               [제작] 봉제
                             </Text>
                             <SegmentedControl
-                              aria-label="주문제작 봉제"
+                              aria-label="주문 제작 봉제"
                               value={item.tieType}
                               onValueChange={(value) =>
                                 updateItem(
@@ -1061,7 +1065,7 @@ export function ManualOrderForm({
                               [제작] 마감
                             </Text>
                             <SegmentedControl
-                              aria-label="주문제작 마감"
+                              aria-label="주문 제작 마감"
                               value={item.customTurnKnot ? "turnKnot" : "bang"}
                               onValueChange={(value) =>
                                 updateItem(index, {
@@ -1088,7 +1092,7 @@ export function ManualOrderForm({
                               [제작] 딤플
                             </Text>
                             <SegmentedControl
-                              aria-label="주문제작 딤플"
+                              aria-label="주문 제작 딤플"
                               value={item.customDimple ? "dimple" : "basic"}
                               onValueChange={(value) =>
                                 updateItem(
@@ -1118,7 +1122,7 @@ export function ManualOrderForm({
                               [제작] 규격
                             </Text>
                             <SegmentedControl
-                              aria-label="주문제작 규격"
+                              aria-label="주문 제작 규격"
                               value={item.sizeType}
                               onValueChange={(value) =>
                                 updateItem(index, {
@@ -1138,7 +1142,7 @@ export function ManualOrderForm({
                           <TextField
                             type="number"
                             min={1}
-                            label="[제작] 타이 폭"
+                            label="[제작] 넥타이 폭"
                             suffix="cm"
                             value={item.tieWidthCm}
                             errorMessage={itemErrors.tieWidthCm}
@@ -1178,7 +1182,7 @@ export function ManualOrderForm({
 
                     <ImageAttachments
                       label={`품목 ${index + 1} 사진`}
-                      description={`시안·참고 사진을 ${MAX_MANUAL_ORDER_IMAGES}장까지`}
+                      description={`최대 ${MAX_MANUAL_ORDER_IMAGES}장`}
                       images={item.images}
                       disabled={pending}
                       manualOrderId={manualOrderId}
@@ -1220,27 +1224,32 @@ export function ManualOrderForm({
           </VStack>
         )}
 
-        <HStack gap="x2" wrap>
-          <ActionButton type="submit" loading={pending}>
-            {submitLabel}
-          </ActionButton>
-          <ActionButton
-            variant="ghost"
-            disabled={!dirty || pending}
-            onClick={() => {
-              setDraft(baseDraft);
-              setAttempted(false);
-            }}
-          >
-            입력 취소
-          </ActionButton>
-        </HStack>
+        <EditModeShell
+          status={dirty ? "저장하지 않은 변경이 있습니다" : "변경 없음"}
+          actions={
+            <>
+              <ActionButton
+                variant="ghost"
+                disabled={!dirty || pending}
+                onClick={() => {
+                  setDraft(baseDraft);
+                  setAttempted(false);
+                }}
+              >
+                수정 취소
+              </ActionButton>
+              <ActionButton type="submit" loading={pending}>
+                {submitLabel}
+              </ActionButton>
+            </>
+          }
+        />
       </VStack>
 
       <AlertDialog
         open={blocker.state === "blocked"}
         title="저장하지 않고 나갈까요?"
-        description="입력한 작업지시서 내용은 저장되지 않습니다."
+        description="입력한 내용은 저장되지 않습니다."
         primaryActionProps={{
           children: "나가기",
           variant: "criticalSolid",

@@ -3,12 +3,15 @@ import {
   type KeyboardEvent,
   type ReactNode,
   use,
+  useEffect,
   useId,
+  useRef,
 } from "react";
 
 import { cn } from "../cn";
 import { focusRingInset } from "./internal/focus-ring";
 import { useControllableState } from "./internal/use-controllable-state";
+import { ScrollFog } from "./scroll-fog";
 
 type TabsContextValue = {
   value: string | undefined;
@@ -110,20 +113,25 @@ export function TabList({
 
   return (
     <TabListContext value={triggerLayout}>
-      <div
+      {/* 좁은 화면에서 탭이 넘치면 줄바꿈 대신 가로 스크롤.
+          스크롤 컨테이너는 border 영역을 잘라 -mb-px 겹침이 안 되므로 밑줄은 inset 그림자로 그린다. */}
+      <ScrollFog
         role="tablist"
         aria-label={ariaLabel}
         onKeyDown={handleKeyDown}
-        className="flex border-b border-stroke-neutral-weak"
+        className="flex"
+        style={{
+          boxShadow: "inset 0 -1px 0 var(--color-stroke-neutral-weak)",
+        }}
       >
         {children}
-      </div>
+      </ScrollFog>
     </TabListContext>
   );
 }
 
 const triggerClass = cn(
-  "h-11 px-x4 text-t5 font-bold -mb-px border-b-2 transition-colors duration-(--duration-fast) ease-standard",
+  "h-11 shrink-0 whitespace-nowrap px-x4 text-t5 font-bold border-b-2 transition-colors duration-(--duration-fast) ease-standard",
   focusRingInset,
 );
 
@@ -147,8 +155,23 @@ export function TabTrigger({
   const { value: selectedValue, setValue, idPrefix } = useTabsContext();
   const layout = use(TabListContext);
   const selected = selectedValue === value;
+  const ref = useRef<HTMLButtonElement>(null);
+
+  // 선택된 탭이 스크롤 밖이면 탭 목록만 가로로 옮긴다 — scrollIntoView는 페이지까지 세로로 움직인다.
+  useEffect(() => {
+    const el = ref.current;
+    const list = el?.parentElement;
+    if (!selected || !el || !list) return;
+    const left = el.offsetLeft - list.offsetLeft;
+    const right = left + el.offsetWidth;
+    if (left < list.scrollLeft) list.scrollLeft = left;
+    else if (right > list.scrollLeft + list.clientWidth)
+      list.scrollLeft = right - list.clientWidth;
+  }, [selected]);
+
   return (
     <button
+      ref={ref}
       type="button"
       role="tab"
       id={`${idPrefix}-${value}-tab`}

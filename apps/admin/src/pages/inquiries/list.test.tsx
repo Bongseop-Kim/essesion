@@ -102,7 +102,7 @@ describe("InquiriesPage", () => {
     );
     expect(router.state.location.search).not.toContain("급한");
     expect(screen.getByText("1–1 / 총 1건")).toBeTruthy();
-    expect(screen.getByText("페이지당 20개")).toBeTruthy();
+    expect(screen.getByText("페이지당 20건")).toBeTruthy();
 
     await user.click(
       screen.getByRole("button", {
@@ -145,19 +145,19 @@ describe("InquiriesPage", () => {
     await screen.findByText("배송 문의");
 
     await user.click(screen.getByRole("button", { name: "필터 2" }));
-    await user.click(screen.getByRole("radio", { name: "답변완료" }));
+    await user.click(screen.getByRole("radio", { name: "답변 완료" }));
     await user.click(screen.getByRole("radio", { name: "상품" }));
     await user.click(screen.getByRole("button", { name: "취소" }));
 
     await user.click(screen.getByRole("button", { name: "필터 2" }));
     expect(
-      (screen.getByRole("radio", { name: "답변대기" }) as HTMLInputElement)
+      (screen.getByRole("radio", { name: "답변 대기" }) as HTMLInputElement)
         .checked,
     ).toBe(true);
     expect(
       (screen.getByRole("radio", { name: "일반" }) as HTMLInputElement).checked,
     ).toBe(true);
-    await user.click(screen.getByRole("radio", { name: "답변완료" }));
+    await user.click(screen.getByRole("radio", { name: "답변 완료" }));
     await user.click(screen.getByRole("radio", { name: "상품" }));
     fireEvent.change(screen.getByLabelText("시작일 (KST)"), {
       target: { value: "2026-07-01" },

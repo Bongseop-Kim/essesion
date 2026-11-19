@@ -175,6 +175,8 @@ export type {
 export { renderTieImage, TieCanvas } from "./components/tie-canvas";
 export type { OrderContentRow, OrderItemContent } from "./order-content";
 export {
+  COURIER_OPTIONS,
+  courierLabel,
   decodeOrderItemContent,
   decodeTieSpec,
   REFERENCE_PART_LABELS,

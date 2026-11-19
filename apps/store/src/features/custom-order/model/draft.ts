@@ -3,12 +3,12 @@ import { z } from "zod";
 import {
   type CustomOrderDraft,
   type CustomOrderOptions,
+  type CustomQuoteDraft,
   DEFAULT_CUSTOM_ORDER_OPTIONS,
-  DEFAULT_QUOTE_CONTACT,
-  type QuoteContact,
 } from "./options";
 
-const CUSTOM_ORDER_DRAFT_KEY = "custom-order:draft:v3";
+// v4: 견적 연락처를 초안에서 뺐다 — 연락처는 견적 요청 페이지가 회원 정보에서 채운다.
+const CUSTOM_ORDER_DRAFT_KEY = "custom-order:draft:v4";
 
 const ANONYMOUS_DRAFT_OWNER = "anonymous";
 
@@ -41,22 +41,12 @@ const optionsSchema = z
   })
   .strict();
 
-const contactSchema = z
-  .object({
-    contactName: z.string(),
-    businessName: z.string(),
-    contactMethod: z.enum(["phone", "email"]),
-    contactValue: z.string(),
-  })
-  .strict();
+// 결제 초안은 넥타이 폭이 채워져 있어야 한다 — 포인트 주문만 폭 칸이 숨어 빈 값으로 넘어온다.
+const orderOptionsSchema = optionsSchema.refine(
+  (options) => options.pointEnabled || options.tieWidth !== "",
+);
 
-const orderOptionsSchema = optionsSchema.extend({
-  tieWidth: z.number().finite(),
-});
-
-const formDraftSchema = z
-  .object({ options: optionsSchema, contact: contactSchema })
-  .strict();
+const formDraftSchema = z.object({ options: optionsSchema }).strict();
 
 const storedFormDraftSchema = z
   .object({
@@ -67,16 +57,36 @@ const storedFormDraftSchema = z
   })
   .strict();
 
+const referencePartSchema = z
+  .enum(["full", "blade", "knot", "tail", "brand_label", "logo"])
+  .optional();
+
 const orderDraftSchema = z
   .object({
     options: orderOptionsSchema,
-    contact: contactSchema,
     imageRefs: z.array(
       z
         .object({
           upload_id: z.string().uuid(),
-          // 주문서 칸(전체·대검·매듭·소검) — 추가 이미지는 없다
-          part: z.enum(["full", "blade", "knot", "tail"]).optional(),
+          // 주문서 칸(넥타이 부위·브랜드 라벨·로고) — 추가 이미지는 없다
+          part: referencePartSchema,
+        })
+        .strict(),
+    ),
+    totalCost: z.number().int().nonnegative(),
+  })
+  .strict();
+
+// 견적의 참고 이미지는 업로드 완료 id가 아니라 스테이징 키다(POST /quotes 계약).
+const quoteDraftSchema = z
+  .object({
+    ownerUserId: z.string().min(1),
+    options: orderOptionsSchema,
+    imageRefs: z.array(
+      z
+        .object({
+          object_key: z.string().min(1).max(1024),
+          part: referencePartSchema,
         })
         .strict(),
     ),
@@ -86,7 +96,6 @@ const orderDraftSchema = z
 
 export type CustomOrderFormDraft = {
   options: CustomOrderOptions;
-  contact: QuoteContact;
 };
 
 export type CustomOrderDraftEntry = {
@@ -156,10 +165,7 @@ function isSameValues<T extends object>(value: T, reference: T) {
 
 /** 아직 아무것도 입력하지 않은 초안 — 저장하지 않으므로 "초안 존재 = 실제 입력"이 성립한다. */
 function isEmptyCustomOrderFormDraft(value: CustomOrderFormDraft) {
-  return (
-    isSameValues(value.options, DEFAULT_CUSTOM_ORDER_OPTIONS) &&
-    isSameValues(value.contact, DEFAULT_QUOTE_CONTACT)
-  );
+  return isSameValues(value.options, DEFAULT_CUSTOM_ORDER_OPTIONS);
 }
 
 /**
@@ -220,5 +226,10 @@ export function clearCustomOrderFormDraft(ownerUserId: string | null) {
 
 export function parseCustomOrderDraft(value: unknown): CustomOrderDraft | null {
   const parsed = orderDraftSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+export function parseCustomQuoteDraft(value: unknown): CustomQuoteDraft | null {
+  const parsed = quoteDraftSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
 }

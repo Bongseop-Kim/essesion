@@ -72,13 +72,13 @@ export function Pagination({
               value={String(limit)}
               options={pageSizeOptions.map((pageSize) => ({
                 value: String(pageSize),
-                label: `${pageSize}개`,
+                label: `${pageSize}건`,
               }))}
               onValueChange={(value) => onPageSizeChange(Number(value))}
             />
           ) : showSummary ? (
             <Text textStyle="caption" color="fg.neutral-muted">
-              페이지당 {limit}개
+              페이지당 {limit}건
             </Text>
           ) : null}
         </HStack>

@@ -79,6 +79,17 @@ class CustomAmountRequest(BaseModel):
     quantity: int = Field(le=MAX_ORDER_QUANTITY)
 
 
+# 메일 주소 — 헤더 주입·다중 수신을 막으려고 ASCII 단일 주소 꼴만 받는다(쉼표·공백·꺾쇠 불가).
+ESTIMATE_EMAIL_PATTERN = r"^[A-Za-z0-9._%+\-]+@[A-Za-z0-9\-]+(\.[A-Za-z0-9\-]+)+$"
+# 견적서의 "○○ 귀하" — 우리 명의 문서에 실리는 유일한 고객 입력이라 글자 종류를 좁힌다.
+ESTIMATE_COMPANY_NAME_PATTERN = r"^[0-9A-Za-z가-힣㈜(][0-9A-Za-z가-힣㈜ ()&.,·\-]{0,39}$"
+
+
+class CustomEstimateEmailRequest(CustomAmountRequest):
+    email: str = Field(max_length=320, pattern=ESTIMATE_EMAIL_PATTERN)
+    company_name: str | None = Field(default=None, pattern=ESTIMATE_COMPANY_NAME_PATTERN)
+
+
 class CustomAmountResponse(BaseModel):
     sewing_cost: int
     fabric_cost: int
@@ -86,8 +97,9 @@ class CustomAmountResponse(BaseModel):
     total_cost: int
 
 
-# 참고 이미지 부위 — 주문서의 넥타이 전체·대검·매듭·소검 칸에 1장씩. 없으면(None) 추가 이미지.
-ReferencePart = Literal["full", "blade", "knot", "tail"]
+# 참고 이미지 부위 — 주문서의 넥타이 전체·대검·매듭·소검 칸, 브랜드 라벨 도안 칸, 포인트 주문의
+# 로고 칸에 1장씩. 없으면(None) 추가 이미지.
+ReferencePart = Literal["full", "blade", "knot", "tail", "brand_label", "logo"]
 
 
 def as_reference_part(value: object) -> ReferencePart | None:

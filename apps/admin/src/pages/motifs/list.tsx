@@ -18,7 +18,12 @@ import { RouteHeading } from "../../shared/ui/route-heading";
 import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
-import { motifPreviewDocument } from "./detail";
+import {
+  formatMotifScope,
+  formatMotifSource,
+  formatMotifStyle,
+  motifPreviewDocument,
+} from "./detail";
 
 const SCOPES = ["whole", "partial"] as const;
 
@@ -72,16 +77,21 @@ const columns: readonly AdminTableColumn<MotifSummaryOut>[] = [
   },
   {
     key: "metadata",
-    header: "메타데이터",
+    header: "범위·스타일",
+    visibility: "medium",
     render: (motif) =>
-      [motif.scope, motif.style]
+      [
+        motif.scope ? formatMotifScope(motif.scope) : null,
+        motif.style ? formatMotifStyle(motif.style) : null,
+      ]
         .filter((value) => value !== null)
         .join(" · ") || "-",
   },
   {
     key: "source",
-    header: "소스",
-    render: (motif) => motif.source,
+    header: "출처",
+    visibility: "medium",
+    render: (motif) => formatMotifSource(motif.source),
   },
   {
     key: "created_at",
@@ -130,18 +140,23 @@ export function MotifsPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <RouteHeading
-        title="무늬·로고"
-        description="템플릿 무늬와 고객이 올린 로고 SVG입니다."
-      />
+      <RouteHeading title="무늬·로고" />
 
       <PaginatedAdminTableCard
-        title="무늬·로고 목록"
         label="무늬·로고 목록"
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
         onRowClick={(motif) => navigate(`/motifs/${motif.id}`)}
+        compactRow={(motif) => ({
+          leading: <MotifPreviewCell motif={motif} />,
+          title: motif.subject ?? motif.id,
+          trailing: formatMotifSource(motif.source),
+          meta:
+            [motif.scope, motif.style]
+              .filter((value) => value !== null)
+              .join(" · ") || motif.id,
+        })}
         status={
           query.isLoading || query.isPlaceholderData
             ? "loading"
@@ -151,10 +166,8 @@ export function MotifsPage() {
         }
         total={query.data?.total}
         limit={parsed.limit}
-        refreshing={query.isFetching}
-        onRefresh={() => void query.refetch()}
+        onRetry={() => void query.refetch()}
         emptyTitle="조건에 맞는 무늬·로고가 없습니다"
-        emptyDescription="검색어나 필터를 바꿔 보세요."
         page={Math.min(parsed.page, totalPages)}
         totalPages={totalPages}
         onPageChange={(page) => replaceQuery({ page })}
@@ -164,8 +177,7 @@ export function MotifsPage() {
             <CompactFilterToolbar
               primaryControls={
                 <SubmittedMemorySearch
-                  label="ID·이름·소스 검색"
-                  placeholder="2자 이상 입력"
+                  label="ID·주제·출처 검색"
                   maxLength={100}
                   resetKey={searchResetKey}
                   onSubmit={(value) => {
@@ -181,9 +193,9 @@ export function MotifsPage() {
                     presentation="inline"
                     value={draftScope ?? "all"}
                     options={[
-                      { value: "all", label: "모두" },
-                      { value: "whole", label: "전체 모티프" },
-                      { value: "partial", label: "부분 모티프" },
+                      { value: "all", label: "전체" },
+                      { value: "whole", label: formatMotifScope("whole") },
+                      { value: "partial", label: formatMotifScope("partial") },
                     ]}
                     onValueChange={(value) =>
                       setDraftScope(
@@ -205,7 +217,6 @@ export function MotifsPage() {
                 Number(parsed.to !== undefined)
               }
               secondaryTitle="무늬·로고 필터"
-              secondaryDescription="모티프 범위와 생성일을 한 번에 적용합니다."
               onResetSecondaryFilters={() => {
                 setDraftScope(scope);
                 setDraftFrom(parsed.from);
@@ -233,7 +244,7 @@ export function MotifsPage() {
                 },
                 scope !== undefined && {
                   key: "scope",
-                  label: `범위: ${scope === "whole" ? "전체 모티프" : "부분 모티프"}`,
+                  label: `범위: ${formatMotifScope(scope)}`,
                   onRemove: () => replaceQuery({ type: undefined, page: 1 }),
                 },
                 parsed.from !== undefined && {
