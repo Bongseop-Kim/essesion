@@ -24,6 +24,7 @@ import { Navigate, useNavigate, useParams } from "react-router";
 
 import {
   claimReasonLabel,
+  claimStatusLabel,
   claimStatusTone,
   claimTypeLabel,
 } from "@/features/claims/model/config";
@@ -77,7 +78,9 @@ export function ClaimDetailPage() {
           <Text as="h2" textStyle="title3">
             신청 요약
           </Text>
-          <Badge tone={claimStatusTone(claim.status)}>{claim.status}</Badge>
+          <Badge tone={claimStatusTone(claim.status)}>
+            {claimStatusLabel(claim.status)}
+          </Badge>
         </HStack>
         <InfoRow label="유형" value={claimTypeLabel(claim.type)} />
         <InfoRow label="사유" value={claimReasonLabel(claim.reason)} />
@@ -140,7 +143,9 @@ export function ClaimDetailPage() {
               <Text as="h1" textStyle="title1">
                 {claimTypeLabel(claim.type)} 상세
               </Text>
-              <Badge tone={claimStatusTone(claim.status)}>{claim.status}</Badge>
+              <Badge tone={claimStatusTone(claim.status)}>
+                {claimStatusLabel(claim.status)}
+              </Badge>
             </HStack>
             <Text textStyle="caption" color="fg.neutral-muted">
               {claim.claim_number}
