@@ -83,7 +83,9 @@ describe("PopupsPage", () => {
 
     await user.click(screen.getByRole("button", { name: "삭제" }));
     expect(api.remove).not.toHaveBeenCalled();
-    const confirms = await screen.findAllByRole("button", { name: "삭제" });
+    const confirms = await screen.findAllByRole("button", {
+      name: "팝업 삭제",
+    });
     await user.click(confirms[confirms.length - 1]!);
     await waitFor(() =>
       expect(api.remove.mock.calls[0]?.[0]).toEqual({

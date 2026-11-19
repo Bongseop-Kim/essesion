@@ -60,7 +60,7 @@ function CouponEditLoading() {
   return (
     <VStack gap="x6" alignItems="stretch" aria-busy="true">
       <RouteHeading title="쿠폰 수정" />
-      <AdminCard title="쿠폰 정의">
+      <AdminCard title="쿠폰 정보">
         <VStack gap="x3" alignItems="stretch">
           <Skeleton width="60%" height={24} />
           <Skeleton width="100%" height={20} />
@@ -88,7 +88,7 @@ export function CouponEditPage() {
   const mutation = useMutation({
     ...updateAdminCouponMutation(),
     onSuccess: async (coupon) => {
-      snackbar("쿠폰 정의를 저장했습니다.");
+      snackbar("쿠폰을 저장했습니다.");
       queryClient.setQueryData(
         getAdminCouponQueryKey({ path: { coupon_id: couponId } }),
         coupon,
@@ -129,7 +129,7 @@ export function CouponEditPage() {
         <RouteHeading title="쿠폰 수정" />
         <ContentPlaceholder
           title="쿠폰을 불러오지 못했습니다"
-          description="주소를 확인하거나 다시 시도해 주세요."
+          description="링크를 확인하거나 다시 시도해 주세요."
           action={
             <ActionButton onClick={() => void query.refetch()}>
               다시 시도
@@ -155,18 +155,11 @@ export function CouponEditPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title={`${coupon.name} 수정`}
-          description={`마지막 수정 ${formatDateTime(coupon.updated_at)}`}
-        />
-        <ActionButton
-          variant="ghost"
-          onClick={() => navigate(`/coupons/${coupon.id}`)}
-        >
-          상세로 돌아가기
-        </ActionButton>
-      </HStack>
+      <RouteHeading
+        backTo={{ to: `/coupons/${coupon.id}`, label: "쿠폰 상세" }}
+        title={`${coupon.name} 수정`}
+        description={`마지막 수정 ${formatDateTime(coupon.updated_at)}`}
+      />
 
       <CouponDefinitionForm
         initial={initialDraft}
@@ -207,7 +200,7 @@ export function CouponEditPage() {
       {showServerComparison && (
         <AdminCard
           title="최신 저장 내용"
-          description={`마지막 저장 ${formatDateTime(coupon.updated_at)}`}
+          description={`마지막 수정 ${formatDateTime(coupon.updated_at)}`}
         >
           <DetailList
             items={[

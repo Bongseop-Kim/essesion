@@ -8,7 +8,11 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
-import { formatDate, formatDateTime } from "../../shared/lib/format";
+import {
+  formatDate,
+  formatDateTime,
+  formatInquiryCategory,
+} from "../../shared/lib/format";
 import {
   parseAdminListQuery,
   serializeAdminListQuery,
@@ -19,7 +23,7 @@ import { CompactFilterToolbar } from "../../shared/ui/compact-filter-toolbar";
 import { DateRangeFilters } from "../../shared/ui/date-range-filters";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
-import { StatusBadge } from "../../shared/ui/status-badge";
+import { formatStatus, StatusBadge } from "../../shared/ui/status-badge";
 import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
@@ -57,7 +61,7 @@ const columns: readonly AdminTableColumn<AdminInquirySummaryOut>[] = [
   {
     key: "category",
     header: "카테고리",
-    render: (inquiry) => inquiry.category,
+    render: (inquiry) => formatInquiryCategory(inquiry.category),
   },
   {
     key: "product",
@@ -149,16 +153,15 @@ export function InquiriesPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <RouteHeading title="문의 관리" description="고객 문의에 답변합니다." />
+      <RouteHeading title="문의 관리" />
       <PaginatedAdminTableCard
-        title="문의 목록"
         label="문의 목록"
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
         compactRow={(row) => ({
           title: row.title,
-          trailing: row.category,
+          trailing: formatInquiryCategory(row.category),
           meta: `${row.customer?.name ?? "탈퇴·비회원 고객"} · ${formatDate(row.created_at)}`,
           status: <StatusBadge status={row.status} />,
         })}
@@ -176,8 +179,6 @@ export function InquiriesPage() {
         onSort={({ key, direction }) =>
           replaceQuery({ sort: key, direction, page: 1 })
         }
-        refreshing={query.isFetching}
-        onRefresh={() => void query.refetch()}
         onRetry={() => void query.refetch()}
         emptyTitle="조건에 맞는 문의가 없습니다"
         page={Math.min(parsed.page, totalPages)}
@@ -190,7 +191,6 @@ export function InquiriesPage() {
               primaryControls={
                 <SubmittedMemorySearch
                   label="제목·내용 검색"
-                  placeholder="2자 이상 입력"
                   maxLength={100}
                   resetKey={searchResetKey}
                   onSubmit={(value) => {
@@ -207,7 +207,7 @@ export function InquiriesPage() {
                     value={draftStatus}
                     options={INQUIRY_STATUSES.map((value) => ({
                       value,
-                      label: value === "all" ? "전체" : value,
+                      label: value === "all" ? "전체" : formatStatus(value),
                     }))}
                     onValueChange={(value) =>
                       setDraftStatus(value as InquiryStatus)
@@ -219,7 +219,8 @@ export function InquiriesPage() {
                     value={draftCategory}
                     options={INQUIRY_CATEGORIES.map((value) => ({
                       value,
-                      label: value === "all" ? "전체" : value,
+                      label:
+                        value === "all" ? "전체" : formatInquiryCategory(value),
                     }))}
                     onValueChange={(value) =>
                       setDraftCategory(value as InquiryCategory)
@@ -240,7 +241,6 @@ export function InquiriesPage() {
                 Number(parsed.to !== undefined)
               }
               secondaryTitle="문의 상세 필터"
-              secondaryDescription="답변 상태, 카테고리, 문의일을 한 번에 적용합니다."
               onResetSecondaryFilters={() => {
                 setDraftStatus(status);
                 setDraftCategory(category);
@@ -270,12 +270,12 @@ export function InquiriesPage() {
                 },
                 status !== "all" && {
                   key: "status",
-                  label: `상태: ${status}`,
+                  label: `상태: ${formatStatus(status)}`,
                   onRemove: () => replaceQuery({ status: undefined, page: 1 }),
                 },
                 category !== "all" && {
                   key: "category",
-                  label: `카테고리: ${category}`,
+                  label: `카테고리: ${formatInquiryCategory(category)}`,
                   onRemove: () => replaceQuery({ type: undefined, page: 1 }),
                 },
                 parsed.from !== undefined && {

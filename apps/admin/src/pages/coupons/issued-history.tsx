@@ -185,7 +185,7 @@ export function CouponIssuedHistory({
     },
     {
       key: "expires_at",
-      header: "만료 시각",
+      header: "만료 일시",
       visibility: "large",
       render: (issuance) => formatDateTime(issuance.expires_at),
     },
@@ -213,7 +213,7 @@ export function CouponIssuedHistory({
 
   return (
     <VStack gap="x5" alignItems="stretch">
-      <AdminCard title="발급 이력" description="발급 당시 할인 조건">
+      <AdminCard title="발급 이력">
         <VStack gap="x4" alignItems="stretch">
           <FilterSelect
             label="발급 상태"
@@ -275,8 +275,7 @@ export function CouponIssuedHistory({
         >
           <VStack gap="x4" alignItems="stretch">
             <Text textStyle="bodySm">
-              현재 페이지에서 활성 발급 건{" "}
-              {selectedIds.length.toLocaleString("ko-KR")}건을 선택했습니다.
+              {selectedIds.length.toLocaleString("ko-KR")}건 선택
             </Text>
             <TextAreaField
               label="회수 사유"

@@ -31,7 +31,7 @@ export function TechnicalDetails({
       await navigator.clipboard.writeText(body);
       snackbar("기술 정보를 복사했습니다.");
     } catch {
-      snackbar("기술 정보를 복사하지 못했습니다.");
+      snackbar("기술 정보를 복사하지 못했습니다. 다시 시도해 주세요.");
     }
   };
 

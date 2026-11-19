@@ -127,7 +127,7 @@ const claim: AdminClaimDetailOut = {
   admin_actions: [
     {
       kind: "reject",
-      label: "거부 처리",
+      label: "거절 처리",
       target_status: "거부",
       enabled: true,
       destructive: true,
@@ -207,12 +207,12 @@ describe("ClaimDetailPage", () => {
     expect(
       await screen.findByText("등록된 배송 정보가 없습니다."),
     ).toBeTruthy();
-    expect(screen.getByRole("button", { name: "거부 처리" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "거절 처리" })).toBeTruthy();
 
     await user.click(screen.getByRole("tab", { name: "개요" }));
 
     expect(
-      await screen.findByRole("button", { name: "거부 처리" }),
+      await screen.findByRole("button", { name: "거절 처리" }),
     ).toBeTruthy();
     expect(screen.getByText("상품 불량")).toBeTruthy();
     expect(screen.queryByText("defect")).toBeNull();
@@ -232,7 +232,7 @@ describe("ClaimDetailPage", () => {
     ).toBeTruthy();
     expect(screen.queryByRole("tab", { name: "배송·첨부" })).toBeNull();
     expect(screen.queryByText("배송 주소")).toBeNull();
-    expect(screen.getByRole("button", { name: "거부 처리" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "거절 처리" })).toBeTruthy();
   });
 
   it("위험 상태 변경을 확인하고 실패해도 입력한 사유를 보존한다", async () => {
@@ -252,7 +252,7 @@ describe("ClaimDetailPage", () => {
     });
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "거부 처리" }));
+    await user.click(await screen.findByRole("button", { name: "거절 처리" }));
     const memo = screen.getByLabelText("처리 사유 (필수)");
     await user.type(memo, "검수 결과 불량");
     expect(
@@ -260,11 +260,11 @@ describe("ClaimDetailPage", () => {
         .disabled,
     ).toBe(true);
     expect((memo as HTMLTextAreaElement).value).toBe("검수 결과 불량");
-    await user.click(screen.getByRole("button", { name: "거부 처리 검토" }));
+    await user.click(screen.getByRole("button", { name: "거절 처리 검토" }));
 
     const dialog = await screen.findByRole("alertdialog");
-    expect(within(dialog).getByText(/상태 접수 → 거부/)).toBeTruthy();
-    await user.click(within(dialog).getByRole("button", { name: "거부 처리" }));
+    expect(within(dialog).getByText(/상태 접수 → 거절/)).toBeTruthy();
+    await user.click(within(dialog).getByRole("button", { name: "거절 처리" }));
 
     await waitFor(() =>
       expect(api.updateStatus).toHaveBeenCalledWith(
@@ -350,7 +350,7 @@ describe("ClaimDetailPage", () => {
     });
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "거부 처리" }));
+    await user.click(await screen.findByRole("button", { name: "거절 처리" }));
     await user.type(screen.getByLabelText("처리 사유 (필수)"), "검수 불량");
     await user.click(screen.getByRole("tab", { name: "배송·첨부" }));
     await user.click(

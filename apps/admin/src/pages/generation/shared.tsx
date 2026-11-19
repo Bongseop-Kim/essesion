@@ -61,7 +61,7 @@ export function IdentifierLink({
       await navigator.clipboard.writeText(value);
       snackbar(`${label}를 복사했습니다.`);
     } catch {
-      snackbar(`${label}를 복사하지 못했습니다.`);
+      snackbar(`${label}를 복사하지 못했습니다. 다시 시도해 주세요.`);
     }
   };
 
@@ -120,7 +120,7 @@ export function RefreshStatus({
       <VStack gap="x1">
         <HStack gap="x2" align="center" wrap>
           <Badge tone={paused ? "warning" : "positive"}>
-            {paused ? "자동 갱신 일시정지됨" : "자동 갱신 켜짐"}
+            {paused ? "자동 갱신 꺼짐" : "자동 갱신 켜짐"}
           </Badge>
           <Text role="status" aria-live="polite" textStyle="bodySm">
             마지막 갱신:{" "}
@@ -129,11 +129,11 @@ export function RefreshStatus({
               : formatDateTime(new Date(lastUpdatedAt))}
           </Text>
         </HStack>
-        <Text textStyle="caption" color="fg.neutral-muted">
-          {paused
-            ? "자동 갱신을 일시정지했습니다. 수동 새로고침은 계속 사용할 수 있습니다."
-            : description}
-        </Text>
+        {!paused && (
+          <Text textStyle="caption" color="fg.neutral-muted">
+            {description}
+          </Text>
+        )}
       </VStack>
       <ActionButton variant="neutralOutline" size="small" onClick={onToggle}>
         {paused ? "자동 갱신 재개" : "자동 갱신 일시정지"}

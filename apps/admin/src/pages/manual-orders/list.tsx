@@ -34,7 +34,7 @@ function StatusChecks({ order }: { order: ManualOrderOut }) {
   const flags = [
     ["접수", order.is_received],
     ["결제", order.is_paid],
-    ["확인", order.is_confirmed],
+    ["발송 완료", order.is_confirmed],
   ] as const;
   return (
     <HStack gap="x1" wrap>
@@ -139,10 +139,7 @@ export function ManualOrdersPage() {
   return (
     <VStack gap="x6" alignItems="stretch">
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title="수기 주문"
-          description="무통장 입금·전화로 접수한 작업지시서를 관리합니다. 제작과 수선은 따로 등록합니다."
-        />
+        <RouteHeading title="수기 주문" />
         {/* 두 등록은 동급 액션이다 — 색 차이는 우선순위가 아니라 화면당 brandSolid 1개
             규칙(packages/shared/AGENTS.md)이고, 더 자주 쓰는 수선을 그 자리에 둔다.
             보조는 bg.neutral-weak가 페이지 배경 bg.layer-basement와 거의 같은 밝기라
@@ -161,7 +158,6 @@ export function ManualOrdersPage() {
       </HStack>
 
       <PaginatedAdminTableCard
-        title="수기 주문 목록"
         label="수기 주문 목록"
         columns={columns}
         rows={query.data?.items}
@@ -184,8 +180,7 @@ export function ManualOrdersPage() {
         }
         total={query.data?.total}
         limit={parsed.limit}
-        refreshing={query.isFetching}
-        onRefresh={() => void query.refetch()}
+        onRetry={() => void query.refetch()}
         emptyTitle="조건에 맞는 수기 주문이 없습니다"
         page={Math.min(parsed.page, totalPages)}
         totalPages={totalPages}
@@ -196,8 +191,7 @@ export function ManualOrdersPage() {
             <CompactFilterToolbar
               primaryControls={
                 <SubmittedMemorySearch
-                  label="고객 검색"
-                  placeholder="이름 또는 휴대폰, 2자 이상 입력"
+                  label="이름·휴대폰 검색"
                   maxLength={64}
                   resetKey={searchResetKey}
                   onSubmit={(value) => {

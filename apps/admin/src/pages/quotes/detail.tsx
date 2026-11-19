@@ -34,13 +34,13 @@ import { Link, useParams, useSearchParams } from "react-router";
 import {
   formatDateTime,
   formatDeliveryRequest,
+  formatFileType,
   formatIdentifier,
   formatMoney,
   getErrorMessage,
 } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
-import { BackToListButton } from "../../shared/ui/back-to-list-button";
 import { customOptionItems } from "../../shared/ui/custom-option-items";
 import { DetailList } from "../../shared/ui/detail-list";
 import { NumberField } from "../../shared/ui/number-field";
@@ -109,7 +109,8 @@ function QuoteImage({
       metadata={
         <>
           {image.part ? `${REFERENCE_PART_LABELS[image.part]} · ` : ""}
-          {image.content_type ?? "파일"} · {formatDateTime(image.created_at)}
+          {formatFileType(image.content_type, "파일")} ·{" "}
+          {formatDateTime(image.created_at)}
         </>
       }
       error={mutation.isError}
@@ -170,10 +171,7 @@ export function QuoteDetailPage() {
   if (query.isLoading) {
     return (
       <VStack gap="x6" alignItems="stretch" aria-busy="true">
-        <RouteHeading
-          title="견적 상세"
-          description="견적을 불러오고 있습니다."
-        />
+        <RouteHeading title="견적 상세" />
         <AdminCard title="견적 정보">
           <Skeleton width="100%" height={120} />
         </AdminCard>
@@ -250,13 +248,11 @@ export function QuoteDetailPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading title={`견적 ${data.quote_number}`} />
-        <HStack gap="x2" wrap>
-          <StatusBadge status={data.status} />
-          <BackToListButton to="/quote-requests" />
-        </HStack>
-      </HStack>
+      <RouteHeading
+        backTo={{ to: "/quote-requests", label: "견적 관리" }}
+        title={`견적 ${data.quote_number}`}
+        badges={<StatusBadge status={data.status} />}
+      />
       <AdminCard title="진행 단계">
         <HStack
           gap="x2"
@@ -348,7 +344,6 @@ export function QuoteDetailPage() {
               <Callout
                 tone="informative"
                 title={`저장하면 ${quoteStageLabel(selectedAction.target_status)} 상태로 변경됩니다`}
-                description="고객에게 보일 금액과 조건을 먼저 확인해 주세요."
               />
               <NumberField
                 label="견적 금액"
@@ -371,7 +366,7 @@ export function QuoteDetailPage() {
                 onChange={(event) => setAdminMemo(event.currentTarget.value)}
               />
               <TextAreaField
-                label="상태 변경 근거"
+                label="변경 사유"
                 maxLength={500}
                 value={transitionMemo}
                 onChange={(event) =>
@@ -451,7 +446,7 @@ export function QuoteDetailPage() {
                 ]}
               />
             </AdminCard>
-            <AdminCard title="거래 시점 배송지">
+            <AdminCard title="배송지">
               {address ? (
                 <DetailList
                   items={[
@@ -521,7 +516,7 @@ export function QuoteDetailPage() {
                 ]}
               />
             </AdminCard>
-            <AdminCard title="내부 메모">
+            <AdminCard title="관리자 메모">
               <Text style={{ whiteSpace: "pre-wrap" }}>
                 {data.admin_memo ?? "작성된 관리자 메모가 없습니다."}
               </Text>
@@ -553,9 +548,9 @@ export function QuoteDetailPage() {
 
         <TabContent value="history">
           <VStack pt="x5" alignItems="stretch">
-            <AdminCard title="상태 변경 이력">
+            <AdminCard title="처리 이력">
               {(data.status_logs ?? []).length === 0 ? (
-                <Text color="fg.neutral-muted">상태 변경 이력이 없습니다.</Text>
+                <Text color="fg.neutral-muted">처리 이력이 없습니다.</Text>
               ) : (
                 <VStack as="ol" gap="x3" alignItems="stretch">
                   {(data.status_logs ?? []).map((log) => (
@@ -580,7 +575,7 @@ export function QuoteDetailPage() {
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title={`${selectedAction ? quoteStageLabel(selectedAction.target_status) : "선택한"} 상태로 변경할까요?`}
-        description={`상태 ${quoteStageLabel(data.status)} → ${selectedAction ? quoteStageLabel(selectedAction.target_status) : "선택 상태"} · 견적 금액 ${formatMoney(data.quoted_amount, "미책정")} → ${amount === "" ? "미입력" : formatMoney(Number(amount))} · 견적 조건 ${conditions.trim() || "없음"} · 변경 근거 ${transitionMemo.trim() || "없음"}`}
+        description={`상태 ${quoteStageLabel(data.status)} → ${selectedAction ? quoteStageLabel(selectedAction.target_status) : "선택 상태"} · 견적 금액 ${formatMoney(data.quoted_amount, "미책정")} → ${amount === "" ? "미입력" : formatMoney(Number(amount))} · 견적 조건 ${conditions.trim() || "없음"} · 변경 사유 ${transitionMemo.trim() || "없음"}`}
         primaryActionProps={{
           children: selectedAction
             ? `${quoteStageLabel(selectedAction.target_status)} 상태로 변경`

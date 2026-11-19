@@ -136,7 +136,7 @@ describe("MotifsPage", () => {
     renderPage();
     await screen.findByRole("table", { name: "무늬·로고 목록" });
 
-    await user.type(screen.getByLabelText("ID·이름·소스 검색"), "motif-1");
+    await user.type(screen.getByLabelText("ID·주제·출처 검색"), "motif-1");
     await user.click(screen.getByRole("button", { name: "검색" }));
     await waitFor(() =>
       expect(api.listOptions).toHaveBeenLastCalledWith({
@@ -185,7 +185,7 @@ describe("MotifsPage", () => {
       }),
     );
     expect(
-      (screen.getByLabelText("ID·이름·소스 검색") as HTMLInputElement).value,
+      (screen.getByLabelText("ID·주제·출처 검색") as HTMLInputElement).value,
     ).toBe("");
   });
 
@@ -196,7 +196,7 @@ describe("MotifsPage", () => {
 
     const requestCount = api.list.mock.calls.length;
     await user.click(screen.getByRole("button", { name: "필터 1" }));
-    await user.click(screen.getByRole("radio", { name: "부분 모티프" }));
+    await user.click(screen.getByRole("radio", { name: "부분 무늬" }));
     await user.click(screen.getByRole("button", { name: "취소" }));
 
     expect(api.list).toHaveBeenCalledTimes(requestCount);
@@ -205,11 +205,11 @@ describe("MotifsPage", () => {
     expect(
       (
         screen.getByRole("radio", {
-          name: "전체 모티프",
+          name: "통무늬",
         }) as HTMLInputElement
       ).checked,
     ).toBe(true);
-    await user.click(screen.getByRole("radio", { name: "부분 모티프" }));
+    await user.click(screen.getByRole("radio", { name: "부분 무늬" }));
     await user.click(screen.getByRole("button", { name: "필터 적용" }));
 
     await waitFor(() =>
@@ -243,7 +243,7 @@ describe("MotifDetailPage", () => {
 
     expect(
       await screen.findByRole("img", {
-        name: "동백꽃 모티프 안전 미리보기",
+        name: "동백꽃 미리보기",
       }),
     ).toBeTruthy();
     expect(api.detailOptions).toHaveBeenCalledWith({
@@ -268,7 +268,7 @@ describe("MotifDetailPage", () => {
       "주제",
       "범위",
       "스타일",
-      "소스",
+      "출처",
       "생성일",
       "최초 요청자",
       "최초 요청 세션",

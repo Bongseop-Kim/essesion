@@ -171,7 +171,11 @@ describe("ProductEditPage", () => {
     await user.type(optionNames[1] as HTMLInputElement, "긴 길이");
     await user.click(screen.getByRole("button", { name: "저장" }));
 
-    expect(screen.getAllByText("이미 있는 옵션 이름입니다.")).toHaveLength(2);
+    expect(
+      screen.getAllByText(
+        "이미 있는 옵션 이름입니다. 다른 이름을 입력해 주세요.",
+      ),
+    ).toHaveLength(2);
     expect(api.update).not.toHaveBeenCalled();
   });
 });

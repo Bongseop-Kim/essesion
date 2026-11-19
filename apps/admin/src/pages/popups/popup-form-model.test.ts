@@ -31,7 +31,7 @@ describe("validateDraft", () => {
   it("종료일이 시작일보다 앞서면 막는다", () => {
     expect(
       validateDraft({ ...holidayDraft, endsOn: "2026-09-01" }).endsOn,
-    ).toMatch(/앞설 수 없습니다/);
+    ).toMatch(/시작일 이후로/);
   });
 
   it("휴무 날짜 순서가 어긋나면 재개일에 오류를 붙인다", () => {
@@ -46,11 +46,11 @@ describe("validateDraft", () => {
     ).toBeTruthy();
     const event = validateDraft({ ...holidayDraft, template: "event" });
     expect(event.image).toBeTruthy();
-    expect(event.linkUrl).toMatch(/링크가 필요/);
+    expect(event.linkUrl).toMatch(/링크를 입력해/);
     expect(
       validateDraft({ ...holidayDraft, linkUrl: "javascript:alert(1)" })
         .linkUrl,
-    ).toMatch(/내부 경로/);
+    ).toMatch(/https:\/\/ 주소로/);
   });
 
   it("운영 안내 오류를 행과 필드별로 구분한다", () => {

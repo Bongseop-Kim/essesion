@@ -11,7 +11,6 @@ import {
   ActionButton,
   ContentPlaceholder,
   formatPhoneNumber,
-  HStack,
   TabContent,
   TabList,
   Tabs,
@@ -30,8 +29,8 @@ import {
   formatOrderType,
 } from "../../shared/lib/format";
 import { AdminCard } from "../../shared/ui/admin-card";
-import { BackToListButton } from "../../shared/ui/back-to-list-button";
 import { DetailList } from "../../shared/ui/detail-list";
+import { PageSkeleton } from "../../shared/ui/page-skeleton";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
 import {
@@ -195,16 +194,9 @@ export function CustomerDetailPage() {
     setParams(next, { replace: true });
   };
 
-  const refreshAll = () => {
-    void Promise.all([detail.refetch(), orders.refetch(), coupons.refetch()]);
-  };
-
   if (detail.isLoading) {
     return (
-      <VStack gap="x6" alignItems="stretch" aria-busy="true">
-        <RouteHeading title="고객 상세" />
-        <ContentPlaceholder title="고객 정보를 불러오고 있습니다" />
-      </VStack>
+      <PageSkeleton title="고객 상세" sections={["고객 정보", "주문 이력"]} />
     );
   }
 
@@ -214,7 +206,7 @@ export function CustomerDetailPage() {
         <RouteHeading title="고객 상세" />
         <ContentPlaceholder
           title="고객 정보를 불러오지 못했습니다"
-          description="주소를 확인하거나 다시 시도해 주세요."
+          description="링크를 확인하거나 다시 시도해 주세요."
           action={
             <ActionButton onClick={() => void detail.refetch()}>
               다시 시도
@@ -228,21 +220,10 @@ export function CustomerDetailPage() {
   const customer = detail.data;
   return (
     <VStack gap="x6" alignItems="stretch">
-      <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading title={customer.name} />
-        <HStack gap="x2" wrap>
-          <BackToListButton to="/customers" />
-          <ActionButton
-            variant="ghost"
-            loading={
-              detail.isFetching || orders.isFetching || coupons.isFetching
-            }
-            onClick={refreshAll}
-          >
-            새로고침
-          </ActionButton>
-        </HStack>
-      </HStack>
+      <RouteHeading
+        backTo={{ to: "/customers", label: "고객 관리" }}
+        title={customer.name}
+      />
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabList aria-label="고객 상세 메뉴">
@@ -277,7 +258,7 @@ export function CustomerDetailPage() {
                     value: formatDateTime(customer.created_at),
                   },
                   {
-                    label: "최근 수정",
+                    label: "수정 시각",
                     value: formatDateTime(customer.updated_at),
                   },
                   {
@@ -287,7 +268,7 @@ export function CustomerDetailPage() {
                       ? "미동의"
                       : customer.notification_enabled
                         ? "받음"
-                        : "동의했지만 꺼 둠",
+                        : "동의·수신 꺼짐",
                   },
                   {
                     label: "카카오·SMS 마케팅",

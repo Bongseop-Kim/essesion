@@ -87,7 +87,7 @@ const LEGACY_VALUES: Record<string, string> = {
 
 function plainText(value: unknown): string | null {
   if (value === null || value === undefined || value === "") return null;
-  if (typeof value === "boolean") return value ? "예" : "아니오";
+  if (typeof value === "boolean") return value ? "예" : "아니요";
   if (typeof value === "string") return LEGACY_VALUES[value] ?? value;
   if (typeof value === "number") return value.toLocaleString("ko-KR");
   try {
@@ -124,7 +124,7 @@ export function customOptionItems(options: unknown): DetailItem[] {
   const has = (key: string) => key in data;
   const selected = (key: string) => data[key] === true;
   // 포인트 주문은 정해진 넥타이 위에 자수·필름만 올린다 — 원단은 고르지 않고, 고를 수 있는 건
-  // 타이 방식·라벨뿐이다. 나머지는 값이 실제로 골라져 있을 때만 보여 준다(예전 주문은 받았다).
+  // 넥타이 방식·라벨뿐이다. 나머지는 값이 실제로 골라져 있을 때만 보여 준다(예전 주문은 받았다).
   const point = data.point === "EMBROIDERY" || data.point === "HEAT_TRANSFER";
   const autoTie = data.tie_type === "AUTO";
   const items: DetailItem[] = [];
@@ -161,7 +161,7 @@ export function customOptionItems(options: unknown): DetailItem[] {
   }
   if (has("tie_type")) {
     items.push({
-      label: "타이 방식",
+      label: "넥타이 방식",
       // 스토어는 수동을 빈 값으로 보낸다. 예전 데이터의 MANUAL도 수동이다.
       value: choice(TIE, data.tie_type === "MANUAL" ? "" : data.tie_type),
     });
@@ -183,7 +183,7 @@ export function customOptionItems(options: unknown): DetailItem[] {
   }
   if (has("tie_width") && !(point && data.tie_width == null)) {
     items.push({
-      label: "타이 폭",
+      label: "넥타이 폭",
       value:
         typeof data.tie_width === "number" ? `${data.tie_width}cm` : "미입력",
     });

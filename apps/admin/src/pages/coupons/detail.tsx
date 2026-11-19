@@ -3,7 +3,6 @@ import { getAdminCouponOptions } from "@essesion/api-client/query";
 import {
   ActionButton,
   ContentPlaceholder,
-  HStack,
   Skeleton,
   TabContent,
   TabList,
@@ -67,7 +66,7 @@ export function CouponDetailPage() {
         <RouteHeading title="쿠폰 상세" />
         <ContentPlaceholder
           title="쿠폰을 불러오지 못했습니다"
-          description="주소를 확인하거나 다시 시도해 주세요."
+          description="링크를 확인하거나 다시 시도해 주세요."
           action={
             <ActionButton onClick={() => void query.refetch()}>
               다시 시도
@@ -80,28 +79,26 @@ export function CouponDetailPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title={coupon.name}
-          description={`마지막 수정 ${formatDateTime(coupon.updated_at)}`}
-        />
-        <HStack gap="x2" align="center" wrap>
+      <RouteHeading
+        backTo={{ to: "/coupons", label: "쿠폰 관리" }}
+        title={coupon.name}
+        description={`마지막 수정 ${formatDateTime(coupon.updated_at)}`}
+        badges={
           <StatusBadge status={coupon.is_active ? "active" : "inactive"} />
-          <ActionButton variant="ghost" onClick={() => navigate("/coupons")}>
-            목록으로
-          </ActionButton>
-          {canManage && (
+        }
+        actions={
+          canManage ? (
             <ActionButton
               variant="neutralWeak"
               onClick={() => navigate(`/coupons/${coupon.id}/edit`)}
             >
               수정
             </ActionButton>
-          )}
-        </HStack>
-      </HStack>
+          ) : undefined
+        }
+      />
 
-      <AdminCard title="쿠폰 요약">
+      <AdminCard title="요약">
         <DetailList
           items={[
             { label: "고객 표시 이름", value: coupon.display_name ?? "-" },
@@ -115,20 +112,20 @@ export function CouponDetailPage() {
               label: "활성 발급 / 전체 발급",
               value: `${coupon.active_issued_count.toLocaleString("ko-KR")} / ${coupon.issued_count.toLocaleString("ko-KR")}건`,
             },
-            { label: "등록 시각", value: formatDateTime(coupon.created_at) },
+            { label: "등록일", value: formatDateTime(coupon.created_at) },
           ]}
         />
       </AdminCard>
 
       <Tabs defaultValue="definition">
         <TabList aria-label="쿠폰 상세 메뉴">
-          <TabTrigger value="definition">쿠폰 정의</TabTrigger>
+          <TabTrigger value="definition">쿠폰 정보</TabTrigger>
           <TabTrigger value="operations">발급 운영</TabTrigger>
           <TabTrigger value="history">발급 이력</TabTrigger>
         </TabList>
         <TabContent value="definition">
           <VStack gap="x5" pt="x5" alignItems="stretch">
-            <AdminCard title="쿠폰 정의">
+            <AdminCard title="쿠폰 정보">
               <DetailList
                 items={[
                   { label: "쿠폰 이름", value: coupon.name },

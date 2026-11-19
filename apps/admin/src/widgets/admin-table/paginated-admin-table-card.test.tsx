@@ -15,15 +15,13 @@ const columns = [
 ] as const;
 
 const baseProps = {
-  title: "주문 목록",
   label: "주문 목록",
   columns,
   rows: [{ id: "ORDER-1" }],
   getRowKey: (row: Row) => row.id,
   total: 347,
   limit: 20,
-  refreshing: false,
-  onRefresh: vi.fn(),
+  onRetry: vi.fn(),
   page: 1,
   totalPages: 18,
   onPageChange: vi.fn(),
@@ -42,7 +40,7 @@ describe("PaginatedAdminTableCard", () => {
 
     expect(screen.getByText("주문 목록 불러오는 중")).toBeTruthy();
     expect(screen.queryByText("총 0건")).toBeNull();
-    expect(screen.queryByText("페이지당 20개")).toBeNull();
+    expect(screen.queryByText("페이지당 20건")).toBeNull();
     expect(
       screen.queryByRole("navigation", { name: "주문 목록 페이지" }),
     ).toBeNull();
@@ -50,7 +48,7 @@ describe("PaginatedAdminTableCard", () => {
     rerender(<PaginatedAdminTableCard {...baseProps} status="success" />);
 
     expect(screen.getByText("1–20 / 총 347건")).toBeTruthy();
-    expect(screen.getByText("페이지당 20개")).toBeTruthy();
+    expect(screen.getByText("페이지당 20건")).toBeTruthy();
     expect(
       screen.getByRole("navigation", { name: "주문 목록 페이지" }),
     ).toBeTruthy();

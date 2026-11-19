@@ -174,7 +174,8 @@ export function validateProductDraft(
     const name = option.name.trim();
     if (name === "") optionErrors.name = "옵션 이름을 입력해 주세요.";
     else if ((nameCounts.get(name) ?? 0) > 1) {
-      optionErrors.name = "이미 있는 옵션 이름입니다.";
+      optionErrors.name =
+        "이미 있는 옵션 이름입니다. 다른 이름을 입력해 주세요.";
     }
     if (nonNegativeInteger(option.additionalPrice) === undefined) {
       optionErrors.additionalPrice =

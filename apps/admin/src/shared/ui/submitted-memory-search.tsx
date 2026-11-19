@@ -1,9 +1,10 @@
-import { ActionButton, Box, HStack, TextField } from "@essesion/shared";
+import { ActionButton, Box, HStack, Icon, TextField } from "@essesion/shared";
+import { XMarkIcon } from "@heroicons/react/20/solid";
 import { type FormEvent, useEffect, useState } from "react";
 
 type SubmittedMemorySearchProps = {
   label: string;
-  placeholder: string;
+  placeholder?: string;
   maxLength: number;
   onSubmit: (value: string | undefined) => void;
   resetKey?: number;
@@ -68,25 +69,31 @@ export function SubmittedMemorySearch({
             setInput(event.currentTarget.value);
             setError(undefined);
           }}
+          // 초기화는 입력창 안 ✕로 — 검색 줄에 버튼을 하나 더 늘리지 않는다
+          suffix={
+            submitted ? (
+              <ActionButton
+                type="button"
+                variant="ghost"
+                size="small"
+                iconOnly
+                aria-label="검색 초기화"
+                onClick={() => {
+                  setInput("");
+                  setSubmitted(false);
+                  setError(undefined);
+                  onSubmit(undefined);
+                }}
+              >
+                <Icon svg={<XMarkIcon />} size={16} />
+              </ActionButton>
+            ) : undefined
+          }
         />
       </Box>
       <ActionButton type="submit" variant="neutralOutline">
         검색
       </ActionButton>
-      {submitted && (
-        <ActionButton
-          type="button"
-          variant="ghost"
-          onClick={() => {
-            setInput("");
-            setSubmitted(false);
-            setError(undefined);
-            onSubmit(undefined);
-          }}
-        >
-          검색 초기화
-        </ActionButton>
-      )}
     </HStack>
   );
 }

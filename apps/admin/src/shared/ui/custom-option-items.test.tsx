@@ -75,7 +75,7 @@ describe("customOptionItems", () => {
       interlining: "POLY",
     });
 
-    expect(labels()).toEqual(["원단", "디자인 방식", "타이 방식", "심지"]);
+    expect(labels()).toEqual(["원단", "디자인 방식", "넥타이 방식", "심지"]);
     // 봉제 샘플은 원단을 고르지 않는다
     expect(screen.getAllByText("해당 없음")).toHaveLength(2);
     expect(state("수동 타이")).toBe("수동 타이 선택됨");
@@ -96,7 +96,12 @@ describe("customOptionItems", () => {
       side_stitch: false,
       brand_label: true,
     });
-    expect(labels()).toEqual(["주문 구분", "포인트", "타이 방식", "봉제·마감"]);
+    expect(labels()).toEqual([
+      "주문 구분",
+      "포인트",
+      "넥타이 방식",
+      "봉제·마감",
+    ]);
     expect(state("자수")).toBe("자수 선택됨");
     expect(state("브랜드 라벨")).toBe("브랜드 라벨 선택됨");
     expect(state("케어 라벨")).toBe("케어 라벨 선택 안 됨");

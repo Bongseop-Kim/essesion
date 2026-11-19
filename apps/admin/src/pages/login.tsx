@@ -73,10 +73,7 @@ export function LoginPage() {
           p={{ base: "x5", md: "x8" }}
         >
           <VStack gap="x6">
-            <RouteHeading
-              title="관리자 로그인"
-              description="승인된 ESSE SION 운영 계정으로 로그인해 주세요."
-            />
+            <RouteHeading title="관리자 로그인" />
 
             {state.status === "error" ? (
               <Callout

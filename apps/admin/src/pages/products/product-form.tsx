@@ -200,7 +200,10 @@ export function ProductForm({
     } catch (caught) {
       if (mounted.current) {
         setUploadError(
-          getErrorMessage(caught, "상품 이미지를 업로드하지 못했습니다."),
+          getErrorMessage(
+            caught,
+            "상품 이미지를 업로드하지 못했습니다. 다시 시도해 주세요.",
+          ),
         );
       }
       return undefined;
@@ -314,7 +317,7 @@ export function ProductForm({
               />
               <TextField
                 label="상품 코드"
-                placeholder="비워 두면 자동 생성"
+                description="비워 두면 자동 생성"
                 maxLength={100}
                 value={draft.code}
                 disabled={mode === "edit" || pending}
@@ -379,7 +382,6 @@ export function ProductForm({
           <VStack gap="x5" alignItems="stretch">
             <AttachmentDisplayField
               label="대표 이미지"
-              description="상품 목록과 상세의 대표 이미지입니다."
               errorMessage={attempted ? errors.primaryImage : undefined}
               items={
                 draft.primaryImage === null
@@ -405,7 +407,7 @@ export function ProductForm({
             />
             <AttachmentDisplayField
               label="상세 이미지"
-              description="최대 20장까지 순서대로 표시됩니다."
+              description="최대 20장"
               items={draft.detailImages.map((image, index) => ({
                 id: image.clientId,
                 src: image.src,
@@ -459,7 +461,7 @@ export function ProductForm({
                   onValueChange={(value) => update("stock", value)}
                 />
                 <Checkbox
-                  label="재고 수량 제한 없음"
+                  label="재고 무제한"
                   checked={draft.unlimitedStock}
                   disabled={pending}
                   onChange={(event) =>
@@ -468,11 +470,7 @@ export function ProductForm({
                 />
               </VStack>
             ) : (
-              <Callout
-                tone="neutral"
-                title="재고는 옵션별로 관리됩니다"
-                description="옵션이 하나 이상이면 상품 단위 재고는 저장하지 않습니다."
-              />
+              <Callout tone="neutral" title="재고는 옵션별로 관리됩니다" />
             )}
           </Grid>
         </AdminCard>
@@ -502,9 +500,7 @@ export function ProductForm({
         >
           <VStack gap="x4" alignItems="stretch">
             {draft.options.length === 0 ? (
-              <Text color="fg.neutral-muted">
-                옵션이 없습니다. 상품 단위 재고를 사용합니다.
-              </Text>
+              <Text color="fg.neutral-muted">옵션 없음</Text>
             ) : (
               <>
                 <TextField
@@ -593,7 +589,7 @@ export function ProductForm({
                             }
                           />
                           <Checkbox
-                            label="재고 수량 제한 없음"
+                            label="재고 무제한"
                             checked={option.unlimitedStock}
                             disabled={pending}
                             onChange={(event) =>
@@ -642,7 +638,7 @@ export function ProductForm({
                   setUploadError(undefined);
                 }}
               >
-                {mode === "create" ? "입력 취소" : "수정 취소"}
+                수정 취소
               </ActionButton>
               <ActionButton type="submit" loading={pending || uploading > 0}>
                 {mode === "create" ? "상품 등록" : "저장"}

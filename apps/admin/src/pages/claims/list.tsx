@@ -157,7 +157,6 @@ export function ClaimsPage() {
       <RouteHeading title="클레임 관리" />
 
       <PaginatedAdminTableCard
-        title="클레임 목록"
         label="클레임 목록"
         columns={columns}
         rows={query.data?.items}
@@ -182,8 +181,7 @@ export function ClaimsPage() {
         onSort={({ key, direction }) =>
           replaceQuery({ sort: key, direction, page: 1 })
         }
-        refreshing={query.isFetching}
-        onRefresh={() => void query.refetch()}
+        onRetry={() => void query.refetch()}
         emptyTitle="조건에 맞는 클레임이 없습니다"
         page={Math.min(parsed.page, totalPages)}
         totalPages={totalPages}
@@ -195,7 +193,6 @@ export function ClaimsPage() {
               primaryControls={
                 <SubmittedMemorySearch
                   label="클레임번호 검색"
-                  placeholder="2자 이상 입력"
                   maxLength={64}
                   resetKey={searchResetKey}
                   onSubmit={(value) => {

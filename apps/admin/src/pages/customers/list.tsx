@@ -170,7 +170,6 @@ export function CustomersPage() {
       <RouteHeading title="고객 관리" />
 
       <PaginatedAdminTableCard
-        title="고객 목록"
         label="고객 목록"
         columns={columns}
         rows={query.data?.items}
@@ -197,8 +196,7 @@ export function CustomersPage() {
         onSort={({ key, direction }) =>
           replaceQuery({ sort: key, direction, page: 1 })
         }
-        refreshing={query.isFetching}
-        onRefresh={() => void query.refetch()}
+        onRetry={() => void query.refetch()}
         emptyTitle="조건에 맞는 고객이 없습니다"
         page={Math.min(parsed.page, totalPages)}
         totalPages={totalPages}
@@ -210,7 +208,6 @@ export function CustomersPage() {
               primaryControls={
                 <SubmittedMemorySearch
                   label="이름·이메일·전화번호 검색"
-                  placeholder="2자 이상 입력"
                   maxLength={100}
                   resetKey={searchResetKey}
                   onSubmit={(value) => {

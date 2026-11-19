@@ -51,7 +51,7 @@ const ORDER_TYPES = [
   { value: "sale", label: "일반 주문" },
   { value: "custom", label: "주문 제작" },
   { value: "repair", label: "수선" },
-  { value: "sample", label: "샘플" },
+  { value: "sample", label: "샘플 제작" },
   // 수기 주문은 orders가 아닌 별도 장부 — 지표에는 합산되고 '최근 주문' 표는 비운다.
   { value: "manual", label: "수기 주문" },
 ] as const;
@@ -71,6 +71,22 @@ const CAPABILITY_LABELS = {
   auth_secrets: "인증 키",
   edge_proxy: "API 프록시",
 } as const;
+
+// API 원값(main.py `_capability`, integrations/*.capability_mode) → 화면 라벨
+const CAPABILITY_MODE_LABELS: Record<string, string> = {
+  real: "실제 연동",
+  ready: "정상",
+  unavailable: "사용 불가",
+  dry_run: "테스트(실제 발송 없음)",
+  local: "로컬",
+  optional: "로컬(선택)",
+  bypassed: "로컬(우회)",
+  oidc: "OIDC",
+  shared_secret: "공유 키",
+};
+
+const formatCapabilityMode = (mode: string) =>
+  CAPABILITY_MODE_LABELS[mode] ?? mode;
 
 function kstDate(daysAgo = 0) {
   return new Intl.DateTimeFormat("sv-SE", {
@@ -129,7 +145,7 @@ const manualOrderRow = (order: ManualOrderOut): RecentRow => ({
         [
           ["접수", order.is_received],
           ["결제", order.is_paid],
-          ["확인", order.is_confirmed],
+          ["발송 완료", order.is_confirmed],
         ] as const
       ).map(([label, checked]) => (
         <Badge key={label} tone={checked ? "positive" : "neutral"}>
@@ -164,7 +180,11 @@ const AMOUNT_SERIES = (
       label: "주문 제작(수기)",
       color: "var(--color-bg-chart-3)",
     },
-    { key: "sample_amount", label: "샘플", color: "var(--color-bg-chart-4)" },
+    {
+      key: "sample_amount",
+      label: "샘플 제작",
+      color: "var(--color-bg-chart-4)",
+    },
     { key: "repair_amount", label: "수선", color: "var(--color-bg-chart-5)" },
     {
       key: "manual_repair_amount",
@@ -287,7 +307,7 @@ function RecentCard({
   return (
     <AdminCard
       title={title}
-      description={compact ? undefined : "조회 기간과 무관한 최신 5건"}
+      description={compact ? undefined : "최신 5건"}
       action={<Link to={href}>전체 보기</Link>}
     >
       <AdminTable
@@ -373,16 +393,6 @@ export function DashboardPage() {
     setSearchParams(next, { replace: true });
   };
 
-  const refresh = () => {
-    void Promise.all([
-      overview.refetch(),
-      recentOrders.refetch(),
-      recentManualOrders.refetch(),
-      recentQuotes.refetch(),
-      capabilities.refetch(),
-    ]);
-  };
-
   const points = timeseries.data?.points ?? [];
   const rankedProducts = (topProducts.data?.items ?? []).map(
     (product, index) => ({ ...product, rank: index + 1 }),
@@ -422,20 +432,6 @@ export function DashboardPage() {
             onClick={() => setCapabilitiesOpen(true)}
           >
             <Icon svg={<SignalIcon />} size={20} />
-          </ActionButton>
-          <ActionButton
-            variant="neutralOutline"
-            loading={
-              summary.isFetching ||
-              timeseries.isFetching ||
-              topProducts.isFetching ||
-              recentOrders.isFetching ||
-              recentQuotes.isFetching ||
-              capabilities.isFetching
-            }
-            onClick={refresh}
-          >
-            새로고침
           </ActionButton>
         </HStack>
       </HStack>
@@ -482,7 +478,7 @@ export function DashboardPage() {
         <Callout
           tone="critical"
           title="필수 연동을 사용할 수 없습니다"
-          description={`${unavailableCapabilities.map(([label]) => label).join(", ")} 관련 작업이 실패합니다.`}
+          description={`${unavailableCapabilities.map(([label]) => label).join(", ")} 관련 작업이 실패합니다. 개발팀에 알려 주세요.`}
         />
       )}
       <Modal
@@ -493,9 +489,11 @@ export function DashboardPage() {
         <VStack gap="x3" alignItems="stretch">
           {fallbackCapabilities.length > 0 && (
             <Text textStyle="caption" color="fg.neutral-muted">
-              로컬·대체 연동 모드 —{" "}
+              테스트 연동 —{" "}
               {fallbackCapabilities
-                .map(([label, mode]) => `${label}: ${mode}`)
+                .map(
+                  ([label, mode]) => `${label}: ${formatCapabilityMode(mode)}`,
+                )
                 .join(" · ")}
             </Text>
           )}
@@ -507,7 +505,7 @@ export function DashboardPage() {
                     {label}
                   </Text>
                   <Text as="dd" textStyle="labelSm" className="m-0">
-                    {mode}
+                    {formatCapabilityMode(mode)}
                   </Text>
                 </VStack>
               ))}
@@ -569,7 +567,7 @@ export function DashboardPage() {
 
       <Text textStyle="caption" color="fg.neutral-muted" aria-live="polite">
         조회 기간 {startDate} ~ {endDate} · 기준 시각{" "}
-        {formatDateTime(data?.as_of)} · 날짜는 한국 시간(KST) 기준
+        {formatDateTime(data?.as_of)}
       </Text>
 
       <RecentCard

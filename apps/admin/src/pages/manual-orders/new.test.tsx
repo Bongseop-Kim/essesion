@@ -64,7 +64,7 @@ describe("ManualRepairNewPage", () => {
     expect(screen.getByRole("checkbox", { name: "자동수선" })).toBeTruthy();
     expect(screen.getByRole("checkbox", { name: "폭수선" })).toBeTruthy();
     expect(screen.getByRole("checkbox", { name: "복원수선" })).toBeTruthy();
-    expect(screen.queryByRole("checkbox", { name: "주문제작" })).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: "주문 제작" })).toBeNull();
   });
 
   it("작업지시서 내용을 생성 SDK payload로 저장하고 상세로 이동한다", async () => {
@@ -89,7 +89,7 @@ describe("ManualRepairNewPage", () => {
     await user.click(screen.getByRole("radio", { name: "딤플" }));
     await user.type(screen.getByLabelText(/\[자동\] 넥타이 길이/), "145");
     await user.click(screen.getByRole("checkbox", { name: "폭수선" }));
-    await user.type(screen.getByLabelText(/\[폭\] 폭/), "8.5");
+    await user.type(screen.getByLabelText(/\[폭\] 목표 폭/), "8.5");
     await user.type(screen.getByLabelText("특이사항"), "지퍼 교체 요청");
 
     await user.click(screen.getByRole("button", { name: "수기 수선 등록" }));
@@ -262,7 +262,7 @@ describe("ManualOrderNewPage", () => {
     await user.click(screen.getByRole("radio", { name: "돌려묶기" }));
     await user.click(screen.getByRole("radio", { name: "딤플" }));
     await user.click(screen.getByRole("radio", { name: "아동용" }));
-    await user.type(screen.getByLabelText(/\[제작\] 타이 폭/), "7.5");
+    await user.type(screen.getByLabelText(/\[제작\] 넥타이 폭/), "7.5");
     await user.type(screen.getByLabelText("[제작] 내용"), "로고 자수");
 
     await user.click(screen.getByRole("button", { name: "수기 주문 등록" }));

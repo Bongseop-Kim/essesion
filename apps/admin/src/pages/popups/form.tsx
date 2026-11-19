@@ -94,7 +94,10 @@ function PopupForm({
       if (previousUploadId) void discardPopupImageUpload(previousUploadId);
     } catch (caught) {
       setUploadError(
-        getErrorMessage(caught, "배너 이미지를 업로드하지 못했습니다."),
+        getErrorMessage(
+          caught,
+          "배너 이미지를 업로드하지 못했습니다. 다시 시도해 주세요.",
+        ),
       );
     } finally {
       setUploading(false);
@@ -124,7 +127,7 @@ function PopupForm({
         onSubmit(draft);
       }}
     >
-      <AdminCard title="템플릿" description="화면 모양은 템플릿이 정합니다.">
+      <AdminCard title="템플릿">
         <RadioGroup
           aria-label="템플릿"
           orientation="horizontal"
@@ -142,10 +145,7 @@ function PopupForm({
         </RadioGroup>
       </AdminCard>
 
-      <AdminCard
-        title="내용"
-        description="제목은 앞부분이 가늘게, 강조 제목이 굵게 이어집니다. 예: 「추석 연휴」 + 「배송 안내」."
-      >
+      <AdminCard title="내용">
         <VStack gap="x4" alignItems="stretch">
           <Grid columns={{ base: 1, md: 2 }} gap="x3">
             <TextField
@@ -176,7 +176,7 @@ function PopupForm({
           />
           <TextField
             label={draft.template === "event" ? "링크" : "링크 (선택)"}
-            description="/로 시작하는 스토어 경로 또는 https:// 주소. 있으면 확인 버튼이 「자세히 보기」로 바뀝니다."
+            description="/로 시작하는 스토어 경로 또는 https:// 주소"
             placeholder="/shop"
             maxLength={500}
             required={draft.template === "event"}
@@ -366,10 +366,7 @@ function PopupForm({
         </AdminCard>
       )}
 
-      <AdminCard
-        title="노출 기간 (KST)"
-        description="활성 상태이면서 이 기간 안일 때만 보입니다. 종료일이 지나면 자동으로 사라집니다."
-      >
+      <AdminCard title="노출 기간 (KST)">
         <Grid columns={{ base: 1, md: 2 }} gap="x3">
           <TextField
             type="date"
@@ -417,27 +414,27 @@ export function PopupNewPage() {
   const create = useMutation({
     ...createAdminPopupMutation(),
     onSuccess: async () => {
-      snackbar("팝업을 등록했습니다. 활성 스위치를 켜면 스토어에 노출됩니다.");
+      snackbar("팝업을 등록했습니다.");
       await queryClient.invalidateQueries({
         queryKey: listAdminPopupsQueryKey(),
       });
       navigate("/popups", { replace: true });
     },
     onError: (error) =>
-      snackbar(getErrorMessage(error, "팝업을 등록하지 못했습니다.")),
+      snackbar(
+        getErrorMessage(
+          error,
+          "팝업을 등록하지 못했습니다. 다시 시도해 주세요.",
+        ),
+      ),
   });
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title="팝업 등록"
-          description="등록 직후는 비활성입니다. 목록에서 활성 스위치를 켜야 스토어에 보입니다."
-        />
-        <ActionButton variant="ghost" onClick={() => navigate("/popups")}>
-          목록으로
-        </ActionButton>
-      </HStack>
+      <RouteHeading
+        backTo={{ to: "/popups", label: "팝업 공지" }}
+        title="팝업 등록"
+      />
       <PopupForm
         initial={EMPTY_DRAFT}
         submitLabel="비활성으로 등록"
@@ -466,26 +463,27 @@ export function PopupEditPage() {
       navigate("/popups", { replace: true });
     },
     onError: (error) =>
-      snackbar(getErrorMessage(error, "팝업을 저장하지 못했습니다.")),
+      snackbar(
+        getErrorMessage(
+          error,
+          "팝업을 저장하지 못했습니다. 다시 시도해 주세요.",
+        ),
+      ),
   });
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title="팝업 수정"
-          description="저장하면 노출 중인 팝업에도 바로 반영됩니다."
-        />
-        <ActionButton variant="ghost" onClick={() => navigate("/popups")}>
-          목록으로
-        </ActionButton>
-      </HStack>
+      <RouteHeading
+        backTo={{ to: "/popups", label: "팝업 공지" }}
+        title="팝업 수정"
+        description="저장하면 노출 중인 팝업에도 바로 반영됩니다."
+      />
       {query.isLoading ? (
         <Skeleton height={320} />
       ) : popup === undefined ? (
         <ContentPlaceholder
           title="팝업을 찾을 수 없습니다"
-          description="삭제되었거나 주소가 잘못되었습니다."
+          description="삭제되었거나 링크가 잘못되었습니다."
           action={
             <ActionButton onClick={() => navigate("/popups")}>
               목록으로

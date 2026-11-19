@@ -38,10 +38,7 @@ const NOUN: Record<ManualOrderKind, string> = {
 function ManualOrderEditLoading({ noun }: { noun: string }) {
   return (
     <VStack gap="x6" alignItems="stretch" aria-busy="true">
-      <RouteHeading
-        title={`${noun} 수정`}
-        description="작업지시서 내용을 불러오고 있습니다."
-      />
+      <RouteHeading title={`${noun} 수정`} />
       <AdminCard title="주문 정보">
         <VStack gap="x3" alignItems="stretch">
           <Skeleton width="60%" height={24} />
@@ -116,18 +113,14 @@ function ManualOrderEdit({ kind }: { kind: ManualOrderKind }) {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title={`${order.customer_name} 님의 ${noun} 수정`}
-          description={`마지막 수정 ${formatDateTime(order.updated_at)}`}
-        />
-        <ActionButton
-          variant="ghost"
-          onClick={() => navigate(manualOrderPath(kind, order.id))}
-        >
-          상세로
-        </ActionButton>
-      </HStack>
+      <RouteHeading
+        backTo={{
+          to: manualOrderPath(kind, order.id),
+          label: "수기 주문 상세",
+        }}
+        title={`${order.customer_name} 님의 ${noun} 수정`}
+        description={`마지막 수정 ${formatDateTime(order.updated_at)}`}
+      />
 
       <ManualOrderForm
         kind={kind}

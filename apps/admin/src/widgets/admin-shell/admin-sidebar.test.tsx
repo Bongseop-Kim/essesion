@@ -40,7 +40,7 @@ describe("AdminSidebar", () => {
       within(within(sidebar).getByRole("region", { name: "디자인" }))
         .getAllByRole("link")
         .map((link) => link.textContent),
-    ).toEqual(["디자인 렌더 로그", "무늬·로고", "템플릿"]);
+    ).toEqual(["디자인 생성 로그", "무늬·로고", "템플릿"]);
     expect(
       within(sidebar)
         .getByRole("link", { name: "주문 관리" })

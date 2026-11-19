@@ -15,6 +15,8 @@ UI는 `@essesion/shared`로만 작성한다. 규칙 원본: `packages/shared/AGE
 - 모바일 메뉴는 키보드로 열 수 있어야 하고, 이동 후 닫히며 닫을 때 trigger로 focus를 돌린다.
 - session bootstrap 전에는 보호 화면을 렌더하지 않는다. logout과 role 상실 시 access token과 query cache를 비운다.
 - route마다 document title을 구분하고, 이동 후 `h1`에 `tabIndex={-1}`로 focus한다.
+- 페이지 머리 줄은 `RouteHeading` 하나로 — 목록 복귀는 `backTo`(제목 위 "‹ 목록 이름" 링크), 상태 뱃지는 `badges`(제목 옆), 버튼은 `actions`. 버튼 줄에 "목록으로"·새로고침을 두지 않는다. 자주 쓰는 버튼은 개수로 자르지 않고 그대로 둔다.
+- 모바일(md 미만)에서 `AdminCard`는 카드 틀 없이 섹션으로 보인다 — 화면에서 카드 테두리를 다시 그리지 않는다.
 
 ### 테이블·필터·페이지네이션
 
