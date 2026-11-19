@@ -470,6 +470,7 @@ function OrderContent({
         <Grid columns={{ base: 2, md: 3 }} gap="x3">
           <SignedOrderImage
             alt="수선 접수 사진"
+            queryKey={["signed-read-url", imageKey]}
             load={async () => {
               const response = await createReadUrl({
                 body: { object_key: imageKey },
@@ -537,6 +538,7 @@ function OrderReferenceImages({
           <SignedOrderImage
             key={image.id}
             alt={`주문 참고 이미지 ${index + 1}`}
+            queryKey={["order-reference-image-url", orderId, image.id]}
             load={async () => {
               const response = await createMyOrderReferenceImageReadUrl({
                 path: { order_id: orderId, image_id: image.id },
@@ -629,6 +631,7 @@ function RepairReceiptPhotos({
         <SignedOrderImage
           key={image.id}
           alt={`수선 발송 사진 ${index + 1}`}
+          queryKey={["repair-receipt-photo-url", receipt.id, image.id]}
           load={async () => {
             const response = await createMyRepairReceiptPhotoReadUrl({
               path: {
@@ -648,30 +651,44 @@ function RepairReceiptPhotos({
 
 function SignedOrderImage({
   alt,
+  queryKey,
   load,
 }: {
   alt: string;
+  queryKey: readonly unknown[];
   load: () => Promise<string>;
 }) {
-  const [readUrl, setReadUrl] = useState<string>();
-  const mutation = useMutation({ mutationFn: load, onSuccess: setReadUrl });
+  // 서버 URL TTL(15분)보다 짧게 둬 만료된 URL을 쓰지 않는다.
+  const query = useQuery({
+    queryKey,
+    queryFn: load,
+    staleTime: 10 * 60 * 1000,
+  });
+  const readUrl = query.data;
   return (
     <VStack gap="x2" alignItems="stretch">
       <ImageFrame src={readUrl} alt={alt} ratio={1} fit="contain" stroke />
-      <ActionButton
-        type="button"
-        size="small"
-        variant="neutralOutline"
-        loading={mutation.isPending}
-        onClick={() =>
-          readUrl
-            ? window.open(readUrl, "_blank", "noopener,noreferrer")
-            : mutation.mutate()
-        }
-      >
-        {readUrl ? "원본 보기" : "이미지 보기"}
-      </ActionButton>
-      {mutation.isError ? (
+      {query.isError ? (
+        <ActionButton
+          type="button"
+          size="small"
+          variant="neutralOutline"
+          loading={query.isFetching}
+          onClick={() => void query.refetch()}
+        >
+          다시 불러오기
+        </ActionButton>
+      ) : readUrl ? (
+        <ActionButton
+          type="button"
+          size="small"
+          variant="neutralOutline"
+          onClick={() => window.open(readUrl, "_blank", "noopener,noreferrer")}
+        >
+          원본 보기
+        </ActionButton>
+      ) : null}
+      {query.isError ? (
         <Text role="alert" textStyle="caption" color="fg.critical">
           이미지를 불러오지 못했습니다.
         </Text>

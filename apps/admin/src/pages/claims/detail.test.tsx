@@ -471,13 +471,12 @@ describe("ClaimDetailPage", () => {
     ).toBeTruthy();
   });
 
-  it("접수·사진 ID 관계로 목록과 만료 URL을 발급하고 재발급한다", async () => {
-    const user = userEvent.setup();
+  it("접수·사진 ID 관계로 목록과 만료 URL을 바로 발급한다", async () => {
     api.getClaim.mockResolvedValueOnce(repairClaim);
     api.listPhotos.mockResolvedValueOnce([repairPhoto]);
-    api.createPhotoReadUrl
-      .mockResolvedValueOnce({ read_url: "https://storage.example/signed-1" })
-      .mockResolvedValueOnce({ read_url: "https://storage.example/signed-2" });
+    api.createPhotoReadUrl.mockResolvedValueOnce({
+      read_url: "https://storage.example/signed-1",
+    });
     const { container } = renderPage("/claims/claim-1?tab=shipping");
 
     expect(await screen.findByText("송장 분실 · 사진 1장")).toBeTruthy();
@@ -485,14 +484,6 @@ describe("ClaimDetailPage", () => {
     expect(api.photoListOptions).toHaveBeenCalledWith({
       path: { receipt_id: "receipt-1" },
     });
-    expect(
-      screen.queryByRole("img", { name: "수선 발송 접수 사진 1" }),
-    ).toBeNull();
-
-    await user.click(
-      await screen.findByRole("button", { name: "이미지 보기" }),
-    );
-
     const image = await screen.findByRole("img", {
       name: "수선 발송 접수 사진 1",
     });
@@ -507,12 +498,6 @@ describe("ClaimDetailPage", () => {
     expect(container.textContent).not.toContain(
       "uploads/repair_shipping_upload",
     );
-
-    await user.click(screen.getByRole("button", { name: "다시 불러오기" }));
-    await waitFor(() =>
-      expect(api.createPhotoReadUrl).toHaveBeenCalledTimes(2),
-    );
-    expect(image.getAttribute("src")).toBe("https://storage.example/signed-2");
   });
 
   it("관계형 사진 목록이 비어 있으면 명시적인 빈 상태를 표시한다", async () => {

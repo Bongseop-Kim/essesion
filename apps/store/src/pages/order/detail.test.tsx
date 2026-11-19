@@ -188,7 +188,6 @@ describe("OrderDetailPage", () => {
     expect(screen.getByText("navy")).toBeTruthy();
     expect(screen.getByText("삼각 봉제")).toBeTruthy();
     expect(screen.getByText("광택을 낮춰 주세요.")).toBeTruthy();
-    fireEvent.click(await screen.findByRole("button", { name: "이미지 보기" }));
     expect(
       (
         await screen.findByRole("img", { name: "주문 참고 이미지 1" })
@@ -252,14 +251,6 @@ describe("OrderDetailPage", () => {
     expect(screen.getByText("송장 분실")).toBeTruthy();
     expect(screen.getByText("송장을 분실했습니다.")).toBeTruthy();
 
-    await waitFor(() =>
-      expect(
-        screen.getAllByRole("button", { name: "이미지 보기" }),
-      ).toHaveLength(2),
-    );
-    const imageButtons = screen.getAllByRole("button", { name: "이미지 보기" });
-    fireEvent.click(imageButtons[0] as HTMLElement);
-    fireEvent.click(imageButtons[1] as HTMLElement);
     expect(
       (await screen.findByRole("img", { name: "수선 접수 사진" })).getAttribute(
         "src",
@@ -307,7 +298,7 @@ describe("OrderDetailPage", () => {
 
     await waitFor(() => expect(api.receiptPhotos).toHaveBeenCalledTimes(2));
     expect(
-      await screen.findByRole("button", { name: "이미지 보기" }),
+      await screen.findByRole("img", { name: "수선 발송 사진 1" }),
     ).toBeTruthy();
   });
 });

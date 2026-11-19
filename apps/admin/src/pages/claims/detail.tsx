@@ -23,7 +23,6 @@ import {
   formatPhoneNumber,
   Grid,
   HStack,
-  ImageFrame,
   Skeleton,
   snackbar,
   TabContent,
@@ -53,6 +52,7 @@ import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { BackToListButton } from "../../shared/ui/back-to-list-button";
 import { DetailList } from "../../shared/ui/detail-list";
+import { PrivateAssetPreview } from "../../shared/ui/private-asset-preview";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { formatStatus, StatusBadge } from "../../shared/ui/status-badge";
 import { TechnicalDetails } from "../../shared/ui/technical-details";
@@ -129,52 +129,24 @@ function RepairReceiptPhoto({
   });
 
   return (
-    <Box
-      as="article"
-      borderRadius="r2"
-      p="x3"
-      className="border border-stroke-neutral-weak"
-    >
-      <VStack gap="x3" alignItems="stretch">
-        <ImageFrame
-          src={readUrl}
-          alt={`수선 발송 접수 사진 ${index + 1}`}
-          ratio={4 / 3}
-          fit="contain"
-          stroke
-        />
-        <VStack gap="x0_5">
-          <Text textStyle="labelSm">사진 {index + 1}</Text>
-          <Text textStyle="caption" color="fg.neutral-muted">
-            {photo.content_type ?? "이미지"} ·{" "}
-            {formatFileSize(photo.size_bytes, "크기 정보 없음")}
-          </Text>
-          <Text textStyle="caption" color="fg.neutral-muted">
-            {formatDateTime(photo.created_at)}
-          </Text>
-        </VStack>
-        <ActionButton
-          size="small"
-          variant="neutralOutline"
-          loading={mutation.isPending}
-          onClick={() =>
-            mutation.mutate({
-              path: { receipt_id: receiptId, image_id: photo.id },
-            })
-          }
-        >
-          {readUrl === undefined ? "이미지 보기" : "다시 불러오기"}
-        </ActionButton>
-        {mutation.isError && (
-          <Callout
-            role="alert"
-            tone="critical"
-            title="사진을 불러오지 못했습니다"
-            description="만료되었거나 이 접수의 사진이 아닙니다."
-          />
-        )}
-      </VStack>
-    </Box>
+    <PrivateAssetPreview
+      src={readUrl}
+      alt={`수선 발송 접수 사진 ${index + 1}`}
+      metadata={
+        <>
+          {photo.content_type ?? "이미지"} ·{" "}
+          {formatFileSize(photo.size_bytes, "크기 정보 없음")} ·{" "}
+          {formatDateTime(photo.created_at)}
+        </>
+      }
+      error={mutation.isError}
+      errorDescription="만료되었거나 이 접수의 사진이 아닙니다."
+      onRequest={() =>
+        mutation.mutate({
+          path: { receipt_id: receiptId, image_id: photo.id },
+        })
+      }
+    />
   );
 }
 
