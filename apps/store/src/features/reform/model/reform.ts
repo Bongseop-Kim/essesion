@@ -140,39 +140,42 @@ type ReformServicePartsInput = {
   restoration?: { memo: string | null } | null;
 };
 
-/** 수선 옵션을 사람이 읽는 요약 조각으로. API 데이터(reformServiceLabel)와 폼 값이 공유. */
+/**
+ * 수선 옵션을 값만 남긴 요약 조각으로 — 서비스마다 한 조각. API 데이터(reformServiceLabel)와
+ * 폼 값이 공유. 복원 메모는 길 수 있어 넣지 않는다(요청사항으로 따로 보여준다).
+ */
 export function reformServiceParts(tie: ReformServicePartsInput): string[] {
   const parts: string[] = [];
   if (tie.automatic) {
-    const details = [
+    const mechanism =
       tie.automatic.mechanism === "zipper"
         ? "지퍼"
         : tie.automatic.mechanism === "string"
           ? "끈"
-          : null,
-      tie.automatic.totalLengthCm != null
-        ? `넥타이 길이 ${tie.automatic.totalLengthCm}cm`
-        : tie.automatic.wearerHeightCm != null
-          ? `착용자 ${tie.automatic.wearerHeightCm}cm`
-          : null,
-      tie.automatic.dimple ? "딤플" : null,
-      tie.automatic.turnKnot ? "돌려묶기" : null,
-    ].filter((value): value is string => value != null);
+          : null;
     parts.push(
-      details.length ? `자동 수선(${details.join(" · ")})` : "자동 수선",
+      [
+        mechanism ? `자동 ${mechanism}` : "자동",
+        tie.automatic.totalLengthCm != null
+          ? `길이 ${tie.automatic.totalLengthCm}cm`
+          : tie.automatic.wearerHeightCm != null
+            ? `키 ${tie.automatic.wearerHeightCm}cm`
+            : null,
+        tie.automatic.dimple ? "딤플" : null,
+        tie.automatic.turnKnot ? "돌려묶기" : null,
+      ]
+        .filter((value): value is string => value != null)
+        .join(" · "),
     );
   }
   if (tie.width) {
     parts.push(
       tie.width.targetWidthCm != null
-        ? `폭 수선(희망 ${tie.width.targetWidthCm}cm)`
-        : "폭 수선",
+        ? `폭 ${tie.width.targetWidthCm}cm`
+        : "폭",
     );
   }
-  if (tie.restoration) {
-    const memo = tie.restoration.memo?.trim();
-    parts.push(memo ? `복원 수선(${memo})` : "복원 수선");
-  }
+  if (tie.restoration) parts.push("복원");
   return parts;
 }
 

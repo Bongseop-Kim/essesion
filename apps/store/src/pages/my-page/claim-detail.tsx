@@ -13,8 +13,6 @@ import {
   ContentPlaceholder,
   Divider,
   HStack,
-  List,
-  ListItem,
   Skeleton,
   snackbar,
   Text,
@@ -25,11 +23,11 @@ import { useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
 
 import {
-  claimItemTitle,
   claimReasonLabel,
   claimStatusTone,
   claimTypeLabel,
 } from "@/features/claims/model/config";
+import { OrderedItemSummary } from "@/features/orders/ui/ordered-item-summary";
 import {
   courierLabel,
   courierTrackingUrl,
@@ -153,12 +151,22 @@ export function ClaimDetailPage() {
             <Text as="h2" textStyle="title3">
               대상 상품
             </Text>
-            <List>
-              <ListItem
-                title={claimItemTitle(claim.item)}
-                description={`${claim.quantity}개 · 주문 ${claim.order_number}`}
-              />
-            </List>
+            <Box
+              borderWidth={1}
+              borderColor="stroke.neutral-weak"
+              borderRadius="r3"
+              p="x4"
+            >
+              <VStack gap="x3" alignItems="stretch">
+                <OrderedItemSummary
+                  orderId={claim.order_id}
+                  item={claim.item}
+                />
+                <Text textStyle="caption" color="fg.neutral-muted">
+                  신청 수량 {claim.quantity}개 · 주문 {claim.order_number}
+                </Text>
+              </VStack>
+            </Box>
           </VStack>
 
           <VStack gap="x3" alignItems="stretch">

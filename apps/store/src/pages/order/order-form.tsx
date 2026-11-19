@@ -19,9 +19,7 @@ import {
   Checkbox,
   ContentPlaceholder,
   Divider,
-  Grid,
   HStack,
-  ImageFrame,
   Skeleton,
   snackbar,
   Text,
@@ -30,6 +28,7 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, useLocation } from "react-router";
+import { OrderItemSummary } from "@/entities/order-item/ui/order-item-summary";
 import {
   cartItemBlockingReason,
   productUnitPrice,
@@ -55,6 +54,7 @@ import { RepairShipmentFields } from "@/features/repair-shipping/ui/repair-shipm
 import { AddressSelectModal } from "@/features/shipping/ui/address-select-modal";
 import { ShippingAddressCard } from "@/features/shipping/ui/shipping-address-card";
 import { krw } from "@/pages/shop/constants";
+import { resizedImage } from "@/shared/lib/image-url";
 import { signedReadUrlQueryOptions } from "@/shared/lib/signed-read-url";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
@@ -439,38 +439,33 @@ function OrderItemCard({
       p={{ base: "x4", md: "x5" }}
     >
       <VStack gap="x3" alignItems="stretch">
-        <Grid templateColumns="6rem minmax(0, 1fr)" gap="x4">
-          <ImageFrame
-            ratio={1}
-            src={product?.image ?? reformImageQuery.data}
-            alt={product?.name ?? "수선 넥타이"}
-            borderRadius="r2"
-            fit="cover"
-            stroke
-          />
-          <VStack gap="x1" minWidth={0}>
-            <Box alignSelf="flex-start">
-              <Badge variant="outline" className="justify-center">
-                {item.item_type === "reform" ? "수선" : "상품"}
-              </Badge>
-            </Box>
-            <Text textStyle="label" maxLines={2}>
-              {product?.name ?? "넥타이 수선"}
-            </Text>
-            <Text textStyle="caption" color="fg.neutral-muted">
-              {reformData
-                ? reformServiceLabel(reformData)
-                : `${item.selected_option?.name ?? "FREE"} / ${item.quantity}개`}
-            </Text>
-            <OrderItemPrice linePrice={linePrice} discount={discount} />
-          </VStack>
-        </Grid>
-        <HStack justify="space-between" gap="x3">
-          <Text textStyle="caption" color="fg.neutral-muted">
-            {item.applied_coupon
-              ? `${couponLabel(item.applied_coupon.coupon)} 적용`
-              : "적용된 쿠폰 없음"}
-          </Text>
+        <OrderItemSummary
+          image={
+            product
+              ? resizedImage(product.image, 600)
+              : reformImageQuery.isLoading
+                ? null
+                : { src: reformImageQuery.data }
+          }
+          alt={product?.name ?? "수선 넥타이"}
+          badges={
+            <Badge variant="outline">
+              {item.item_type === "reform" ? "수선" : "상품"}
+            </Badge>
+          }
+          title={product?.name ?? "넥타이 수선"}
+          meta={
+            reformData
+              ? reformServiceLabel(reformData)
+              : `${item.selected_option?.name ?? "FREE"} / ${item.quantity}개`
+          }
+          linePrice={linePrice}
+          discount={discount}
+          couponName={
+            item.applied_coupon ? couponLabel(item.applied_coupon.coupon) : null
+          }
+        />
+        <HStack justify="flex-end">
           <ActionButton
             type="button"
             variant="ghost"
@@ -507,38 +502,6 @@ function calculateTotals(
   const hasReform = items.some((item) => item.item_type === "reform");
   const shipping = hasReform ? (reformPricing?.shipping_cost ?? 0) : 0;
   return { ...lines, shipping, total: lines.total + shipping };
-}
-
-function OrderItemPrice({
-  linePrice,
-  discount,
-}: {
-  linePrice: number;
-  discount: number;
-}) {
-  // 금액은 쉼표 사이에서 줄이 바뀌지 않게 — 좁으면 원가와 할인가 사이에서 바뀐다
-  const noWrap = { whiteSpace: "nowrap" } as const;
-  if (discount <= 0) {
-    return (
-      <Text textStyle="label" style={noWrap}>
-        {krw.format(linePrice)}원
-      </Text>
-    );
-  }
-  return (
-    <HStack gap="x2" wrap>
-      <Text
-        textStyle="caption"
-        color="fg.neutral-muted"
-        style={{ ...noWrap, textDecoration: "line-through" }}
-      >
-        {krw.format(linePrice)}원
-      </Text>
-      <Text textStyle="label" color="fg.critical" style={noWrap}>
-        {krw.format(linePrice - discount)}원
-      </Text>
-    </HStack>
-  );
 }
 
 function orderCrumbs() {
