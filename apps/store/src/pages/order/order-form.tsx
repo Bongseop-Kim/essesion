@@ -438,51 +438,49 @@ function OrderItemCard({
       borderRadius="r3"
       p={{ base: "x4", md: "x5" }}
     >
-      <Grid templateColumns="5rem minmax(0, 1fr)" gap="x4">
-        <ImageFrame
-          ratio={1}
-          src={product?.image ?? reformImageQuery.data}
-          alt={product?.name ?? "수선 넥타이"}
-          borderRadius="r2"
-          fit="cover"
-          stroke
-        />
-        <VStack gap="x2" alignItems="stretch">
-          <HStack justify="space-between" gap="x3" align="flex-start">
-            <VStack gap="x1" minWidth={0}>
-              <Box alignSelf="flex-start">
-                <Badge variant="outline" className="justify-center">
-                  {item.item_type === "reform" ? "수선" : "상품"}
-                </Badge>
-              </Box>
-              <Text textStyle="label" maxLines={2}>
-                {product?.name ?? "넥타이 수선"}
-              </Text>
-              <Text textStyle="caption" color="fg.neutral-muted">
-                {reformData
-                  ? reformServiceLabel(reformData)
-                  : `${item.selected_option?.name ?? "FREE"} / ${item.quantity}개`}
-              </Text>
-            </VStack>
-            <OrderItemPrice linePrice={linePrice} discount={discount} />
-          </HStack>
-          <HStack justify="space-between" gap="x3">
-            <Text textStyle="caption" color="fg.neutral-muted">
-              {item.applied_coupon
-                ? `${couponLabel(item.applied_coupon.coupon)} 적용`
-                : "적용된 쿠폰 없음"}
+      <VStack gap="x3" alignItems="stretch">
+        <Grid templateColumns="6rem minmax(0, 1fr)" gap="x4">
+          <ImageFrame
+            ratio={1}
+            src={product?.image ?? reformImageQuery.data}
+            alt={product?.name ?? "수선 넥타이"}
+            borderRadius="r2"
+            fit="cover"
+            stroke
+          />
+          <VStack gap="x1" minWidth={0}>
+            <Box alignSelf="flex-start">
+              <Badge variant="outline" className="justify-center">
+                {item.item_type === "reform" ? "수선" : "상품"}
+              </Badge>
+            </Box>
+            <Text textStyle="label" maxLines={2}>
+              {product?.name ?? "넥타이 수선"}
             </Text>
-            <ActionButton
-              type="button"
-              variant="ghost"
-              size="small"
-              onClick={onCouponChange}
-            >
-              쿠폰 변경
-            </ActionButton>
-          </HStack>
-        </VStack>
-      </Grid>
+            <Text textStyle="caption" color="fg.neutral-muted">
+              {reformData
+                ? reformServiceLabel(reformData)
+                : `${item.selected_option?.name ?? "FREE"} / ${item.quantity}개`}
+            </Text>
+            <OrderItemPrice linePrice={linePrice} discount={discount} />
+          </VStack>
+        </Grid>
+        <HStack justify="space-between" gap="x3">
+          <Text textStyle="caption" color="fg.neutral-muted">
+            {item.applied_coupon
+              ? `${couponLabel(item.applied_coupon.coupon)} 적용`
+              : "적용된 쿠폰 없음"}
+          </Text>
+          <ActionButton
+            type="button"
+            variant="ghost"
+            size="small"
+            onClick={onCouponChange}
+          >
+            쿠폰 변경
+          </ActionButton>
+        </HStack>
+      </VStack>
     </Box>
   );
 }
@@ -518,22 +516,28 @@ function OrderItemPrice({
   linePrice: number;
   discount: number;
 }) {
+  // 금액은 쉼표 사이에서 줄이 바뀌지 않게 — 좁으면 원가와 할인가 사이에서 바뀐다
+  const noWrap = { whiteSpace: "nowrap" } as const;
   if (discount <= 0) {
-    return <Text textStyle="label">{krw.format(linePrice)}원</Text>;
+    return (
+      <Text textStyle="label" style={noWrap}>
+        {krw.format(linePrice)}원
+      </Text>
+    );
   }
   return (
-    <VStack gap="x0_5" alignItems="flex-end">
+    <HStack gap="x2" wrap>
       <Text
         textStyle="caption"
         color="fg.neutral-muted"
-        style={{ textDecoration: "line-through" }}
+        style={{ ...noWrap, textDecoration: "line-through" }}
       >
         {krw.format(linePrice)}원
       </Text>
-      <Text textStyle="label" color="fg.critical">
+      <Text textStyle="label" color="fg.critical" style={noWrap}>
         {krw.format(linePrice - discount)}원
       </Text>
-    </VStack>
+    </HStack>
   );
 }
 
