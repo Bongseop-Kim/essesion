@@ -8,4 +8,4 @@ Disallow: /login
 Disallow: /auth
 Disallow: /token
 
-Sitemap: https://essesion.shop/sitemap.xml
+Sitemap: https://essesion.com/sitemap.xml

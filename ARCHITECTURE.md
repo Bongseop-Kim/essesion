@@ -21,7 +21,7 @@ React clients → generated OpenAPI client → FastAPI domain API
 | Store·Admin·API·worker·DB | 구현·로컬 검증 완료 |
 | OpenAPI·CI/CD·OpenTofu | 구현 완료 (codegen drift, deploy 순서, IAM·리소스 선언 검증) |
 | GCP·Cloudflare production | 개통 완료 — OpenTofu no-change, proxy/direct 경계와 worker·batch OIDC 확인 |
-| Production 전환 | 완료 — 새 GCP 런타임과 `essesion.shop` 연결 |
+| Production 전환 | 완료 — 새 GCP 런타임과 `essesion.com` 연결 |
 
 정확한 테스트·계약 수치는 CI가 정본이다. 이 문서는 고정 수치를 싣지 않는다.
 
@@ -118,7 +118,7 @@ worker는 `worker-generate` 하나다. 실사화(finalize)를 하던 `worker-fin
 - 비로컬 일반 API 요청은 Cloudflare proxy가 덮어쓰는 **정확한 edge secret** 없이는 403이다.
 - 예외는 프로세스 liveness용 `/healthz`와 Google OIDC로 별도 검증하는 `/batch/*`뿐이다.
 - `/readyz`는 예외가 아니다. 공개 경로에서는 응답하지만 `run.app` 직통은 403이어야 한다.
-- Toss webhook과 OAuth callback의 외부 등록 주소는 `api.essesion.shop`만 사용한다.
+- Toss webhook과 OAuth callback의 외부 등록 주소는 `api.essesion.com`만 사용한다.
 - Admin mutation은 JWT role뿐 아니라 허용된 exact Origin을 검사하고 응답을 `no-store`로 제한한다.
 - worker는 `roles/run.invoker`와 audience가 맞는 Google OIDC token만 수신한다.
 - API에는 앱 레벨 레이트리밋 지점이 없다. 유일했던 `/design/ideas` 제한은 2026-10-19 엔드포인트와 함께 사라졌고, edge 규칙은 두지 않는다(근거: `docs/reviews/cloudflare-waf-rate-limits-2026-08-14.md`).

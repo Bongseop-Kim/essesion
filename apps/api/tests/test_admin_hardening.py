@@ -20,7 +20,7 @@ from pydantic_settings import SettingsConfigDict
 
 class _TestSettings(Settings):
     model_config = SettingsConfigDict(env_file=None)
-    public_api_origin: str = "https://api.essesion.shop"
+    public_api_origin: str = "https://api.essesion.com"
 
 
 def test_auth_rate_limiter_expires_and_bounds_keys():

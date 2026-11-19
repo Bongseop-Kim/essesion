@@ -12,7 +12,7 @@ const env = {
 
 async function get(range?: string) {
   const res = await worker.fetch(
-    new Request("https://essesion.shop/images/reform/reform.mp4", {
+    new Request("https://essesion.com/images/reform/reform.mp4", {
       headers: range ? { range } : {},
     }),
     env,

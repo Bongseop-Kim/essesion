@@ -7,7 +7,7 @@ async def test_nonlocal_readyz_checks_database(settings, fake_integrations):
         settings.model_copy(
             update={
                 "env": "staging",
-                "public_api_origin": "https://api.essesion.shop",
+                "public_api_origin": "https://api.essesion.com",
                 "edge_proxy_secret": "edge-test-secret",
             }
         )

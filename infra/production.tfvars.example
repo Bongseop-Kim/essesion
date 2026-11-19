@@ -2,16 +2,16 @@
 project_id        = "ysindustry"
 billing_account   = "XXXXXX-XXXXXX-XXXXXX"
 alert_email       = "<알림 수신 이메일>"
-public_api_origin = "https://api.essesion.shop"
+public_api_origin = "https://api.essesion.com"
 
 # 비시크릿 운영 env — 첫 apply부터 공개 Cloudflare 도메인으로 설정 (시크릿은 gcloud 주입, README)
-# 도메인 확정: essesion.shop. 일반 API에 run.app URL을 사용하거나 외부 콘솔에 등록하지 않는다.
+# 도메인 확정: essesion.com. 일반 API에 run.app URL을 사용하거나 외부 콘솔에 등록하지 않는다.
 # api_extra_env = {
-#   FRONTEND_ORIGIN  = "https://app.essesion.shop"
-#   ADMIN_FRONTEND_ORIGIN = "https://admin.essesion.shop"
-#   CORS_ORIGINS     = "[\"https://app.essesion.shop\", \"https://admin.essesion.shop\"]"
-#   # 도메인 이전 동시 운영 동안만 — 공개 API origin → 프론트 origin 허용 쌍 (docs/plans/domain-move-essesion-com.md)
-#   ALT_SITE_ORIGINS = "{\"https://api.essesion.com\": \"https://essesion.com\"}"
+#   FRONTEND_ORIGIN  = "https://essesion.com"
+#   ADMIN_FRONTEND_ORIGIN = "https://admin.essesion.com"
+#   CORS_ORIGINS     = "[\"https://essesion.com\", \"https://admin.essesion.com\"]"
+#   # 도메인 이전 정리 전까지만 — 구 도메인 쌍 (docs/plans/domain-move-essesion-com.md). 정리 때 지운다.
+#   ALT_SITE_ORIGINS = "{\"https://api.essesion.shop\": \"https://essesion.shop\"}"
 #   GOOGLE_CLIENT_ID = "..."
 #   KAKAO_CLIENT_ID  = "..."
 #   NAVER_CLIENT_ID  = "..."
