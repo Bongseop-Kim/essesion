@@ -62,6 +62,10 @@ resource "google_monitoring_uptime_check_config" "api_public" {
   }
 
   depends_on = [google_project_service.apis]
+  # 호스트가 바뀌면 교체되는데, 알림 정책이 물고 있어 먼저 지울 수 없다
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "google_monitoring_alert_policy" "api_down" {
