@@ -17,7 +17,9 @@ export function EditModeShell({
   const bar = (
     <Box
       position="sticky"
-      bottom="x3"
+      style={{
+        bottom: "calc(var(--spacing-x3) + env(safe-area-inset-bottom, 0px))",
+      }}
       zIndex="z.sticky"
       bg="bg.layer-floating"
       borderRadius="r3"
