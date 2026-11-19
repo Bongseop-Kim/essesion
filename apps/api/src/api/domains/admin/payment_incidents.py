@@ -147,9 +147,7 @@ def _reconciliation_blocker(incident: PaymentIncident) -> str | None:
             return "토스 결제 상태 반영 결과를 확인한 뒤 수동 해결해야 합니다"
         return None
     if not evidence.get("domain_consistent"):
-        return str(
-            evidence.get("unsupported_reason") or "주문 상태 자동 반영이 지원되지 않습니다"
-        )
+        return str(evidence.get("unsupported_reason") or "주문 상태 자동 반영이 지원되지 않습니다")
     return None
 
 

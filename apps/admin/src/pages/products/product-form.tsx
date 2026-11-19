@@ -470,7 +470,12 @@ export function ProductForm({
                 />
               </VStack>
             ) : (
-              <Callout tone="neutral" title="재고는 옵션별로 관리됩니다" />
+              // 저장하면 상품 단위 재고가 null로 덮어써진다 — 데이터가 사라지므로 남기는 경고
+              <Callout
+                tone="neutral"
+                title="재고는 옵션별로 관리됩니다"
+                description="저장하면 상품 단위 재고는 비워집니다."
+              />
             )}
           </Grid>
         </AdminCard>

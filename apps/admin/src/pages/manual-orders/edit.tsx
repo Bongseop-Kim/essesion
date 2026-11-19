@@ -116,7 +116,7 @@ function ManualOrderEdit({ kind }: { kind: ManualOrderKind }) {
       <RouteHeading
         backTo={{
           to: manualOrderPath(kind, order.id),
-          label: "수기 주문 상세",
+          label: `${noun} 상세`,
         }}
         title={`${order.customer_name} 님의 ${noun} 수정`}
         description={`마지막 수정 ${formatDateTime(order.updated_at)}`}
