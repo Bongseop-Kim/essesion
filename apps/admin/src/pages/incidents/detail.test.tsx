@@ -230,9 +230,7 @@ describe("IncidentDetailPage", () => {
     session.role = "manager";
     renderPage();
 
-    expect(
-      await screen.findByText(/대사·해결은 관리자만 할 수 있습니다/),
-    ).toBeTruthy();
+    expect(await screen.findByText(/관리자만 처리할 수 있습니다/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "외부 상태 대사" })).toBeNull();
     expect(screen.queryByRole("button", { name: "해결 처리" })).toBeNull();
   });

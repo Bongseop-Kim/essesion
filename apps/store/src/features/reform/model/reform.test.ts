@@ -76,9 +76,7 @@ describe("reform pricing and cart mapping", () => {
     );
     expect(data.tie.automatic?.dimple).toBe(false);
     expect(data.tie.automatic?.turn_knot).toBe(true);
-    expect(reformServiceLabel(data)).toBe(
-      "자동 수선(끈 · 착용자 175cm · 돌려묶기)",
-    );
+    expect(reformServiceLabel(data)).toBe("자동 끈 · 키 175cm · 돌려묶기");
   });
 
   it("sends only the tie length when it is entered directly", () => {
@@ -92,7 +90,7 @@ describe("reform pricing and cart mapping", () => {
     );
     expect(data.tie.automatic?.total_length_cm).toBe(48);
     expect(data.tie.automatic?.wearer_height_cm).toBeNull();
-    expect(reformServiceLabel(data)).toBe("자동 수선(지퍼 · 넥타이 길이 48cm)");
+    expect(reformServiceLabel(data)).toBe("자동 지퍼 · 길이 48cm");
     expect(reformFormFromData("reform:test", data).totalLengthCm).toBe(48);
   });
 
@@ -124,7 +122,7 @@ describe("reform pricing and cart mapping", () => {
       }),
     );
     expect(reformServiceLabel(data)).toBe(
-      "자동 수선(지퍼 · 착용자 180cm · 딤플 · 돌려묶기) · 폭 수선(희망 7.5cm) · 복원 수선(안감 복원 상담)",
+      "자동 지퍼 · 키 180cm · 딤플 · 돌려묶기 · 폭 7.5cm · 복원",
     );
   });
 

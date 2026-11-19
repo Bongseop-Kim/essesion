@@ -1,4 +1,4 @@
-import { ActionButton, Divider, VStack } from "@essesion/shared";
+import { Divider, Text, VStack } from "@essesion/shared";
 import type { ReactNode } from "react";
 
 import { AdminCard } from "../../shared/ui/admin-card";
@@ -10,8 +10,8 @@ import {
 } from "./admin-table";
 import { Pagination } from "./pagination";
 
+// 제목은 페이지 RouteHeading 하나만 — 카드는 건수와 새로고침만 둔다.
 type PaginatedAdminTableCardProps<Row> = {
-  title: string;
   description?: string;
   label: string;
   columns: readonly AdminTableColumn<Row>[];
@@ -26,9 +26,7 @@ type PaginatedAdminTableCardProps<Row> = {
   onSort?: (sort: AdminTableSort) => void;
   onRowClick?: (row: Row) => void;
   compactRow?: (row: Row) => AdminTableCompactRow;
-  refreshing: boolean;
-  onRefresh: () => void;
-  onRetry?: () => void;
+  onRetry: () => void;
   emptyTitle?: string;
   emptyDescription?: string;
   errorDescription?: string;
@@ -40,7 +38,6 @@ type PaginatedAdminTableCardProps<Row> = {
 };
 
 export function PaginatedAdminTableCard<Row>({
-  title,
   description,
   label,
   columns,
@@ -55,8 +52,6 @@ export function PaginatedAdminTableCard<Row>({
   onSort,
   onRowClick,
   compactRow,
-  refreshing,
-  onRefresh,
   onRetry,
   emptyTitle,
   emptyDescription,
@@ -68,21 +63,13 @@ export function PaginatedAdminTableCard<Row>({
   toolbar,
 }: PaginatedAdminTableCardProps<Row>) {
   return (
-    <AdminCard
-      title={title}
-      description={status === "success" ? description : undefined}
-      action={
-        <ActionButton
-          variant="ghost"
-          size="small"
-          loading={refreshing}
-          onClick={onRefresh}
-        >
-          새로고침
-        </ActionButton>
-      }
-    >
+    <AdminCard>
       <VStack gap="x4" alignItems="stretch">
+        {status === "success" && description !== undefined ? (
+          <Text textStyle="bodySm" color="fg.neutral-muted">
+            {description}
+          </Text>
+        ) : null}
         {toolbar !== undefined ? (
           <VStack gap="x3" alignItems="stretch">
             {toolbar}
@@ -100,7 +87,7 @@ export function PaginatedAdminTableCard<Row>({
           onSort={onSort}
           onRowClick={onRowClick}
           compactRow={compactRow}
-          onRetry={onRetry ?? onRefresh}
+          onRetry={onRetry}
           emptyTitle={emptyTitle}
           emptyDescription={emptyDescription}
           errorDescription={errorDescription}

@@ -55,16 +55,17 @@ import {
   formatDateTime,
   formatDeliveryRequest,
   formatFileSize,
+  formatFileType,
   formatMoney,
   formatRepairReceiptReason,
   getErrorMessage,
 } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
-import { BackToListButton } from "../../shared/ui/back-to-list-button";
 import { customOptionItems } from "../../shared/ui/custom-option-items";
 import { type DetailItem, DetailList } from "../../shared/ui/detail-list";
 import { OptionPair } from "../../shared/ui/option-pair";
+import { PageSkeleton } from "../../shared/ui/page-skeleton";
 import { PrivateAssetPreview } from "../../shared/ui/private-asset-preview";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import {
@@ -201,7 +202,10 @@ function repairItemDetailItems(item: OrderItemOut): DetailItem[] {
     }
   }
   if (tie?.width?.targetWidthCm != null) {
-    items.push({ label: "[폭] 폭", value: `${tie.width.targetWidthCm}cm` });
+    items.push({
+      label: "[폭] 목표 폭",
+      value: `${tie.width.targetWidthCm}cm`,
+    });
   }
   if (tie?.restoration != null) {
     items.push({
@@ -331,13 +335,13 @@ function OrderReferenceImage({
       metadata={
         <>
           {image.part ? `${REFERENCE_PART_LABELS[image.part]} · ` : ""}
-          {image.content_type ?? "이미지"} ·{" "}
+          {formatFileType(image.content_type, "이미지")} ·{" "}
           {formatFileSize(image.size_bytes, "크기 정보 없음")} ·{" "}
           {formatDateTime(image.created_at)}
         </>
       }
       error={mutation.isError}
-      errorDescription="만료되었거나 이 주문에 속하지 않은 이미지입니다."
+      errorDescription="이미지를 불러오지 못했습니다. 새로고침해 주세요."
       onRequest={() =>
         mutation.mutate({
           path: { order_id: orderId, image_id: image.id },
@@ -368,13 +372,13 @@ function RepairReceiptPhoto({
       alt={`수선 발송 사진 ${index + 1}`}
       metadata={
         <>
-          {image.content_type ?? "이미지"} ·{" "}
+          {formatFileType(image.content_type, "이미지")} ·{" "}
           {formatFileSize(image.size_bytes, "크기 정보 없음")} ·{" "}
           {formatDateTime(image.created_at)}
         </>
       }
       error={mutation.isError}
-      errorDescription="만료되었거나 이 접수에 속하지 않은 이미지입니다."
+      errorDescription="이미지를 불러오지 못했습니다. 새로고침해 주세요."
       onRequest={() =>
         mutation.mutate({
           path: { receipt_id: receiptId, image_id: image.id },
@@ -515,10 +519,7 @@ export function OrderDetailPage() {
 
   if (query.isLoading) {
     return (
-      <VStack gap="x6" alignItems="stretch">
-        <RouteHeading title="주문 상세" />
-        <ContentPlaceholder title="주문 상세를 불러오고 있습니다" />
-      </VStack>
+      <PageSkeleton title="주문 상세" sections={["주문 정보", "주문 품목"]} />
     );
   }
   if (query.isError || data === undefined) {
@@ -527,7 +528,7 @@ export function OrderDetailPage() {
         <RouteHeading title="주문 상세" />
         <ContentPlaceholder
           title="주문을 불러오지 못했습니다"
-          description="주소를 확인하거나 다시 시도해 주세요."
+          description="링크를 확인하거나 다시 시도해 주세요."
           action={
             <ActionButton onClick={() => void query.refetch()}>
               다시 시도
@@ -713,36 +714,42 @@ export function OrderDetailPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title={`주문 ${data.order_number}`}
-          description={`${data.customer.name} · ${formatMoney(data.order_amount)} · 주문 ${formatDateTime(data.created_at)} · 마지막 수정 ${formatDateTime(data.updated_at)}`}
-        />
-        <HStack gap="x2" wrap>
-          <StatusBadge status={data.status} />
-          {data.claim_summary ? (
-            <ClaimStatusBadge claim={data.claim_summary} />
-          ) : null}
-          {actionButtons}
-          {/* 내보내기는 상시 작업이라 강조하지 않는다 — 화면에서 가장 센 버튼은 취소 같은 되돌릴 수 없는 액션뿐 */}
-          <ActionButton
-            variant="neutralOutline"
-            onClick={() => {
-              const node = captureRef.current;
-              if (node === null) return;
-              void downloadWorksheetPng(
-                node,
-                `주문_${data.order_number}_작업지시서.png`,
-              ).catch(() =>
-                snackbar("작업지시서 이미지를 저장하지 못했습니다."),
-              );
-            }}
-          >
-            작업지시서 이미지 저장
-          </ActionButton>
-          <BackToListButton to="/orders" />
-        </HStack>
-      </HStack>
+      <RouteHeading
+        backTo={{ to: "/orders", label: "주문 관리" }}
+        title={`주문 ${data.order_number}`}
+        description={`${data.customer.name} · ${formatMoney(data.order_amount)} · 주문 ${formatDateTime(data.created_at)} · 마지막 수정 ${formatDateTime(data.updated_at)}`}
+        badges={
+          <>
+            <StatusBadge status={data.status} />
+            {data.claim_summary ? (
+              <ClaimStatusBadge claim={data.claim_summary} />
+            ) : null}
+          </>
+        }
+        actions={
+          <>
+            {actionButtons}
+            {/* 내보내기는 상시 작업이라 강조하지 않는다 — 화면에서 가장 센 버튼은 취소 같은 되돌릴 수 없는 액션뿐 */}
+            <ActionButton
+              variant="neutralOutline"
+              onClick={() => {
+                const node = captureRef.current;
+                if (node === null) return;
+                void downloadWorksheetPng(
+                  node,
+                  `주문_${data.order_number}_작업지시서.png`,
+                ).catch(() =>
+                  snackbar(
+                    "작업지시서 이미지를 저장하지 못했습니다. 다시 시도해 주세요.",
+                  ),
+                );
+              }}
+            >
+              작업지시서 이미지 저장
+            </ActionButton>
+          </>
+        }
+      />
 
       {data.active_claim !== null && data.active_claim !== undefined && (
         <Callout
@@ -843,10 +850,7 @@ export function OrderDetailPage() {
                   />
                 </AdminCard>
 
-                <AdminCard
-                  title="주문 품목"
-                  description="상품·옵션·쿠폰은 주문 당시 정보로 표시합니다."
-                >
+                <AdminCard title="주문 품목" description="주문 당시 기준">
                   <VStack gap="x4" alignItems="stretch">
                     {orderItems.map((item) => (
                       <AdminOrderContent
@@ -995,7 +999,7 @@ export function OrderDetailPage() {
                     data.company_tracking_number
                       ? [
                           {
-                            label: isRepair ? "발송 송장" : "회사 송장",
+                            label: "발송 송장",
                             value:
                               [
                                 courierLabel(data.company_courier_company),
@@ -1067,7 +1071,7 @@ export function OrderDetailPage() {
 
         <TabContent value="activity">
           <VStack gap="x5" pt="x5" alignItems="stretch">
-            <AdminCard title="상태 변경 이력">
+            <AdminCard title="처리 이력">
               {timeline.length === 0 ? (
                 <Text color="fg.neutral-muted">
                   기록된 상태 변경이 없습니다.

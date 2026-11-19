@@ -22,7 +22,7 @@ export type ContentLayoutProps = {
   sidebar?: ReactNode;
   /** 모바일에서 사이드바를 본문 위에 — 사이드바가 입력(선택·업로드)이고 본문이 그 결과일 때. */
   sidebarFirst?: boolean;
-  /** 주문·결제 CTA — PC 사이드바 하단 · 모바일 하단 고정바. */
+  /** 주문·결제 CTA — PC 사이드바 하단(sidebar 없으면 본문 아래) · 모바일 하단 고정바. */
   actionBar?: ReactNode;
   /** 본문 하단 상세(설명·가이드) — 구분선 뒤 배치. */
   detail?: ReactNode;
@@ -91,6 +91,7 @@ export function ContentLayout({
         >
           <Box minWidth={0}>
             {children}
+            {!sidebar && actionBar ? <Box pt="x6">{actionBar}</Box> : null}
             {detail ? (
               <Box pt="x8">
                 <Divider />

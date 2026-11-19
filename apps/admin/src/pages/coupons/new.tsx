@@ -2,7 +2,7 @@ import {
   createAdminCouponMutation,
   listAdminCouponsQueryKey,
 } from "@essesion/api-client/query";
-import { ActionButton, HStack, snackbar, VStack } from "@essesion/shared";
+import { snackbar, VStack } from "@essesion/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 
@@ -29,12 +29,10 @@ export function CouponNewPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading title="쿠폰 등록" />
-        <ActionButton variant="ghost" onClick={() => navigate("/coupons")}>
-          목록으로
-        </ActionButton>
-      </HStack>
+      <RouteHeading
+        backTo={{ to: "/coupons", label: "쿠폰 관리" }}
+        title="쿠폰 등록"
+      />
       <CouponDefinitionForm
         initial={emptyCouponDraft}
         resetSignal={0}

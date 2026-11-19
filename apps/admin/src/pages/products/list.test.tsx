@@ -199,7 +199,7 @@ describe("ProductsPage", () => {
     renderPage("/products?page=2&limit=50");
     await screen.findByText("네이비 솔리드 타이");
 
-    await pickOption(user, "페이지당 표시", "100개");
+    await pickOption(user, "페이지당 표시", "100건");
 
     await waitFor(() =>
       expect(api.options).toHaveBeenLastCalledWith({

@@ -18,6 +18,7 @@ import {
   type ClaimType,
   claimItemTitle,
   claimReasonLabel,
+  claimStatusLabel,
   claimStatusTone,
   claimTypeLabel,
 } from "@/features/claims/model/config";
@@ -114,7 +115,7 @@ export function ClaimListPage() {
                       description={`${claim.order_number} · ${claimItemTitle(claim.item)} · ${claimReasonLabel(claim.reason)}`}
                       suffix={
                         <Badge tone={claimStatusTone(claim.status)}>
-                          {claim.status}
+                          {claimStatusLabel(claim.status)}
                         </Badge>
                       }
                       onClick={() => navigate(`/my-page/claims/${claim.id}`)}

@@ -45,7 +45,7 @@ type RatingFilter = (typeof RATINGS)[number];
 
 const ORDER_TYPE_LABELS: Record<OrderType, string> = {
   all: "전체",
-  sale: "상품",
+  sale: "일반 주문",
   repair: "수선",
   custom: "주문 제작",
   sample: "샘플 제작",
@@ -88,7 +88,7 @@ export function ReviewsPage() {
         queryKey: listAdminReviewsQueryKey(),
       });
     },
-    onError: () => snackbar("후기를 삭제하지 못했습니다."),
+    onError: () => snackbar("후기를 삭제하지 못했습니다. 다시 시도해 주세요."),
   });
 
   const replaceQuery = (changes: Partial<typeof parsed>) => {
@@ -182,12 +182,8 @@ export function ReviewsPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <RouteHeading
-        title="후기 관리"
-        description="구매 후기를 유형과 별점으로 확인하고 삭제합니다."
-      />
+      <RouteHeading title="후기 관리" />
       <PaginatedAdminTableCard
-        title="후기 목록"
         label="후기 목록"
         columns={columns}
         rows={query.data?.items}
@@ -217,8 +213,6 @@ export function ReviewsPage() {
         }
         total={query.data?.total}
         limit={parsed.limit}
-        refreshing={query.isFetching}
-        onRefresh={() => void query.refetch()}
         onRetry={() => void query.refetch()}
         emptyTitle="조건에 맞는 후기가 없습니다"
         page={Math.min(parsed.page, totalPages)}
@@ -231,7 +225,6 @@ export function ReviewsPage() {
               primaryControls={
                 <SubmittedMemorySearch
                   label="후기 내용 검색"
-                  placeholder="2자 이상 입력"
                   maxLength={100}
                   resetKey={searchResetKey}
                   onSubmit={(value) => {
@@ -360,7 +353,7 @@ export function ReviewsPage() {
           </VStack>
         }
         primaryActionProps={{
-          children: "삭제",
+          children: "후기 삭제",
           variant: "criticalSolid",
           loading: deleteReview.isPending,
           onClick: (event) => {

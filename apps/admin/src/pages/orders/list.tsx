@@ -196,7 +196,6 @@ export function OrdersPage() {
     <VStack gap="x6" alignItems="stretch">
       <RouteHeading title="주문 관리" />
       <PaginatedAdminTableCard
-        title="주문 목록"
         label="주문 목록"
         columns={columns}
         rows={query.data?.items}
@@ -221,8 +220,7 @@ export function OrdersPage() {
         onSort={({ key, direction }) =>
           replaceQuery({ sort: key, direction, page: 1 })
         }
-        refreshing={query.isFetching}
-        onRefresh={() => void query.refetch()}
+        onRetry={() => void query.refetch()}
         emptyTitle="조건에 맞는 주문이 없습니다"
         page={Math.min(parsed.page, totalPages)}
         totalPages={totalPages}
@@ -234,7 +232,6 @@ export function OrdersPage() {
               primaryControls={
                 <SubmittedMemorySearch
                   label="주문번호 검색"
-                  placeholder="2자 이상 입력"
                   maxLength={64}
                   resetKey={searchResetKey}
                   onSubmit={(value) => {

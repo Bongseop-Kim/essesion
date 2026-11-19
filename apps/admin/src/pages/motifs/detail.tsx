@@ -39,8 +39,13 @@ import { SafeSvgPreview } from "../generation/safe-svg-preview";
 type MotifStyle = "" | "flat" | "outline";
 
 const SCOPE_LABELS: Record<string, string> = {
-  whole: "전체 모티프",
-  partial: "부분 모티프",
+  whole: "통무늬",
+  partial: "부분 무늬",
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  seed: "템플릿",
+  user_upload: "고객 업로드",
 };
 
 const STYLE_LABELS: Record<string, string> = {
@@ -48,11 +53,15 @@ const STYLE_LABELS: Record<string, string> = {
   outline: "아웃라인",
 };
 
-function formatMotifScope(value: string | null | undefined) {
+export function formatMotifSource(value: string) {
+  return SOURCE_LABELS[value] ?? value;
+}
+
+export function formatMotifScope(value: string | null | undefined) {
   return value ? (SCOPE_LABELS[value] ?? value) : "-";
 }
 
-function formatMotifStyle(value: string | null | undefined) {
+export function formatMotifStyle(value: string | null | undefined) {
   return value ? (STYLE_LABELS[value] ?? value) : "미지정";
 }
 
@@ -90,7 +99,7 @@ function MotifMetadataForm({
     return (
       <AdminCard title="무늬·로고 정보">
         <Text textStyle="bodySm" color="fg.neutral-muted">
-          매니저는 메타데이터를 조회만 할 수 있습니다.
+          조회 전용 권한입니다.
         </Text>
       </AdminCard>
     );
@@ -187,10 +196,7 @@ export function motifPreviewDocument(
 function MotifDetailLoading() {
   return (
     <VStack gap="x6" alignItems="stretch" aria-busy="true">
-      <RouteHeading
-        title="무늬·로고 상세"
-        description="무늬·로고 정보와 미리보기를 불러오고 있습니다."
-      />
+      <RouteHeading title="무늬·로고 상세" />
       <AdminCard title="무늬·로고 상세">
         <Grid columns={{ base: 1, md: 2 }} gap="x4">
           <Skeleton width="100%" height={320} />
@@ -207,7 +213,7 @@ function MotifDetailLoading() {
 
 export function MotifDetailPage() {
   const { motifId = "" } = useParams();
-  const navigate = useNavigate();
+  const _navigate = useNavigate();
   const queryClient = useQueryClient();
   const requestOptions = { path: { motif_id: motifId } };
   const query = useQuery({
@@ -220,13 +226,10 @@ export function MotifDetailPage() {
   if (query.isError || query.data === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading
-          title="무늬·로고 상세"
-          description="무늬·로고 정보와 안전성 검사를 통과한 SVG입니다."
-        />
+        <RouteHeading title="무늬·로고 상세" />
         <ContentPlaceholder
           title="무늬·로고 상세를 불러오지 못했습니다"
-          description="ID를 확인하거나 다시 시도해 주세요."
+          description="링크를 확인하거나 다시 시도해 주세요."
           action={
             <ActionButton onClick={() => void query.refetch()}>
               다시 시도
@@ -247,17 +250,11 @@ export function MotifDetailPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title={motif.subject ?? motif.id}
-          description={`모티프 ID: ${motif.id} · SVG 상태: ${formatStatus(motif.svg_status)}`}
-        />
-        <HStack gap="x2">
-          <ActionButton variant="ghost" onClick={() => navigate("/motifs")}>
-            목록으로
-          </ActionButton>
-        </HStack>
-      </HStack>
+      <RouteHeading
+        backTo={{ to: "/motifs", label: "무늬·로고" }}
+        title={motif.subject ?? motif.id}
+        description={`모티프 ID: ${motif.id} · SVG 상태: ${formatStatus(motif.svg_status)}`}
+      />
 
       <MotifMetadataForm motif={motif} onUpdated={updateCachedMotif} />
 
@@ -266,7 +263,7 @@ export function MotifDetailPage() {
           <SafeSvgPreview
             svg={preview}
             status={motif.svg_status}
-            alt={`${motif.subject ?? motif.id} 모티프 안전 미리보기`}
+            alt={`${motif.subject ?? motif.id} 미리보기`}
           />
           <VStack gap="x4" alignItems="stretch">
             <DetailList
@@ -274,7 +271,7 @@ export function MotifDetailPage() {
                 { label: "주제", value: formatIdentifier(motif.subject) },
                 { label: "범위", value: formatMotifScope(motif.scope) },
                 { label: "스타일", value: formatMotifStyle(motif.style) },
-                { label: "소스", value: motif.source },
+                { label: "출처", value: formatMotifSource(motif.source) },
                 { label: "생성일", value: formatDateTime(motif.created_at) },
                 {
                   // 이미지 생성은 별도 generation log를 남기지 않는다 — 세션 상관은 이 두 값뿐.

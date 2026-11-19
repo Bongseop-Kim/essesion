@@ -19,9 +19,10 @@ export function AdminCard<E extends ElementType = "section">({
     <Box
       as="section"
       bg="bg.layer-default"
-      borderRadius="r3"
-      p={{ base: "x4", md: "x5" }}
-      className="border border-stroke-neutral-weak"
+      // 모바일은 카드 틀 없이 섹션으로만 — 페이지 거터 안에 테두리·여백이 겹치면 폭만 줄고 세로만 길어진다.
+      borderRadius={{ base: 0, md: "r3" }}
+      p={{ base: 0, md: "x5" }}
+      className="md:border md:border-stroke-neutral-weak"
       {...(props as BoxProps<"section">)}
     >
       <VStack gap="x4" alignItems="stretch">

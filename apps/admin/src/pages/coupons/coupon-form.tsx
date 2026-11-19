@@ -179,7 +179,7 @@ export function CouponDefinitionForm({
   return (
     <>
       <AdminCard
-        title="쿠폰 정의"
+        title="쿠폰 정보"
         description="저장된 조건은 이후 발급 건부터 적용됩니다."
       >
         <VStack
@@ -258,7 +258,7 @@ export function CouponDefinitionForm({
             {draft.discountType === "percentage" ? (
               <NumberField
                 label="최대 할인액"
-                placeholder="비워 두면 제한 없음"
+                description="비워 두면 제한 없음"
                 suffix="원"
                 groupThousands
                 value={draft.maxDiscountAmount}
@@ -354,7 +354,7 @@ export function CouponDefinitionForm({
                     setAttempted(false);
                   }}
                 >
-                  입력 취소
+                  수정 취소
                 </ActionButton>
                 <ActionButton type="submit" loading={pending}>
                   {submitLabel}

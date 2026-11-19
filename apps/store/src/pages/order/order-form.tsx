@@ -19,9 +19,7 @@ import {
   Checkbox,
   ContentPlaceholder,
   Divider,
-  Grid,
   HStack,
-  ImageFrame,
   Skeleton,
   snackbar,
   Text,
@@ -30,6 +28,7 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, useLocation } from "react-router";
+import { OrderItemSummary } from "@/entities/order-item/ui/order-item-summary";
 import {
   cartItemBlockingReason,
   productUnitPrice,
@@ -55,6 +54,7 @@ import { RepairShipmentFields } from "@/features/repair-shipping/ui/repair-shipm
 import { AddressSelectModal } from "@/features/shipping/ui/address-select-modal";
 import { ShippingAddressCard } from "@/features/shipping/ui/shipping-address-card";
 import { krw } from "@/pages/shop/constants";
+import { resizedImage } from "@/shared/lib/image-url";
 import { signedReadUrlQueryOptions } from "@/shared/lib/signed-read-url";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
@@ -438,51 +438,44 @@ function OrderItemCard({
       borderRadius="r3"
       p={{ base: "x4", md: "x5" }}
     >
-      <Grid templateColumns="5rem minmax(0, 1fr)" gap="x4">
-        <ImageFrame
-          ratio={1}
-          src={product?.image ?? reformImageQuery.data}
+      <VStack gap="x3" alignItems="stretch">
+        <OrderItemSummary
+          image={
+            product
+              ? resizedImage(product.image, 600)
+              : reformImageQuery.isLoading
+                ? null
+                : { src: reformImageQuery.data }
+          }
           alt={product?.name ?? "수선 넥타이"}
-          borderRadius="r2"
-          fit="cover"
-          stroke
+          badges={
+            <Badge variant="outline">
+              {item.item_type === "reform" ? "수선" : "상품"}
+            </Badge>
+          }
+          title={product?.name ?? "넥타이 수선"}
+          meta={
+            reformData
+              ? reformServiceLabel(reformData)
+              : `${item.selected_option?.name ?? "FREE"} / ${item.quantity}개`
+          }
+          linePrice={linePrice}
+          discount={discount}
+          couponName={
+            item.applied_coupon ? couponLabel(item.applied_coupon.coupon) : null
+          }
         />
-        <VStack gap="x2" alignItems="stretch">
-          <HStack justify="space-between" gap="x3" align="flex-start">
-            <VStack gap="x1" minWidth={0}>
-              <Box alignSelf="flex-start">
-                <Badge variant="outline" className="justify-center">
-                  {item.item_type === "reform" ? "수선" : "상품"}
-                </Badge>
-              </Box>
-              <Text textStyle="label" maxLines={2}>
-                {product?.name ?? "넥타이 수선"}
-              </Text>
-              <Text textStyle="caption" color="fg.neutral-muted">
-                {reformData
-                  ? reformServiceLabel(reformData)
-                  : `${item.selected_option?.name ?? "FREE"} / ${item.quantity}개`}
-              </Text>
-            </VStack>
-            <OrderItemPrice linePrice={linePrice} discount={discount} />
-          </HStack>
-          <HStack justify="space-between" gap="x3">
-            <Text textStyle="caption" color="fg.neutral-muted">
-              {item.applied_coupon
-                ? `${couponLabel(item.applied_coupon.coupon)} 적용`
-                : "적용된 쿠폰 없음"}
-            </Text>
-            <ActionButton
-              type="button"
-              variant="ghost"
-              size="small"
-              onClick={onCouponChange}
-            >
-              쿠폰 변경
-            </ActionButton>
-          </HStack>
-        </VStack>
-      </Grid>
+        <HStack justify="flex-end">
+          <ActionButton
+            type="button"
+            variant="ghost"
+            size="small"
+            onClick={onCouponChange}
+          >
+            쿠폰 변경
+          </ActionButton>
+        </HStack>
+      </VStack>
     </Box>
   );
 }
@@ -509,32 +502,6 @@ function calculateTotals(
   const hasReform = items.some((item) => item.item_type === "reform");
   const shipping = hasReform ? (reformPricing?.shipping_cost ?? 0) : 0;
   return { ...lines, shipping, total: lines.total + shipping };
-}
-
-function OrderItemPrice({
-  linePrice,
-  discount,
-}: {
-  linePrice: number;
-  discount: number;
-}) {
-  if (discount <= 0) {
-    return <Text textStyle="label">{krw.format(linePrice)}원</Text>;
-  }
-  return (
-    <VStack gap="x0_5" alignItems="flex-end">
-      <Text
-        textStyle="caption"
-        color="fg.neutral-muted"
-        style={{ textDecoration: "line-through" }}
-      >
-        {krw.format(linePrice)}원
-      </Text>
-      <Text textStyle="label" color="fg.critical">
-        {krw.format(linePrice - discount)}원
-      </Text>
-    </VStack>
-  );
 }
 
 function orderCrumbs() {

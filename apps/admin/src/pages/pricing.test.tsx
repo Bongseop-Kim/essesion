@@ -85,7 +85,7 @@ describe("PricingPage", () => {
     expect(
       screen.getByRole("heading", { name: "가격 관리", level: 1 }),
     ).toBeTruthy();
-    expect(screen.getByText("가격 설정을 불러오고 있습니다")).toBeTruthy();
+    expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
   });
 
   it("기본 화면은 읽기 전용이고 명시적으로 가격 수정을 시작한다", async () => {

@@ -30,6 +30,7 @@ import { AdminCard } from "../shared/ui/admin-card";
 import { ChangeReviewDialog } from "../shared/ui/change-review-dialog";
 import { EditModeShell } from "../shared/ui/edit-mode-shell";
 import { NumberField } from "../shared/ui/number-field";
+import { PageSkeleton } from "../shared/ui/page-skeleton";
 import { RouteHeading } from "../shared/ui/route-heading";
 import {
   AdminTable,
@@ -38,7 +39,7 @@ import {
 
 const CATEGORY_TABS = [
   { value: "reform", label: "수선" },
-  { value: "custom_order", label: "주문제작" },
+  { value: "custom_order", label: "주문 제작" },
   { value: "fabric", label: "원단" },
   { value: "sample_discount", label: "샘플 할인" },
 ] as const;
@@ -68,10 +69,10 @@ const PRICING_LABELS: Record<string, string> = {
   FABRIC_PRINTING_SILK: "날염 원단 (실크)",
   FABRIC_YARN_DYED_POLY: "선염 원단 (폴리)",
   FABRIC_YARN_DYED_SILK: "선염 원단 (실크)",
-  // 샘플비는 주문제작 금액에도 그대로 들어간다 (봉제는 항상, 원단은 원단 지참이 아닐 때).
-  SAMPLE_SEWING_COST: "봉제 샘플 (주문제작 포함)",
-  SAMPLE_FABRIC_PRINTING_COST: "원단 샘플 (날염, 주문제작 포함)",
-  SAMPLE_FABRIC_YARN_DYED_COST: "원단 샘플 (선염, 주문제작 포함)",
+  // 샘플비는 주문 제작 금액에도 그대로 들어간다 (봉제는 항상, 원단은 원단 지참이 아닐 때).
+  SAMPLE_SEWING_COST: "봉제 샘플 (주문 제작 포함)",
+  SAMPLE_FABRIC_PRINTING_COST: "원단 샘플 (날염, 주문 제작 포함)",
+  SAMPLE_FABRIC_YARN_DYED_COST: "원단 샘플 (선염, 주문 제작 포함)",
   sample_discount_sewing: "봉제 샘플 할인",
   sample_discount_fabric_printing: "원단 샘플 (날염) 할인",
   sample_discount_fabric_yarn_dyed: "원단 샘플 (선염) 할인",
@@ -109,7 +110,7 @@ const readOnlyColumns: readonly AdminTableColumn<PricingValueOut>[] = [
   },
   {
     key: "updated",
-    header: "최근 변경",
+    header: "마지막 변경",
     visibility: "medium",
     render: (item) => formatDateTime(item.updated_at),
   },
@@ -171,12 +172,7 @@ export function PricingPage() {
   };
 
   if (query.isLoading) {
-    return (
-      <VStack gap="x6" alignItems="stretch">
-        <RouteHeading title="가격 관리" />
-        <ContentPlaceholder title="가격 설정을 불러오고 있습니다" />
-      </VStack>
-    );
+    return <PageSkeleton title="가격 관리" sections={[null, null]} />;
   }
   if (query.isError || query.data === undefined) {
     return (
@@ -260,7 +256,7 @@ export function PricingPage() {
               description={
                 editing
                   ? "숫자는 0 이상 10억 이하의 정수로 입력해 주세요."
-                  : "현재 적용 중인 값과 최근 변경 시각입니다."
+                  : undefined
               }
             >
               {editing ? (

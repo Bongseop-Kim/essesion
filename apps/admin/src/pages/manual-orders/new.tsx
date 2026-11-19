@@ -2,7 +2,7 @@ import {
   createManualOrderMutation,
   listManualOrdersQueryKey,
 } from "@essesion/api-client/query";
-import { ActionButton, HStack, snackbar, VStack } from "@essesion/shared";
+import { snackbar, VStack } from "@essesion/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef } from "react";
 import { useNavigate } from "react-router";
@@ -18,13 +18,11 @@ import {
 const COPY = {
   custom: {
     title: "수기 주문 등록",
-    description: "종이 작업지시서의 주문제작 내용을 입력해 등록합니다.",
     submit: "수기 주문 등록",
     saved: "수기 주문을 등록했습니다.",
   },
   repair: {
     title: "수기 수선 등록",
-    description: "종이 작업지시서의 수선 내용을 입력해 등록합니다.",
     submit: "수기 수선 등록",
     saved: "수기 수선을 등록했습니다.",
   },
@@ -64,15 +62,10 @@ function ManualOrderNew({ kind }: { kind: ManualOrderKind }) {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading title={copy.title} description={copy.description} />
-        <ActionButton
-          variant="ghost"
-          onClick={() => navigate("/manual-orders")}
-        >
-          목록으로
-        </ActionButton>
-      </HStack>
+      <RouteHeading
+        backTo={{ to: "/manual-orders", label: "수기 주문" }}
+        title={copy.title}
+      />
       <ManualOrderForm
         kind={kind}
         initial={initial}

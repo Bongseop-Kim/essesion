@@ -64,7 +64,12 @@ export function PopupsPage() {
     },
     onSuccess: refresh,
     onError: (error) =>
-      snackbar(getErrorMessage(error, "활성 상태를 바꾸지 못했습니다.")),
+      snackbar(
+        getErrorMessage(
+          error,
+          "활성 상태를 바꾸지 못했습니다. 다시 시도해 주세요.",
+        ),
+      ),
   });
   const remove = useMutation({
     ...deleteAdminPopupMutation(),
@@ -74,7 +79,12 @@ export function PopupsPage() {
       await refresh();
     },
     onError: (error) =>
-      snackbar(getErrorMessage(error, "팝업을 삭제하지 못했습니다.")),
+      snackbar(
+        getErrorMessage(
+          error,
+          "팝업을 삭제하지 못했습니다. 다시 시도해 주세요.",
+        ),
+      ),
   });
 
   const columns: readonly AdminTableColumn<AdminPopupNoticeOut>[] = [
@@ -157,10 +167,7 @@ export function PopupsPage() {
   return (
     <VStack gap="x6" alignItems="stretch">
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title="팝업 공지"
-          description="스토어 첫 진입에 기간 한정으로 띄우는 안내입니다. 템플릿을 고르고 빈칸만 채우면 됩니다."
-        />
+        <RouteHeading title="팝업 공지" />
         <ActionButton onClick={() => navigate("/popups/new")}>
           팝업 등록
         </ActionButton>
@@ -169,16 +176,6 @@ export function PopupsPage() {
       <AdminCard
         title="등록된 팝업"
         description="활성화한 팝업 중 노출 기간(KST) 안의 1개만 스토어에 보입니다."
-        action={
-          <ActionButton
-            variant="neutralWeak"
-            size="small"
-            loading={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            새로고침
-          </ActionButton>
-        }
       >
         <AdminTable
           label="팝업 공지 목록"
@@ -201,7 +198,6 @@ export function PopupsPage() {
           }
           onRetry={() => void query.refetch()}
           emptyTitle="등록된 팝업이 없습니다"
-          emptyDescription="팝업 등록 버튼으로 첫 안내를 만들어 주세요."
         />
       </AdminCard>
 
@@ -213,7 +209,7 @@ export function PopupsPage() {
         title="팝업을 삭제할까요?"
         description="스토어에서 즉시 사라집니다. 배너 이미지도 함께 삭제됩니다."
         primaryActionProps={{
-          children: "삭제",
+          children: "팝업 삭제",
           variant: "criticalSolid",
           loading: remove.isPending,
           onClick: (event) => {

@@ -23,7 +23,6 @@ import {
   formatPhoneNumber,
   Grid,
   HStack,
-  ImageFrame,
   Skeleton,
   snackbar,
   TabContent,
@@ -43,6 +42,7 @@ import {
   formatDateTime,
   formatDeliveryRequest,
   formatFileSize,
+  formatFileType,
   formatIdentifier,
   formatMoney,
   formatOrderType,
@@ -51,8 +51,8 @@ import {
 } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
-import { BackToListButton } from "../../shared/ui/back-to-list-button";
 import { DetailList } from "../../shared/ui/detail-list";
+import { PrivateAssetPreview } from "../../shared/ui/private-asset-preview";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { formatStatus, StatusBadge } from "../../shared/ui/status-badge";
 import { TechnicalDetails } from "../../shared/ui/technical-details";
@@ -129,52 +129,24 @@ function RepairReceiptPhoto({
   });
 
   return (
-    <Box
-      as="article"
-      borderRadius="r2"
-      p="x3"
-      className="border border-stroke-neutral-weak"
-    >
-      <VStack gap="x3" alignItems="stretch">
-        <ImageFrame
-          src={readUrl}
-          alt={`수선 발송 접수 사진 ${index + 1}`}
-          ratio={4 / 3}
-          fit="contain"
-          stroke
-        />
-        <VStack gap="x0_5">
-          <Text textStyle="labelSm">사진 {index + 1}</Text>
-          <Text textStyle="caption" color="fg.neutral-muted">
-            {photo.content_type ?? "이미지"} ·{" "}
-            {formatFileSize(photo.size_bytes, "크기 정보 없음")}
-          </Text>
-          <Text textStyle="caption" color="fg.neutral-muted">
-            {formatDateTime(photo.created_at)}
-          </Text>
-        </VStack>
-        <ActionButton
-          size="small"
-          variant="neutralOutline"
-          loading={mutation.isPending}
-          onClick={() =>
-            mutation.mutate({
-              path: { receipt_id: receiptId, image_id: photo.id },
-            })
-          }
-        >
-          {readUrl === undefined ? "이미지 보기" : "다시 불러오기"}
-        </ActionButton>
-        {mutation.isError && (
-          <Callout
-            role="alert"
-            tone="critical"
-            title="사진을 불러오지 못했습니다"
-            description="만료되었거나 이 접수의 사진이 아닙니다."
-          />
-        )}
-      </VStack>
-    </Box>
+    <PrivateAssetPreview
+      src={readUrl}
+      alt={`수선 발송 접수 사진 ${index + 1}`}
+      metadata={
+        <>
+          {formatFileType(photo.content_type, "이미지")} ·{" "}
+          {formatFileSize(photo.size_bytes, "크기 정보 없음")} ·{" "}
+          {formatDateTime(photo.created_at)}
+        </>
+      }
+      error={mutation.isError}
+      errorDescription="이미지를 불러오지 못했습니다. 새로고침해 주세요."
+      onRequest={() =>
+        mutation.mutate({
+          path: { receipt_id: receiptId, image_id: photo.id },
+        })
+      }
+    />
   );
 }
 
@@ -205,7 +177,7 @@ function RepairReceiptPhotos({ receiptId }: { receiptId: string }) {
     return (
       <ContentPlaceholder
         title="사진 목록을 불러오지 못했습니다"
-        description="잠시 뒤 다시 시도해 주세요."
+        description="잠시 후 다시 시도해 주세요."
         action={
           <ActionButton
             variant="neutralWeak"
@@ -219,12 +191,7 @@ function RepairReceiptPhotos({ receiptId }: { receiptId: string }) {
   }
 
   if (query.data === undefined || query.data.length === 0) {
-    return (
-      <ContentPlaceholder
-        title="등록된 사진이 없습니다"
-        description="이 수선 발송 접수에 연결된 사진이 없습니다."
-      />
-    );
+    return <ContentPlaceholder title="등록된 사진이 없습니다" />;
   }
 
   return (
@@ -351,7 +318,7 @@ export function ClaimDetailPage() {
         <RouteHeading title="클레임 상세" />
         <ContentPlaceholder
           title="클레임을 불러오지 못했습니다"
-          description="주소를 확인하거나 다시 시도해 주세요."
+          description="링크를 확인하거나 다시 시도해 주세요."
           action={
             <ActionButton onClick={() => void query.refetch()}>
               다시 시도
@@ -428,7 +395,7 @@ export function ClaimDetailPage() {
         tracking: data.shipping.order_tracking_number,
       },
       {
-        label: "업체 배송",
+        label: "발송 송장",
         courier: data.shipping.company_courier_company,
         tracking: data.shipping.company_tracking_number,
       },
@@ -585,14 +552,12 @@ export function ClaimDetailPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading title={`클레임 ${data.claim_number}`} />
-        <HStack gap="x2" wrap>
-          <StatusBadge status={data.status} />
-          {actionButtons}
-          <BackToListButton to="/claims" />
-        </HStack>
-      </HStack>
+      <RouteHeading
+        backTo={{ to: "/claims", label: "클레임 관리" }}
+        title={`클레임 ${data.claim_number}`}
+        badges={<StatusBadge status={data.status} />}
+        actions={actionButtons}
+      />
 
       {blockedActions.length > 0 && (
         <VStack gap="x1">
@@ -635,7 +600,7 @@ export function ClaimDetailPage() {
               <DetailList
                 items={[
                   { label: "유형", value: claimTypeLabel(data.type) },
-                  { label: "상태", value: data.status },
+                  { label: "상태", value: formatStatus(data.status) },
                   { label: "사유", value: claimReasonLabel(data.reason) },
                   { label: "상세 사유", value: data.description ?? "-" },
                   { label: "수량", value: `${data.quantity}개` },
@@ -659,7 +624,7 @@ export function ClaimDetailPage() {
               />
             </AdminCard>
 
-            <AdminCard title="고객·주문 항목">
+            <AdminCard title="고객·주문 품목">
               <DetailList
                 items={[
                   { label: "고객", value: data.customer.name },
@@ -688,10 +653,10 @@ export function ClaimDetailPage() {
                     value: formatMoney(data.order.order_amount),
                   },
                   {
-                    label: "항목 유형",
+                    label: "품목 유형",
                     value: itemTypeLabel(data.item.item_type),
                   },
-                  { label: "항목 수량", value: `${data.item.quantity}개` },
+                  { label: "품목 수량", value: `${data.item.quantity}개` },
                   { label: "단가", value: formatMoney(data.item.unit_price) },
                 ]}
               />
@@ -914,7 +879,7 @@ export function ClaimDetailPage() {
                       title="알림을 재발송하지 못했습니다"
                       description={getErrorMessage(
                         notificationMutation.error,
-                        "잠시 뒤 다시 시도해 주세요.",
+                        "잠시 후 다시 시도해 주세요.",
                       )}
                     />
                   )}
@@ -941,7 +906,7 @@ export function ClaimDetailPage() {
 
         <TabContent value="activity">
           <VStack gap="x5" pt="x5" alignItems="stretch">
-            <AdminCard title="처리 타임라인">
+            <AdminCard title="처리 이력">
               {timeline.length === 0 ? (
                 <Text color="fg.neutral-muted">
                   기록된 처리 이력이 없습니다.

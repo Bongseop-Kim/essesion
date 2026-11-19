@@ -36,7 +36,7 @@ describe("ManualOrderForm", () => {
       />,
     );
 
-    expect(screen.queryByLabelText("주문제작 원단 준비")).toBeNull();
+    expect(screen.queryByLabelText("주문 제작 원단 준비")).toBeNull();
   });
 
   it("custom이 있는 품목엔 제작 입력을 그린다", () => {
@@ -51,6 +51,6 @@ describe("ManualOrderForm", () => {
       />,
     );
 
-    expect(screen.getByLabelText("주문제작 원단 준비")).toBeTruthy();
+    expect(screen.getByLabelText("주문 제작 원단 준비")).toBeTruthy();
   });
 });

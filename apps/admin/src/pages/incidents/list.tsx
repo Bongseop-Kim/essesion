@@ -91,7 +91,7 @@ const columns: readonly AdminTableColumn<PaymentIncidentSummaryOut>[] = [
   },
   {
     key: "amount",
-    header: "기대 / 확인 금액",
+    header: "기대·확인 금액",
     align: "end",
     visibility: "medium",
     render: (incident) =>
@@ -165,7 +165,6 @@ export function IncidentsPage() {
       <RouteHeading title="결제 이상" />
 
       <PaginatedAdminTableCard
-        title="결제 이상 목록"
         description="미해결 목록은 30초마다 갱신"
         label="결제 이상 목록"
         columns={columns}
@@ -191,8 +190,7 @@ export function IncidentsPage() {
         onSort={({ key, direction }) =>
           replaceQuery({ sort: key, direction, page: 1 })
         }
-        refreshing={query.isFetching}
-        onRefresh={() => void query.refetch()}
+        onRetry={() => void query.refetch()}
         emptyTitle="조건에 맞는 결제 이상이 없습니다"
         page={Math.min(parsed.page, totalPages)}
         totalPages={totalPages}
@@ -204,7 +202,6 @@ export function IncidentsPage() {
               primaryControls={
                 <SubmittedMemorySearch
                   label="결제 이상·요청 ID 검색"
-                  placeholder="2자 이상 입력"
                   maxLength={128}
                   resetKey={searchResetKey}
                   onSubmit={(value) => {
@@ -252,7 +249,6 @@ export function IncidentsPage() {
                 Number(parsed.to !== undefined)
               }
               secondaryTitle="결제 이상 필터"
-              secondaryDescription="상태, 이상 유형, 조회 기간을 한 번에 적용합니다."
               onResetSecondaryFilters={() => {
                 setDraftStatus(status);
                 setDraftIncidentType(incidentType);

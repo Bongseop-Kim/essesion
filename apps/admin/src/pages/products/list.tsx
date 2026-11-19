@@ -222,17 +222,13 @@ export function ProductsPage() {
   return (
     <VStack gap="x6" alignItems="stretch">
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title="상품 관리"
-          description="상품과 옵션의 가격·재고를 관리합니다."
-        />
+        <RouteHeading title="상품 관리" />
         <ActionButton onClick={() => navigate("/products/new")}>
           상품 등록
         </ActionButton>
       </HStack>
 
       <PaginatedAdminTableCard
-        title="상품 목록"
         label="상품 목록"
         columns={columns}
         rows={query.data?.items}
@@ -260,8 +256,7 @@ export function ProductsPage() {
         onSort={({ key, direction }) =>
           replaceParams({ sort: key, direction, page: undefined })
         }
-        refreshing={query.isFetching}
-        onRefresh={() => void query.refetch()}
+        onRetry={() => void query.refetch()}
         emptyTitle="조건에 맞는 상품이 없습니다"
         page={Math.min(parsed.page, totalPages)}
         totalPages={totalPages}
@@ -284,8 +279,12 @@ export function ProductsPage() {
                   <Box flex={1} minWidth={0}>
                     <TextField
                       label="상품명·상품 코드 검색"
-                      placeholder="2자 이상 입력"
                       value={searchInput}
+                      errorMessage={
+                        searchInput.trim().length === 1
+                          ? "검색어를 2자 이상 입력해 주세요."
+                          : undefined
+                      }
                       minLength={2}
                       maxLength={100}
                       onChange={(event) =>
@@ -302,18 +301,6 @@ export function ProductsPage() {
                   >
                     검색
                   </ActionButton>
-                  {search !== "" && (
-                    <ActionButton
-                      type="button"
-                      variant="ghost"
-                      onClick={() => {
-                        setSearchInput("");
-                        replaceParams({ q: undefined, page: undefined });
-                      }}
-                    >
-                      검색 초기화
-                    </ActionButton>
-                  )}
                 </HStack>
               }
               secondaryFilters={
@@ -395,7 +382,6 @@ export function ProductsPage() {
                 Number(parsed.to !== undefined)
               }
               secondaryTitle="상품 상세 필터"
-              secondaryDescription="카테고리·색상·패턴·소재·등록일을 한 번에 적용합니다."
               onResetSecondaryFilters={() => {
                 setDraftCategory(category);
                 setDraftColor(color);

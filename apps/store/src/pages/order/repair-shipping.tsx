@@ -8,8 +8,6 @@ import {
   Badge,
   ContentPlaceholder,
   HStack,
-  SelectBox,
-  SelectBoxItem,
   Skeleton,
   snackbar,
   Text,
@@ -45,8 +43,6 @@ export function RepairShippingPage() {
   const prefill = isRepairShipmentDraft(statePrefill) ? statePrefill : null;
   const [form, setForm] = useState(() => shipmentFormFromDraft(prefill));
   const [uploading, setUploading] = useState(false);
-  // prefill이 있다면 체크아웃에서 이미 발송 선언을 한 사용자 — 확인을 미리 체크
-  const [confirmedShipment, setConfirmedShipment] = useState(!!prefill);
   const submit = useMutation({
     mutationFn: (draft: RepairShipmentDraft) =>
       submitRepairShipment(orderId ?? "", draft),
@@ -86,6 +82,28 @@ export function RepairShippingPage() {
         { label: "주문 내역", href: "/my-page/orders" },
         { label: "발송 확인" },
       ]}
+      actionBar={
+        order ? (
+          <VStack gap="x3" alignItems="stretch">
+            <ActionButton
+              type="button"
+              size="large"
+              loading={submit.isPending}
+              disabled={!draft || !!invalidReason}
+              onClick={() => {
+                if (draft) submit.mutate(draft);
+              }}
+            >
+              발송 완료 알리기
+            </ActionButton>
+            {invalidReason ? (
+              <Text textStyle="caption" color="fg.neutral-muted">
+                {invalidReason}
+              </Text>
+            ) : null}
+          </VStack>
+        ) : undefined
+      }
     >
       {orderQuery.isPending ? (
         <VStack gap="x4" alignItems="stretch">
@@ -123,53 +141,12 @@ export function RepairShippingPage() {
 
           <RepairInboundAddress />
 
-          <SelectBox
-            multiple
-            value={confirmedShipment ? ["confirmed"] : []}
-            onValueChange={(value) =>
-              setConfirmedShipment(
-                Array.isArray(value)
-                  ? value.includes("confirmed")
-                  : value === "confirmed",
-              )
-            }
-            aria-label="발송 확인"
-          >
-            <SelectBoxItem
-              value="confirmed"
-              label="수선품을 발송했습니다."
-              description="송장번호와 사진은 선택이지만, 입력해 두면 확인이 정확해집니다."
-              disabled={submit.isPending}
-            />
-          </SelectBox>
-
-          {confirmedShipment ? (
-            <RepairShipmentFields
-              state={form}
-              onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
-              onUploadingChange={setUploading}
-              disabled={submit.isPending}
-            />
-          ) : null}
-
-          <VStack gap="x3" alignItems="stretch">
-            <ActionButton
-              type="button"
-              size="large"
-              loading={submit.isPending}
-              disabled={!confirmedShipment || !draft || !!invalidReason}
-              onClick={() => {
-                if (draft) submit.mutate(draft);
-              }}
-            >
-              발송 확인
-            </ActionButton>
-            {invalidReason ? (
-              <Text textStyle="caption" color="fg.neutral-muted">
-                {invalidReason}
-              </Text>
-            ) : null}
-          </VStack>
+          <RepairShipmentFields
+            state={form}
+            onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+            onUploadingChange={setUploading}
+            disabled={submit.isPending}
+          />
         </VStack>
       )}
     </ContentLayout>

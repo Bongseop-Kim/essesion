@@ -123,11 +123,11 @@ export function validateDraft(draft: PopupDraft): DraftErrors {
   if (!DATE_RE.test(draft.endsOn))
     errors.endsOn = "노출 종료일을 입력해 주세요.";
   if (!errors.startsOn && !errors.endsOn && draft.endsOn < draft.startsOn) {
-    errors.endsOn = "종료일은 시작일보다 앞설 수 없습니다.";
+    errors.endsOn = "종료일을 시작일 이후로 입력해 주세요.";
   }
   if (draft.linkUrl && !/^(https:\/\/.+|\/([^/].*)?)$/.test(draft.linkUrl)) {
     errors.linkUrl =
-      "링크는 /로 시작하는 내부 경로 또는 https:// 주소만 가능합니다.";
+      "링크를 /로 시작하는 경로나 https:// 주소로 입력해 주세요.";
   }
 
   if (draft.template === "holiday") {
@@ -165,8 +165,7 @@ export function validateDraft(draft: PopupDraft): DraftErrors {
     });
   } else {
     if (!draft.image) errors.image = "배너 이미지를 업로드해 주세요.";
-    if (!draft.linkUrl.trim())
-      errors.linkUrl = "이벤트 팝업은 링크가 필요합니다.";
+    if (!draft.linkUrl.trim()) errors.linkUrl = "링크를 입력해 주세요.";
   }
   return errors;
 }

@@ -186,7 +186,7 @@ describe("CouponDetailPage", () => {
 
     await act(async () => resolvePreview?.(preview));
     expect(await screen.findByText("1–1 / 총 1건")).toBeTruthy();
-    expect(screen.getByText("페이지당 20개")).toBeTruthy();
+    expect(screen.getByText("페이지당 20건")).toBeTruthy();
   });
 
   it("미리보기 고객군 발급의 동일 재시도는 작업 ID를 유지하고 입력 변경 시 교체한다", async () => {
@@ -329,7 +329,7 @@ describe("CouponDetailPage", () => {
     await user.click(await screen.findByRole("tab", { name: "발급 운영" }));
 
     expect(screen.getByRole("button", { name: "대상 미리보기" })).toBeTruthy();
-    expect(screen.getByText(/조회 전용 권한/)).toBeTruthy();
+    expect(screen.getByText(/관리자만 발급할 수 있습니다/)).toBeTruthy();
     expect(screen.queryByLabelText("발급 사유")).toBeNull();
   });
 });

@@ -685,10 +685,11 @@ describe("OrderDetailPage", () => {
     renderPage();
 
     // 개요 한 화면 = 작업지시서. 품목·수취인·수선 발송 사진이 모두 여기 모인다.
+    // 로딩 Skeleton에도 같은 섹션 제목이 있으므로 실제 내용으로 기다린다
     expect(
-      await screen.findByRole("heading", { name: "주문 품목" }),
+      await screen.findByText("자동수선 · 폭수선 · 복원수선"),
     ).toBeTruthy();
-    expect(screen.getByText("자동수선 · 폭수선 · 복원수선")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "주문 품목" })).toBeTruthy();
     // 타입·마감·딤플은 두 선택지를 모두 그리고 선택된 쪽만 표시한다 —
     // 선택값만 나열하면 관리자가 나머지 선택지를 알 수 없다.
     expect(screen.getByText("지퍼 선택됨")).toBeTruthy();

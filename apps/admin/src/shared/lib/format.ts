@@ -62,12 +62,22 @@ export function formatIdentifier(value: string | number | null | undefined) {
 export function formatOrderType(value: string) {
   return (
     {
-      sale: "일반",
+      sale: "일반 주문",
       custom: "주문 제작",
       repair: "수선",
-      sample: "샘플",
+      sample: "샘플 제작",
     }[value] ?? value
   );
+}
+
+// 문의 카테고리 API 원값은 붙여 쓴다 — 화면에서만 띄어 쓴다.
+const INQUIRY_CATEGORIES: Record<string, string> = {
+  주문제작: "주문 제작",
+  샘플제작: "샘플 제작",
+};
+
+export function formatInquiryCategory(value: string) {
+  return INQUIRY_CATEGORIES[value] ?? value;
 }
 
 const REPAIR_RECEIPT_REASONS: Record<string, string> = {
@@ -84,7 +94,7 @@ export function formatRepairReceiptReason(value: string | null | undefined) {
 // ponytail: store의 DELIVERY_REQUEST_OPTIONS(features/shipping/model/delivery-request.ts)와
 // 같은 라벨이다. 앱 간 import가 막혀 있어 복사해 둔다 — 옵션이 바뀌면 함께 고칠 것.
 const DELIVERY_REQUESTS: Record<string, string> = {
-  DELIVERY_REQUEST_1: "문 앞에 놔주세요.",
+  DELIVERY_REQUEST_1: "문 앞에 놔 주세요.",
   DELIVERY_REQUEST_2: "경비실에 맡겨 주세요.",
   DELIVERY_REQUEST_3: "택배함에 넣어 주세요.",
   DELIVERY_REQUEST_4: "배송 전에 연락 주세요.",
@@ -100,6 +110,16 @@ export function formatDeliveryRequest(
       ? (DELIVERY_REQUESTS[request] ?? request)
       : null;
   return [label, memo].filter(Boolean).join(" · ") || "-";
+}
+
+/** "image/jpeg" → "JPG" — 운영자에게 MIME 원값 대신 익숙한 확장자를 보인다. */
+export function formatFileType(
+  mime: string | null | undefined,
+  fallback: string,
+) {
+  if (!mime) return fallback;
+  const subtype = mime.split("/")[1] ?? mime;
+  return subtype === "jpeg" ? "JPG" : subtype.toUpperCase();
 }
 
 export function formatFileSize(value: number | null, unknownLabel = "-") {

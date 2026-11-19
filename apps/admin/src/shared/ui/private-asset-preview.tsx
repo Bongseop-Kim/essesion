@@ -31,6 +31,15 @@ export function PrivateAssetPreview({
     return () => clearTimeout(handle);
   }, []);
 
+  // 실패하면 화면에 버튼을 두지 않고 조용히 두 번까지 다시 받는다 — 일시 오류는 대부분 여기서 풀린다.
+  const retries = useRef(0);
+  useEffect(() => {
+    if (!error || retries.current >= 2) return;
+    retries.current += 1;
+    const handle = setTimeout(() => request.current(), 1000);
+    return () => clearTimeout(handle);
+  }, [error]);
+
   return (
     // ponytail: 모바일 한 손 폭에 맞춘 고정 상한 — 넓은 화면에서도 같은 크기다.
     <VStack gap="x2" alignItems="stretch" maxWidth={280}>

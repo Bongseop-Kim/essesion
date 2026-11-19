@@ -15,7 +15,7 @@ export type ProductImageUploadResult = {
 
 function validateProductImage(file: File) {
   if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-    throw new Error("JPG, PNG, WebP 이미지만 업로드할 수 있습니다.");
+    throw new Error("JPG·PNG·WebP 이미지만 업로드할 수 있습니다.");
   }
   if (file.size <= 0 || file.size > MAX_IMAGE_BYTES) {
     throw new Error("이미지는 10MB 이하로 선택해 주세요.");
@@ -42,7 +42,8 @@ export async function uploadProductImage(
     body: file,
     signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
   });
-  if (!response.ok) throw new Error("상품 이미지를 업로드하지 못했습니다.");
+  if (!response.ok)
+    throw new Error("상품 이미지를 업로드하지 못했습니다. 다시 시도해 주세요.");
   const completed = await completeAdminProductImageUpload({
     path: { upload_id: issued.data.upload_id },
     throwOnError: true,

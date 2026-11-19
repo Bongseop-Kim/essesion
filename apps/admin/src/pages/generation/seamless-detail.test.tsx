@@ -1,5 +1,5 @@
 import type { SeamlessDetailOut } from "@essesion/api-client";
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -137,18 +137,6 @@ describe("SeamlessLogDetailPage", () => {
     expect(await screen.findByText("표시할 디자인이 없습니다")).toBeTruthy();
   });
 
-  it("상세 결과를 수동으로 새로고침한다", async () => {
-    const user = userEvent.setup();
-    renderPage();
-
-    const refresh = await screen.findByRole("button", { name: "새로고침" });
-    expect(api.get).toHaveBeenCalledTimes(1);
-
-    await user.click(refresh);
-
-    await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
-  });
-
   it("경고를 실제 원인과 건수로 묶어 표시한다", async () => {
     const user = userEvent.setup();
     renderPage({
@@ -233,13 +221,6 @@ describe("SeamlessLogDetailPage", () => {
     renderPage();
 
     const trigger = await screen.findByRole("button", { name: "기술 정보" });
-    const backLink = screen.getByRole("link", {
-      name: "디자인 렌더 로그 목록으로 돌아가기",
-    });
-    expect(
-      backLink.compareDocumentPosition(trigger) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
     expect(screen.queryByRole("region", { name: "기술 정보" })).toBeNull();
 

@@ -26,7 +26,9 @@ function fallbackTone(status: string): ClaimBadgePresentation["tone"] {
 export function claimBadge(claim: ClaimBadgeInput): ClaimBadgePresentation {
   const typeLabel = TYPE_LABELS[claim.type] ?? claim.type;
   if (["거부", "취소"].includes(claim.status)) {
-    return { label: `${typeLabel} ${claim.status}`, tone: "neutral" };
+    // DB 값은 "거부", 화면 표기는 "거절"
+    const statusLabel = claim.status === "거부" ? "거절" : claim.status;
+    return { label: `${typeLabel} ${statusLabel}`, tone: "neutral" };
   }
   if (claim.type === "cancel") {
     return claim.status === "완료"

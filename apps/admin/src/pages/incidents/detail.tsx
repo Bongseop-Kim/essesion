@@ -30,7 +30,6 @@ import {
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { useAdminSession } from "../../shared/session/admin-session";
 import { AdminCard } from "../../shared/ui/admin-card";
-import { BackToListButton } from "../../shared/ui/back-to-list-button";
 import { DetailList } from "../../shared/ui/detail-list";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { formatStatus, StatusBadge } from "../../shared/ui/status-badge";
@@ -89,7 +88,7 @@ function IncidentDetailLoading() {
           <Skeleton width="80%" height={20} />
         </VStack>
       </AdminCard>
-      <AdminCard title="대사 근거">
+      <AdminCard title="처리 이력">
         <Skeleton width="100%" height={120} />
       </AdminCard>
     </VStack>
@@ -128,7 +127,7 @@ export function IncidentDetailPage() {
   const reconcileMutation = useMutation({
     ...adminReconcilePaymentIncidentMutation(),
     onSuccess: async () => {
-      snackbar("결제 상태를 대사했습니다.");
+      snackbar("토스 결제 상태를 반영했습니다.");
       setSelectedAction(undefined);
       await refresh();
     },
@@ -164,7 +163,7 @@ export function IncidentDetailPage() {
         <RouteHeading title="결제 이상 상세" />
         <ContentPlaceholder
           title="결제 이상을 불러오지 못했습니다"
-          description="주소를 확인하거나 다시 시도해 주세요."
+          description="링크를 확인하거나 다시 시도해 주세요."
           action={
             <ActionButton onClick={() => void query.refetch()}>
               다시 시도
@@ -219,38 +218,38 @@ export function IncidentDetailPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <HStack justify="space-between" align="flex-start" gap="x4" wrap>
-        <RouteHeading
-          title={`결제 이상 ${incidentTypeLabel(data.incident_type)}`}
-        />
-        <HStack gap="x2" wrap>
-          <StatusBadge status={data.status} />
-          {/* 주문 상세와 같은 배치 — 액션은 헤더, 고른 액션의 입력 폼은 헤더 바로 아래 */}
-          {isAdmin &&
-            (data.admin_actions ?? []).map((action) => (
-              <ActionButton
-                key={action.kind}
-                variant={
-                  action.destructive ? "criticalSolid" : "neutralOutline"
-                }
-                disabled={
-                  !action.enabled ||
-                  actionPending ||
-                  selectedAction !== undefined
-                }
-                title={action.blocking_reason ?? undefined}
-                onClick={() => selectAction(action)}
-              >
-                {action.label}
-              </ActionButton>
-            ))}
-          <BackToListButton to="/incidents" />
-        </HStack>
-      </HStack>
+      <RouteHeading
+        backTo={{ to: "/incidents", label: "결제 이상" }}
+        title={`결제 이상 ${incidentTypeLabel(data.incident_type)}`}
+        badges={<StatusBadge status={data.status} />}
+        actions={
+          <>
+            {/* 주문 상세와 같은 배치 — 액션은 헤더, 고른 액션의 입력 폼은 헤더 바로 아래 */}
+            {isAdmin &&
+              (data.admin_actions ?? []).map((action) => (
+                <ActionButton
+                  key={action.kind}
+                  variant={
+                    action.destructive ? "criticalSolid" : "neutralOutline"
+                  }
+                  disabled={
+                    !action.enabled ||
+                    actionPending ||
+                    selectedAction !== undefined
+                  }
+                  title={action.blocking_reason ?? undefined}
+                  onClick={() => selectAction(action)}
+                >
+                  {action.label}
+                </ActionButton>
+              ))}
+          </>
+        }
+      />
 
       {!isAdmin ? (
         <Text textStyle="caption" color="fg.neutral-muted">
-          대사·해결은 관리자만 할 수 있습니다. 매니저는 조회만 가능합니다.
+          관리자만 처리할 수 있습니다.
         </Text>
       ) : (
         (data.admin_actions ?? [])
@@ -361,7 +360,7 @@ export function IncidentDetailPage() {
         </AdminCard>
       )}
 
-      <AdminCard title="처리 기록">
+      <AdminCard title="처리 이력">
         <DetailList
           items={[
             { label: "해결 시각", value: formatDateTime(data.resolved_at) },
