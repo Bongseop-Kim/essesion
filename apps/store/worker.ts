@@ -44,8 +44,13 @@ const escapeHtml = (text: string) =>
   );
 
 async function sitemap(): Promise<Response> {
-  // shortcut: 상품 API의 limit 상한이 100이다, 공개 상품이 100개를 넘으면 offset으로 이어 받는다.
-  const products = (await api<Product[]>("/products?limit=100")) ?? [];
+  // 상품 API의 limit 상한이 100이라 끝까지 이어 받는다. 중간에 실패하면 받은 데까지만 쓴다.
+  const products: Product[] = [];
+  for (let offset = 0; offset < 2000; offset += 100) {
+    const page = await api<Product[]>(`/products?limit=100&offset=${offset}`);
+    products.push(...(page ?? []));
+    if (!page || page.length < 100) break;
+  }
   const paths = [
     ...Object.keys(ROUTE_META),
     ...products.map((product) => `/shop/${product.id}`),

@@ -114,6 +114,16 @@ test("사이트맵은 고정 주소에 상품 주소를 더하고, API가 실패
   expect(xml).toContain("<loc>https://essesion.com/design</loc>");
   expect(xml).toContain("<loc>https://essesion.com/shop/9</loc>");
 
+  // 100개가 꽉 찬 페이지 뒤에는 다음 페이지를 이어 받는다.
+  stubApi((url) =>
+    Response.json(
+      url.endsWith("offset=0")
+        ? Array.from({ length: 100 }, (_, i) => ({ id: i + 1 }))
+        : [{ id: 101 }],
+    ),
+  );
+  expect(await page("/sitemap.xml")).toContain("/shop/101</loc>");
+
   stubApi(() => new Response("down", { status: 503 }));
   const fallback = await page("/sitemap.xml");
   expect(fallback).toContain("<loc>https://essesion.com/shop</loc>");
