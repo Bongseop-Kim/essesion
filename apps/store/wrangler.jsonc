@@ -2,13 +2,29 @@
 {
   "name": "essesion-store",
   "compatibility_date": "2026-07-01",
-  // mp4만 Worker를 먼저 거친다 — 정적 자산이 Range(206)를 지원하지 않아 worker.ts가 잘라 준다.
+  // Worker를 먼저 거치는 것: mp4(Range 206), 사이트맵(상품 주소 추가), 공개 페이지 HTML(공유 미리보기용 메타).
+  // 나머지 자산·비공개 화면은 Worker 호출 없이 정적 자산이 바로 응답한다.
   "main": "./worker.ts",
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/images/*.mp4"]
+    "run_worker_first": [
+      "/images/*.mp4",
+      "/sitemap.xml",
+      "/",
+      "/shop",
+      "/shop/*",
+      "/design",
+      "/custom-order",
+      "/sample-order",
+      "/reform",
+      "/faq",
+      "/notice",
+      "/privacy-policy",
+      "/terms-of-service",
+      "/refund-policy"
+    ]
   },
   // 루트가 정본. 구 도메인(essesion.shop·app.·www.)은 Cloudflare Single Redirect가 여기로 보낸다
   // (docs/plans/domain-move-essesion-com.md D단계).

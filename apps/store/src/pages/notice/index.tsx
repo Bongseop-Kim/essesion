@@ -13,6 +13,7 @@ import {
 import { getVisibleNotices } from "@/pages/notice/model/notice-data";
 import { useReformPricingTokens } from "@/shared/lib/use-reform-pricing-tokens";
 import { PageMeta } from "@/shared/seo/page-meta";
+import { ROUTE_META } from "@/shared/seo/site-meta";
 import { ContentLayout } from "@/shared/ui/content-layout";
 
 const notices = getVisibleNotices();
@@ -22,11 +23,7 @@ export function NoticePage() {
 
   return (
     <>
-      <PageMeta
-        title="공지사항 | ESSE SION"
-        description="ESSE SION 서비스 운영, 주문, 결제, 수선과 제작 관련 공지사항을 확인하세요."
-        path="/notice"
-      />
+      <PageMeta {...ROUTE_META["/notice"]} path="/notice" />
       <ContentLayout
         breadcrumbs={[{ label: "홈", href: "/" }, { label: "공지사항" }]}
       >

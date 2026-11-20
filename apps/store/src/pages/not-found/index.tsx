@@ -6,7 +6,7 @@ export function NotFoundPage() {
 
   return (
     <LayoutContent density="low" py="x12">
-      <title>페이지를 찾을 수 없습니다 | ESSE SION</title>
+      <title>페이지를 찾을 수 없습니다 | 영선산업</title>
       <meta name="robots" content="noindex" />
       <Text as="h1" textStyle="title1" className="sr-only">
         페이지를 찾을 수 없습니다

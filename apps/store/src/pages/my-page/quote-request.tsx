@@ -38,7 +38,7 @@ export function QuoteRequestPage() {
 
   return (
     <>
-      <title>견적 요청 내역 | ESSE SION</title>
+      <title>견적 요청 내역 | 영선산업</title>
       <meta
         name="description"
         content="주문 제작 견적 요청과 진행 상태를 확인하세요."

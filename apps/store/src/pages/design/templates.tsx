@@ -9,6 +9,8 @@ import { useStartDesignFromExample } from "@/features/design/model/use-example-s
 import { TemplatePicker } from "@/features/design/ui/template-picker";
 import { customizePath } from "@/pages/design/customize";
 import { designExamplesQueryOptions } from "@/shared/lib/live-queries";
+import { PageMeta } from "@/shared/seo/page-meta";
+import { ROUTE_META } from "@/shared/seo/site-meta";
 
 /**
  * `/design` 첫 화면 — 템플릿 고르기. 공개 조회라 비로그인에도 뜨고, 세션을 자동으로 열지 않는다.
@@ -50,11 +52,7 @@ export function DesignTemplatesPage() {
 
   return (
     <>
-      <title>디자인 템플릿 | 영선산업</title>
-      <meta
-        name="description"
-        content="템플릿을 고르고 색과 로고를 넣어 나만의 넥타이를 만드세요."
-      />
+      <PageMeta {...ROUTE_META["/design"]} path="/design" />
       <TemplatePicker
         templates={examplesQuery.data}
         loading={examplesQuery.isPending}

@@ -3,7 +3,7 @@ Allow: /
 Disallow: /my-page
 Disallow: /order
 Disallow: /cart
-Disallow: /design
+Disallow: /design/
 Disallow: /login
 Disallow: /auth
 Disallow: /token

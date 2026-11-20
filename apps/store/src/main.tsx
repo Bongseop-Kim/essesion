@@ -9,8 +9,10 @@ import { initAnalytics } from "@/shared/lib/analytics";
 import { initObservability } from "@/shared/lib/observability";
 import { initProductAnalytics } from "@/shared/lib/product-analytics";
 import { queryClient } from "@/shared/lib/query-client";
+import { initDefaultMeta } from "@/shared/seo/default-meta";
 import "./index.css";
 
+initDefaultMeta();
 initObservability();
 initAnalytics();
 initProductAnalytics();

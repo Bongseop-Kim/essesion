@@ -67,6 +67,8 @@ import { ReviewListSection } from "@/features/reviews/ui/review-list-section";
 import { krw } from "@/pages/shop/constants";
 import { hasStateKey } from "@/shared/lib/guards";
 import { useFilePreviews } from "@/shared/lib/use-file-previews";
+import { PageMeta } from "@/shared/seo/page-meta";
+import { ROUTE_META } from "@/shared/seo/site-meta";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import { ScrollTopButton, scrollToTop } from "@/shared/ui/scroll-top-button";
@@ -77,9 +79,6 @@ const QUANTITY_PRESETS = [4, 8, 12, 20, 50, 100] as const;
 const MAX_IMAGES = 5;
 // 이 수량부터는 구매하기 전에 견적(생산 일정 확인·계좌이체)을 한 번 권한다 — 막지는 않는다.
 const BULK_CONFIRM_QUANTITY = 100;
-const DESCRIPTION =
-  "수량, 원단, 봉제 방식과 마감 사양을 선택하고 맞춤 넥타이 제작 비용을 확인하세요.";
-
 export function CustomOrderPage() {
   const status = useSession((state) => state.status);
   const user = useSession((state) => state.user);
@@ -368,13 +367,7 @@ function CustomOrderPageContent({
 
   return (
     <>
-      <title>맞춤 넥타이 제작 주문 | 영선산업</title>
-      <meta name="description" content={DESCRIPTION} />
-      <meta property="og:title" content="맞춤 넥타이 제작 주문 | 영선산업" />
-      <meta property="og:description" content={DESCRIPTION} />
-      <meta property="og:type" content="website" />
-      <meta property="og:url" content="https://essesion.com/custom-order" />
-      <link rel="canonical" href="https://essesion.com/custom-order" />
+      <PageMeta {...ROUTE_META["/custom-order"]} path="/custom-order" />
       <ContentLayout
         breadcrumbs={[{ label: "홈", href: "/" }, { label: "주문 제작" }]}
         sidebar={
