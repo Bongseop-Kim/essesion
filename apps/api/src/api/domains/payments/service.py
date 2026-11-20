@@ -19,6 +19,7 @@ from typing import Any, cast
 
 from db.models.auth import User
 from db.models.commerce import (
+    Claim,
     Coupon,
     Order,
     OrderItem,
@@ -774,6 +775,23 @@ def _non_negative_int(value: object) -> int | None:
     return None
 
 
+async def _declared_refund_amount(session: AsyncSession, order_ids: list[uuid.UUID]) -> int:
+    """결제 묶음의 처리중·완료 취소 클레임에 적힌 환불 금액 합. 안 적힌 클레임은 0."""
+    # Toss 결제는 묶음(payment_group_id) 단위, 클레임은 주문 단위라 묶음 전체를 더한다.
+    rows = await session.scalars(
+        select(Claim.refund_data).where(
+            Claim.order_id.in_(order_ids),
+            Claim.type == "cancel",
+            Claim.status.in_(("처리중", "완료")),
+        )
+    )
+    return sum(
+        amount
+        for data in rows
+        if (amount := _non_negative_int((data or {}).get("amount"))) is not None
+    )
+
+
 def _partial_canceled_amount(payment: dict) -> int | None:
     cancels = payment.get("cancels")
     if isinstance(cancels, list):
@@ -1012,6 +1030,23 @@ async def reconcile_from_webhook(
         return {"handled": True, "action": "confirmed", "orders": len(confirmed)}
 
     if toss_status == "PARTIAL_CANCELED":
+        observed = _partial_canceled_amount(payment)
+        declared = await _declared_refund_amount(session, [o.id for o in orders])
+        # 관리자가 취소 클레임에 미리 적어 둔 환불 금액과 정확히 같을 때만 의도한 부분
+        # 환불로 본다. 느슨하게(이상·이하) 비교하면 실제 사고가 조용히 지나간다.
+        if (
+            observed is not None
+            and observed == declared
+            and payment.get("paymentKey") == payment_key
+            and all(o.payment_key == payment_key for o in orders)
+            and payment.get("totalAmount") == sum(o.total_price for o in orders)
+        ):
+            logger.info(
+                "웹훅: 클레임에 적힌 환불 금액과 일치하는 부분취소 payment_group_id=%s amount=%s",
+                group_id,
+                observed,
+            )
+            return {"handled": True, "action": "partial_cancel_expected"}
         await _record_webhook_incident(
             session,
             orders=orders,
@@ -1019,7 +1054,7 @@ async def reconcile_from_webhook(
             incident_type="partial_cancel",
             phase="webhook_partial_canceled",
             expected_amount=sum(o.total_price for o in orders),
-            observed_amount=_partial_canceled_amount(payment),
+            observed_amount=observed,
             provider_status="PARTIAL_CANCELED",
         )
         logger.warning(

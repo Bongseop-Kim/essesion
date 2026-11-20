@@ -316,7 +316,7 @@ async def test_dashboard_summary_and_recent_orders(client, db_session, settings)
         total_price=99999,
         created_at=datetime(2026, 6, 1, 2, 0, tzinfo=UTC),
     )
-    # 결제 후 취소는 매출에서 차감하지 않는다 — 환불은 클레임 지표에서 본다
+    # 결제 후 취소된 주문은 매출에서 뺀다
     await make_order(
         db_session,
         user,
@@ -324,6 +324,37 @@ async def test_dashboard_summary_and_recent_orders(client, db_session, settings)
         total_price=500,
         created_at=datetime(2026, 6, 1, 3, 0, tzinfo=UTC),
         paid_at=datetime(2026, 6, 1, 3, 0, tzinfo=UTC),
+    )
+    # 취소 클레임이 완료된 주문도 뺀다 — 클레임 완료는 주문 상태를 바꾸지 않는다
+    claim_cancelled = await make_order(
+        db_session,
+        user,
+        order_type="repair",
+        status="발송대기",
+        total_price=20500,
+        created_at=datetime(2026, 6, 1, 3, 30, tzinfo=UTC),
+        paid_at=datetime(2026, 6, 1, 3, 30, tzinfo=UTC),
+    )
+    cancelled_item = OrderItem(
+        order_id=claim_cancelled.id,
+        item_id="summary-cancelled-item",
+        item_type="reform",
+        quantity=1,
+        unit_price=16000,
+    )
+    db_session.add(cancelled_item)
+    await db_session.flush()
+    db_session.add(
+        Claim(
+            user_id=user.id,
+            order_id=claim_cancelled.id,
+            order_item_id=cancelled_item.id,
+            claim_number="CLM-DASHBOARD-002",
+            type="cancel",
+            status="완료",
+            reason="change_mind",
+            quantity=1,
+        )
     )
     # 기간 안에 생성됐지만 결제는 기간 밖 → 제외
     await make_order(
@@ -377,8 +408,9 @@ async def test_dashboard_summary_and_recent_orders(client, db_session, settings)
     )
     assert overview.status_code == 200
     summary_json = overview.json()["summary"]
-    assert summary_json["order_count"] == 3
-    assert summary_json["order_amount"] == 13000
+    # 접수 상태 취소 클레임이 붙은 sale 주문은 아직 취소가 아니라 그대로 잡힌다
+    assert summary_json["order_count"] == 2
+    assert summary_json["order_amount"] == 12500
     assert "revenue" not in summary_json
     assert summary_json["open_claim_count"] == 1
     assert summary_json["unanswered_inquiry_count"] == 1
@@ -497,6 +529,60 @@ async def test_admin_order_reads_reject_customer(client, db_session, settings):
         assert response.status_code == 403
 
 
+async def test_dashboard_revenue_subtracts_declared_partial_refund(client, db_session, settings):
+    admin = await make_admin(db_session)
+    user = await make_user(db_session)
+    paid_at = datetime(2026, 6, 1, 3, 0, tzinfo=UTC)
+
+    async def cancelled_order(number: str, refund_data: dict | None):
+        order = await make_order(
+            db_session,
+            user,
+            order_type="repair",
+            status="발송대기",
+            total_price=20500,
+            paid_at=paid_at,
+        )
+        item = OrderItem(
+            order_id=order.id, item_id=number, item_type="reform", quantity=1, unit_price=16000
+        )
+        db_session.add(item)
+        await db_session.flush()
+        db_session.add(
+            Claim(
+                user_id=user.id,
+                order_id=order.id,
+                order_item_id=item.id,
+                claim_number=number,
+                type="cancel",
+                status="완료",
+                reason="change_mind",
+                quantity=1,
+                refund_data=refund_data,
+            )
+        )
+
+    # 16,000원만 환불 — 남긴 4,500원은 매출이고 주문 수에도 남는다
+    await cancelled_order("CLM-NET-001", {"amount": 16000})
+    # 전액 환불과 금액이 안 적힌 예전 클레임은 주문 수에서도 빠진다
+    await cancelled_order("CLM-NET-002", {"amount": 20500})
+    await cancelled_order("CLM-NET-003", None)
+    await db_session.commit()
+
+    res = await client.get(
+        "/admin/dashboard/overview",
+        params={"start_date": "2026-06-01", "end_date": "2026-06-01"},
+        headers=auth_headers(admin, settings),
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["summary"]["order_count"] == 1
+    assert body["summary"]["order_amount"] == 4500
+    (point,) = body["timeseries"]["points"]
+    assert point["order_count"] == 1
+    assert point["order_amount"] == point["repair_amount"] == 4500
+
+
 async def test_dashboard_timeseries_kst_buckets_and_zero_fill(client, db_session, settings):
     admin = await make_admin(db_session)
     user = await make_user(db_session)
@@ -518,6 +604,15 @@ async def test_dashboard_timeseries_kst_buckets_and_zero_fill(client, db_session
         total_price=3000,
         created_at=created,
         paid_at=datetime(2026, 6, 10, 15, 0, tzinfo=UTC),
+    )
+    # 결제 후 취소된 주문은 매출 시계열에서 제외
+    await make_order(
+        db_session,
+        user,
+        status="취소",
+        total_price=55555,
+        created_at=created,
+        paid_at=datetime(2026, 6, 10, 14, 0, tzinfo=UTC),
     )
     # 미결제(paid_at IS NULL) 주문은 매출 시계열에서 제외
     await make_order(
@@ -666,6 +761,9 @@ async def test_dashboard_top_products(client, db_session, settings):
     out_of_range = await make_order(
         db_session, user, status="완료", paid_at=datetime(2026, 7, 1, 3, 0, tzinfo=UTC)
     )
+    cancelled = await make_order(
+        db_session, user, status="취소", paid_at=datetime(2026, 6, 10, 5, 0, tzinfo=UTC)
+    )
     # 미결제 주문 — paid_at 윈도우가 자동 배제한다
     unpaid = await make_order(
         db_session, user, status="대기중", created_at=datetime(2026, 6, 10, 4, 0, tzinfo=UTC)
@@ -703,6 +801,15 @@ async def test_dashboard_top_products(client, db_session, settings):
                 item_type="product",
                 product_id=scarf.id,
                 quantity=5,
+                unit_price=20000,
+            ),
+            # 결제 후 취소된 주문은 매출 랭킹에서 제외
+            OrderItem(
+                order_id=cancelled.id,
+                item_id="top-6",
+                item_type="product",
+                product_id=scarf.id,
+                quantity=9,
                 unit_price=20000,
             ),
             # 미결제 주문은 매출 랭킹에서 제외

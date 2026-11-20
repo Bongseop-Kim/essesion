@@ -49,6 +49,7 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
   - 중복 방지: 주문당 활성({접수,처리중,수거요청,수거완료,재발송}) 1건 + 아이템·타입당 1건(완료 포함) — 부분 unique 2종이 최후 방어(IntegrityError→한국어 메시지).
 - cancel(고객): '접수' 상태만, **DELETE**(로그 CASCADE).
 - admin 전이: cancel(접수→처리중→완료), return(접수→수거요청→수거완료→완료), exchange(접수→수거요청→수거완료→재발송→완료), 거부는 각 단계에서 가능(exchange는 재발송에서도). 롤백: `거부→접수`(전 타입) + cancel 처리중→접수, return/exchange 수거요청→접수. 롤백 memo 필수. 비활성→활성 재진입 시 주문당 단일 활성 가드 재검사.
+- **취소 클레임 환불 금액**: cancel의 `접수→처리중`에서만 `refund_amount`를 받는다(생략 = 주문 `total_price` 전액, `0 < 금액 ≤ total_price` 아니면 400 `invalid_refund_amount`, 다른 전이에 보내도 같은 오류). `claims.refund_data = {"amount": 정수}`로 저장하고 `처리중→접수` 롤백 시 지운다. 환불 자체는 Toss 관리자 화면에서 하며, 이 금액은 부분 취소 웹훅의 대조 기준([money.md](./money.md) §9)과 대시보드 실매출(§10)에 쓰인다. 취소 클레임이 `완료`돼도 주문 `status`는 바뀌지 않는다 — 화면은 클레임 뱃지로 알린다.
 - 알림(notify): 상태 {완료, 거부, 수거요청}만(수거요청은 return/exchange에만 있는 전이), 수신 조건 4종(notification_consent && phone_verified && notification_enabled && phone) 전부 충족 시 알림톡. claim_notification_logs UNIQUE(claim_id,status)로 상태당 1회 발송 — 수거요청을 롤백했다 다시 올려도 재발송하지 않는다. 롤백 변경은 알림 안 함. 변수는 3종 공통 `#{처리유형}`(cancel 취소 / return 반품 / exchange 교환 — 영문 type을 그대로 내보내지 않는다)·`#{주문번호}`. 수거요청 템플릿(`SOLAPI_TEMPLATE_CLAIM_PICKUP`)이 비어 있으면 outbox를 `skipped`(`template_not_configured`)로 닫는다. fallback 문구:
   - 완료: `[ESSE SION] 요청하신 {처리유형} 처리가 완료되었습니다.\n{FRONTEND_ORIGIN}/my-page/claims`
   - 거부: `[ESSE SION] 요청하신 {처리유형} 건은 진행이 어려워 안내드립니다. 자세한 내용은 아래 링크에서 확인해주세요.\n(동일 링크)`
@@ -98,6 +99,11 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 - 통계: 오늘(주문 수·매출 합, 타입 필터 all|sale|custom|repair|sample), 기간(start≤end, created_at 범위).
 - **대시보드 집계 기준** (`/admin/dashboard/overview`, `/admin/dashboard/recent-orders`):
   - 주문(`orders`)의 매출 시각은 `paid_at`이 유일한 기준이며 KST 일 단위로 버킷한다.
+  - **취소된 주문은 뺀다.** `status = '취소'`인 주문은 주문 수·매출 합·매출 추이·인기 상품에서
+    제외한다. 취소 클레임이 `완료`된 주문은 `total_price − 환불 금액`(§4 `refund_data.amount`의
+    합, 0 미만이면 0)을 매출로 잡고, 그 값이 0이면 주문 수에서도 뺀다. 금액이 안 적힌 클레임은
+    전액 환불로 본다. 인기 상품은 품목별 환불 배분 근거가 없어 취소 클레임이 `완료`된 주문을
+    통째로 뺀다.
   - **수기 주문(`manual_orders`)도 주문 수·매출 합·매출 추이에 합산한다.** 수기 주문에는
     `paid_at`이 없으므로 `is_paid = true`인 행만, `order_date`(이미 KST date)를 매출일로 본다.
     금액은 `amount - discount + shipping_fee`(실수령액) — `orders.total_price`가 배송비를

@@ -1,5 +1,6 @@
 """클레임 — 생성 가드·상태기계·알림 dedupe (domains.md §4)."""
 
+import uuid
 from datetime import UTC, datetime, timedelta
 
 from api.domains.claims.service import notify_status
@@ -435,6 +436,67 @@ async def test_admin_reject_and_rollback(client, db_session, settings):
         headers=headers,
     )
     assert restored.status_code == 200
+
+
+async def test_cancel_claim_refund_amount(client, db_session, settings):
+    user = await make_user(db_session)
+    admin = await make_admin(db_session)
+    order, item = await _order_with_item(db_session, user)
+    order.total_price = 20500
+    await db_session.commit()
+    claim_id = (
+        await client.post(
+            "/claims",
+            json={
+                "type": "cancel",
+                "order_id": str(order.id),
+                "item_id": item.item_id,
+                "reason": "other",
+            },
+            headers=auth_headers(user, settings),
+        )
+    ).json()["id"]
+    headers = auth_headers(admin, settings)
+    url = f"/admin/claims/{claim_id}/status"
+
+    async def stored():
+        claim = await db_session.get(Claim, uuid.UUID(claim_id))
+        await db_session.refresh(claim)
+        return claim.refund_data
+
+    # 범위 밖 금액은 거부하고 상태도 그대로다
+    for bad_amount in (0, 20501):
+        bad = await client.post(
+            url, json={"new_status": "처리중", "refund_amount": bad_amount}, headers=headers
+        )
+        assert bad.status_code == 400
+        assert bad.json()["code"] == "invalid_refund_amount"
+    assert await stored() is None
+
+    partial = await client.post(
+        url, json={"new_status": "처리중", "refund_amount": 16000}, headers=headers
+    )
+    assert partial.status_code == 200
+    assert await stored() == {"amount": 16000}
+
+    # 롤백하면 금액을 지운다 — 다시 올릴 때 새로 적는다
+    rolled_back = await client.post(
+        url, json={"new_status": "접수", "is_rollback": True, "memo": "금액 정정"}, headers=headers
+    )
+    assert rolled_back.status_code == 200
+    assert await stored() is None
+
+    # 금액을 생략하면 전액
+    full = await client.post(url, json={"new_status": "처리중"}, headers=headers)
+    assert full.status_code == 200
+    assert await stored() == {"amount": 20500}
+
+    # 다른 전이에서는 금액을 받지 않는다
+    late = await client.post(
+        url, json={"new_status": "완료", "refund_amount": 100}, headers=headers
+    )
+    assert late.status_code == 400
+    assert late.json()["code"] == "invalid_refund_amount"
 
 
 async def test_notify_conditions_and_dedupe(app, db_session, settings):

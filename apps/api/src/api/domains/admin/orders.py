@@ -14,7 +14,7 @@ from db.models.commerce import (
     Product,
     QuoteRequest,
 )
-from sqlalchemy import ColumnElement, func, or_, select
+from sqlalchemy import ColumnElement, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
@@ -73,8 +73,30 @@ MAX_TIMESERIES_DAYS = 92
 DEFAULT_TOP_PRODUCT_LIMIT = 5
 MAX_TOP_PRODUCT_LIMIT = 20
 
-# 매출 지표는 Order.paid_at 하나로 정의한다 — 윈도우 조건이 미결제(NULL)를 자동 배제하므로
-# 상태 기반 제외 목록이 없다. 결제 후 취소는 차감하지 않고 클레임 지표에서 본다.
+# 매출 지표의 시각은 Order.paid_at 하나다 — 윈도우 조건이 미결제(NULL)를 자동 배제한다.
+# 취소된 주문은 뺀다: 상태가 '취소'이거나 취소 클레임이 완료된 주문(클레임 완료는 주문 상태를
+# 바꾸지 않는다). 인기 상품이 쓴다 — 품목별 환불 배분 근거가 없어 주문을 통째로 뺀다.
+_REVENUE_ORDER_FILTERS: tuple[ColumnElement[bool], ...] = (
+    Order.status != "취소",
+    ~exists().where(Claim.order_id == Order.id, Claim.type == "cancel", Claim.status == "완료"),
+)
+
+# 요약·추이의 금액은 환불분을 뺀 실매출이다. 환불 금액은 완료된 취소 클레임의
+# refund_data.amount이고, 금액이 안 적힌 예전 클레임은 전액 환불로 본다(= 위 필터와 같은 결과).
+_REFUNDED_AMOUNT = (
+    select(
+        func.coalesce(
+            func.sum(func.coalesce(Claim.refund_data["amount"].as_integer(), Order.total_price)),
+            0,
+        )
+    )
+    .where(Claim.order_id == Order.id, Claim.type == "cancel", Claim.status == "완료")
+    .correlate(Order)
+    .scalar_subquery()
+)
+_NET_AMOUNT = func.greatest(Order.total_price - _REFUNDED_AMOUNT, 0)
+# 전액 환불된 주문은 주문 수에서도 빠진다.
+_NET_REVENUE_FILTERS: tuple[ColumnElement[bool], ...] = (Order.status != "취소", _NET_AMOUNT > 0)
 
 
 def _sanitize_private_item_value(value: Any) -> Any:
@@ -394,12 +416,13 @@ async def dashboard_summary(
         filters: list[ColumnElement[bool]] = [
             Order.paid_at >= start_at,
             Order.paid_at < end_at,
+            *_NET_REVENUE_FILTERS,
         ]
         if order_type != "all":
             filters.append(Order.order_type == order_type)
         order_count, order_amount = (
             await session.execute(
-                select(func.count(), func.coalesce(func.sum(Order.total_price), 0)).where(*filters)
+                select(func.count(), func.coalesce(func.sum(_NET_AMOUNT), 0)).where(*filters)
             )
         ).one()
     if order_type in ("all", "manual"):
@@ -480,15 +503,15 @@ async def dashboard_timeseries(
 
     orders: dict[date, tuple[Any, ...]] = {}
     if order_type != "manual":
-        order_filters: list[Any] = []
+        order_filters: list[Any] = [*_NET_REVENUE_FILTERS]
         if order_type != "all":
             order_filters.append(Order.order_type == order_type)
         orders = await by_day(
             Order.paid_at,
             func.count(),
-            func.coalesce(func.sum(Order.total_price), 0),
+            func.coalesce(func.sum(_NET_AMOUNT), 0),
             *(
-                func.coalesce(func.sum(Order.total_price).filter(Order.order_type == name), 0)
+                func.coalesce(func.sum(_NET_AMOUNT).filter(Order.order_type == name), 0)
                 for name in _ORDER_AMOUNT_TYPES
             ),
             filters=order_filters,
@@ -566,7 +589,7 @@ async def dashboard_top_products(
             select(OrderItem.product_id, Product.name, quantity, amount)
             .join(Order, Order.id == OrderItem.order_id)
             .join(Product, Product.id == OrderItem.product_id)
-            .where(Order.paid_at >= start_at, Order.paid_at < end_at)
+            .where(Order.paid_at >= start_at, Order.paid_at < end_at, *_REVENUE_ORDER_FILTERS)
             .group_by(OrderItem.product_id, Product.name)
             .order_by(quantity.desc(), OrderItem.product_id.asc())
             .limit(limit)

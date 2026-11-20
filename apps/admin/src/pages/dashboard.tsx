@@ -39,7 +39,7 @@ import {
 import { AdminCard } from "../shared/ui/admin-card";
 import { FilterSelect } from "../shared/ui/filter-select";
 import { RouteHeading } from "../shared/ui/route-heading";
-import { StatusBadge } from "../shared/ui/status-badge";
+import { ClaimStatusBadge, StatusBadge } from "../shared/ui/status-badge";
 import {
   AdminTable,
   type AdminTableColumn,
@@ -121,7 +121,15 @@ const orderRow = (order: AdminOrderSummaryOut): RecentRow => ({
   date: formatDate(order.created_at),
   customer: order.customer.name,
   amount: formatMoney(order.order_amount),
-  status: <StatusBadge status={order.status} />,
+  // 주문 목록과 같은 조합 — 취소 클레임이 완료돼도 주문 상태는 그대로라 클레임 뱃지가 알린다.
+  status: (
+    <HStack gap="x1" wrap>
+      <StatusBadge status={order.status} />
+      {order.claim_summary ? (
+        <ClaimStatusBadge claim={order.claim_summary} />
+      ) : null}
+    </HStack>
+  ),
 });
 
 const quoteRow = (quote: DashboardRecentQuoteOut): RecentRow => ({

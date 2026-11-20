@@ -52,6 +52,7 @@ import {
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { DetailList } from "../../shared/ui/detail-list";
+import { NumberField } from "../../shared/ui/number-field";
 import { PrivateAssetPreview } from "../../shared/ui/private-asset-preview";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { formatStatus, StatusBadge } from "../../shared/ui/status-badge";
@@ -237,6 +238,8 @@ export function ClaimDetailPage() {
   const [selectedAction, setSelectedAction] = useState<AdminClaimAction>();
   const [memo, setMemo] = useState("");
   const [validationError, setValidationError] = useState<string>();
+  const [refundAmount, setRefundAmount] = useState("");
+  const [refundError, setRefundError] = useState<string>();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [trackingAction, setTrackingAction] =
     useState<AdminClaimTrackingAction>();
@@ -329,6 +332,12 @@ export function ClaimDetailPage() {
     );
   }
 
+  // 환불 금액은 Toss에서 환불하기 전에 적는다 — 취소 클레임을 처리중으로 올릴 때만 받는다.
+  const declaresRefund =
+    data.type === "cancel" &&
+    selectedAction?.kind === "advance" &&
+    selectedAction.target_status === "처리중";
+
   const runAction = () => {
     if (selectedAction === undefined || actionPending) return;
     if (
@@ -343,6 +352,7 @@ export function ClaimDetailPage() {
         new_status: selectedAction.target_status,
         memo: memo.trim() || null,
         is_rollback: selectedAction.kind === "rollback",
+        ...(declaresRefund && { refund_amount: Number(refundAmount) }),
       },
     });
   };
@@ -350,8 +360,19 @@ export function ClaimDetailPage() {
   const submitAction = (event: FormEvent) => {
     event.preventDefault();
     setValidationError(undefined);
+    setRefundError(undefined);
     if (selectedAction?.requires_memo && memo.trim().length < 3) {
       setValidationError("처리 사유를 3자 이상 입력해 주세요.");
+      return;
+    }
+    const amount = Number(refundAmount);
+    if (
+      declaresRefund &&
+      (refundAmount === "" || amount < 1 || amount > data.order.order_amount)
+    ) {
+      setRefundError(
+        `1원 이상 ${formatMoney(data.order.order_amount)} 이하로 입력해 주세요.`,
+      );
       return;
     }
     if (selectedAction?.destructive) setConfirmOpen(true);
@@ -485,6 +506,8 @@ export function ClaimDetailPage() {
     setSelectedAction(action);
     setMemo("");
     setValidationError(undefined);
+    setRefundAmount(String(data.order.order_amount));
+    setRefundError(undefined);
   };
 
   const cancelPrimaryAction = () => {
@@ -513,6 +536,16 @@ export function ClaimDetailPage() {
   const actionForm = selectedAction !== undefined && (
     <AdminCard title={selectedAction.label}>
       <VStack as="form" gap="x3" alignItems="stretch" onSubmit={submitAction}>
+        {declaresRefund && (
+          <NumberField
+            label="환불 금액"
+            groupThousands
+            suffix="원"
+            value={refundAmount}
+            errorMessage={refundError}
+            onValueChange={setRefundAmount}
+          />
+        )}
         <TextAreaField
           label={selectedAction.requires_memo ? "처리 사유 (필수)" : "메모"}
           value={memo}
@@ -652,6 +685,14 @@ export function ClaimDetailPage() {
                     label: "주문 금액",
                     value: formatMoney(data.order.order_amount),
                   },
+                  ...(typeof data.refund_data?.amount === "number"
+                    ? [
+                        {
+                          label: "환불 금액",
+                          value: formatMoney(data.refund_data.amount),
+                        },
+                      ]
+                    : []),
                   {
                     label: "품목 유형",
                     value: itemTypeLabel(data.item.item_type),

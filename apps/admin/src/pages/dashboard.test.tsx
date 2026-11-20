@@ -9,7 +9,7 @@ import type {
   DashboardTopProductsOut,
   ManualOrderOut,
 } from "@essesion/api-client";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -242,6 +242,36 @@ describe("DashboardPage", () => {
     // 수기 주문은 별도 표로 — 금액은 amount + shipping_fee
     expect(screen.getByText("김수기")).toBeTruthy();
     expect(screen.getByText("₩23,000")).toBeTruthy();
+  });
+
+  it("취소 클레임이 완료된 주문은 주문 상태 옆에 취소 완료 뱃지가 보인다", async () => {
+    api.overview.mockResolvedValue({
+      summary,
+      timeseries,
+      top_products: topProductsPage,
+    });
+    api.orders.mockResolvedValue({
+      ...ordersPage,
+      items: [
+        {
+          ...order,
+          status: "발송대기",
+          claim_summary: {
+            claim_number: "CLM-001",
+            type: "cancel",
+            status: "완료",
+          },
+        },
+      ],
+    });
+    api.manualOrders.mockResolvedValue(manualOrdersPage);
+    api.quotes.mockResolvedValue(quotesPage);
+    api.capabilities.mockResolvedValue(capabilities);
+    renderPage();
+
+    const table = await screen.findByRole("table", { name: "최근 주문" });
+    expect(await within(table).findByText("입고 대기")).toBeTruthy();
+    expect(within(table).getByText("취소 완료")).toBeTruthy();
   });
 
   it("일별 추이 차트 카드와 인기 상품 테이블을 렌더링한다", async () => {
