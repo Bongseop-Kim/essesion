@@ -9,10 +9,10 @@ import {
   formatPhoneNumber,
   Grid,
   HStack,
-  ImageFrame,
   Skeleton,
   Text,
   VStack,
+  ZoomableImage,
 } from "@essesion/shared";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Fragment, type ReactNode } from "react";
@@ -246,7 +246,7 @@ export function QuoteRequestDetailPage() {
                         />
                       </AspectRatio>
                     ) : (
-                      <ImageFrame
+                      <ZoomableImage
                         key={objectKey}
                         ratio={1}
                         src={imageQuery?.data}

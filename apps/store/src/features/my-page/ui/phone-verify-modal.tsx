@@ -13,7 +13,6 @@ import {
   normalizePhoneNumber,
   PhoneField,
   snackbar,
-  Text,
   TextField,
   VStack,
 } from "@essesion/shared";
@@ -145,7 +144,6 @@ export function PhoneVerifyModal({
       open={open}
       onOpenChange={onOpenChange}
       title="휴대폰 인증"
-      description="인증하지 않으면 주문·배송 진행 상태를 카카오톡으로 받을 수 없습니다. 알림을 받을 휴대폰 번호를 인증해 주세요."
       showCloseButton
       size="small"
       footer={
@@ -202,9 +200,6 @@ export function PhoneVerifyModal({
             setCode(event.currentTarget.value.replace(/\D/g, "").slice(0, 6))
           }
         />
-        <Text textStyle="caption" color="fg.neutral-muted">
-          인증번호는 5분 동안 유효하며, 재전송은 60초 후 가능합니다.
-        </Text>
       </VStack>
     </Modal>
   );

@@ -123,6 +123,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | ProgressCircle | **형태 없는 대기** — 라우트 가드·세션 부트스트랩, 버튼 인라인 로딩, "더 보기"·무한스크롤 추가 로딩(size 16/24/40) | 형태를 아는 초기 로딩(→Skeleton) |
 | AspectRatio | 고정 비율 컨테이너로 프레이밍 — 자식은 `absolute inset-0`/`size-full` | 폴백이 필요한 이미지(→ImageFrame) |
 | ImageFrame | **모든 콘텐츠 이미지**(상품·업로드) — 비율 프레임+라운드, 누락/실패 시 실루엣 폴백. 오버레이는 children, `fill`로 부모 채움 | raw `<img>`. 장식/배경 이미지(→CSS background-image) |
+| ZoomableImage | 작게 보이는 업로드 사진을 **눌러 크게 확인**(ImageFrame + 확대 Modal). `zoom`으로 확대용 큰 소스 지정 | 모달 안(모달 위 모달 금지) · 이미 화면 폭으로 나오는 이미지(→ImageFrame) |
 | Rating | 별점 표시·입력(0~5, 0.1 단위 부분 채움). `onChange` 없으면 읽기 전용 | 별 아이콘 직접 조합 |
 | TieCanvas | 디자인 SVG를 넥타이 실루엣(`tie`) 또는 타일 반복(`repeat`)으로 미리보기. `scanning`이면 실루엣 안에서만 대기 스캔 라인이 돈다. 소비 앱의 `public/images/tie-mask.png`·`tie-knot-mask.png`·`tie-shadow.webp` 필요(`silhouette="flat"`이면 `tie-flat-mask.png`·`tie-flat-shadow.webp`) | 마스크·그림자 기하를 앱에서 재현 |
 

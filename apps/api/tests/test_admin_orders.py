@@ -170,6 +170,26 @@ async def test_tracking_update_rules(client, db_session, settings):
     assert "Tracking cannot be updated" in res.json()["detail"]
 
 
+async def test_order_list_search_matches_toss_order_id(client, db_session, settings):
+    """토스 관리자 센터의 주문번호(= payment_group_id)로 묶음 결제 주문을 전부 찾는다."""
+    admin = await make_admin(db_session)
+    user = await make_user(db_session)
+    first = await make_order(db_session, user)
+    second = await make_order(db_session, user)
+    second.payment_group_id = first.payment_group_id
+    await db_session.commit()
+    await make_order(db_session, user)  # 다른 결제 그룹
+
+    res = await client.get(
+        "/admin/orders",
+        params={"q": str(first.payment_group_id)},
+        headers=auth_headers(admin, settings),
+    )
+
+    assert res.status_code == 200
+    assert {item["id"] for item in res.json()["items"]} == {str(first.id), str(second.id)}
+
+
 async def test_order_list_page_filters_search_and_stable_sort(client, db_session, settings):
     admin = await make_admin(db_session)
     user = await make_user(db_session, name="주문 고객")

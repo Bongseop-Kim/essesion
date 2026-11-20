@@ -231,7 +231,7 @@ export function OrdersPage() {
             <CompactFilterToolbar
               primaryControls={
                 <SubmittedMemorySearch
-                  label="주문번호 검색"
+                  label="주문번호·토스 주문번호 검색"
                   maxLength={64}
                   resetKey={searchResetKey}
                   onSubmit={(value) => {

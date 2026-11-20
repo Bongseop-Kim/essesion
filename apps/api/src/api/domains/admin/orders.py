@@ -14,7 +14,7 @@ from db.models.commerce import (
     Product,
     QuoteRequest,
 )
-from sqlalchemy import ColumnElement, func, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
@@ -140,7 +140,13 @@ def _order_filters(
                 f"Search query must be at least {MIN_SEARCH_LENGTH} characters",
                 code="invalid_search",
             )
-        filters.append(Order.order_number.icontains(normalized, autoescape=True))
+        match = Order.order_number.icontains(normalized, autoescape=True)
+        # 토스 관리자 센터의 주문번호(= payment_group_id)를 붙여 넣어도 찾게 한다.
+        try:
+            match = or_(match, Order.payment_group_id == uuid.UUID(normalized))
+        except ValueError:
+            pass
+        filters.append(match)
     return filters
 
 

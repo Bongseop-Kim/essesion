@@ -5,11 +5,11 @@ import {
   Box,
   ContentPlaceholder,
   HStack,
-  ImageFrame,
   Rating,
   Skeleton,
   Text,
   VStack,
+  ZoomableImage,
 } from "@essesion/shared";
 import { useInfiniteQuery } from "@tanstack/react-query";
 
@@ -119,10 +119,11 @@ export function ReviewListSection({
                 <HStack gap="x2" wrap>
                   {review.photos.map((photo, index) => (
                     <Box key={photo.upload_id} width={72}>
-                      <ImageFrame
+                      <ZoomableImage
                         ratio={1}
                         stroke
                         {...resizedImage(photo.url, 600)}
+                        zoom={resizedImage(photo.url, 1200)}
                         alt={`${review.author_name}님의 후기 사진 ${index + 1}`}
                       />
                     </Box>

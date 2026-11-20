@@ -1040,6 +1040,10 @@ export function OrderDetailPage() {
                       "활성 클레임 없음"
                     ),
                   },
+                  {
+                    label: "토스 주문번호",
+                    value: data.payment_group_id ?? "-",
+                  },
                 ]}
               />
             </AdminCard>

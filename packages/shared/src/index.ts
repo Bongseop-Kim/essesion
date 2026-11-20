@@ -173,6 +173,8 @@ export type {
   TieImageOptions,
 } from "./components/tie-canvas";
 export { renderTieImage, TieCanvas } from "./components/tie-canvas";
+export type { ZoomableImageProps } from "./components/zoomable-image";
+export { ZoomableImage } from "./components/zoomable-image";
 export type { OrderContentRow, OrderItemContent } from "./order-content";
 export {
   COURIER_OPTIONS,

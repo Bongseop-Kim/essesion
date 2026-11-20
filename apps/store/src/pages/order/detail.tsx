@@ -25,13 +25,13 @@ import {
   formatPhoneNumber,
   Grid,
   HStack,
-  ImageFrame,
   Skeleton,
   snackbar,
   Tag,
   TagGroup,
   Text,
   VStack,
+  ZoomableImage,
 } from "@essesion/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -627,7 +627,7 @@ function SignedOrderImage({
   const readUrl = query.data;
   return (
     <VStack gap="x2" alignItems="stretch">
-      <ImageFrame src={readUrl} alt={alt} ratio={1} fit="contain" stroke />
+      <ZoomableImage src={readUrl} alt={alt} ratio={1} fit="contain" stroke />
       {query.isError ? (
         <ActionButton
           type="button"

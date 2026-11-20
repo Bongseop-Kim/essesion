@@ -7,6 +7,7 @@ import {
 } from "@essesion/api-client/query";
 import {
   ActionButton,
+  Box,
   Callout,
   Modal,
   RadioGroup,
@@ -82,9 +83,11 @@ export function ClaimFormModal({
       description={`${order.order_number} · ${claimItemTitle(item)}`}
       showCloseButton
       footer={
-        <ActionButton
+        <Box
+          as={ActionButton}
           type="button"
           size="large"
+          width="full"
           loading={createClaim.isPending}
           disabled={!reason || quantityInvalid}
           onClick={() => {
@@ -102,7 +105,7 @@ export function ClaimFormModal({
           }}
         >
           {config.label} 요청하기
-        </ActionButton>
+        </Box>
       }
     >
       <VStack gap="x5" alignItems="stretch">
