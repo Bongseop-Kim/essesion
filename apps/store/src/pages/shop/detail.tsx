@@ -39,6 +39,7 @@ import { ReviewListSection } from "@/features/reviews/ui/review-list-section";
 import { trackEvent } from "@/shared/lib/analytics";
 import { resizedImage } from "@/shared/lib/image-url";
 import { PageMeta } from "@/shared/seo/page-meta";
+import { productMeta } from "@/shared/seo/site-meta";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import { QuantityStepper } from "@/shared/ui/quantity-stepper";
@@ -292,13 +293,7 @@ export function ShopDetailPage() {
 
   return (
     <>
-      <PageMeta
-        title={`${product.name} | 영선산업`}
-        description={product.info}
-        path={`/shop/${product.id}`}
-        ogImage={absoluteImageUrl(product.image)}
-        ogType="product"
-      />
+      <PageMeta {...productMeta(product)} />
       <script type="application/ld+json">
         {JSON.stringify(productJsonLd(product, soldOut))}
       </script>

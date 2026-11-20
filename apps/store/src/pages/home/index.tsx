@@ -6,9 +6,8 @@ import { Lookbook } from "@/features/home/lookbook";
 import { Partners } from "@/features/home/partners";
 import { PopularProducts } from "@/features/home/popular-products";
 import { Reviews } from "@/features/home/reviews";
-
-const DESCRIPTION =
-  "영선산업은 맞춤 넥타이 제작, 단체 넥타이, 샘플 주문, 넥타이 수선·리폼을 운영합니다. 상호명은 ESSE SION입니다.";
+import { PageMeta } from "@/shared/seo/page-meta";
+import { ROUTE_META } from "@/shared/seo/site-meta";
 
 // schema.org 구조화 데이터 — 검색 결과 리치스니펫. 인라인 렌더(JSON-LD는 문서 어디서나 유효).
 const HOME_JSON_LD = {
@@ -38,17 +37,7 @@ const HOME_JSON_LD = {
 export function Home() {
   return (
     <>
-      {/* React 19 네이티브 메타데이터 호이스팅 — react-helmet 불필요 */}
-      <title>영선산업 | 맞춤 넥타이 제작·수선 전문</title>
-      <meta name="description" content={DESCRIPTION} />
-      <meta
-        property="og:title"
-        content="영선산업 | 맞춤 넥타이 제작·수선 전문"
-      />
-      <meta property="og:description" content={DESCRIPTION} />
-      <meta property="og:type" content="website" />
-      <meta property="og:url" content="https://essesion.com" />
-      <link rel="canonical" href="https://essesion.com" />
+      <PageMeta {...ROUTE_META["/"]} path="/" />
       <script type="application/ld+json">{JSON.stringify(HOME_JSON_LD)}</script>
 
       {/* 히어로는 배너별 h3 캐로셀이라 문서 h1은 핵심 문구로 별도 제공 (route-error·not-found와 같은 sr-only 패턴) */}

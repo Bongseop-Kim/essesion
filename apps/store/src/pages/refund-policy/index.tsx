@@ -1,6 +1,7 @@
 import { Text, VStack } from "@essesion/shared";
 
 import { PageMeta } from "@/shared/seo/page-meta";
+import { ROUTE_META } from "@/shared/seo/site-meta";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import {
   policyBodyProps as bodyProps,
@@ -124,11 +125,7 @@ export function RefundPolicyContent() {
 export function RefundPolicyPage() {
   return (
     <>
-      <PageMeta
-        title="환불정책 | ESSE SION"
-        description="ESSE SION의 일반 상품, 수선, 맞춤 제작의 취소·교환·환불 기준을 안내합니다."
-        path="/refund-policy"
-      />
+      <PageMeta {...ROUTE_META["/refund-policy"]} path="/refund-policy" />
       <ContentLayout
         breadcrumbs={[{ label: "홈", href: "/" }, { label: "환불정책" }]}
       >

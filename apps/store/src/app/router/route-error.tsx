@@ -16,7 +16,7 @@ export function RouteErrorBoundary() {
   return (
     <Layout>
       <LayoutContent as="main" density="low" py="x12">
-        <title>화면을 열 수 없습니다 | ESSE SION</title>
+        <title>화면을 열 수 없습니다 | 영선산업</title>
         <meta name="robots" content="noindex" />
         <Text as="h1" textStyle="title1" className="sr-only">
           화면을 열 수 없습니다

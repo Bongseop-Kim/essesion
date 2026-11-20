@@ -136,7 +136,7 @@ export function InquiryPage() {
 
   return (
     <>
-      <title>1:1 문의 | ESSE SION</title>
+      <title>1:1 문의 | 영선산업</title>
       <meta
         name="description"
         content="ESSE SION 1:1 문의를 작성하고 답변 상태를 확인하세요."

@@ -3,23 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>영선산업 | 맞춤 넥타이 제작·수선 전문</title>
-    <!-- JS를 실행하지 않는 크롤러·공유 스크래퍼용 기본값. 페이지별 메타는 React가 호이스팅으로 덧붙인다. -->
+    <!-- JS를 실행하지 않는 크롤러·공유 스크래퍼용 기본값. seo 표식 사이는 Worker(worker.ts)가 경로별 값으로 바꾸고,
+         앱이 시작하면 data-seo-default를 걷어낸 뒤 페이지가 자기 메타를 렌더한다(shared/seo/default-meta.ts). -->
+    <!--seo-->
+    <title data-seo-default>영선산업 | 맞춤 넥타이 제작·수선 전문</title>
     <meta
+      data-seo-default
       name="description"
       content="영선산업(ESSE SION)은 맞춤 넥타이 제작, 단체 넥타이, 샘플 주문, 넥타이 수선·리폼을 운영합니다."
     />
+    <meta data-seo-default property="og:title" content="영선산업 | 맞춤 넥타이 제작·수선 전문" />
+    <meta
+      data-seo-default
+      property="og:description"
+      content="영선산업(ESSE SION)은 맞춤 넥타이 제작, 단체 넥타이, 샘플 주문, 넥타이 수선·리폼을 운영합니다."
+    />
+    <meta data-seo-default property="og:type" content="website" />
+    <meta data-seo-default property="og:image" content="https://essesion.com/og-image.png" />
+    <!--/seo-->
     <meta name="naver-site-verification" content="00ab2765fa9f225c2ac8134f4decc0832029e40d" />
     <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta property="og:site_name" content="영선산업" />
-    <meta property="og:title" content="영선산업 | 맞춤 넥타이 제작·수선 전문" />
-    <meta
-      property="og:description"
-      content="영선산업(ESSE SION)은 맞춤 넥타이 제작, 단체 넥타이, 샘플 주문, 넥타이 수선·리폼을 운영합니다."
-    />
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://essesion.com/og-image.png" />
     <meta name="twitter:card" content="summary_large_image" />
   </head>
   <body>

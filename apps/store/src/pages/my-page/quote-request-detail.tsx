@@ -106,8 +106,8 @@ export function QuoteRequestDetailPage() {
     <>
       <title>
         {quote
-          ? `${quote.quote_number} 견적 | ESSE SION`
-          : "견적 요청 상세 | ESSE SION"}
+          ? `${quote.quote_number} 견적 | 영선산업`
+          : "견적 요청 상세 | 영선산업"}
       </title>
       <meta
         name="description"

@@ -50,6 +50,7 @@ import { TieItemForm } from "@/features/reform/ui/tie-item-form";
 import { ReviewListSection } from "@/features/reviews/ui/review-list-section";
 import { mapWithConcurrency } from "@/shared/lib/async";
 import { PageMeta } from "@/shared/seo/page-meta";
+import { ROUTE_META } from "@/shared/seo/site-meta";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import { ScrollTopButton, scrollToTop } from "@/shared/ui/scroll-top-button";
 import { StickySectionNav } from "@/shared/ui/sticky-section-nav";
@@ -307,13 +308,7 @@ export function ReformPage() {
   };
 
   // 로딩·에러 상태에서도 title/canonical이 렌더되도록 early return 앞에서 만든다.
-  const meta = (
-    <PageMeta
-      title="넥타이 수선·리폼 | 영선산업"
-      description="폭 조절, 길이 수선, 리폼까지 — 소중한 넥타이를 새것처럼 되살려 드립니다."
-      path="/reform"
-    />
-  );
+  const meta = <PageMeta {...ROUTE_META["/reform"]} path="/reform" />;
 
   if (pricingQuery.isPending) {
     return (

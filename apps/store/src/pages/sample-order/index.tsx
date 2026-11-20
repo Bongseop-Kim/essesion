@@ -38,6 +38,7 @@ import { krw } from "@/pages/shop/constants";
 import { hasStateKey } from "@/shared/lib/guards";
 import { useFilePreviews } from "@/shared/lib/use-file-previews";
 import { PageMeta } from "@/shared/seo/page-meta";
+import { ROUTE_META } from "@/shared/seo/site-meta";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import { StickySectionNav } from "@/shared/ui/sticky-section-nav";
 import { SummaryCard } from "@/shared/ui/summary-card";
@@ -115,11 +116,7 @@ export function SampleOrderPage() {
 
   return (
     <>
-      <PageMeta
-        title="샘플 제작 주문 | 영선산업"
-        description="단체 주문 전 원단과 봉제 품질을 확인할 수 있는 넥타이 샘플을 제작해 드립니다."
-        path="/sample-order"
-      />
+      <PageMeta {...ROUTE_META["/sample-order"]} path="/sample-order" />
       <ContentLayout
         breadcrumbs={[{ label: "홈", href: "/" }, { label: "샘플 제작" }]}
         sidebar={

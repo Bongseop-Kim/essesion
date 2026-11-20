@@ -26,6 +26,7 @@ import {
   useInfiniteScrollSentinel,
 } from "@/shared/lib/infinite-scroll";
 import { PageMeta } from "@/shared/seo/page-meta";
+import { ROUTE_META } from "@/shared/seo/site-meta";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import {
   CATEGORY_OPTIONS,
@@ -94,11 +95,7 @@ export function ShopPage() {
 
   return (
     <ContentLayout>
-      <PageMeta
-        title="스토어 | 영선산업"
-        description="ESSE SION의 3폴드·스폴더라토·니트·보타이 넥타이 컬렉션을 둘러보세요."
-        path="/shop"
-      />
+      <PageMeta {...ROUTE_META["/shop"]} path="/shop" />
       <VStack gap="x6">
         <VStack gap="x3">
           <Text as="h1" textStyle="title1">
