@@ -1,4 +1,4 @@
-import { Box, Callout, ImageFrame, Text, VStack } from "@essesion/shared";
+import { Box, Callout, Text, VStack, ZoomableImage } from "@essesion/shared";
 import { type ReactNode, useEffect, useRef } from "react";
 
 type PrivateAssetPreviewProps = {
@@ -44,7 +44,7 @@ export function PrivateAssetPreview({
     // ponytail: 모바일 한 손 폭에 맞춘 고정 상한 — 넓은 화면에서도 같은 크기다.
     <VStack gap="x2" alignItems="stretch" maxWidth={280}>
       {src ? (
-        <ImageFrame src={src} alt={alt} ratio={4 / 3} fit="contain" stroke />
+        <ZoomableImage src={src} alt={alt} ratio={4 / 3} fit="contain" stroke />
       ) : (
         <Box
           bg="bg.neutral-weak"

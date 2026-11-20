@@ -114,6 +114,8 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
     `manual_repair`다. 타입 필터를 걸면 해당 유형 외 구획은 0이 된다.
   - 인기 상품 TOP-N은 `order_items.product_id` 기준이라 커스텀·수선과 함께 수기 주문도 제외된다
     (수기 주문 품목은 JSONB이고 product_id가 없다).
+- 주문 목록(`/admin/orders`) 검색 `q`: 주문번호 부분 일치. UUID 형식이면 `payment_group_id`
+  (= Toss `orderId`, 토스 관리자 센터의 주문번호) 정확 일치도 포함한다 — 묶음 결제는 여러 건이 나온다.
 - 상품 옵션 전체 교체(admin): DELETE 후 재삽입, **옵션 ≥1개면 products.stock=NULL 강제**(옵션 재고 관리로 전환).
 - 템플릿 큐레이션: `GET /admin/design/examples`, `PATCH·DELETE /admin/design/examples/{id}`(게시·순서·삭제). 템플릿은 시드 코드로만 만든다(admin 등록 없음). 템플릿 데이터(`category`·`point`·`logo_slots`·`photo_full_url`·`photo_detail_url`)는 시드 코드(`apps/worker/scripts/seed_design_examples.py`)가 정본이라 admin 본문으로 받지 않는다 — 응답에는 노출된다.
 - **팝업 공지**(store 첫 진입 기간 한정 안내): `GET·POST /admin/popups`, `PATCH·DELETE /admin/popups/{id}`, 배너 이미지 `POST /admin/popups/images/upload-url` → `POST /admin/popups/images/{upload_id}/complete` → 저장 시 연결, `DELETE /admin/popups/images/{upload_id}`(스테이징 만료). 공개 조회 `GET /popups/active`는 `enabled`이고 **KST 오늘**이 `starts_on ≤ 오늘 ≤ ends_on`인 행 중 `starts_on desc, created_at desc` 첫 1건을 주고, 없으면 200 + `null`. 공개 응답은 렌더에 필요한 것만(id·template·title·title_emphasis·body·fields·link_url) — 기간·활성 여부는 admin 응답(`active_now` 계산값 포함)에만 있다.
