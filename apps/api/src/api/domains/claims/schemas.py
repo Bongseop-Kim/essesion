@@ -48,6 +48,8 @@ class AdminClaimStatusRequest(BaseModel):
     new_status: str
     memo: str | None = None
     is_rollback: bool = False
+    # 취소 클레임을 처리중으로 올릴 때만 받는다. 생략하면 주문 금액 전액.
+    refund_amount: int | None = None
 
 
 class AdminClaimStatusResponse(BaseModel):

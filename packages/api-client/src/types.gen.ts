@@ -393,6 +393,10 @@ export type AdminClaimStatusRequest = {
      * New Status
      */
     new_status: string;
+    /**
+     * Refund Amount
+     */
+    refund_amount?: number | null;
 };
 
 /**

@@ -283,6 +283,56 @@ describe("ClaimDetailPage", () => {
     expect((memo as HTMLTextAreaElement).value).toBe("검수 결과 불량");
   });
 
+  it("취소 클레임을 처리중으로 올릴 때 환불 금액을 받아 함께 보낸다", async () => {
+    const user = userEvent.setup();
+    api.updateStatus.mockResolvedValueOnce({});
+    api.getClaim.mockResolvedValue({
+      ...claim,
+      type: "cancel",
+      admin_actions: [
+        {
+          kind: "advance",
+          label: "처리 시작",
+          target_status: "처리중",
+          enabled: true,
+        },
+      ],
+    });
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "처리 시작" }));
+    // 기본값은 주문 금액 전액, 천 단위 콤마로 보인다
+    const amount = screen.getByLabelText("환불 금액") as HTMLInputElement;
+    expect(amount.value).toBe("30,000");
+
+    // 주문 금액을 넘으면 보내지 않는다
+    await user.clear(amount);
+    await user.type(amount, "30001");
+    const form = amount.closest("form") as HTMLFormElement;
+    await user.click(within(form).getByRole("button", { name: "처리 시작" }));
+    expect(await screen.findByText(/이하로 입력해 주세요/)).toBeTruthy();
+    expect(document.activeElement).toBe(amount);
+    expect(api.updateStatus).not.toHaveBeenCalled();
+
+    await user.clear(amount);
+    await user.type(amount, "25500");
+    await user.click(within(form).getByRole("button", { name: "처리 시작" }));
+    await waitFor(() =>
+      expect(api.updateStatus).toHaveBeenCalledWith(
+        {
+          path: { claim_id: "claim-1" },
+          body: {
+            new_status: "처리중",
+            memo: null,
+            is_rollback: false,
+            refund_amount: 25500,
+          },
+        },
+        expect.anything(),
+      ),
+    );
+  });
+
   it("다른 송장 작업으로 전환하기 전에 입력 폐기를 확인한다", async () => {
     const user = userEvent.setup();
     api.getClaim.mockResolvedValueOnce({

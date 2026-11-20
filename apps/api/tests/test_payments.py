@@ -7,6 +7,7 @@ import respx
 from api.domains.auth.rate_limit import AuthRateLimiter
 from api.integrations.toss import RealTossClient
 from db.models.commerce import (
+    Claim,
     Coupon,
     Order,
     OrderItem,
@@ -985,6 +986,76 @@ async def test_webhook_done_amount_mismatch_opens_one_incident(client, db_sessio
     )
     assert resolved.status_code == 200, resolved.text
     assert resolved.json()["status"] == "resolved"
+
+
+@respx.mock
+async def test_webhook_partial_cancel_matching_declared_refund_skips_incident(client, db_session):
+    user = await make_user(db_session)
+    payment_key = "declared-partial-cancel-key"
+    order = await make_order(
+        db_session,
+        user,
+        status="발송대기",
+        order_type="repair",
+        total_price=20500,
+        payment_key=payment_key,
+    )
+    item = OrderItem(
+        order_id=order.id,
+        item_id="declared-item",
+        item_type="reform",
+        quantity=1,
+        unit_price=16000,
+    )
+    db_session.add(item)
+    await db_session.flush()
+    claim = Claim(
+        user_id=user.id,
+        order_id=order.id,
+        order_item_id=item.id,
+        claim_number="CLM-DECLARED-001",
+        type="cancel",
+        status="처리중",
+        reason="change_mind",
+        quantity=1,
+        refund_data={"amount": 16000},
+    )
+    db_session.add(claim)
+    await db_session.commit()
+    canceled = [16000]
+    respx.get(f"{TOSS_PAYMENTS}/{payment_key}").mock(
+        side_effect=lambda _request: Response(
+            200,
+            json={
+                "paymentKey": payment_key,
+                "status": "PARTIAL_CANCELED",
+                "orderId": str(order.payment_group_id),
+                "totalAmount": order.total_price,
+                "balanceAmount": order.total_price - sum(canceled),
+                "cancels": [{"cancelAmount": amount} for amount in canceled],
+            },
+        )
+    )
+
+    async def incident_count():
+        return await db_session.scalar(
+            select(func.count())
+            .select_from(PaymentIncident)
+            .where(PaymentIncident.incident_type == "partial_cancel")
+        )
+
+    # 클레임에 적은 금액과 같으면 의도한 부분 환불 — 이상을 열지 않는다
+    matched = await client.post("/payments/webhook", json={"paymentKey": payment_key})
+    assert matched.status_code == 200
+    assert matched.json()["handled"] is True
+    assert matched.json()["action"] == "partial_cancel_expected"
+    assert await incident_count() == 0
+
+    # 적은 금액보다 더 환불되면 지금처럼 이상을 연다
+    canceled.append(1000)
+    mismatched = await client.post("/payments/webhook", json={"paymentKey": payment_key})
+    assert mismatched.json()["reason"] == "partial_cancel_manual"
+    assert await incident_count() == 1
 
 
 @respx.mock

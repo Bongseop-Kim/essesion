@@ -692,6 +692,17 @@
           "new_status": {
             "title": "New Status",
             "type": "string"
+          },
+          "refund_amount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refund Amount"
           }
         },
         "required": [

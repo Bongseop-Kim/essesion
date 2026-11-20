@@ -150,12 +150,22 @@ async def admin_update_status(
     new_status: str,
     memo: str | None,
     is_rollback: bool,
+    *,
+    refund_amount: int | None = None,
 ) -> dict:
     claim = await session.scalar(select(Claim).where(Claim.id == claim_id).with_for_update())
     if claim is None:
         raise NotFoundError("Claim not found")
     if claim.status == new_status:
         raise ConflictError(f"Status is already {new_status}", code="same_status")
+    # 환불 금액은 Toss에서 환불하기 전에 적어 두는 값이다 — 부분 취소 웹훅이 이 금액과
+    # 대조한다(money.md §9). 그래서 취소 클레임의 접수→처리중에서만 받는다.
+    declares_refund = claim.type == "cancel" and new_status == "처리중" and not is_rollback
+    if refund_amount is not None and not declares_refund:
+        raise DomainError(
+            "환불 금액은 취소 클레임을 처리중으로 올릴 때만 입력할 수 있습니다",
+            code="invalid_refund_amount",
+        )
 
     if is_rollback:
         if not (memo and memo.strip()):
@@ -189,6 +199,22 @@ async def admin_update_status(
         )
         if other_active:
             raise ConflictError("Active claim already exists for this order", code="active_claim")
+
+    if declares_refund:
+        total_price = await session.scalar(
+            select(Order.total_price).where(Order.id == claim.order_id)
+        )
+        assert total_price is not None  # claims.order_id는 NOT NULL FK
+        amount = total_price if refund_amount is None else refund_amount
+        if not 0 < amount <= total_price:
+            raise DomainError(
+                "환불 금액은 1원 이상, 주문 금액 이하여야 합니다",
+                code="invalid_refund_amount",
+            )
+        claim.refund_data = {"amount": amount}
+    elif is_rollback and claim.type == "cancel" and new_status == "접수":
+        # 다시 올릴 때 새로 적는다 — 옛 금액이 남아 웹훅 대조를 통과시키면 안 된다.
+        claim.refund_data = None
 
     previous = claim.status
     session.add(
