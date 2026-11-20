@@ -311,6 +311,7 @@ describe("ClaimDetailPage", () => {
     const form = amount.closest("form") as HTMLFormElement;
     await user.click(within(form).getByRole("button", { name: "처리 시작" }));
     expect(await screen.findByText(/이하로 입력해 주세요/)).toBeTruthy();
+    expect(document.activeElement).toBe(amount);
     expect(api.updateStatus).not.toHaveBeenCalled();
 
     await user.clear(amount);

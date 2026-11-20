@@ -35,7 +35,7 @@ import {
   VStack,
 } from "@essesion/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useMemo, useState } from "react";
+import { type FormEvent, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 
 import {
@@ -240,6 +240,8 @@ export function ClaimDetailPage() {
   const [validationError, setValidationError] = useState<string>();
   const [refundAmount, setRefundAmount] = useState("");
   const [refundError, setRefundError] = useState<string>();
+  const memoRef = useRef<HTMLTextAreaElement>(null);
+  const refundRef = useRef<HTMLInputElement>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [trackingAction, setTrackingAction] =
     useState<AdminClaimTrackingAction>();
@@ -363,6 +365,7 @@ export function ClaimDetailPage() {
     setRefundError(undefined);
     if (selectedAction?.requires_memo && memo.trim().length < 3) {
       setValidationError("처리 사유를 3자 이상 입력해 주세요.");
+      memoRef.current?.focus();
       return;
     }
     const amount = Number(refundAmount);
@@ -373,6 +376,8 @@ export function ClaimDetailPage() {
       setRefundError(
         `1원 이상 ${formatMoney(data.order.order_amount)} 이하로 입력해 주세요.`,
       );
+      // 잘못된 칸으로 포커스를 옮긴다 — 오류 문구는 칸에 aria-describedby로 연결돼 있다.
+      refundRef.current?.focus();
       return;
     }
     if (selectedAction?.destructive) setConfirmOpen(true);
@@ -538,6 +543,7 @@ export function ClaimDetailPage() {
       <VStack as="form" gap="x3" alignItems="stretch" onSubmit={submitAction}>
         {declaresRefund && (
           <NumberField
+            ref={refundRef}
             label="환불 금액"
             groupThousands
             suffix="원"
@@ -547,6 +553,7 @@ export function ClaimDetailPage() {
           />
         )}
         <TextAreaField
+          ref={memoRef}
           label={selectedAction.requires_memo ? "처리 사유 (필수)" : "메모"}
           value={memo}
           maxLength={500}
