@@ -68,7 +68,8 @@ resource "google_storage_bucket" "assets" {
 
 resource "google_storage_bucket_iam_member" "assets_public_read" {
   bucket = google_storage_bucket.assets.name
-  role   = "roles/storage.objectViewer"
+  # objectViewer는 목록 조회(objects.list)까지 열어 버킷 루트에서 전체 키가 나열된다 — 읽기(objects.get)만 준다.
+  role   = "roles/storage.legacyObjectReader"
   member = "allUsers"
 }
 
