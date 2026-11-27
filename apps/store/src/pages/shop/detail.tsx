@@ -76,6 +76,31 @@ function productJsonLd(product: ProductOut, soldOut: boolean) {
       availability: soldOut
         ? "https://schema.org/OutOfStock"
         : "https://schema.org/InStock",
+      // 일반 상품은 배송비 0원 고정(docs/api-spec/money.md), 기간은 아래 상품 정보의 "배송" 표기와 같다
+      shippingDetails: {
+        "@type": "OfferShippingDetails",
+        shippingRate: { "@type": "MonetaryAmount", value: 0, currency: "KRW" },
+        shippingDestination: { "@type": "DefinedRegion", addressCountry: "KR" },
+        deliveryTime: {
+          "@type": "ShippingDeliveryTime",
+          transitTime: {
+            "@type": "QuantitativeValue",
+            minValue: 3,
+            maxValue: 4,
+            unitCode: "DAY",
+          },
+        },
+      },
+      // /refund-policy — 수령 후 7일 이내, 단순 변심은 반환 배송비 고객 부담
+      hasMerchantReturnPolicy: {
+        "@type": "MerchantReturnPolicy",
+        applicableCountry: "KR",
+        returnPolicyCategory:
+          "https://schema.org/MerchantReturnFiniteReturnWindow",
+        merchantReturnDays: 7,
+        returnMethod: "https://schema.org/ReturnByMail",
+        returnFees: "https://schema.org/ReturnFeesCustomerResponsibility",
+      },
     },
   };
 }
